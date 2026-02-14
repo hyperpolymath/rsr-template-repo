@@ -23,19 +23,19 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
-| `{{PROJECT_NAME}}` | Human-readable project name | `My Project` | SECURITY.md, CODE_OF_CONDUCT.md, TOPOLOGY.md, STATE.a2ml, Justfile |
+| `{{PROJECT_NAME}}` | Human-readable project name | `My Project` | SECURITY.md, CODE_OF_CONDUCT.md, TOPOLOGY.md, STATE.a2ml, Justfile, GOVERNANCE.md, MAINTAINERS.md |
 | `{{PROJECT}}` | Uppercase identifier (for Idris2 modules, C macros) | `MY_PROJECT` | ABI-FFI-README.md, src/abi/*.idr, ffi/zig/*.zig |
 | `{{project}}` | Lowercase identifier (for C symbols, filenames) | `my_project` | ABI-FFI-README.md, ffi/zig/*.zig |
 | `{{REPO}}` | Repository name (slug) | `my-project` | CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md |
-| `{{OWNER}}` | GitHub/GitLab org or username | `hyperpolymath` | CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md |
+| `{{OWNER}}` | GitHub/GitLab org or username | `hyperpolymath` | CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, GOVERNANCE.md, MAINTAINERS.md |
 | `{{FORGE}}` | Git forge domain | `github.com` | CONTRIBUTING.md |
 
 ### Dates
 
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
-| `{{CURRENT_YEAR}}` | Current year | `2026` | SECURITY.md, CODE_OF_CONDUCT.md |
-| `{{CURRENT_DATE}}` | Current date (ISO) | `2026-02-14` | STATE.a2ml |
+| `{{CURRENT_YEAR}}` | Current year | `2026` | SECURITY.md, CODE_OF_CONDUCT.md, GOVERNANCE.md, MAINTAINERS.md |
+| `{{CURRENT_DATE}}` | Current date (ISO) | `2026-02-14` | STATE.a2ml, MAINTAINERS.md |
 | `{{DATE}}` | Last updated date | `2026-02-14` | TOPOLOGY.md |
 
 ### Contact & Security
@@ -84,9 +84,10 @@ Some files contain deletion instructions:
 After replacing all placeholders, verify none remain:
 
 ```bash
-grep -rn '{{' . --include='*.md' --include='*.adoc' --include='*.scm' \
-  --include='*.idr' --include='*.zig' --include='*.res' --include='Justfile' \
-  --include='*.a2ml' | grep -v 'PLACEHOLDERS.md' | grep -v 'node_modules'
+grep -rn '{{' . --include='*.md' --include='*.adoc' --include='*.a2ml' \
+  --include='*.scm' --include='*.idr' --include='*.zig' --include='*.res' \
+  --include='Justfile' --include='*.nix' --include='*.toml' \
+  | grep -v 'PLACEHOLDERS.md' | grep -v 'node_modules'
 ```
 
 If the above command produces no output, all placeholders have been replaced.

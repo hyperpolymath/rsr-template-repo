@@ -434,6 +434,31 @@ status:
 log count="20":
     @git log --oneline -{{count}}
 
+# Generate CHANGELOG.md with git-cliff
+changelog:
+    @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
+    git cliff --output CHANGELOG.md
+    @echo "Generated CHANGELOG.md"
+
+# Preview changelog for unreleased commits (does not write)
+changelog-preview:
+    @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
+    git cliff --unreleased --strip header
+
+# Tag a new release (usage: just release-tag 1.2.3)
+release-tag version:
+    #!/usr/bin/env bash
+    TAG="v{{version}}"
+    if git rev-parse "$TAG" >/dev/null 2>&1; then
+        echo "Tag $TAG already exists"
+        exit 1
+    fi
+    just changelog
+    git add CHANGELOG.md
+    git commit -m "chore(release): prepare $TAG"
+    git tag -a "$TAG" -m "Release $TAG"
+    echo "Created tag $TAG — push with: git push origin main --tags"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # UTILITIES
 # ═══════════════════════════════════════════════════════════════════════════════

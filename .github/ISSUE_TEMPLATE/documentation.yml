@@ -1,16 +1,10 @@
----
-name: Documentation
-about: Report unclear, missing, or incorrect documentation
-title: "[DOCS]: "
-labels: 'documentation, priority: unset, triage'
-assignees: ''
-
----
-
+# SPDX-License-Identifier: PMPL-1.0-or-later
+# Documentation issue template for {{OWNER}}/{{REPO}}
 name: Documentation
 description: Report unclear, missing, or incorrect documentation
 title: "[Docs]: "
-labels: ["documentation", "triage"]
+labels: ["documentation", "priority: unset", "triage"]
+assignees: []
 body:
   - type: markdown
     attributes:
@@ -21,11 +15,13 @@ body:
     id: type
     attributes:
       label: Documentation issue type
+      description: What kind of documentation problem is this?
       options:
         - Missing (documentation doesn't exist)
         - Incorrect (information is wrong)
         - Unclear (confusing or hard to follow)
         - Outdated (no longer accurate)
+        - Incomplete (partially documented)
         - Typo or grammar
     validations:
       required: true
@@ -35,7 +31,7 @@ body:
     attributes:
       label: Location
       description: Where is this documentation? (URL, file path, or section name)
-      placeholder: README.adoc, section "Installation"
+      placeholder: "README.adoc, section \"Installation\""
     validations:
       required: true
 
@@ -43,8 +39,8 @@ body:
     id: description
     attributes:
       label: Description
-      description: What's the problem with the current documentation?
-      placeholder: Describe what's wrong or missing
+      description: What is the problem with the current documentation?
+      placeholder: Describe what is wrong or missing.
     validations:
       required: true
 
@@ -52,8 +48,8 @@ body:
     id: suggestion
     attributes:
       label: Suggested improvement
-      description: How should it be fixed or improved?
-      placeholder: The documentation should say...
+      description: How should the documentation be fixed or improved?
+      placeholder: "The documentation should say..."
     validations:
       required: false
 
@@ -62,5 +58,7 @@ body:
     attributes:
       label: Contribution
       options:
+        - label: I have searched existing issues to ensure this is not a duplicate
+          required: true
         - label: I would be willing to submit a PR to fix this
           required: false
