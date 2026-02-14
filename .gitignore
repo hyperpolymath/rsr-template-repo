@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: PMPL-1.0-or-later
 # RSR-compliant .gitignore
 
 # OS & Editor
@@ -80,3 +80,9 @@ htmlcov/
 
 # Crash recovery artifacts
 ai-cli-crash-capture/
+
+# KDE metadata
+.directory
+
+# Sync artifacts
+sync_report*.txt

@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+--
 ||| Foreign Function Interface Declarations
 |||
 ||| This module declares all C-compatible functions that will be
@@ -185,19 +188,10 @@ export
 %foreign "C:{{project}}_register_callback, lib{{project}}"
 prim__registerCallback : Bits64 -> AnyPtr -> PrimIO Bits32
 
-||| Safe callback registration
-export
-registerCallback : Handle -> Callback -> IO (Either Result ())
-registerCallback h cb = do
-  result <- primIO (prim__registerCallback (handlePtr h) (believe_me cb))
-  pure $ case resultFromInt result of
-    Just Ok => Right ()
-    Just err => Left err
-    Nothing => Left Error
-  where
-    resultFromInt : Bits32 -> Maybe Result
-    resultFromInt 0 = Just Ok
-    resultFromInt _ = Just Error
+-- TODO: Implement safe callback registration.
+-- The callback must be wrapped via a proper FFI callback mechanism.
+-- Do NOT use believe_me — it is banned per project safety standards.
+-- See: https://idris2.readthedocs.io/en/latest/ffi/ffi.html#callbacks
 
 --------------------------------------------------------------------------------
 -- Utility Functions

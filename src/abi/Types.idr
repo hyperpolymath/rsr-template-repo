@@ -1,10 +1,12 @@
+-- SPDX-License-Identifier: PMPL-1.0-or-later
+-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+--
 ||| ABI Type Definitions Template
 |||
 ||| This module defines the Application Binary Interface (ABI) for this library.
 ||| All type definitions include formal proofs of correctness.
 |||
 ||| Replace {{PROJECT}} with your project name.
-||| Replace {{TYPES}} with your actual type definitions.
 |||
 ||| @see https://idris2.readthedocs.io for Idris2 documentation
 

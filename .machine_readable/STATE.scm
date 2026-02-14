@@ -1,4 +1,39 @@
 ;; SPDX-License-Identifier: PMPL-1.0-or-later
-(state (metadata (version "0.1.0") (last-updated "2026-02-08") (status active))
-  (project-context (name "language-bridges") (purpose "FFI bridges between languages via Zig") (completion-percentage 20))
-  (components (component "ada-zig-ffi") (component "gleam-zig-ffi") (component "idris2-zig-ffi") (component "julia-zig-ffi") (component "ocaml-zig-ffi") (component "rescript-zig-ffi") (component "rust-zig-ffi") (component "swift-zig-ffi") (component "zig-c-ffi") (component "zig-container-ffi") (component "zig-fuse-ext") (component "zig-libgit2-ffi") (component "zig-nickel-ffi") (component "zig-systemd-ffi") (component "zig-wireguard")))
+;; Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+;;
+;; STATE.scm — Project state checkpoint
+;; Replace {{PROJECT_NAME}} and customize sections below.
+;; Reference: https://github.com/hyperpolymath/gitvisor/STATE.scm
+
+(define state
+  `((metadata
+     (project . "{{PROJECT_NAME}}")
+     (version . "0.1.0")
+     (last-updated . "{{CURRENT_DATE}}")
+     (status . active))               ; active | paused | archived
+
+    (project-context
+     (name . "{{PROJECT_NAME}}")
+     (purpose . "{{PROJECT_PURPOSE}}")
+     (completion-percentage . 0))
+
+    (position
+     (phase . design)                  ; design | implementation | testing | maintenance | archived
+     (maturity . experimental))        ; experimental | alpha | beta | production | lts
+
+    (route-to-mvp
+     (milestone "Initial setup" 100)
+     (milestone "Core implementation" 0)
+     (milestone "Testing" 0)
+     (milestone "Documentation" 0))
+
+    (blockers-and-issues)
+
+    (critical-next-actions
+     (action "Customize template placeholders")
+     (action "Implement core functionality")
+     (action "Add tests"))
+
+    (ecosystem
+     (part-of . ("RSR Framework"))
+     (depends-on . ()))))
