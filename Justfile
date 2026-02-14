@@ -91,6 +91,12 @@ init:
     read -rp "Conduct contact email [$AUTHOR_EMAIL]: " CONDUCT_EMAIL
     CONDUCT_EMAIL="${CONDUCT_EMAIL:-$AUTHOR_EMAIL}"
 
+    read -rp "Project type (library|binary|monorepo|service|website) [library]: " PROJECT_TYPE
+    PROJECT_TYPE="${PROJECT_TYPE:-library}"
+
+    read -rp "Website URL [https://${FORGE}/${OWNER}/${REPO}]: " WEBSITE
+    WEBSITE="${WEBSITE:-https://${FORGE}/${OWNER}/${REPO}}"
+
     # --- Derived values ---
     PROJECT_UPPER=$(echo "$REPO" | tr '[:lower:]-' '[:upper:]_')
     PROJECT_LOWER=$(echo "$REPO" | tr '[:upper:]-' '[:lower:]_')
@@ -149,6 +155,14 @@ init:
         -e "s|${LB}DATE${RB}|${CURRENT_DATE}|g"
         -e "s|${LB}SECURITY_EMAIL${RB}|${SECURITY_EMAIL}|g"
         -e "s|${LB}CONDUCT_EMAIL${RB}|${CONDUCT_EMAIL}|g"
+        -e "s|${LB}LICENSE${RB}|PMPL-1.0-or-later|g"
+        -e "s|${LB}CONDUCT_TEAM${RB}|Code of Conduct Committee|g"
+        -e "s|${LB}RESPONSE_TIME${RB}|48 hours|g"
+        -e "s|${LB}MAIN_BRANCH${RB}|main|g"
+        -e "s|${LB}PROJECT_PURPOSE${RB}|${PROJECT_DESCRIPTION}|g"
+        -e "s|${LB}PROJECT_ROLE${RB}|${PROJECT_TYPE}|g"
+        -e "s|${LB}PROJECT_TYPE${RB}|${PROJECT_TYPE}|g"
+        -e "s|${LB}WEBSITE${RB}|${WEBSITE}|g"
     )
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
 
