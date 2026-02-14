@@ -64,6 +64,16 @@ project/
 * FUSE wrapper (repo-guardian-fs) - Universal enforcement (coming soon)
 * CI/CD validation - Continuous compliance checking
 
+== TOPOLOGY.md (Architecture Map)
+
+Every repo should include a `TOPOLOGY.md` in its root — an ASCII architecture diagram combined with a completion dashboard. This gives any contributor (human or AI) an instant picture of the whole project.
+
+* **Template:** `TOPOLOGY.md` (included in this template)
+* **Guide:** `docs/TOPOLOGY-GUIDE.adoc` (includes AI prompt for generation, conventions, batch rollout)
+* **Sections:** System Architecture (ASCII diagram), Completion Dashboard (progress bars), Key Dependencies (critical path)
+
+See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for existing repos using an AI agent.
+
 == AI CLI standards
 
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
