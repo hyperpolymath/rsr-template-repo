@@ -46,7 +46,7 @@ info:
     @echo "Version: {{version}}"
     @echo "RSR Tier: {{tier}}"
     @echo "Recipes: $(just --summary | wc -w)"
-    @[ -f ".machine_readable/STATE.scm" ] && grep -oP '\(phase\s+\.\s+\K[^)]+' .machine_readable/STATE.scm | head -1 | xargs -I{} echo "Phase: {}" || true
+    @[ -f ".machine_readable/STATE.a2ml" ] && grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/STATE.a2ml | head -1 | xargs -I{} echo "Phase: {}" || true
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILD & COMPILE
@@ -322,10 +322,10 @@ validate-rsr:
     #!/usr/bin/env bash
     echo "=== RSR Compliance Check ==="
     MISSING=""
-    for f in .editorconfig .gitignore justfile README.adoc LICENSE; do
+    for f in .editorconfig .gitignore Justfile README.adoc LICENSE; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    for f in .machine_readable/STATE.scm .machine_readable/META.scm .machine_readable/ECOSYSTEM.scm; do
+    for f in .machine_readable/STATE.a2ml .machine_readable/META.a2ml .machine_readable/ECOSYSTEM.a2ml; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     if [ -n "$MISSING" ]; then
@@ -334,12 +334,14 @@ validate-rsr:
     fi
     echo "RSR compliance: PASS"
 
-# Validate STATE.scm syntax
+# Validate STATE.a2ml syntax
 validate-state:
-    @if [ -f ".machine_readable/STATE.scm" ]; then \
-        guile -c '(primitive-load ".machine_readable/STATE.scm")' 2>/dev/null && echo "STATE.scm: valid" || echo "STATE.scm: INVALID"; \
+    @if [ -f ".machine_readable/STATE.a2ml" ]; then \
+        grep -q '^\[metadata\]' .machine_readable/STATE.a2ml && \
+        grep -q 'project\s*=' .machine_readable/STATE.a2ml && \
+        echo "STATE.a2ml: valid" || echo "STATE.a2ml: INVALID (missing required sections)"; \
     else \
-        echo "No .machine_readable/STATE.scm found"; \
+        echo "No .machine_readable/STATE.a2ml found"; \
     fi
 
 # Full validation suite
@@ -350,16 +352,16 @@ validate: validate-rsr validate-state
 # STATE MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Update STATE.scm timestamp
+# Update STATE.a2ml timestamp
 state-touch:
-    @if [ -f ".machine_readable/STATE.scm" ]; then \
-        sed -i 's/(last-updated . "[^"]*")/(last-updated . "'"$(date +%Y-%m-%d)"'")/' .machine_readable/STATE.scm && \
-        echo "STATE.scm timestamp updated"; \
+    @if [ -f ".machine_readable/STATE.a2ml" ]; then \
+        sed -i 's/last-updated = "[^"]*"/last-updated = "'"$(date +%Y-%m-%d)"'"/' .machine_readable/STATE.a2ml && \
+        echo "STATE.a2ml timestamp updated"; \
     fi
 
-# Show current phase from STATE.scm
+# Show current phase from STATE.a2ml
 state-phase:
-    @grep -oP '\(phase\s+\.\s+\K[^)]+' .machine_readable/STATE.scm 2>/dev/null | head -1 || echo "unknown"
+    @grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GUIX & NIX

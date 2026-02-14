@@ -78,7 +78,7 @@ See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for
 
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
 - Include `ai-cli-crash-capture/` and `contractiles/` from this template in new repos.
-- Mirror 6SCM files into `.machine_readable/` (NOT `.machine_readable/6scm/`).
+- Place 6 a2ml state files in `.machine_readable/` (STATE, META, ECOSYSTEM, AGENTIC, NEUROSYM, PLAYBOOK).
 - Before any code generation, check `/var/mnt/eclipse/repos/proven` for the current Idris "unbreakable" library status.
 - If a project uses that Idris library, add an *Idris Inside* badge to the repo.
 - If new bindings are required, add them in `/var/mnt/eclipse/repos/proven` as `idris2-zig-<language>` during the work.

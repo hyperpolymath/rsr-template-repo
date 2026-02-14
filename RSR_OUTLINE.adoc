@@ -13,11 +13,11 @@ image:https://img.shields.io/badge/Guix-Primary-purple?logo=gnu[Guix]
 
 **The canonical template for RSR (Rhodium Standard Repository) projects.**
 
-This repository provides the standardized structure, configuration, and tooling for all 139 repos in the hyperpolymath ecosystem. Use it to:
+This repository provides the standardized structure, configuration, and tooling for all repos in the hyperpolymath ecosystem. Use it to:
 
 * Bootstrap new projects with RSR compliance
 * Reference the standard directory structure
-* Copy configuration templates (justfile, STATE.scm, etc.)
+* Copy configuration templates (Justfile, STATE.a2ml, etc.)
 
 == Quick Start
 
@@ -31,8 +31,8 @@ cd my-project
 rm -rf .git
 git init
 
-# Customize
-sed -i 's/RSR-template-repo/my-project/g' justfile guix.scm README.adoc
+# Customize placeholders (see PLACEHOLDERS.md for full list)
+sed -i 's/{{PROJECT_NAME}}/my-project/g' Justfile guix.scm README.adoc
 
 # Enter development environment
 guix shell -D -f guix.scm
@@ -53,11 +53,23 @@ just validate-rsr
 |`.gitignore`
 |Standard ignore patterns
 
+|`.gitattributes`
+|Line endings, diff drivers, binary detection
+
 |`.guix-channel`
 |Guix channel definition
 
 |`.well-known/`
 |RFC-compliant metadata (security.txt, ai.txt, humans.txt)
+
+|`.machine_readable/`
+|Project state files (STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, etc.)
+
+|`.bot_directives/`
+|Bot configuration (rhodibot, echidnabot, sustainabot, etc.)
+
+|`contractiles/`
+|Contractile system (k9, dust, lust, must, trust)
 
 |`docs/`
 |Documentation directory
@@ -65,31 +77,55 @@ just validate-rsr
 |`guix.scm`
 |Guix package definition
 
-|`justfile`
-|Task runner with 50+ recipes
+|`Justfile`
+|Task runner with 40+ recipes
 
-|`LICENSE.txt`
+|`Containerfile`
+|Container build (Wolfi base, Podman)
+
+|`LICENSE`
 |PMPL-1.0-or-later (Palimpsest MPL)
 
+|`EXHIBIT-A-ETHICAL-USE.txt`
+|Ethical use guidelines (LICENSE Exhibit A)
+
+|`EXHIBIT-B-QUANTUM-SAFE.txt`
+|Quantum-safe provenance spec (LICENSE Exhibit B)
+
 |`README.adoc`
-|This file
+|Project overview
 
-|`RSR_COMPLIANCE.adoc`
-|Compliance tracking
+|`TOPOLOGY.md`
+|Architecture diagram and completion dashboard
 
-|`STATE.scm`
-|Project state checkpoint
+|`PLACEHOLDERS.md`
+|Template variable reference and replacement guide
+
+|`0-AI-MANIFEST.a2ml`
+|Universal AI agent entry point
+
+|`AI.a2ml`
+|Claude-specific instructions
+
+|`src/abi/`
+|Idris2 ABI definitions (Types, Layout, Foreign)
+
+|`ffi/zig/`
+|Zig FFI implementation
+
+|`generated/abi/`
+|Auto-generated C headers from Idris2 ABI
 |===
 
 == Justfile Features
 
-The template justfile provides:
+The template Justfile provides:
 
-* **~10 billion recipe combinations** via matrix recipes
-* **Cookbook generation**: `just cookbook` → `docs/just-cookbook.adoc`
-* **Man page generation**: `just man` → `docs/man/project.1`
+* **Combinatoric matrix recipes** for build, test, container, CI
+* **Cookbook generation**: `just cookbook` -> `docs/just-cookbook.adoc`
+* **Man page generation**: `just man` -> `docs/man/project.1`
 * **RSR validation**: `just validate-rsr`
-* **STATE.scm management**: `just state-touch`, `just state-phase`
+* **STATE.a2ml management**: `just state-touch`, `just state-phase`
 * **Container support**: `just container-build`, `just container-push`
 * **CI matrix**: `just ci-matrix [stage] [depth]`
 
@@ -109,7 +145,7 @@ just ci             # Full CI pipeline
 
 just validate       # RSR + STATE validation
 just docs           # Generate all docs
-just cookbook       # Generate justfile docs
+just cookbook        # Generate Justfile docs
 
 just guix-shell     # Guix dev environment
 just container-build # Build container
@@ -120,45 +156,72 @@ just container-build # Build container
 [source]
 ----
 project/
-├── .editorconfig          # Editor settings
-├── .gitignore             # Git ignore
-├── .guix-channel          # Guix channel
-├── .well-known/           # RFC metadata
+├── .editorconfig              # Editor settings
+├── .gitignore                 # Git ignore
+├── .gitattributes             # Line endings, diff drivers
+├── .guix-channel              # Guix channel
+├── .well-known/               # RFC metadata
 │   ├── ai.txt
 │   ├── humans.txt
 │   └── security.txt
-├── config/                # Nickel configs (optional)
-├── docs/                  # Documentation
+├── .machine_readable/         # Project state (a2ml format)
+│   ├── STATE.a2ml
+│   ├── META.a2ml
+│   ├── ECOSYSTEM.a2ml
+│   ├── AGENTIC.a2ml
+│   ├── NEUROSYM.a2ml
+│   └── PLAYBOOK.a2ml
+├── .bot_directives/           # Bot configurations
+├── contractiles/              # Contractile system
+│   ├── k9/                    # Security levels (Kennel/Yard/Hunt)
+│   ├── dust/Dustfile          # Recovery and rollback
+│   ├── lust/Intentfile        # Future intent declarations
+│   ├── must/Mustfile          # Invariant checks
+│   └── trust/Trustfile.hs     # Cryptographic verification
+├── docs/                      # Documentation
+│   ├── CITATIONS.adoc
+│   ├── TOPOLOGY-GUIDE.adoc
 │   ├── generated/
-│   ├── man/
-│   └── just-cookbook.adoc
-├── guix.scm               # Guix package
-├── justfile               # Task runner
-├── LICENSE.txt            # Dual license
-├── README.adoc            # Overview
-├── RSR_COMPLIANCE.adoc    # Compliance
-├── src/                   # Source code
-├── .machine_readable/     # SCM state files
-│   └── STATE.scm          # State checkpoint
-└── tests/                 # Tests
+│   └── man/
+├── src/abi/                   # Idris2 ABI definitions
+│   ├── Types.idr
+│   ├── Layout.idr
+│   └── Foreign.idr
+├── ffi/zig/                   # Zig FFI implementation
+│   ├── build.zig
+│   ├── src/main.zig
+│   └── test/integration_test.zig
+├── generated/abi/             # Auto-generated C headers
+├── examples/                  # Example code
+├── guix.scm                   # Guix package
+├── Justfile                   # Task runner
+├── Containerfile              # Container build
+├── LICENSE                    # PMPL-1.0-or-later
+├── EXHIBIT-A-ETHICAL-USE.txt  # Ethical use guidelines
+├── EXHIBIT-B-QUANTUM-SAFE.txt # Quantum-safe provenance
+├── README.adoc                # Overview
+├── TOPOLOGY.md                # Architecture + completion
+├── PLACEHOLDERS.md            # Template variable guide
+├── 0-AI-MANIFEST.a2ml         # Universal AI entry point
+└── AI.a2ml                    # Claude-specific instructions
 ----
 
 == RSR Compliance
 
 === Language Tiers
 
-* **Tier 1** (Gold): Rust, Elixir, Zig, Ada, Haskell, ReScript
-* **Tier 2** (Silver): Nickel, Racket, Guile Scheme, Nix
-* **Infrastructure**: Guix channels, derivations
+* **Tier 1** (Gold): Rust, Elixir, Zig, Ada, Haskell, ReScript, Gleam
+* **Tier 2** (Silver): Nickel, Guile Scheme, Nix, Idris2, OCaml
+* **Infrastructure**: Guix channels, derivations, Julia batch scripts
 
 === Required Files
 
 * `.editorconfig`
 * `.gitignore`
-* `justfile`
+* `Justfile`
 * `README.adoc`
-* `RSR_COMPLIANCE.adoc`
 * `LICENSE` (PMPL-1.0-or-later)
+* `.machine_readable/STATE.a2ml`
 * `.well-known/security.txt`
 * `.well-known/ai.txt`
 * `.well-known/humans.txt`
@@ -170,28 +233,40 @@ project/
 * TypeScript/JavaScript (use ReScript)
 * CUE (use Guile/Nickel)
 * `Dockerfile` (use `Containerfile`)
+* npm, Bun, pnpm, yarn (use Deno)
+* Go (use Rust)
 
-== STATE.scm
+== STATE.a2ml
 
-The STATE.scm file tracks project state:
+The STATE.a2ml file tracks project state:
 
-[source,scheme]
+[source]
 ----
-(define state
-  `((metadata
-     (project . "my-project")
-     (updated . "2025-12-10"))
-    (position
-     (phase . implementation)  ; design|implementation|testing|maintenance|archived
-     (maturity . beta))        ; experimental|alpha|beta|production|lts
-    (ecosystem
-     (part-of . ("RSR Framework"))
-     (depends-on . ()))))
+# STATE — Project State Checkpoint
+# Format: a2ml (AI-readable markup)
+
+project: {{PROJECT_NAME}}
+version: 0.1.0
+last-updated: 2026-02-14
+status: active
+
+phase: implementation
+maturity: beta
+
+ecosystem:
+  part-of: RSR Framework
+  depends-on: []
+
+milestones:
+  - name: Initial setup
+    completion: 100
+  - name: Core implementation
+    completion: 0
 ----
 
 == Badge Schema
 
-Generate badges from STATE.scm:
+Generate badges from STATE.a2ml:
 
 [source,bash]
 ----
@@ -204,9 +279,11 @@ See `docs/BADGE_SCHEMA.adoc` for the full badge taxonomy.
 
 This template is part of:
 
-* **STATE.scm Ecosystem**: Conversation checkpoints
+* **STATE.a2ml Ecosystem**: Conversation checkpoints
 * **RSR Framework**: Repository standards
 * **Consent-Aware-HTTP**: .well-known compliance
+* **Hypatia**: Neurosymbolic security scanning
+* **gitbot-fleet**: Bot orchestration
 
 == License
 
@@ -214,6 +291,6 @@ SPDX-License-Identifier: PMPL-1.0-or-later
 
 == Links
 
-* https://github.com/hyperpolymath/elegant-STATE[elegant-STATE] - STATE.scm tooling
+* https://github.com/hyperpolymath/elegant-STATE[elegant-STATE] - STATE tooling
 * https://github.com/hyperpolymath/conative-gating[conative-gating] - Policy enforcement
 * https://rhodium.sh[Rhodium Standard] - RSR documentation

@@ -55,7 +55,7 @@
                         ┌─────────────────────────────────────────┐
                         │          REPO INFRASTRUCTURE            │
                         │  contractiles/  .machine_readable/      │
-                        │  .github/workflows/  justfile           │
+                        │  .github/workflows/  Justfile           │
                         └─────────────────────────────────────────┘
 ```
 
@@ -82,10 +82,10 @@ LAYER 2
   Component E                       █░░░░░░░░░  10%    Stub exists
 
 REPO INFRASTRUCTURE
-  .machine_readable/6scm/           ██████████ 100%    6 SCM files present
+  .machine_readable/                ██████████ 100%    6 a2ml files present
   contractiles/                     ██████████ 100%    All contractile types present
   .github/workflows/                ██████████ 100%    Standard workflows
-  justfile                          ██████████ 100%    Build automation
+  Justfile                          ██████████ 100%    Build automation
 
 ─────────────────────────────────────────────────────────────────────────────
 OVERALL:                            ████░░░░░░  ~40%   Summary sentence here
