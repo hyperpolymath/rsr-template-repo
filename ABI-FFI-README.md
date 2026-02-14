@@ -380,6 +380,6 @@ When modifying the ABI/FFI:
 
 - [Idris2 Documentation](https://idris2.readthedocs.io)
 - [Zig Documentation](https://ziglang.org/documentation/master/)
-- [Rhodium Standard Repositories](https://github.com/hyperpolymath/rhodium-standard-repositories)
+- [Rhodium Standard Repositories](https://github.com/{{OWNER}}/rhodium-standard-repositories)
 - [FFI Migration Guide](../ffi-migration-guide.md)
 - [ABI Migration Guide](../abi-migration-guide.md)

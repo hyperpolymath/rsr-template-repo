@@ -19,7 +19,7 @@ K9!
       name = "project-metadata",
       version = "1.0.0",
       description = "Pure data configuration for project metadata",
-      author = "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>",
+      author = "{{AUTHOR}} <{{AUTHOR_EMAIL}}>",
     },
   },
 
@@ -30,14 +30,14 @@ K9!
     description = "A project following Rhodium Standard Repositories",
 
     repository = {
-      url = "https://github.com/hyperpolymath/my-project",
+      url = "https://github.com/{{OWNER}}/my-project",
       type = "git",
     },
 
     author = {
-      name = "Jonathan D.A. Jewell",
-      email = "jonathan.jewell@open.ac.uk",
-      organization = "The Open University",
+      name = "{{AUTHOR}}",
+      email = "{{AUTHOR_EMAIL}}",
+      organization = "{{AUTHOR_ORG}}",
     },
 
     license = "PMPL-1.0-or-later",
@@ -45,7 +45,7 @@ K9!
     keywords = [
       "rhodium-standard",
       "rsr",
-      "hyperpolymath",
+      "{{OWNER}}",
     ],
   },
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: PMPL-1.0-or-later
-# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+# Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 #
 # RSR Standard Justfile Template
 # https://just.systems/man/en/
@@ -253,7 +253,7 @@ man:
     .SH DESCRIPTION
     RSR (Rhodium Standard Repository) project managed with just.
     .SH AUTHOR
-    Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>
+    {{AUTHOR}} <{{AUTHOR_EMAIL}}>
     EOF
     echo "Generated: docs/man/{{project}}.1"
 
@@ -274,7 +274,7 @@ container-run tag="latest" *args:
     podman run --rm -it {{project}}:{{tag}} {{args}}
 
 # Push container image
-container-push registry="ghcr.io/hyperpolymath" tag="latest":
+container-push registry="ghcr.io/{{OWNER}}" tag="latest":
     podman tag {{project}}:{{tag}} {{registry}}/{{project}}:{{tag}}
     podman push {{registry}}/{{project}}:{{tag}}
 
@@ -406,7 +406,7 @@ test-matrix suite="unit" verbosity="normal" parallel="true":
     @echo "Test matrix: suite={{suite}} verbosity={{verbosity}} parallel={{parallel}}"
 
 # Container matrix: [build|run|push|shell|scan] x [registry] x [tag]
-container-matrix action="build" registry="ghcr.io/hyperpolymath" tag="latest":
+container-matrix action="build" registry="ghcr.io/{{OWNER}}" tag="latest":
     @echo "Container matrix: action={{action}} registry={{registry}} tag={{tag}}"
 
 # CI matrix: [lint|test|build|security|all] x [quick|full]

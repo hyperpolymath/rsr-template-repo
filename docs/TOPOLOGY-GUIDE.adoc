@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
 = TOPOLOGY.md — Generation Guide
-Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+{{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 :toc:
 :sectnums:
 
@@ -69,7 +69,7 @@ but make the content completely specific to THIS project.
 
 [source,bash]
 ----
-cp ~/Documents/hyperpolymath-repos/rsr-template-repo/TOPOLOGY.md ./TOPOLOGY.md
+cp /path/to/rsr-template-repo/TOPOLOGY.md ./TOPOLOGY.md
 # Then edit: replace placeholders, draw the real architecture, fill the dashboard
 ----
 
@@ -78,7 +78,7 @@ cp ~/Documents/hyperpolymath-repos/rsr-template-repo/TOPOLOGY.md ./TOPOLOGY.md
 [source,bash]
 ----
 # From the repos root, generate for every repo that lacks one
-for repo in ~/Documents/hyperpolymath-repos/*/; do
+for repo in /path/to/your/repos/*/; do
   if [ ! -f "$repo/TOPOLOGY.md" ]; then
     echo "NEEDS TOPOLOGY: $(basename $repo)"
   fi
@@ -152,4 +152,4 @@ _structured data_ for tooling. Both should agree.
 
 == Copyright
 
-Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>

@@ -7,10 +7,14 @@ After cloning, replace them with your project-specific values.
 
 ```bash
 # Required replacements (run from repo root)
+# Alternatively, use: just init  (K9-powered, with validation)
+
+sed -i 's/{{AUTHOR}}/Jane Doe/g' $(grep -rl '{{AUTHOR}}' .)
+sed -i 's/{{AUTHOR_EMAIL}}/jane@example.org/g' $(grep -rl '{{AUTHOR_EMAIL}}' .)
+sed -i 's/{{OWNER}}/my-org/g' $(grep -rl '{{OWNER}}' .)
 sed -i 's/{{PROJECT_NAME}}/my-project/g' $(grep -rl '{{PROJECT_NAME}}' .)
 sed -i 's/{{PROJECT}}/MY_PROJECT/g' $(grep -rl '{{PROJECT}}' .)
 sed -i 's/{{project}}/my_project/g' $(grep -rl '{{project}}' .)
-sed -i 's/{{OWNER}}/hyperpolymath/g' $(grep -rl '{{OWNER}}' .)
 sed -i 's/{{REPO}}/my-project/g' $(grep -rl '{{REPO}}' .)
 sed -i 's/{{FORGE}}/github.com/g' $(grep -rl '{{FORGE}}' .)
 sed -i "s/{{CURRENT_YEAR}}/$(date +%Y)/g" $(grep -rl '{{CURRENT_YEAR}}' .)
@@ -19,24 +23,37 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 
 ## Placeholder Reference
 
+### Author & Copyright
+
+| Placeholder | Description | Example | Files |
+|---|---|---|---|
+| `{{AUTHOR}}` | Full legal name | `Jane Doe` | SPDX headers (all files), MAINTAINERS.md, .mailmap, .reuse/dep5, docs/AI-CONVENTIONS.md |
+| `{{AUTHOR_EMAIL}}` | Primary contact email | `jane@example.org` | SPDX headers (all files), .mailmap, .reuse/dep5, .well-known/humans.txt |
+| `{{AUTHOR_EMAIL_ALT}}` | Previous/secondary email (for .mailmap) | `old@example.com` | .mailmap |
+| `{{AUTHOR_ORG}}` | Author's organization/affiliation | `Acme University` | project-metadata.k9.ncl |
+| `{{AUTHOR_LAST}}` | Author surname (for citations) | `Doe` | docs/CITATIONS.adoc |
+| `{{AUTHOR_FIRST}}` | Author first name (for citations) | `Jane` | docs/CITATIONS.adoc |
+| `{{AUTHOR_INITIALS}}` | Author initials (for citations) | `J.` | docs/CITATIONS.adoc |
+
 ### Project Identity
 
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
-| `{{PROJECT_NAME}}` | Human-readable project name | `My Project` | SECURITY.md, CODE_OF_CONDUCT.md, TOPOLOGY.md, STATE.a2ml, Justfile, GOVERNANCE.md, MAINTAINERS.md |
+| `{{PROJECT_NAME}}` | Human-readable project name | `My Project` | SECURITY.md, CODE_OF_CONDUCT.md, TOPOLOGY.md, STATE.a2ml, Justfile, GOVERNANCE.md, MAINTAINERS.md, flake.nix, devcontainer.json |
+| `{{PROJECT_DESCRIPTION}}` | One-line description | `A tool for X` | flake.nix |
 | `{{PROJECT}}` | Uppercase identifier (for Idris2 modules, C macros) | `MY_PROJECT` | ABI-FFI-README.md, src/abi/*.idr, ffi/zig/*.zig |
 | `{{project}}` | Lowercase identifier (for C symbols, filenames) | `my_project` | ABI-FFI-README.md, ffi/zig/*.zig |
-| `{{REPO}}` | Repository name (slug) | `my-project` | CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md |
-| `{{OWNER}}` | GitHub/GitLab org or username | `hyperpolymath` | CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, GOVERNANCE.md, MAINTAINERS.md |
+| `{{REPO}}` | Repository name (slug) | `my-project` | CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, cliff.toml |
+| `{{OWNER}}` | GitHub/GitLab org or username | `my-org` | SPDX headers, CONTRIBUTING.md, SECURITY.md, GOVERNANCE.md, MAINTAINERS.md, CODEOWNERS, mirror.yml, cliff.toml |
 | `{{FORGE}}` | Git forge domain | `github.com` | CONTRIBUTING.md |
 
 ### Dates
 
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
-| `{{CURRENT_YEAR}}` | Current year | `2026` | SECURITY.md, CODE_OF_CONDUCT.md, GOVERNANCE.md, MAINTAINERS.md |
+| `{{CURRENT_YEAR}}` | Current year | `2026` | SPDX headers (all files), GOVERNANCE.md, MAINTAINERS.md |
 | `{{CURRENT_DATE}}` | Current date (ISO) | `2026-02-14` | STATE.a2ml, MAINTAINERS.md |
-| `{{DATE}}` | Last updated date | `2026-02-14` | TOPOLOGY.md |
+| `{{DATE}}` | Last updated date | `2026-02-14` | TOPOLOGY.md, THREAT-MODEL.md |
 
 ### Contact & Security
 
@@ -86,7 +103,9 @@ After replacing all placeholders, verify none remain:
 ```bash
 grep -rn '{{' . --include='*.md' --include='*.adoc' --include='*.a2ml' \
   --include='*.scm' --include='*.idr' --include='*.zig' --include='*.res' \
-  --include='Justfile' --include='*.nix' --include='*.toml' \
+  --include='Justfile' --include='*.nix' --include='*.toml' --include='*.yml' \
+  --include='*.yaml' --include='*.hs' --include='*.ncl' --include='*.txt' \
+  --include='*.json' --include='Containerfile' --include='dep5' \
   | grep -v 'PLACEHOLDERS.md' | grep -v 'node_modules'
 ```
 

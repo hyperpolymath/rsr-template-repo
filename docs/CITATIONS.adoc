@@ -1,34 +1,34 @@
-= RSR-template-repo - Citation Guide
+= {{PROJECT_NAME}} - Citation Guide
 :toc:
 
 == BibTeX
 
 [source,bibtex]
 ----
-@software{rsr-template-repo_2026,
-  author = {Jewell, Jonathan D.A.},
-  title = {RSR-template-repo},
-  year = {2026},
-  url = {https://github.com/hyperpolymath/RSR-template-repo},
+@software{{{PROJECT_NAME}}_{{CURRENT_YEAR}},
+  author = {{{AUTHOR_LAST}}, {{AUTHOR_FIRST}}},
+  title = {{{PROJECT_NAME}}},
+  year = {{{CURRENT_YEAR}}},
+  url = {https://github.com/{{OWNER}}/{{PROJECT_NAME}}},
   license = {PMPL-1.0-or-later}
 }
 ----
 
 == Harvard Style
 
-Jewell, J.D.A. (2026) _RSR-template-repo_ [Computer software]. Available at: https://github.com/hyperpolymath/RSR-template-repo
+{{AUTHOR_LAST}}, {{AUTHOR_INITIALS}} ({{CURRENT_YEAR}}) _{{PROJECT_NAME}}_ [Computer software]. Available at: https://github.com/{{OWNER}}/{{PROJECT_NAME}}
 
 == OSCOLA
 
-Jonathan D.A. Jewell, 'RSR-template-repo' (2026) <https://github.com/hyperpolymath/RSR-template-repo>
+{{AUTHOR}}, '{{PROJECT_NAME}}' ({{CURRENT_YEAR}}) <https://github.com/{{OWNER}}/{{PROJECT_NAME}}>
 
 == MLA
 
-Jewell, Jonathan D.A. "RSR-template-repo." 2026, github.com/hyperpolymath/RSR-template-repo.
+{{AUTHOR_LAST}}, {{AUTHOR_FIRST}} "{{PROJECT_NAME}}." {{CURRENT_YEAR}}, github.com/{{OWNER}}/{{PROJECT_NAME}}.
 
 == APA 7
 
-Jewell, J.D.A. (2026). _RSR-template-repo_ [Computer software]. GitHub. https://github.com/hyperpolymath/RSR-template-repo
+{{AUTHOR_LAST}}, {{AUTHOR_INITIALS}} ({{CURRENT_YEAR}}). _{{PROJECT_NAME}}_ [Computer software]. GitHub. https://github.com/{{OWNER}}/{{PROJECT_NAME}}
 
 == See Also
 

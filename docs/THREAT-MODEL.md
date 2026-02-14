@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
-<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk> -->
+<!-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}> -->
 
 # Threat Model: {{PROJECT_NAME}}
 
@@ -10,7 +10,7 @@
 | Project       | {{PROJECT_NAME}}               |
 | Version       | 1.0                            |
 | Last Reviewed | {{DATE}}                       |
-| Author        | Jonathan D.A. Jewell           |
+| Author        | {{AUTHOR}}                     |
 | Methodology   | STRIDE                         |
 
 ## Scope
@@ -42,14 +42,14 @@ Brief description of {{PROJECT_NAME}} and its architecture.
 | Asset                | Classification | Owner       | Notes                                      |
 |----------------------|----------------|-------------|--------------------------------------------|
 | Source code           | Internal       | Maintainers | Public repos are still internal-integrity  |
-| Signing keys          | Restricted     | Release lead | cerro-torre Ed25519 keys, GPG keys         |
+| Signing keys          | Restricted     | Release lead | Signing keys (e.g., Ed25519), GPG keys     |
 | CI/CD secrets         | Restricted     | Maintainers | GITHUB_TOKEN, deploy tokens, PATs          |
 | User/contributor data | Confidential   | Org          | Emails, contributor identity                |
 | Build artifacts       | Internal       | CI pipeline  | Binaries, WASM bundles                     |
-| Container images      | Internal       | CI pipeline  | Chainguard-based, signed via cerro-torre   |
+| Container images      | Internal       | CI pipeline  | Chainguard-based, signed via image signing tool |
 | SBOM / provenance     | Public         | CI pipeline  | SLSA attestations                          |
 | Dependencies          | Public         | Lockfile     | Cargo.lock, deno.lock, gleam.toml          |
-| Infrastructure config | Confidential   | Maintainers | Containerfiles, compose files, selur config |
+| Infrastructure config | Confidential   | Maintainers | Containerfiles, compose files, orchestration config |
 
 ## Trust Boundaries
 
@@ -80,7 +80,7 @@ Brief description of {{PROJECT_NAME}} and its architecture.
 | Threat                          | Affected Asset    | Likelihood | Impact | Risk   | Mitigation                                    |
 |---------------------------------|-------------------|------------|--------|--------|------------------------------------------------|
 | Unsigned commits impersonate maintainer | Source code  | Medium     | High   | High   | Require GPG-signed commits; vigilant code review |
-| Forged bot actions (gitbot-fleet) | CI/CD pipeline  | Low        | High   | Medium | Bot tokens scoped minimally; audit bot activity |
+| Forged bot actions (automated agents) | CI/CD pipeline  | Low        | High   | Medium | Bot tokens scoped minimally; audit bot activity |
 | Spoofed package registry identity | Dependencies    | Low        | High   | Medium | Pin dependencies by hash; verify provenance    |
 
 ### Tampering
@@ -88,8 +88,8 @@ Brief description of {{PROJECT_NAME}} and its architecture.
 | Threat                          | Affected Asset    | Likelihood | Impact | Risk   | Mitigation                                    |
 |---------------------------------|-------------------|------------|--------|--------|------------------------------------------------|
 | Malicious pull request          | Source code        | Medium     | High   | High   | Branch protection; required reviews; CodeQL    |
-| Dependency poisoning (typosquat) | Dependencies     | Medium     | High   | High   | Lockfiles; secret-scanner; panic-attack scans  |
-| Tampered container base image   | Container images   | Low        | High   | Medium | Chainguard images; cerro-torre signatures      |
+| Dependency poisoning (typosquat) | Dependencies     | Medium     | High   | High   | Lockfiles; secret-scanner; security scans      |
+| Tampered container base image   | Container images   | Low        | High   | Medium | Chainguard images; image signing verification  |
 | Workflow file modification      | CI/CD pipeline     | Low        | High   | Medium | CODEOWNERS on .github/; workflow-linter        |
 
 ### Repudiation
@@ -122,7 +122,7 @@ Brief description of {{PROJECT_NAME}} and its architecture.
 |---------------------------------|-------------------|------------|--------|--------|------------------------------------------------|
 | Workflow injection via PR title/body | CI/CD pipeline | Medium   | High   | High   | Never interpolate PR fields in `run:`; use env vars |
 | GITHUB_TOKEN over-scoped         | CI/CD secrets     | Medium     | High   | High   | `permissions: read-all` default; per-job scoping |
-| Container escape                 | Runtime environment | Low      | High   | Medium | vordr runtime; read-only rootfs; no-new-privileges |
+| Container escape                 | Runtime environment | Low      | High   | Medium | Hardened container runtime; read-only rootfs; no-new-privileges |
 | Compromised action dependency    | CI/CD pipeline     | Medium     | High   | High   | SHA-pin all actions; never use `@latest` tags  |
 
 ## Mitigations in Place
@@ -131,13 +131,13 @@ Brief description of {{PROJECT_NAME}} and its architecture.
 - **Secret Scanning**: TruffleHog + secret-scanner workflow on every push
 - **Static Analysis**: CodeQL on supported languages
 - **Supply Chain**: OpenSSF Scorecard (scorecard.yml + scorecard-enforcer.yml)
-- **Container Signing**: cerro-torre Ed25519 signatures on all published images
-- **Container Runtime**: vordr with formal verification
+- **Container Signing**: Ed25519 signatures on all published images (optional: use your signing tool)
+- **Container Runtime**: Hardened container runtime with formal verification (optional)
 - **Dependency Pinning**: All GitHub Actions SHA-pinned; lockfiles committed
 - **Workflow Validation**: workflow-linter.yml checks all workflow changes
-- **Security Scanning**: Hypatia neurosymbolic scanning (hypatia-scan.yml)
-- **Bot Governance**: gitbot-fleet with confidence thresholds (robot-repo-automaton)
-- **Edge Security**: svalinn gateway with policy enforcement (where applicable)
+- **Security Scanning**: Neurosymbolic scanning (hypatia-scan.yml, optional)
+- **Bot Governance**: Bot orchestration with confidence thresholds (optional)
+- **Edge Security**: Gateway with policy enforcement (optional, where applicable)
 - **SBOM**: Generated and published with releases
 
 ## Residual Risks

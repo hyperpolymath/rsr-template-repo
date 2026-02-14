@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
-<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk> -->
+<!-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}> -->
 
 # 1. Adopt Rhodium Standard Repository (RSR) Template
 
@@ -11,8 +11,8 @@ Accepted
 
 ## Context
 
-Managing 290+ repositories with an ad-hoc approach led to significant
-inconsistencies across the hyperpolymath ecosystem. Common problems included:
+Managing multiple repositories with an ad-hoc approach led to significant
+inconsistencies across the ecosystem. Common problems included:
 
 - Missing or incomplete configuration files (SECURITY.md, CONTRIBUTING.md,
   .editorconfig, etc.)
@@ -38,7 +38,7 @@ The RSR template provides:
   ECOSYSTEM.a2ml, META.a2ml, AGENTIC.a2ml, NEUROSYM.a2ml, PLAYBOOK.a2ml)
 - **AI manifest** (`0-AI-MANIFEST.a2ml`) as a universal entry point for all
   AI agents
-- **Bot directives** in `.machine_readable/bot_directives/` for gitbot-fleet integration
+- **Bot directives** in `.machine_readable/bot_directives/` for bot orchestration integration
 - **Contractiles** in `.machine_readable/contractiles/` (k9, dust, lust, must, trust) for
   policy enforcement
 - **Standardized workflows** (16+ GitHub Actions workflows, all SHA-pinned)
@@ -50,8 +50,7 @@ The RSR template provides:
 New repositories are created by cloning the template:
 
 ```bash
-cd ~/Documents/hyperpolymath-repos
-git clone https://github.com/hyperpolymath/rsr-template-repo new-repo-name
+git clone https://github.com/{{OWNER}}/rsr-template-repo new-repo-name
 cd new-repo-name
 rm -rf .git && git init
 ```
@@ -60,16 +59,14 @@ rm -rf .git && git init
 
 ### Positive
 
-- Consistency across all 290+ repositories, enforced from creation
+- Consistency across all repositories, enforced from creation
 - Automated compliance checking via `rsr-antipattern.yml` workflow
-- Bot fleet (rhodibot, echidnabot, sustainabot, glambot, seambot, finishbot)
-  can operate reliably across all repos with predictable structure
+- Bot fleet can operate reliably across all repos with predictable structure
 - AI agents (Claude, Gemini, etc.) have a standardized entry point via
   `0-AI-MANIFEST.a2ml`
 - New contributors can onboard faster with familiar, documented structure
 - Reduced maintenance burden: fix once in template, propagate to all repos
-- Machine-readable state enables tooling like Hypatia, VeriSimDB, and
-  robot-repo-automaton
+- Machine-readable state enables tooling and automation pipelines
 
 ### Negative
 

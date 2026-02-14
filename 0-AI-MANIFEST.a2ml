@@ -25,13 +25,13 @@ These 6 a2ml files MUST exist in `.machine_readable/` directory ONLY:
 
 ### Bot Directives: `.machine_readable/bot_directives/` ONLY
 
-Bot-specific instructions for:
-- rhodibot - Git operations
-- echidnabot - Code quality
-- sustainabot - Dependency updates
-- glambot - Documentation
-- seambot - Integration
-- finishbot - Task completion
+Bot-specific instructions for your automated agents. Example roles:
+- git-ops-bot - Git operations
+- quality-bot - Code quality
+- deps-bot - Dependency updates
+- docs-bot - Documentation
+- integration-bot - Integration
+- completion-bot - Task completion
 
 ### Contractiles: `.machine_readable/contractiles/` ONLY
 
@@ -53,7 +53,7 @@ Policy enforcement contracts:
 2. **Single source of truth** - `.machine_readable/` is authoritative
 3. **No stale metadata** - If root state files exist, they are OUT OF DATE
 4. **License consistency** - All code PMPL-1.0-or-later unless platform requires MPL-2.0
-5. **Author attribution** - Always "Jonathan D.A. Jewell <jonathan.jewell@open.ac.uk>"
+5. **Author attribution** - Always "{{AUTHOR}} <{{AUTHOR_EMAIL}}>"
 
 ## REPOSITORY STRUCTURE
 
@@ -123,4 +123,4 @@ After reading this file, demonstrate understanding by stating:
 - **Created:** [DATE]
 - **Maintained By:** [YOUR-NAME/ORG]
 - **License:** PMPL-1.0-or-later
-- **Protocol:** https://github.com/hyperpolymath/0-ai-gatekeeper-protocol
+- **Protocol:** https://github.com/{{OWNER}}/0-ai-gatekeeper-protocol

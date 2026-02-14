@@ -1,6 +1,6 @@
 = RSR Template Repository
 
-image:[Palimpsest-MPL-1.0,link="https://github.com/hyperpolymath/palimpsest-license"] image:[Palimpsest,link="https://github.com/hyperpolymath/palimpsest-license"]
+image:[Palimpsest-MPL-1.0,link="https://github.com/{{OWNER}}/palimpsest-license"] image:[Palimpsest,link="https://github.com/{{OWNER}}/palimpsest-license"]
 :toc:
 :sectnums:
 
@@ -13,7 +13,7 @@ image:https://img.shields.io/badge/Guix-Primary-purple?logo=gnu[Guix]
 
 **The canonical template for RSR (Rhodium Standard Repository) projects.**
 
-This repository provides the standardized structure, configuration, and tooling for all repos in the hyperpolymath ecosystem. Use it to:
+This repository provides the standardized structure, configuration, and tooling for all RSR-compliant repos. Use it to:
 
 * Bootstrap new projects with RSR compliance
 * Reference the standard directory structure
@@ -24,7 +24,7 @@ This repository provides the standardized structure, configuration, and tooling 
 [source,bash]
 ----
 # Clone the template
-git clone https://github.com/hyperpolymath/RSR-template-repo my-project
+git clone https://github.com/{{OWNER}}/RSR-template-repo my-project
 cd my-project
 
 # Remove template git history
@@ -285,6 +285,6 @@ SPDX-License-Identifier: PMPL-1.0-or-later
 
 == Links
 
-* https://github.com/hyperpolymath/elegant-STATE[elegant-STATE] - STATE tooling
-* https://github.com/hyperpolymath/conative-gating[conative-gating] - Policy enforcement
+* https://github.com/{{OWNER}}/elegant-STATE[elegant-STATE] - STATE tooling
+* https://github.com/{{OWNER}}/conative-gating[conative-gating] - Policy enforcement
 * https://rhodium.sh[Rhodium Standard] - RSR documentation

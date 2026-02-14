@@ -10,7 +10,7 @@ This document lists the current and former maintainers of **{{PROJECT_NAME}}**.
 
 | Name | GitHub | Role | Since |
 |------|--------|------|-------|
-| Jonathan D.A. Jewell | [@hyperpolymath](https://github.com/hyperpolymath) | BDFL | {{CURRENT_DATE}} |
+| {{AUTHOR}} | [@{{OWNER}}](https://github.com/{{OWNER}}) | BDFL | {{CURRENT_DATE}} |
 
 ---
 

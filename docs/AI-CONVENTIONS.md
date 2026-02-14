@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
-<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk> -->
+<!-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}> -->
 
 # AI Conventions (Authoritative Source)
 
@@ -22,9 +22,9 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 
 ## Author Attribution
 
-- Name: **Jonathan D.A. Jewell**
-- Email: **jonathan.jewell@open.ac.uk**
-- Copyright: `Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>`
+- Name: **{{AUTHOR}}**
+- Email: **{{AUTHOR_EMAIL}}**
+- Copyright: `Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>`
 
 ## State Files
 

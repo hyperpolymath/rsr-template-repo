@@ -2,8 +2,8 @@
 # humanstxt.org
 
 /* TEAM */
-Maintainer: Jonathan D.A. Jewell (hyperpolymath)
-Contact: jonathan.jewell@open.ac.uk
+Maintainer: {{AUTHOR}} ({{OWNER}})
+Contact: {{AUTHOR_EMAIL}}
 From: United Kingdom
 
 /* SITE */

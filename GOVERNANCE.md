@@ -74,12 +74,12 @@ release schedules, contributor access, and community standards.
 
 ### Bot
 
-- Automated agents managed via [gitbot-fleet](https://github.com/hyperpolymath/gitbot-fleet).
+- Automated agents managed via your bot orchestration system.
 - Perform automated code review, security scanning, dependency updates, and
   standards enforcement.
 - Bot actions are subject to the same quality and review standards as human
   contributions.
-- Current bots: rhodibot, echidnabot, sustainabot, glambot, seambot, finishbot.
+- Configure your bots in `.machine_readable/bot_directives/`.
 
 ---
 

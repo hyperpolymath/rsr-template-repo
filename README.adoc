@@ -35,7 +35,7 @@ project/
 
 == AI Gatekeeper Protocol (MANDATORY)
 
-**CRITICAL:** All hyperpolymath repos MUST include an AI manifest.
+**CRITICAL:** All repos MUST include an AI manifest.
 
 * **File:** `0-AI-MANIFEST.a2ml` (included in this template)
 * **Purpose:** Universal entry point for ALL AI agents (Claude, Gemini, OpenAI, etc.)
@@ -56,7 +56,7 @@ project/
 * ✅ No repeated explanations - mechanical enforcement
 * ✅ Works universally (not just Claude)
 
-**See:** link:https://github.com/hyperpolymath/0-ai-gatekeeper-protocol[AI Gatekeeper Protocol] for details
+**See:** link:https://github.com/{{OWNER}}/0-ai-gatekeeper-protocol[AI Gatekeeper Protocol] for details
 
 **Enforcement:**
 
@@ -79,65 +79,18 @@ See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
 - All machine-readable content lives in `.machine_readable/` — state files (6 a2ml), `bot_directives/`, and `contractiles/`.
 - Include `.machine_readable/` structure from this template in new repos.
-- Before any code generation, check `/var/mnt/eclipse/repos/proven` for the current Idris "unbreakable" library status.
-- If a project uses that Idris library, add an *Idris Inside* badge to the repo.
-- If new bindings are required, add them in `/var/mnt/eclipse/repos/proven` as `idris2-zig-<language>` during the work.
-- If new code suggests additional "unbreakable" Idris modules, add them under `/var/mnt/eclipse/repos/proven` and update binders across all supported languages.
 
-== Standard Dependencies
+== Standard Dependencies (Optional)
 
-=== Web Projects
+Add your project's standard dependencies here. Remove or customize this section
+for your ecosystem.
 
-ReScript web projects in the hyperpolymath ecosystem **MUST** use these formally verified components:
-
-[cols="1,2,1"]
-|===
-|Library |Purpose |Status
-
-|link:https://github.com/hyperpolymath/rescript-dom-mounter[rescript-dom-mounter]
-|Formally verified DOM mounting
-|**REQUIRED**
-
-|link:https://github.com/hyperpolymath/rescript-tea[rescript-tea]
-|TEA architecture framework
-|Recommended
-
-|link:https://github.com/hyperpolymath/cadre-tea-router[cadre-tea-router]
-|Proven-safe URL routing
-|Recommended
-
-|link:https://github.com/hyperpolymath/proven[proven]
-|Idris2 formally verified library
-|Core Dependency
-|===
-
-==== Why SafeDOM is Required
-
-Traditional DOM mounting can fail:
-
-[source,javascript]
-----
-// ❌ UNSAFE: Can crash with null pointer
-const el = document.getElementById('app')
-el.innerHTML = html  // 💥
-----
-
-SafeDOM provides **compile-time proofs** that DOM operations cannot fail:
-
-[source,rescript]
-----
-// ✅ PROVEN SAFE: Mathematically guaranteed
-SafeDOM.mountSafe("#app", html,
-  ~onSuccess=el => Console.log("Success"),
-  ~onError=err => Console.error(err))
-----
-
-**Mathematical Guarantees:**
-
-✓ No null pointer dereferences (Idris2 proof)
-✓ No invalid CSS selectors (dependent types)
-✓ No malformed HTML (balanced tag checking)
-✓ Type-safe operations (ReScript + Idris2)
-✓ Zero runtime overhead (proofs erased)
-
-See link:https://github.com/hyperpolymath/rescript-dom-mounter[rescript-dom-mounter documentation] for full details.
+// Example:
+// [cols="1,2,1"]
+// |===
+// |Library |Purpose |Status
+//
+// |your-library
+// |Description
+// |Required / Recommended / Optional
+// |===

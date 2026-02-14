@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
-<!-- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk> -->
+<!-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}> -->
 <!-- Authoritative source: docs/AI-CONVENTIONS.md -->
 
 # Copilot Instructions
@@ -13,7 +13,7 @@
 
 - SPDX: `PMPL-1.0-or-later` on all new files.
 - Never use AGPL-3.0.
-- Copyright: `Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>`
+- Copyright: `{{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>`
 
 ## Code Style
 

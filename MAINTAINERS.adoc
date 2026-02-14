@@ -10,9 +10,9 @@ This document lists the maintainers of this project and their responsibilities.
 |===
 | Name | Role | Contact
 
-| Jonathan D.A. Jewell
+| {{AUTHOR}}
 | Lead Maintainer
-| https://github.com/hyperpolymath[@hyperpolymath]
+| https://github.com/{{OWNER}}[@{{OWNER}}]
 |===
 
 == Responsibilities

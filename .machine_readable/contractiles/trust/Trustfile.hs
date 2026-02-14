@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: PMPL-1.0-or-later
 -- Trustfile template - cryptographic and provenance verification
--- Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 --
 -- This template embeds the canonical user-security-requirements specification
 -- and provides verification functions for policy hashes, schema signatures,
@@ -21,7 +21,7 @@ import System.Process (readProcessWithExitCode)
 -- ==========================================================================
 --
 -- Canonical source: (define user-security-requirements ...) in Scheme
--- This block is the authoritative crypto policy for all hyperpolymath repos.
+-- This block is the authoritative crypto policy for all {{OWNER}} repos.
 -- Customise file paths and verification targets per project; do NOT weaken
 -- the algorithm choices below.
 --
