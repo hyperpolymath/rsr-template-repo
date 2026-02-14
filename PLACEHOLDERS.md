@@ -3,11 +3,19 @@
 All placeholders in this template follow the `{{PLACEHOLDER}}` pattern.
 After cloning, replace them with your project-specific values.
 
-## Quick Replace
+## Recommended: Interactive Bootstrap
 
 ```bash
-# Required replacements (run from repo root)
-# Alternatively, use: just init  (K9-powered, with validation)
+just init
+```
+
+This interactively prompts for all values, replaces every placeholder,
+validates the result, and runs k9-svc checks if available.
+
+## Manual Replace
+
+```bash
+# If you prefer manual replacement (run from repo root)
 
 sed -i 's/{{AUTHOR}}/Jane Doe/g' $(grep -rl '{{AUTHOR}}' .)
 sed -i 's/{{AUTHOR_EMAIL}}/jane@example.org/g' $(grep -rl '{{AUTHOR_EMAIL}}' .)

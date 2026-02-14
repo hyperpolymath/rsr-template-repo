@@ -49,6 +49,156 @@ info:
     @[ -f ".machine_readable/STATE.a2ml" ] && grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/STATE.a2ml | head -1 | xargs -I{} echo "Phase: {}" || true
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# INIT — Bootstrap a new project from this template
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Interactive project bootstrap — replaces all {{PLACEHOLDER}} tokens
+init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "═══════════════════════════════════════════════════"
+    echo "  RSR Project Bootstrap"
+    echo "═══════════════════════════════════════════════════"
+    echo ""
+
+    # --- Required values ---
+    read -rp "Project name (human-readable, e.g. My Project): " PROJECT_NAME
+    [ -z "$PROJECT_NAME" ] && echo "Error: project name required" && exit 1
+
+    read -rp "Repository slug (e.g. my-project): " REPO
+    [ -z "$REPO" ] && echo "Error: repo slug required" && exit 1
+
+    read -rp "Owner (GitHub/GitLab username or org): " OWNER
+    [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
+
+    read -rp "Author full name: " AUTHOR
+    [ -z "$AUTHOR" ] && echo "Error: author name required" && exit 1
+
+    read -rp "Author email: " AUTHOR_EMAIL
+    [ -z "$AUTHOR_EMAIL" ] && echo "Error: email required" && exit 1
+
+    # --- Optional values ---
+    read -rp "Author organization [none]: " AUTHOR_ORG
+    read -rp "Previous/alt email (for .mailmap) [none]: " AUTHOR_EMAIL_ALT
+    read -rp "Project description (one line) []: " PROJECT_DESCRIPTION
+    read -rp "Forge domain [github.com]: " FORGE
+    FORGE="${FORGE:-github.com}"
+
+    read -rp "Security contact email [$AUTHOR_EMAIL]: " SECURITY_EMAIL
+    SECURITY_EMAIL="${SECURITY_EMAIL:-$AUTHOR_EMAIL}"
+
+    read -rp "Conduct contact email [$AUTHOR_EMAIL]: " CONDUCT_EMAIL
+    CONDUCT_EMAIL="${CONDUCT_EMAIL:-$AUTHOR_EMAIL}"
+
+    # --- Derived values ---
+    PROJECT_UPPER=$(echo "$REPO" | tr '[:lower:]-' '[:upper:]_')
+    PROJECT_LOWER=$(echo "$REPO" | tr '[:upper:]-' '[:lower:]_')
+    CURRENT_YEAR=$(date +%Y)
+    CURRENT_DATE=$(date +%Y-%m-%d)
+
+    # Derive citation name parts (best-effort split on last space)
+    AUTHOR_LAST="${AUTHOR##* }"
+    AUTHOR_FIRST="${AUTHOR% *}"
+    FIRST_INITIAL="${AUTHOR_FIRST:0:1}."
+    if [ "$AUTHOR_LAST" = "$AUTHOR_FIRST" ]; then
+        AUTHOR_FIRST="$AUTHOR"
+        AUTHOR_LAST=""
+        FIRST_INITIAL=""
+    fi
+
+    echo ""
+    echo "── Summary ──────────────────────────────────────"
+    echo "  Project:     $PROJECT_NAME"
+    echo "  Repo:        $REPO"
+    echo "  Owner:       $OWNER"
+    echo "  Author:      $AUTHOR <$AUTHOR_EMAIL>"
+    [ -n "$AUTHOR_ORG" ] && echo "  Organization: $AUTHOR_ORG"
+    echo "  Forge:       $FORGE"
+    echo "  Year:        $CURRENT_YEAR"
+    echo "────────────────────────────────────────────────"
+    echo ""
+    read -rp "Proceed? [Y/n] " CONFIRM
+    [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
+
+    echo ""
+    echo "Replacing placeholders..."
+
+    # Brace tokens as variables (avoids just interpolation)
+    LB='{{'
+    RB='}}'
+
+    # Build the sed expression list
+    # Note: using | as delimiter since URLs contain /
+    SED_ARGS=(
+        -e "s|${LB}PROJECT_NAME${RB}|${PROJECT_NAME}|g"
+        -e "s|${LB}PROJECT_DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
+        -e "s|${LB}PROJECT${RB}|${PROJECT_UPPER}|g"
+        -e "s|${LB}project${RB}|${PROJECT_LOWER}|g"
+        -e "s|${LB}REPO${RB}|${REPO}|g"
+        -e "s|${LB}OWNER${RB}|${OWNER}|g"
+        -e "s|${LB}AUTHOR${RB}|${AUTHOR}|g"
+        -e "s|${LB}AUTHOR_EMAIL${RB}|${AUTHOR_EMAIL}|g"
+        -e "s|${LB}AUTHOR_ORG${RB}|${AUTHOR_ORG}|g"
+        -e "s|${LB}AUTHOR_LAST${RB}|${AUTHOR_LAST}|g"
+        -e "s|${LB}AUTHOR_FIRST${RB}|${AUTHOR_FIRST}|g"
+        -e "s|${LB}AUTHOR_INITIALS${RB}|${FIRST_INITIAL}|g"
+        -e "s|${LB}FORGE${RB}|${FORGE}|g"
+        -e "s|${LB}CURRENT_YEAR${RB}|${CURRENT_YEAR}|g"
+        -e "s|${LB}CURRENT_DATE${RB}|${CURRENT_DATE}|g"
+        -e "s|${LB}DATE${RB}|${CURRENT_DATE}|g"
+        -e "s|${LB}SECURITY_EMAIL${RB}|${SECURITY_EMAIL}|g"
+        -e "s|${LB}CONDUCT_EMAIL${RB}|${CONDUCT_EMAIL}|g"
+    )
+    [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
+
+    # Replace in all text files (skip .git, LICENSE text, and binaries)
+    find . -type f \
+        -not -path './.git/*' \
+        -not -name 'PMPL-1.0-or-later.txt' \
+        -not -name '*.png' -not -name '*.jpg' -not -name '*.gif' \
+        -not -name '*.woff' -not -name '*.woff2' \
+        | while read -r file; do
+        if file --brief "$file" | grep -qi 'text\|ascii\|utf'; then
+            sed -i "${SED_ARGS[@]}" "$file"
+        fi
+    done
+
+    # Also replace [YOUR-REPO-NAME] and [YOUR-NAME/ORG] in AI manifest
+    sed -i "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
+    sed -i "s|\[YOUR-NAME/ORG\]|${OWNER}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
+
+    echo ""
+    echo "── Validation ───────────────────────────────────"
+
+    # Check for remaining placeholders
+    PATTERN="${LB}[A-Z_]*${RB}"
+    REMAINING=$(grep -rl "$PATTERN" . --include='*.md' --include='*.adoc' --include='*.yml' --include='*.a2ml' --include='*.toml' --include='*.scm' --include='*.ncl' --include='*.nix' --include='*.json' 2>/dev/null | grep -v '.git/' | grep -v 'PLACEHOLDERS.md' || true)
+    if [ -n "$REMAINING" ]; then
+        echo "WARNING: Remaining placeholders in:"
+        echo "$REMAINING" | sed 's/^/  /'
+        echo ""
+        echo "Run: grep -rn '$LB' . --include='*.md' to inspect"
+    else
+        echo "All placeholders replaced successfully!"
+    fi
+
+    # K9-SVC validation (if available)
+    if command -v k9-svc >/dev/null 2>&1; then
+        echo ""
+        echo "Running k9-svc validation..."
+        k9-svc validate . 2>/dev/null || true
+    fi
+
+    echo ""
+    echo "Done! Next steps:"
+    echo "  1. Review changes: git diff"
+    echo "  2. Remove template cruft: rm PLACEHOLDERS.md"
+    echo "  3. Customize README.adoc for your project"
+    echo "  4. Commit: git add -A && git commit -m 'feat: initialize from RSR template'"
+    echo "  5. Push: git remote add origin git@${FORGE}:${OWNER}/${REPO}.git && git push -u origin main"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # BUILD & COMPILE
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -253,7 +403,7 @@ man:
     .SH DESCRIPTION
     RSR (Rhodium Standard Repository) project managed with just.
     .SH AUTHOR
-    {{AUTHOR}} <{{AUTHOR_EMAIL}}>
+    $(git config user.name 2>/dev/null || echo "Author") <$(git config user.email 2>/dev/null || echo "email")>
     EOF
     echo "Generated: docs/man/{{project}}.1"
 
@@ -270,8 +420,8 @@ container-build tag="latest":
     fi
 
 # Run container
-container-run tag="latest" *args:
-    podman run --rm -it {{project}}:{{tag}} {{args}}
+container-run *args:
+    podman run --rm -it {{project}}:latest {{args}}
 
 # Push container image
 container-push registry="ghcr.io/{{OWNER}}" tag="latest":

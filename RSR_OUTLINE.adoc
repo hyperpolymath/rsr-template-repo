@@ -31,8 +31,8 @@ cd my-project
 rm -rf .git
 git init
 
-# Customize placeholders (see PLACEHOLDERS.md for full list)
-sed -i 's/{{PROJECT_NAME}}/my-project/g' Justfile guix.scm README.adoc
+# Interactive bootstrap — replaces all placeholders
+just init
 
 # Enter development environment
 guix shell -D -f guix.scm
