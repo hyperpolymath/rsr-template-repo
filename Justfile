@@ -62,34 +62,53 @@ init:
     echo "═══════════════════════════════════════════════════"
     echo ""
 
-    # --- Required values ---
+    # --- Load defaults from config (if exists) ---
+    # Create yours: ~/.config/rsr/defaults
+    # Format: OWNER=myorg  AUTHOR="My Name"  AUTHOR_EMAIL=me@example.org ...
+    DEFAULTS="${XDG_CONFIG_HOME:-$HOME/.config}/rsr/defaults"
+    if [ -f "$DEFAULTS" ]; then
+        echo "Loading defaults from $DEFAULTS"
+        # shellcheck source=/dev/null
+        source "$DEFAULTS"
+        echo ""
+    fi
+
+    # --- Required values (pre-filled from defaults if available) ---
     read -rp "Project name (human-readable, e.g. My Project): " PROJECT_NAME
     [ -z "$PROJECT_NAME" ] && echo "Error: project name required" && exit 1
 
     read -rp "Repository slug (e.g. my-project): " REPO
     [ -z "$REPO" ] && echo "Error: repo slug required" && exit 1
 
-    read -rp "Owner (GitHub/GitLab username or org): " OWNER
+    read -rp "Owner [${OWNER:-}]: " _OWNER
+    OWNER="${_OWNER:-${OWNER:-}}"
     [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
 
-    read -rp "Author full name: " AUTHOR
+    read -rp "Author full name [${AUTHOR:-}]: " _AUTHOR
+    AUTHOR="${_AUTHOR:-${AUTHOR:-}}"
     [ -z "$AUTHOR" ] && echo "Error: author name required" && exit 1
 
-    read -rp "Author email: " AUTHOR_EMAIL
+    read -rp "Author email [${AUTHOR_EMAIL:-}]: " _AUTHOR_EMAIL
+    AUTHOR_EMAIL="${_AUTHOR_EMAIL:-${AUTHOR_EMAIL:-}}"
     [ -z "$AUTHOR_EMAIL" ] && echo "Error: email required" && exit 1
 
-    # --- Optional values ---
-    read -rp "Author organization [none]: " AUTHOR_ORG
-    read -rp "Previous/alt email (for .mailmap) [none]: " AUTHOR_EMAIL_ALT
-    read -rp "Project description (one line) []: " PROJECT_DESCRIPTION
-    read -rp "Forge domain [github.com]: " FORGE
-    FORGE="${FORGE:-github.com}"
+    # --- Optional values (pre-filled from defaults if available) ---
+    read -rp "Author organization [${AUTHOR_ORG:-none}]: " _AUTHOR_ORG
+    AUTHOR_ORG="${_AUTHOR_ORG:-${AUTHOR_ORG:-}}"
 
-    read -rp "Security contact email [$AUTHOR_EMAIL]: " SECURITY_EMAIL
-    SECURITY_EMAIL="${SECURITY_EMAIL:-$AUTHOR_EMAIL}"
+    read -rp "Previous/alt email [${AUTHOR_EMAIL_ALT:-none}]: " _AUTHOR_EMAIL_ALT
+    AUTHOR_EMAIL_ALT="${_AUTHOR_EMAIL_ALT:-${AUTHOR_EMAIL_ALT:-}}"
 
-    read -rp "Conduct contact email [$AUTHOR_EMAIL]: " CONDUCT_EMAIL
-    CONDUCT_EMAIL="${CONDUCT_EMAIL:-$AUTHOR_EMAIL}"
+    read -rp "Project description []: " PROJECT_DESCRIPTION
+
+    read -rp "Forge domain [${FORGE:-github.com}]: " _FORGE
+    FORGE="${_FORGE:-${FORGE:-github.com}}"
+
+    read -rp "Security contact email [${SECURITY_EMAIL:-$AUTHOR_EMAIL}]: " _SECURITY_EMAIL
+    SECURITY_EMAIL="${_SECURITY_EMAIL:-${SECURITY_EMAIL:-$AUTHOR_EMAIL}}"
+
+    read -rp "Conduct contact email [${CONDUCT_EMAIL:-$AUTHOR_EMAIL}]: " _CONDUCT_EMAIL
+    CONDUCT_EMAIL="${_CONDUCT_EMAIL:-${CONDUCT_EMAIL:-$AUTHOR_EMAIL}}"
 
     read -rp "Project type (library|binary|monorepo|service|website) [library]: " PROJECT_TYPE
     PROJECT_TYPE="${PROJECT_TYPE:-library}"
