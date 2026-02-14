@@ -19,7 +19,12 @@ Copyright: 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk
 License: PMPL-1.0-or-later
 
 # Bot directives
-Files: .bot_directives/*
+Files: .machine_readable/bot_directives/*
+Copyright: 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
+License: PMPL-1.0-or-later
+
+# Contractiles
+Files: .machine_readable/contractiles/*
 Copyright: 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
 License: PMPL-1.0-or-later
 

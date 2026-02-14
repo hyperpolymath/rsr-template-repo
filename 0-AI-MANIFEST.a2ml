@@ -23,7 +23,7 @@ These 6 a2ml files MUST exist in `.machine_readable/` directory ONLY:
 
 **CRITICAL:** If ANY of these files exist in the root directory, this is an ERROR.
 
-### Bot Directives: `.bot_directives/` ONLY
+### Bot Directives: `.machine_readable/bot_directives/` ONLY
 
 Bot-specific instructions for:
 - rhodibot - Git operations
@@ -32,6 +32,15 @@ Bot-specific instructions for:
 - glambot - Documentation
 - seambot - Integration
 - finishbot - Task completion
+
+### Contractiles: `.machine_readable/contractiles/` ONLY
+
+Policy enforcement contracts:
+- k9 - Operational constraints (Nickel)
+- dust - Rollback and recovery semantics
+- lust - Future intent and roadmap direction
+- must - Required invariants and validations
+- trust - Cryptographic verification (Haskell)
 
 ### Agent Instructions
 
@@ -57,20 +66,21 @@ This repo contains:
 ├── 0-AI-MANIFEST.a2ml         # THIS FILE (start here)
 ├── README.md                   # Project overview
 ├── [your source files]         # Main code
-├── .machine_readable/          # State files (6 a2ml files)
-│   ├── STATE.a2ml
-│   ├── META.a2ml
-│   ├── ECOSYSTEM.a2ml
-│   ├── AGENTIC.a2ml
-│   ├── NEUROSYM.a2ml
-│   └── PLAYBOOK.a2ml
-└── .bot_directives/            # Bot instructions
+└── .machine_readable/          # ALL machine-readable content
+    ├── STATE.a2ml              # Project state, progress, blockers
+    ├── META.a2ml               # Architecture decisions, governance
+    ├── ECOSYSTEM.a2ml          # Ecosystem position, relationships
+    ├── AGENTIC.a2ml            # AI agent interaction patterns
+    ├── NEUROSYM.a2ml           # Neurosymbolic integration config
+    ├── PLAYBOOK.a2ml           # Operational runbook
+    ├── bot_directives/         # Per-bot rules and constraints
+    └── contractiles/           # Policy enforcement contracts (k9, dust, lust, must, trust)
 ```
 
 ## SESSION STARTUP CHECKLIST
 
 ✅ Read THIS file (0-AI-MANIFEST.a2ml) first
-✅ Understand canonical locations (.machine_readable/, .bot_directives/)
+✅ Understand canonical location: `.machine_readable/` (state, bots, contractiles)
 ✅ Know the invariants (no state file duplication, etc.)
 ✅ Check for MCP enforcement (if applicable)
 ✅ Read `.machine_readable/STATE.a2ml` for current status
@@ -105,7 +115,7 @@ When ending a session:
 
 After reading this file, demonstrate understanding by stating:
 
-**"I have read the AI manifest. State files (.a2ml) are located in `.machine_readable/` ONLY, bot directives in `.bot_directives/`, and I will not create duplicate files in the root directory."**
+**"I have read the AI manifest. All machine-readable content (state files, bot directives, contractiles) is located in `.machine_readable/` ONLY, and I will not create duplicate files in the root directory."**
 
 ## META
 

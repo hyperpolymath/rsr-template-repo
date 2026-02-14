@@ -38,8 +38,8 @@ The RSR template provides:
   ECOSYSTEM.a2ml, META.a2ml, AGENTIC.a2ml, NEUROSYM.a2ml, PLAYBOOK.a2ml)
 - **AI manifest** (`0-AI-MANIFEST.a2ml`) as a universal entry point for all
   AI agents
-- **Bot directives** in `.bot_directives/` for gitbot-fleet integration
-- **Contractiles** in `contractiles/` (k9, dust, lust, must, trust) for
+- **Bot directives** in `.machine_readable/bot_directives/` for gitbot-fleet integration
+- **Contractiles** in `.machine_readable/contractiles/` (k9, dust, lust, must, trust) for
   policy enforcement
 - **Standardized workflows** (16+ GitHub Actions workflows, all SHA-pinned)
 - **Justfile automation** with standard recipes for common tasks

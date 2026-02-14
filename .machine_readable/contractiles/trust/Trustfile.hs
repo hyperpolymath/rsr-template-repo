@@ -6,7 +6,7 @@
 -- and provides verification functions for policy hashes, schema signatures,
 -- post-quantum signatures, and migration provenance.
 --
--- Run: runhaskell contractiles/trust/Trustfile.hs
+-- Run: runhaskell .machine_readable/contractiles/trust/Trustfile.hs
 
 module Trustfile where
 
