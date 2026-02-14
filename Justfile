@@ -124,9 +124,9 @@ init:
     echo ""
     echo "Replacing placeholders..."
 
-    # Brace tokens as variables (avoids just interpolation)
-    LB='{{'
-    RB='}}'
+    # Brace tokens as variables (hex avoids just interpolation)
+    LB=$(printf '\x7b\x7b')
+    RB=$(printf '\x7d\x7d')
 
     # Build the sed expression list
     # Note: using | as delimiter since URLs contain /
