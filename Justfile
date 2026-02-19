@@ -527,8 +527,72 @@ validate-state:
         echo "No .machine_readable/STATE.a2ml found"; \
     fi
 
+# Validate AI installation guide completeness (finishbot pre-release check)
+validate-ai-install:
+    #!/usr/bin/env bash
+    echo "=== AI Installation Guide Check ==="
+    GUIDE="docs/AI_INSTALLATION_GUIDE.adoc"
+    README="README.adoc"
+    ERRORS=0
+
+    # Check guide exists
+    if [ ! -f "$GUIDE" ]; then
+        echo "MISSING: $GUIDE (create from template: docs/AI_INSTALLATION_GUIDE.adoc)"
+        ERRORS=$((ERRORS + 1))
+    else
+        # Check for unfilled TODO markers
+        TODOS=$(grep -c '\[TODO-AI-INSTALL' "$GUIDE" 2>/dev/null || true)
+        if [ "$TODOS" -gt 0 ]; then
+            echo "INCOMPLETE: $GUIDE has $TODOS unfilled [TODO-AI-INSTALL] markers:"
+            grep -n '\[TODO-AI-INSTALL' "$GUIDE" | head -10
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "$GUIDE: complete (no TODO markers)"
+        fi
+
+        # Check AI implementation section exists
+        if ! grep -q 'ai-implementation' "$GUIDE" 2>/dev/null; then
+            echo "MISSING: [[ai-implementation]] anchor in $GUIDE"
+            ERRORS=$((ERRORS + 1))
+        fi
+
+        # Check privacy notice exists
+        if ! grep -qi 'privacy' "$GUIDE" 2>/dev/null; then
+            echo "MISSING: Privacy notice in $GUIDE"
+            ERRORS=$((ERRORS + 1))
+        fi
+
+        # Check install commands exist (not just placeholders)
+        if ! grep -q 'git clone' "$GUIDE" 2>/dev/null; then
+            echo "WARNING: No git clone command found in $GUIDE -- install commands may be incomplete"
+        fi
+    fi
+
+    # Check README has AI install section
+    if [ -f "$README" ]; then
+        if ! grep -qi 'AI-Assisted Installation' "$README" 2>/dev/null; then
+            echo "MISSING: AI-Assisted Installation section in $README"
+            echo "  Copy from docs/AI-INSTALL-README-SECTION.adoc"
+            ERRORS=$((ERRORS + 1))
+        fi
+
+        # Check README for unfilled TODO markers
+        README_TODOS=$(grep -c '\[TODO-AI-INSTALL' "$README" 2>/dev/null || true)
+        if [ "$README_TODOS" -gt 0 ]; then
+            echo "INCOMPLETE: $README has $README_TODOS unfilled [TODO-AI-INSTALL] markers"
+            ERRORS=$((ERRORS + 1))
+        fi
+    fi
+
+    if [ "$ERRORS" -gt 0 ]; then
+        echo ""
+        echo "AI install guide: FAIL ($ERRORS issues)"
+        exit 1
+    fi
+    echo "AI install guide: PASS"
+
 # Full validation suite
-validate: validate-rsr validate-state
+validate: validate-rsr validate-state validate-ai-install
     @echo "All validations passed!"
 
 # ═══════════════════════════════════════════════════════════════════════════════

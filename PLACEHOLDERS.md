@@ -96,6 +96,27 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 | `[DATE]` | Creation date | `2026-02-14` | 0-AI-MANIFEST.a2ml |
 | `[YOUR-NAME/ORG]` | Maintainer name | `hyperpolymath` | 0-AI-MANIFEST.a2ml |
 
+### AI Installation Guide
+
+| Marker | Description | Files |
+|---|---|---|
+| `[TODO-AI-INSTALL]` | Unfilled section in AI installation guide | `docs/AI_INSTALLATION_GUIDE.adoc`, `docs/AI-INSTALL-README-SECTION.adoc`, `README.adoc` |
+
+These are **not** standard `{{PLACEHOLDER}}` markers -- they are TODO markers
+that must be replaced with project-specific content before release. They mark
+sections where the developer (or AI) must fill in:
+
+- What questions the AI should ask the user
+- Exact prerequisite check and install commands
+- Privacy notice specific to this project
+- Complete installation command block
+- Credential setup instructions (URLs, scopes, env vars)
+- Verification commands and expected output
+- Error handling table
+- Example conversation
+
+**finishbot checks:** `just validate-ai-install` verifies no `[TODO-AI-INSTALL]` markers remain.
+
 ## Deletion Markers
 
 Some files contain deletion instructions:

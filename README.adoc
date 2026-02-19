@@ -1,5 +1,12 @@
 = RSR template repo - see RSR_OUTLINE.adoc in root for general background and specification
 
+[TIP]
+====
+**AI-Assisted Install:** Just tell any AI assistant: +
+`Set up {{PROJECT_NAME}} from https://{{FORGE}}/{{OWNER}}/{{REPO}}` +
+The AI reads this repo, asks you a few questions, and handles everything. See <<ai-install,details below>>.
+====
+
 == This is your repo - don't forget to rename me!
 
 == ABI/FFI Standards (Hyperpolymath Universal Standard)
@@ -79,6 +86,24 @@ See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
 - All machine-readable content lives in `.machine_readable/` — state files (6 a2ml), `bot_directives/`, and `contractiles/`.
 - Include `.machine_readable/` structure from this template in new repos.
+
+[[ai-install]]
+== AI-Assisted Installation
+
+**You don't need to read this README to get started.** Just say this to any AI:
+
+[source,text]
+----
+Set up {{PROJECT_NAME}} from https://{{FORGE}}/{{OWNER}}/{{REPO}}
+----
+
+The URL is the spec. The AI fetches this repo, reads `docs/AI_INSTALLATION_GUIDE.adoc`, and handles everything -- prerequisites, build, config, verification. You answer a few questions and confirm the privacy notice. No commands, no installers, no forms.
+
+If the AI already knows this project, shorter prompts work too. If it doesn't, the URL gives it everything.
+
+**For developers:** Fill in `docs/AI_INSTALLATION_GUIDE.adoc` with your project-specific install recipe. Paste the highlight box from `docs/AI-INSTALL-README-SECTION.adoc` into your README. Run `just validate-ai-install` to check completeness. finishbot verifies this pre-release.
+
+The normal installation instructions remain below for anyone who prefers to do things manually.
 
 == Standard Dependencies (Optional)
 

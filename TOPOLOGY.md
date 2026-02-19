@@ -1,113 +1,82 @@
 <!-- SPDX-License-Identifier: PMPL-1.0-or-later -->
 <!-- TOPOLOGY.md — Project architecture map and completion dashboard -->
-<!-- Last updated: {{DATE}} -->
+<!-- Last updated: 2026-02-19 -->
 
-# {{PROJECT_NAME}} — Project Topology
+# RSR Template Repo — Project Topology
 
 ## System Architecture
 
-<!--
-  Draw an ASCII diagram of the system as it will look when complete.
-  Show all major components, their relationships, and data flow.
-
-  Guidelines:
-  - Use box-drawing characters: ┌ ┐ └ ┘ │ ─ ├ ┤ ┬ ┴ ┼
-  - Use arrows for data flow: ▲ ▼ ◄ ► or → ← ↑ ↓
-  - Use double lines for boundaries: ═ ║
-  - Group related components in boxes
-  - Show external services at the top, internal at the bottom
-  - Label every box and connection
-  - Keep lines aligned (monospace)
--->
-
 ```
                         ┌─────────────────────────────────────────┐
-                        │              USERS / CLIENTS            │
+                        │              NEW REPOSITORY             │
+                        │        (Consumer of this Template)      │
                         └───────────────────┬─────────────────────┘
-                                            │
+                                            │ Scaffolding
                                             ▼
                         ┌─────────────────────────────────────────┐
-                        │           EXTERNAL SERVICES             │
-                        │  (CDN, DNS, gateway, load balancer)     │
-                        └───────────────────┬─────────────────────┘
-                                            │
-                                            ▼
-                        ┌─────────────────────────────────────────┐
-                        │           APPLICATION LAYER             │
+                        │           RSR TEMPLATE HUB              │
                         │                                         │
                         │  ┌───────────┐  ┌───────────────────┐  │
-                        │  │ Component │  │    Component       │  │
-                        │  │     A     │  │       B            │  │
+                        │  │ AI Gate-  │  │  ABI / FFI        │  │
+                        │  │ keeper    │  │  Standard         │  │
+                        │  │ (0-AI-M)  │  │ (Idris2/Zig)      │  │
                         │  └─────┬─────┘  └────────┬──────────┘  │
                         │        │                 │              │
-                        │        └────────┬────────┘              │
-                        │                 ▼                       │
-                        │        ┌────────────────┐               │
-                        │        │  Component C   │               │
-                        │        └────────────────┘               │
-                        └─────────────────────────────────────────┘
-
+                        │  ┌─────▼─────┐  ┌────────▼──────────┐  │
+                        │  │ Topology  │  │  SCM / 6SCM       │  │
+                        │  │ Guide     │  │  Metadata         │  │
+                        │  │ (Visual)  │  │ (machine_read)    │  │
+                        │  └─────┬─────┘  └────────┬──────────┘  │
+                        └────────│─────────────────│──────────────┘
+                                 │                 │
+                                 ▼                 ▼
                         ┌─────────────────────────────────────────┐
-                        │             DATA LAYER                  │
-                        │  (databases, caches, storage)           │
+                        │          PLATFORM INTEGRATION           │
+                        │  ┌───────────┐  ┌───────────┐  ┌───────┐│
+                        │  │ GitHub    │  │ GitLab    │  │ Nix / ││
+                        │  │ Workflows │  │ CI/CD     │  │ Guix  ││
+                        │  └───────────┘  └───────────┘  └───────┘│
                         └─────────────────────────────────────────┘
 
                         ┌─────────────────────────────────────────┐
                         │          REPO INFRASTRUCTURE            │
-                        │  .machine_readable/ (state, bots,       │
-                        │    contractiles)  .github/workflows/    │
-                        │  Justfile                               │
+                        │  Justfile / Mustfile  .machine_readable/  │
+                        │  Codeowners / Reuse   0-AI-MANIFEST.a2ml  │
                         └─────────────────────────────────────────┘
 ```
 
 ## Completion Dashboard
 
-<!--
-  List every component from the architecture diagram.
-  Group by layer/concern.
-  Use 10-char progress bars: █ (filled) and ░ (empty).
-  Percentages in 10% increments.
-  Add a short note explaining the status.
--->
-
 ```
 COMPONENT                          STATUS              NOTES
 ─────────────────────────────────  ──────────────────  ─────────────────────────────────
-LAYER 1
-  Component A                       ██████████ 100%    Complete and tested
-  Component B                       ██████░░░░  60%    Core done, integration pending
-  Component C                       ░░░░░░░░░░   0%    Not started
+CORE STANDARDS
+  ABI/FFI Standard (Idris2/Zig)     ██████████ 100%    Universal interface stable
+  AI Gatekeeper (0-AI-MANIFEST)     ██████████ 100%    Universal entry point active
+  TOPOLOGY.md Standard              ██████████ 100%    Visual summary guide active
+  6SCM Metadata Structure           ██████████ 100%    Machine-readable state stable
 
-LAYER 2
-  Component D                       ████░░░░░░  40%    Blocked by Component C
-  Component E                       █░░░░░░░░░  10%    Stub exists
+INFRASTRUCTURE
+  Justfile Automation               ██████████ 100%    Standard build/verify tasks
+  CI/CD Workflow Templates          ██████████ 100%    GH/GL scaffolding verified
+  Multi-Forge Sync                  ██████████ 100%    Hub-and-spoke mirroring stable
 
 REPO INFRASTRUCTURE
-  .machine_readable/                ██████████ 100%    State, bot directives, contractiles
-  .github/workflows/                ██████████ 100%    Standard workflows
-  Justfile                          ██████████ 100%    Build automation
+  .machine_readable/                ██████████ 100%    STATE/META/ECOSYSTEM active
+  Governance & License              ██████████ 100%    PMPL & Ethical use verified
+  Development Shells (Nix/Guix)     ██████████ 100%    Reproducible env stable
 
 ─────────────────────────────────────────────────────────────────────────────
-OVERALL:                            ████░░░░░░  ~40%   Summary sentence here
+OVERALL:                            ██████████ 100%    RSR Template Stable & Certified
 ```
 
 ## Key Dependencies
 
-<!--
-  Show the critical path — what blocks what.
-  Use ASCII arrows to show dependency chains.
--->
-
 ```
-Component A ──────► Component B ──────► Component C
-                                              │
-                                    ┌─────────┼─────────┐
-                                    ▼         ▼         ▼
-                                Comp D     Comp E    Comp F
-                                    │         │         │
-                                    └─────────┼─────────┘
-                                              ▼
-                                         COMPLETE
+Philosophy ──────► RSR Standard ──────► Template Scaffolding ──► New Repo
+     │                 │                      │                    │
+     ▼                 ▼                      ▼                    ▼
+CCCP Policy ─────► 0-AI-MANIFEST ────────► Justfile ──────────► Compliance
 ```
 
 ## Update Protocol
