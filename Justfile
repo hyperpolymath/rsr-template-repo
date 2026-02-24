@@ -508,7 +508,7 @@ validate-rsr:
     for f in .editorconfig .gitignore Justfile README.adoc LICENSE; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    for f in .machine_readable/STATE.a2ml .machine_readable/META.a2ml .machine_readable/ECOSYSTEM.a2ml; do
+    for f in .machine_readable/STATE.a2ml .machine_readable/META.a2ml .machine_readable/ECOSYSTEM.a2ml .machine_readable/anchors/ANCHOR.a2ml; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     if [ -n "$MISSING" ]; then

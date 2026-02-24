@@ -51,14 +51,14 @@ project/
 
 **The manifest declares:**
 
-* Canonical file locations (e.g., "SCM files ONLY in `.machine_readable/`")
+* Canonical file locations (e.g., "machine-readable files ONLY in `.machine_readable/`")
 * Critical invariants (rules that must NEVER be violated)
 * Repository structure and organization
 * Lifecycle hooks (on-enter, on-exit) for session logging
 
 **Benefits:**
 
-* ✅ Prevents duplicate file errors (e.g., SCM files in wrong locations)
+* ✅ Prevents duplicate file errors (e.g., machine-readable files in wrong locations)
 * ✅ Context preserved across sessions and AI platforms
 * ✅ No repeated explanations - mechanical enforcement
 * ✅ Works universally (not just Claude)
@@ -84,7 +84,7 @@ See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for
 == AI CLI standards
 
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
-- All machine-readable content lives in `.machine_readable/` — state files (6 a2ml), `bot_directives/`, `contractiles/`, and `ai/`.
+- All machine-readable content lives in `.machine_readable/` — state files (`*.a2ml`), `anchors/`, `bot_directives/`, `contractiles/`, and `ai/`.
 - Include `.machine_readable/` structure from this template in new repos.
 
 == Directory Structure Policy (Owner Override)

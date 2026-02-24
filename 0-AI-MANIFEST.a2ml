@@ -23,6 +23,14 @@ These 6 a2ml files MUST exist in `.machine_readable/` directory ONLY:
 
 **CRITICAL:** If ANY of these files exist in the root directory, this is an ERROR.
 
+### Anchor File: `.machine_readable/anchors/ANCHOR.a2ml` ONLY
+
+Canonical authority and semantic-boundary declaration MUST exist at:
+
+` .machine_readable/anchors/ANCHOR.a2ml `
+
+Do not place `ANCHOR.a2ml` at repository root.
+
 ### Bot Directives: `.machine_readable/bot_directives/` ONLY
 
 Bot-specific instructions for your automated agents. Example roles:
@@ -73,6 +81,8 @@ This repo contains:
     ├── AGENTIC.a2ml            # AI agent interaction patterns
     ├── NEUROSYM.a2ml           # Neurosymbolic integration config
     ├── PLAYBOOK.a2ml           # Operational runbook
+    ├── anchors/                # Canonical authority declarations
+    │   └── ANCHOR.a2ml         # Upstream anchor and policy boundary
     ├── bot_directives/         # Per-bot rules and constraints
     └── contractiles/           # Policy enforcement contracts (k9, dust, lust, must, trust)
 ```
@@ -80,7 +90,7 @@ This repo contains:
 ## SESSION STARTUP CHECKLIST
 
 ✅ Read THIS file (0-AI-MANIFEST.a2ml) first
-✅ Understand canonical location: `.machine_readable/` (state, bots, contractiles)
+✅ Understand canonical location: `.machine_readable/` (state, anchors, bots, contractiles)
 ✅ Know the invariants (no state file duplication, etc.)
 ✅ Check for MCP enforcement (if applicable)
 ✅ Read `.machine_readable/STATE.a2ml` for current status
@@ -115,7 +125,7 @@ When ending a session:
 
 After reading this file, demonstrate understanding by stating:
 
-**"I have read the AI manifest. All machine-readable content (state files, bot directives, contractiles) is located in `.machine_readable/` ONLY, and I will not create duplicate files in the root directory."**
+**"I have read the AI manifest. All machine-readable content (state files, anchors, bot directives, contractiles) is located in `.machine_readable/` ONLY, and I will not create duplicate files in the root directory."**
 
 ## META
 
