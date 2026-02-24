@@ -512,9 +512,12 @@ validate-rsr:
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     if [ -f ".machine_readable/META.a2ml" ]; then
-        grep -q 'axis-1 = "corrective > adaptive > perfective"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-1"
-        grep -q 'axis-2 = "systems > compliance > effects"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-2"
-        grep -q 'axis-3 = "must > intend > like"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-3"
+        grep -q 'axis-1 = "must > intend > like"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-1"
+        grep -q 'axis-2 = "corrective > adaptive > perfective"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-2"
+        grep -q 'axis-3 = "systems > compliance > effects"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-3"
+        grep -q 'scoping-first = true' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:scoping-first"
+        grep -q 'idris-unsound-scan = "believe_me/assert_total"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:idris-unsound-scan"
+        grep -q 'audit-focus = "systems in place, documentation explains actual state, safety/security accounted for, observed effects reviewed"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:audit-focus"
     fi
     if [ -n "$MISSING" ]; then
         echo "MISSING:$MISSING"

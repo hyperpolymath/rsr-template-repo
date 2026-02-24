@@ -25,9 +25,26 @@ ci-platform = "github-actions"
 package-manager = "guix"  # guix | nix | cargo | mix
 
 [maintenance-axes]
-axis-1 = "corrective > adaptive > perfective"
-axis-2 = "systems > compliance > effects"
-axis-3 = "must > intend > like"
+scoping-first = true
+execution-order = "axis-1 > axis-2 > axis-3"
+axis-1 = "must > intend > like"
+axis-2 = "corrective > adaptive > perfective"
+axis-3 = "systems > compliance > effects"
+
+[scoping]
+sources = "README, roadmap, status docs, maintenance checklist, CI/security docs"
+marker-scan = "TODO/FIXME/XXX/HACK/STUB/PARTIAL"
+idris-unsound-scan = "believe_me/assert_total"
+
+[axis-2-maintenance-rules]
+corrective-first = true
+adaptive-second = true
+adaptive-focus = "scope-change reconciliation, stale-reference removal, obsolete-work culling"
+perfective-third = true
+perfective-source = "axis-1 honest state after corrective/adaptive updates"
+
+[axis-3-audit-rules]
+audit-focus = "systems in place, documentation explains actual state, safety/security accounted for, observed effects reviewed"
 
 [design-rationale]
 # Key design decisions and their reasoning
