@@ -511,6 +511,11 @@ validate-rsr:
     for f in .machine_readable/STATE.a2ml .machine_readable/META.a2ml .machine_readable/ECOSYSTEM.a2ml .machine_readable/anchors/ANCHOR.a2ml; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
+    if [ -f ".machine_readable/META.a2ml" ]; then
+        grep -q 'axis-1 = "corrective > adaptive > perfective"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-1"
+        grep -q 'axis-2 = "systems > compliance > effects"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-2"
+        grep -q 'axis-3 = "must > intend > like"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:axis-3"
+    fi
     if [ -n "$MISSING" ]; then
         echo "MISSING:$MISSING"
         exit 1

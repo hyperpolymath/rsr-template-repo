@@ -24,5 +24,10 @@ container-runtime = "podman"
 ci-platform = "github-actions"
 package-manager = "guix"  # guix | nix | cargo | mix
 
+[maintenance-axes]
+axis-1 = "corrective > adaptive > perfective"
+axis-2 = "systems > compliance > effects"
+axis-3 = "must > intend > like"
+
 [design-rationale]
 # Key design decisions and their reasoning

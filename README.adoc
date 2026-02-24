@@ -106,6 +106,12 @@ The owner policy for this template family is:
 
 This template includes a maintenance workflow that is intended to be a release gate.
 
+Default maintenance governance model:
+
+- Axis 1 (maintenance priority): `corrective > adaptive > perfective`
+- Axis 2 (audit priority): `systems > compliance > effects`
+- Axis 3 (scope priority): `must > intend > like`
+
 - Scripted audit: `scripts/maintenance/run-maintenance.sh`
 - Permission lock/restore helper: `scripts/maintenance/perms-state.sh`
 - Checklist: `docs/maintenance/MAINTENANCE-CHECKLIST.md`
