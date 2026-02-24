@@ -80,6 +80,10 @@ htmlcov/
 *.log
 /logs/
 
+# Maintenance local artifacts
+.maintenance-perms-state.tsv
+reports/maintenance/*.json
+
 # Temp
 /tmp/
 *.tmp

@@ -38,6 +38,13 @@ actions = [
   "Add tests",
 ]
 
+[maintenance-status]
+last-run-utc = "never"
+last-report = "reports/maintenance/latest.json"
+last-result = "unknown"  # unknown | pass | warn | fail
+open-warnings = 0
+open-failures = 0
+
 [ecosystem]
 part-of = ["RSR Framework"]
 depends-on = []
