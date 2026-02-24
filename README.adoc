@@ -112,6 +112,9 @@ Default maintenance governance model:
 - Axis 2 (maintenance priority): `corrective > adaptive > perfective`
 - Axis 3 (audit priority): `systems > compliance > effects`
 - Axis 3 audit checks: systems in place, docs explain actual state, safety/security accounted for, and operational effects reviewed.
+- Axis 3 compliance checks: seams/compromises/exceptions must be explicit, bounded, and prevented from causing policy drift.
+- Axis 3 effects checks: benchmark evidence plus maintainer dialogue/status review are required.
+- Canonical machine policy file: `.machine_readable/policies/MAINTENANCE-AXES.a2ml`
 
 - Scripted audit: `scripts/maintenance/run-maintenance.sh`
 - Permission lock/restore helper: `scripts/maintenance/perms-state.sh`

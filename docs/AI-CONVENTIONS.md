@@ -11,7 +11,8 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 1. Read `0-AI-MANIFEST.a2ml` FIRST (mandatory gatekeeper).
 2. Read `.machine_readable/STATE.a2ml` for current status and blockers.
 3. Read `.machine_readable/anchors/ANCHOR.a2ml` for canonical authority boundaries.
-4. Read `.machine_readable/AGENTIC.a2ml` for agent constraints.
+4. Read `.machine_readable/policies/MAINTENANCE-AXES.a2ml` for maintenance/audit sequencing.
+5. Read `.machine_readable/AGENTIC.a2ml` for agent constraints.
 
 ## License
 
@@ -29,9 +30,9 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 
 ## State Files
 
-State/metadata files and anchors (.a2ml) belong in `.machine_readable/` ONLY.
+State/metadata files, anchors, and policies (.a2ml) belong in `.machine_readable/` ONLY.
 NEVER create STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml,
-NEUROSYM.a2ml, PLAYBOOK.a2ml, or ANCHOR.a2ml in the repository root.
+NEUROSYM.a2ml, PLAYBOOK.a2ml, ANCHOR.a2ml, or MAINTENANCE-AXES.a2ml in the repository root.
 
 ## Banned Patterns
 
@@ -75,3 +76,4 @@ Use `just` (justfile) for all build, test, lint, and format tasks.
 - `.machine_readable/AGENTIC.a2ml` -- agent permissions and constraints
 - `.machine_readable/STATE.a2ml` -- current project state
 - `.machine_readable/anchors/ANCHOR.a2ml` -- canonical authority and policy boundary
+- `.machine_readable/policies/MAINTENANCE-AXES.a2ml` -- canonical axis sequencing and audit requirements

@@ -31,6 +31,14 @@ Canonical authority and semantic-boundary declaration MUST exist at:
 
 Do not place `ANCHOR.a2ml` at repository root.
 
+### Maintenance Axis Policy: `.machine_readable/policies/MAINTENANCE-AXES.a2ml` ONLY
+
+Canonical maintenance/governance sequencing MUST exist at:
+
+` .machine_readable/policies/MAINTENANCE-AXES.a2ml `
+
+Do not place maintenance policy files in repository root.
+
 ### Bot Directives: `.machine_readable/bot_directives/` ONLY
 
 Bot-specific instructions for your automated agents. Example roles:
@@ -83,6 +91,8 @@ This repo contains:
     ├── PLAYBOOK.a2ml           # Operational runbook
     ├── anchors/                # Canonical authority declarations
     │   └── ANCHOR.a2ml         # Upstream anchor and policy boundary
+    ├── policies/               # Canonical governance policies
+    │   └── MAINTENANCE-AXES.a2ml
     ├── bot_directives/         # Per-bot rules and constraints
     └── contractiles/           # Policy enforcement contracts (k9, dust, lust, must, trust)
 ```
@@ -93,6 +103,7 @@ This repo contains:
 ✅ Understand canonical location: `.machine_readable/` (state, anchors, bots, contractiles)
 ✅ Know the invariants (no state file duplication, etc.)
 ✅ Check for MCP enforcement (if applicable)
+✅ Read `.machine_readable/policies/MAINTENANCE-AXES.a2ml` for axis ordering and audit expectations
 ✅ Read `.machine_readable/STATE.a2ml` for current status
 ✅ Read `.machine_readable/AGENTIC.a2ml` for interaction patterns
 
@@ -125,7 +136,7 @@ When ending a session:
 
 After reading this file, demonstrate understanding by stating:
 
-**"I have read the AI manifest. All machine-readable content (state files, anchors, bot directives, contractiles) is located in `.machine_readable/` ONLY, and I will not create duplicate files in the root directory."**
+**"I have read the AI manifest. All machine-readable content (state files, anchors, policies, bot directives, contractiles) is located in `.machine_readable/` ONLY, and I will not create duplicate files in the root directory."**
 
 ## META
 
