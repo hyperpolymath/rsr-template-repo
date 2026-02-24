@@ -84,8 +84,41 @@ See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for
 == AI CLI standards
 
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
-- All machine-readable content lives in `.machine_readable/` — state files (6 a2ml), `bot_directives/`, and `contractiles/`.
+- All machine-readable content lives in `.machine_readable/` — state files (6 a2ml), `bot_directives/`, `contractiles/`, and `ai/`.
 - Include `.machine_readable/` structure from this template in new repos.
+
+== Directory Structure Policy (Owner Override)
+
+The owner policy for this template family is:
+
+* Keep only essential entry-point files in root.
+* Put licensing materials in `licensing/` (retain root `LICENSE` for forge/license detection).
+* Put documentation under `docs/` with explicit tracks:
+** `docs/theory/`
+** `docs/practice/`
+** `docs/whitepapers/academic/`
+** `docs/whitepapers/industry/`
+* Keep test fixtures/outputs under `tests/`.
+* Keep AI-agent guidance in `.machine_readable/ai/`.
+* Prefer `Containerfile` (not `Dockerfile`) for container builds.
+
+== Maintenance Gate (Release)
+
+This template includes a maintenance workflow that is intended to be a release gate.
+
+- Scripted audit: `scripts/maintenance/run-maintenance.sh`
+- Permission lock/restore helper: `scripts/maintenance/perms-state.sh`
+- Checklist: `docs/maintenance/MAINTENANCE-CHECKLIST.md`
+
+Recommended release flow:
+
+[source,bash]
+----
+just maint-audit
+just maint-hard-pass
+----
+
+Permission policy is audit-first by default. Use `just perms-lock` only when intentionally hardening local modes, and `just perms-restore` to restore your previous local permission state.
 
 [[ai-install]]
 == AI-Assisted Installation
