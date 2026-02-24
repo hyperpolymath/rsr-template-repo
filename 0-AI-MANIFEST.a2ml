@@ -31,11 +31,16 @@ Canonical authority and semantic-boundary declaration MUST exist at:
 
 Do not place `ANCHOR.a2ml` at repository root.
 
-### Maintenance Axis Policy: `.machine_readable/policies/MAINTENANCE-AXES.a2ml` ONLY
+### Maintenance Policies: `.machine_readable/policies/` ONLY
 
-Canonical maintenance/governance sequencing MUST exist at:
+Canonical maintenance/governance files MUST exist under:
 
-` .machine_readable/policies/MAINTENANCE-AXES.a2ml `
+` .machine_readable/policies/ `
+
+Minimum required files:
+- `MAINTENANCE-AXES.a2ml`
+- `MAINTENANCE-CHECKLIST.a2ml`
+- `SOFTWARE-DEVELOPMENT-APPROACH.a2ml`
 
 Do not place maintenance policy files in repository root.
 
@@ -92,7 +97,9 @@ This repo contains:
     ├── anchors/                # Canonical authority declarations
     │   └── ANCHOR.a2ml         # Upstream anchor and policy boundary
     ├── policies/               # Canonical governance policies
-    │   └── MAINTENANCE-AXES.a2ml
+    │   ├── MAINTENANCE-AXES.a2ml
+    │   ├── MAINTENANCE-CHECKLIST.a2ml
+    │   └── SOFTWARE-DEVELOPMENT-APPROACH.a2ml
     ├── bot_directives/         # Per-bot rules and constraints
     └── contractiles/           # Policy enforcement contracts (k9, dust, lust, must, trust)
 ```
@@ -104,6 +111,8 @@ This repo contains:
 ✅ Know the invariants (no state file duplication, etc.)
 ✅ Check for MCP enforcement (if applicable)
 ✅ Read `.machine_readable/policies/MAINTENANCE-AXES.a2ml` for axis ordering and audit expectations
+✅ Read `.machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml` for maintenance baseline controls
+✅ Read `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` for execution sequence
 ✅ Read `.machine_readable/STATE.a2ml` for current status
 ✅ Read `.machine_readable/AGENTIC.a2ml` for interaction patterns
 

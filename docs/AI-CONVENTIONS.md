@@ -12,7 +12,9 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 2. Read `.machine_readable/STATE.a2ml` for current status and blockers.
 3. Read `.machine_readable/anchors/ANCHOR.a2ml` for canonical authority boundaries.
 4. Read `.machine_readable/policies/MAINTENANCE-AXES.a2ml` for maintenance/audit sequencing.
-5. Read `.machine_readable/AGENTIC.a2ml` for agent constraints.
+5. Read `.machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml` for baseline controls.
+6. Read `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` for execution order.
+7. Read `.machine_readable/AGENTIC.a2ml` for agent constraints.
 
 ## License
 
@@ -32,7 +34,8 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 
 State/metadata files, anchors, and policies (.a2ml) belong in `.machine_readable/` ONLY.
 NEVER create STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml,
-NEUROSYM.a2ml, PLAYBOOK.a2ml, ANCHOR.a2ml, or MAINTENANCE-AXES.a2ml in the repository root.
+NEUROSYM.a2ml, PLAYBOOK.a2ml, ANCHOR.a2ml, MAINTENANCE-AXES.a2ml,
+MAINTENANCE-CHECKLIST.a2ml, or SOFTWARE-DEVELOPMENT-APPROACH.a2ml in the repository root.
 
 ## Banned Patterns
 
@@ -77,3 +80,5 @@ Use `just` (justfile) for all build, test, lint, and format tasks.
 - `.machine_readable/STATE.a2ml` -- current project state
 - `.machine_readable/anchors/ANCHOR.a2ml` -- canonical authority and policy boundary
 - `.machine_readable/policies/MAINTENANCE-AXES.a2ml` -- canonical axis sequencing and audit requirements
+- `.machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml` -- baseline maintenance checklist policy
+- `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` -- axis execution approach policy

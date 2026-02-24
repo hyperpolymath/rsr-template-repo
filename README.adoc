@@ -96,6 +96,7 @@ The owner policy for this template family is:
 * Put documentation under `docs/` with explicit tracks:
 ** `docs/theory/`
 ** `docs/practice/`
+** `docs/maintenance/`
 ** `docs/whitepapers/academic/`
 ** `docs/whitepapers/industry/`
 * Keep test fixtures/outputs under `tests/`.
@@ -115,10 +116,14 @@ Default maintenance governance model:
 - Axis 3 compliance checks: seams/compromises/exceptions must be explicit, bounded, and prevented from causing policy drift.
 - Axis 3 effects checks: benchmark evidence plus maintainer dialogue/status review are required.
 - Canonical machine policy file: `.machine_readable/policies/MAINTENANCE-AXES.a2ml`
+- Companion machine policies:
+  - `.machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml`
+  - `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml`
 
 - Scripted audit: `scripts/maintenance/run-maintenance.sh`
 - Permission lock/restore helper: `scripts/maintenance/perms-state.sh`
 - Checklist: `docs/maintenance/MAINTENANCE-CHECKLIST.md`
+- Software approach: `docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc`
 
 Recommended release flow:
 
