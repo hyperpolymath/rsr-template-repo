@@ -75,6 +75,9 @@ Policy enforcement contracts:
 3. **No stale metadata** - If root state files exist, they are OUT OF DATE
 4. **License consistency** - All code PMPL-1.0-or-later unless platform requires MPL-2.0
 5. **Author attribution** - Always "{{AUTHOR}} <{{AUTHOR_EMAIL}}>"
+6. **Container images** - MUST use Chainguard base (`cgr.dev/chainguard/wolfi-base:latest` or `cgr.dev/chainguard/static:latest`)
+7. **Container runtime** - Podman, never Docker. Files are `Containerfile`, never `Dockerfile`
+8. **Container orchestration** - `selur-compose`, never `docker-compose`
 
 ## REPOSITORY STRUCTURE
 
@@ -87,6 +90,18 @@ This repo contains:
 ├── 0-AI-MANIFEST.a2ml         # THIS FILE (start here)
 ├── README.md                   # Project overview
 ├── [your source files]         # Main code
+├── container/                  # Stapeln container ecosystem templates
+│   ├── compose.toml            # selur-compose orchestration
+│   ├── compose.example.toml    # Concrete multi-service example
+│   ├── Containerfile           # Multi-stage OCI build
+│   ├── manifest.toml           # Cerro-torre bundle metadata
+│   ├── .gatekeeper.yaml        # Svalinn edge gateway policy
+│   ├── ct-build.sh             # Build/sign/verify pipeline
+│   ├── entrypoint.sh           # Container entrypoint
+│   ├── vordr.toml              # Runtime monitoring
+│   ├── deploy.k9.ncl           # k9-svc Hunt-level deployment
+│   ├── 0-AI-MANIFEST.a2ml      # AI manifest for container dir
+│   └── README.adoc             # Container directory documentation
 └── .machine_readable/          # ALL machine-readable content
     ├── STATE.a2ml              # Project state, progress, blockers
     ├── META.a2ml               # Architecture decisions, governance

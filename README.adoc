@@ -81,6 +81,59 @@ Every repo should include a `TOPOLOGY.md` in its root — an ASCII architecture 
 
 See `docs/TOPOLOGY-GUIDE.adoc` for how to generate bespoke TOPOLOGY.md files for existing repos using an AI agent.
 
+== Container Ecosystem (Stapeln)
+
+This template includes a complete `container/` directory with 11 ready-to-use templates for the stapeln container ecosystem. After running `just init`, the container templates have their `{{PLACEHOLDER}}` tokens replaced automatically.
+
+**Quick start:**
+
+[source,bash]
+----
+just container-init    # Replace remaining container-specific placeholders
+just container-build   # Build OCI image with Podman
+just container-verify  # Verify image with cerro-torre and svalinn
+just container-up      # Start services with selur-compose
+just container-down    # Stop services
+----
+
+**What is included:**
+
+[cols="1,2"]
+|===
+|File |Purpose
+
+|`Containerfile`
+|Multi-stage OCI build (Chainguard wolfi-base)
+
+|`compose.toml` / `compose.example.toml`
+|selur-compose orchestration template and concrete example
+
+|`manifest.toml`
+|Cerro-torre bundle metadata and signing policy
+
+|`.gatekeeper.yaml`
+|Svalinn edge gateway policy
+
+|`ct-build.sh`
+|Build/sign/verify pipeline script
+
+|`entrypoint.sh`
+|Container entrypoint with health checks
+
+|`vordr.toml`
+|Runtime monitoring configuration
+
+|`deploy.k9.ncl`
+|k9-svc Hunt-level deployment descriptor (Nickel)
+
+|`0-AI-MANIFEST.a2ml`
+|AI manifest scoped to the container directory
+|===
+
+**Policy:** All container images MUST use Chainguard base images (`cgr.dev/chainguard/wolfi-base:latest` or `cgr.dev/chainguard/static:latest`). Runtime is Podman, never Docker. Files are `Containerfile`, never `Dockerfile`.
+
+**See:** `container/README.adoc` for full documentation.
+
 == AI CLI standards
 
 - **FIRST:** Customize `0-AI-MANIFEST.a2ml` for your repo before any other work
