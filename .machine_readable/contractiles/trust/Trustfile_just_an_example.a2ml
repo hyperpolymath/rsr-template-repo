@@ -396,6 +396,99 @@ sanctify:
     - "sanctify.error_reporting=E_ALL"
 
 ---
+### [CONTAINER_SUPPLY_CHAIN]
+overview: |
+  Container supply-chain verification via the stapeln ecosystem.
+  All container images are built with Podman on Chainguard Wolfi base
+  images, signed as .ctp bundles via cerro-torre, and governed by
+  svalinn edge gateway policies. Runtime monitoring provided by vordr.
+
+runtime:
+  engine: "Podman"
+  policy: "Rootless containers only. Never Docker."
+  socket: "${XDG_RUNTIME_DIR}/podman/podman.sock"
+  security:
+    proof: "Container.Runtime.lean"
+
+base_images:
+  provider: "Chainguard"
+  registry: "cgr.dev/chainguard/"
+  allowed:
+    - "cgr.dev/chainguard/wolfi-base:latest"
+    - "cgr.dev/chainguard/static:latest"
+  policy: "Only Chainguard images permitted as base. Rebuilt daily, CVE-free."
+  security:
+    proof: "Container.BaseImages.lean"
+    ci_cd: "scan-base-images-daily"
+
+verified_bundles:
+  format: ".ctp"
+  tool: "cerro-torre"
+  operations:
+    pack: "ct pack <image> -o <bundle.ctp>"
+    sign: "cerro-sign sign <bundle.ctp> --key-id <key>"
+    verify: "ct verify <bundle.ctp>"
+    push: "ct push <bundle.ctp> <registry/image:tag>"
+    explain: "ct explain <bundle.ctp>"
+  attestations:
+    required: ["source-signature", "sbom-complete"]
+    recommended: ["security-audit", "reproducible-build"]
+  security:
+    proof: "Container.Bundles.lean"
+    hypatia: "scan-ctp-bundles"
+
+gateway:
+  tool: "svalinn"
+  policy_file: "container/.gatekeeper.yaml"
+  capabilities:
+    - "JWT/OAuth2 authentication"
+    - "Rate limiting (per-client, per-endpoint)"
+    - "Container trust enforcement (.ctp signature verification)"
+    - "Request validation (body size, NaN/Inf rejection)"
+    - "CORS policy enforcement"
+    - "Audit logging for write operations"
+    - "TLS auto-provisioning"
+  security:
+    proof: "Container.Gateway.lean"
+    ci_cd: "validate-gatekeeper-policy-on-push"
+
+monitoring:
+  tool: "vordr"
+  config_file: "container/vordr.toml"
+  capabilities:
+    - "Health endpoint monitoring"
+    - "Container crash detection"
+    - "Resource usage thresholds (CPU, memory, disk)"
+    - "Structured JSON log output"
+    - "Automatic restart on failure (configurable)"
+  security:
+    proof: "Container.Monitoring.lean"
+
+signing:
+  algorithm: "Ed25519"
+  tool: "cerro-torre sign / cerro-sign"
+  key_management: |
+    Signing keys are project-specific. Each service has a dedicated
+    Ed25519 key pair (e.g. <service>-release). Public keys are
+    distributed in .gatekeeper.yaml trusted_signers section.
+  security:
+    proof: "Container.Signing.lean"
+    ci_cd: "rotate-signing-keys-on-compromise"
+
+deployment:
+  tool: "k9-svc"
+  spec_file: "container/deploy.k9.ncl"
+  trust_level: "Hunt"
+  description: |
+    k9-svc deployment components at Hunt trust level. Full pedigree
+    (L1-L5: identity, target, security, validation, recipes).
+    Requires cryptographic handshake before execution. Supports
+    dev/staging/production environments with rolling deployment.
+  security:
+    proof: "Container.Deployment.lean"
+    ci_cd: "validate-k9-pedigree-on-push"
+
+---
 ### [SIGNATURE_BLOCK]
 primary:
   algorithm: "Ed448+Dilithium5"
