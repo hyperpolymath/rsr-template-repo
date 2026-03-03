@@ -46,9 +46,9 @@
 
 ## ABI/FFI
 
-- ABI definitions in Idris2 (`src/abi/`).
-- FFI implementations in Zig (`ffi/zig/`).
-- Generated C headers in `generated/abi/`.
+- ABI definitions in Idris2 (`src/interface/abi/`).
+- FFI implementations in Zig (`src/interface/ffi/`).
+- Generated C headers in `src/interface/generated/`.
 
 ## State Files
 

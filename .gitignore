@@ -82,7 +82,7 @@ htmlcov/
 
 # Maintenance local artifacts
 .maintenance-perms-state.tsv
-reports/maintenance/*.json
+docs/reports/maintenance/*.json
 
 # Temp
 /tmp/

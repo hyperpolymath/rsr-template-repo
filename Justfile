@@ -229,7 +229,7 @@ init:
 
     # Check for remaining placeholders
     PATTERN="${LB}[A-Z_]*${RB}"
-    REMAINING=$(grep -rl "$PATTERN" . --include='*.md' --include='*.adoc' --include='*.yml' --include='*.yaml' --include='*.a2ml' --include='*.toml' --include='*.scm' --include='*.ncl' --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null | grep -v '.git/' | grep -v 'PLACEHOLDERS.md' || true)
+    REMAINING=$(grep -rl "$PATTERN" . --include='*.md' --include='*.adoc' --include='*.yml' --include='*.yaml' --include='*.a2ml' --include='*.toml' --include='*.scm' --include='*.ncl' --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null | grep -v '.git/' | grep -v '.machine_readable/ai/PLACEHOLDERS.adoc' || true)
     if [ -n "$REMAINING" ]; then
         echo "WARNING: Remaining placeholders in:"
         echo "$REMAINING" | sed 's/^/  /'
@@ -249,7 +249,7 @@ init:
     echo ""
     echo "Done! Next steps:"
     echo "  1. Review changes: git diff"
-    echo "  2. Remove template cruft: rm PLACEHOLDERS.md"
+    echo "  2. Remove template cruft: rm .machine_readable/ai/PLACEHOLDERS.adoc"
     echo "  3. Customize README.adoc for your project"
     echo "  4. Commit: git add -A && git commit -m 'feat: initialize from RSR template'"
     echo "  5. Push: git remote add origin git@${FORGE}:${OWNER}/${REPO}.git && git push -u origin main"
@@ -656,13 +656,19 @@ validate-rsr:
     #!/usr/bin/env bash
     echo "=== RSR Compliance Check ==="
     MISSING=""
-    for f in .editorconfig .gitignore Justfile README.adoc LICENSE; do
+    for f in .editorconfig .gitignore Justfile README.adoc LICENSE 0-AI-MANIFEST.a2ml; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     for f in .machine_readable/STATE.a2ml .machine_readable/META.a2ml .machine_readable/ECOSYSTEM.a2ml .machine_readable/anchors/ANCHOR.a2ml .machine_readable/policies/MAINTENANCE-AXES.a2ml .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    for f in docs/maintenance/MAINTENANCE-CHECKLIST.md docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc; do
+    for f in licensing/exhibits/EXHIBIT-A-ETHICAL-USE.txt licensing/exhibits/EXHIBIT-B-QUANTUM-SAFE.txt licensing/texts/PMPL-1.0-or-later.txt; do
+        [ -f "$f" ] || MISSING="$MISSING $f"
+    done
+    for f in src/interface/abi src/interface/ffi src/interface/generated; do
+        [ -d "$f" ] || MISSING="$MISSING $f"
+    done
+    for f in docs/maintenance/MAINTENANCE-CHECKLIST.adoc docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     if [ -f ".machine_readable/META.a2ml" ]; then
@@ -676,7 +682,7 @@ validate-rsr:
         grep -q 'effects-evidence = "benchmark execution/results and maintainer status dialogue/review"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:effects-evidence"
         grep -q 'compliance-tooling = "panic-attack"' .machine_readable/policies/MAINTENANCE-AXES.a2ml || MISSING="$MISSING MAINTENANCE-AXES.a2ml:compliance-tooling"
         grep -q 'effects-tooling = "ecological checking with sustainabot guidance"' .machine_readable/policies/MAINTENANCE-AXES.a2ml || MISSING="$MISSING MAINTENANCE-AXES.a2ml:effects-tooling"
-        grep -q 'source-human = "docs/maintenance/MAINTENANCE-CHECKLIST.md"' .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml || MISSING="$MISSING MAINTENANCE-CHECKLIST.a2ml:source-human"
+        grep -q 'source-human = "docs/maintenance/MAINTENANCE-CHECKLIST.adoc"' .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml || MISSING="$MISSING MAINTENANCE-CHECKLIST.a2ml:source-human"
         grep -q 'source-human = "docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc"' .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml || MISSING="$MISSING SOFTWARE-DEVELOPMENT-APPROACH.a2ml:source-human"
     fi
     if [ -n "$MISSING" ]; then
@@ -852,13 +858,13 @@ log count="20":
 # Generate CHANGELOG.md with git-cliff
 changelog:
     @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
-    git cliff --output CHANGELOG.md
+    git cliff --config .machine_readable/configs/git-cliff/cliff.toml --output CHANGELOG.md
     @echo "Generated CHANGELOG.md"
 
 # Preview changelog for unreleased commits (does not write)
 changelog-preview:
     @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
-    git cliff --unreleased --strip header
+    git cliff --config .machine_readable/configs/git-cliff/cliff.toml --unreleased --strip header
 
 # Tag a new release (usage: just release-tag 1.2.3)
 release-tag version:
@@ -889,3 +895,7 @@ todos:
 # Open in editor
 edit:
     ${EDITOR:-code} .
+
+# Run high-rigor security assault using panic-attacker
+maint-assault:
+    @./.machine_readable/scripts/maintenance/maint-assault.sh
