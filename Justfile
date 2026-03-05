@@ -899,3 +899,8 @@ edit:
 # Run high-rigor security assault using panic-attacker
 maint-assault:
     @./.machine_readable/scripts/maintenance/maint-assault.sh
+
+# [AUTO-GENERATED] Multi-arch / RISC-V target
+build-riscv:
+	@echo "Building for RISC-V..."
+	cross build --target riscv64gc-unknown-linux-gnu
