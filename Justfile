@@ -14,6 +14,10 @@ set shell := ["bash", "-uc"]
 set dotenv-load := true
 set positional-arguments := true
 
+# Import auto-generated contractile recipes (must-check, trust-verify, etc.)
+# Re-generate with: contractile gen-just
+import? "contractile.just"
+
 # Project metadata — customize these
 project := "{{PROJECT_NAME}}"
 version := "0.1.0"
