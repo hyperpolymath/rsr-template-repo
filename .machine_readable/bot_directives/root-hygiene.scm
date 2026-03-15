@@ -110,6 +110,48 @@
     )
 
   ;; =========================================================================
+  ;; FILE FORMAT POLICY — one format per purpose, no duplicates
+  ;; =========================================================================
+  (file-format-policy
+    (description "Each document has ONE canonical format. No duplicate .md + .adoc versions.")
+    (rules
+      ;; Documentation (human reading)
+      (rule "README" (format ".adoc") (reason "AsciiDoc for rich documentation"))
+      (rule "ROADMAP" (format ".adoc") (reason "AsciiDoc for structured planning"))
+      (rule "TOPOLOGY" (format ".md") (reason "Markdown for simple structure docs"))
+      (rule "MAINTAINERS" (format ".adoc") (reason "AsciiDoc for structured lists"))
+
+      ;; GitHub community health (MUST be .md for GitHub detection)
+      (rule "CONTRIBUTING" (format ".md") (reason "GitHub requires .md for community health score"))
+      (rule "CODE_OF_CONDUCT" (format ".md") (reason "GitHub requires .md"))
+      (rule "SECURITY" (format ".md") (reason "GitHub requires .md"))
+
+      ;; Licenses
+      (rule "LICENSE" (format "no extension") (reason "Standard convention"))
+      (rule "LICENSE texts" (format ".txt") (location "LICENSES/") (reason "REUSE convention"))
+      (rule "NOTICE" (format "no extension") (reason "Standard convention"))
+
+      ;; GitHub-specific
+      (rule "FUNDING" (format ".yml") (location ".github/") (reason "GitHub requires YAML"))
+      (rule "CODEOWNERS" (format "no extension") (location ".github/" or root) (reason "GitHub convention"))
+
+      ;; AI/Machine
+      (rule "AI manifest" (format ".a2ml") (name "0-AI-MANIFEST.a2ml") (reason "RSR standard"))
+      (rule "State files" (format ".a2ml" target, ".scm" tolerated) (location ".machine_readable/") (reason "A2ML is target format"))
+
+      ;; Build
+      (rule "Justfile" (format "no extension") (reason "just convention"))
+      (rule "Containerfile" (format "no extension") (reason "OCI convention, NOT Dockerfile"))
+    )
+    (duplicate-detection
+      (ban "README.md + README.adoc in same repo — keep .adoc, delete .md")
+      (ban "CONTRIBUTING.md + CONTRIBUTING.adoc — keep .md, delete .adoc")
+      (ban "ROADMAP.md + ROADMAP.adoc — keep .adoc, delete .md")
+      (ban "AI.a2ml + 0-AI-MANIFEST.a2ml — keep 0-AI-MANIFEST, delete AI"))
+    (fleet-dispatch
+      (rhodibot "auto-fix duplicate format files — keep canonical, delete duplicate")))
+
+  ;; =========================================================================
   ;; THIRD-PARTY / FORK PROTECTION — never relicense
   ;; =========================================================================
   (third-party-protection
