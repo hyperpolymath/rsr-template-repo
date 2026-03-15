@@ -68,8 +68,15 @@
       "require_state_scm_update": true,
       "auto_create_github_release": true
     },
+    "dependabot_pr_hygiene": {
+      "auto_close_conflicting": true,
+      "max_open_dependabot_prs": 5,
+      "auto_close_stale_after_days": 14,
+      "comment_on_close": "Closing stale/conflicting dependabot PR. Dependabot will recreate with updated base.",
+      "notes": "Dependabot PRs that conflict with main after RSR compliance commits should be closed, not manually resolved. Dependabot recreates them automatically."
+    },
     "fleet_dispatch": {
-      "finishbot": "create PR to delete stale branches",
+      "finishbot": "create PR to delete stale branches, close conflicting dependabot PRs",
       "seambot": "verify branch protection is configured"
     }
   },
