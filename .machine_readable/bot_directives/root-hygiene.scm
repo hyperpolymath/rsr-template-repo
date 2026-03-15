@@ -110,6 +110,16 @@
     )
 
   ;; =========================================================================
+  ;; THIRD-PARTY / FORK PROTECTION — never relicense
+  ;; =========================================================================
+  (third-party-protection
+    (description "Repos that are forks or contributions to upstream projects must NOT have PMPL headers applied. Respect the original license.")
+    (detection "Check if repo is a GitHub fork, or if LICENSE contains multiple licenses, or if repo name matches a known upstream project")
+    (action "SKIP all SPDX header changes. SKIP PMPL enforcement. Flag for manual review.")
+    (known-forks ("rescript" "rescript-tea" "rescript-vite" "rescript-dom-mounter"))
+    (notes "The chatgpt-codex-connector bot correctly flagged this in rescript. Never repeat this mistake."))
+
+  ;; =========================================================================
   ;; MIGRATION ADVISORIES — flag but don't auto-fix
   ;; =========================================================================
   (migration-advisories
