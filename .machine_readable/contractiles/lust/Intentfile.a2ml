@@ -1,25 +1,37 @@
 # SPDX-License-Identifier: PMPL-1.0-or-later
-# Intentfile (A2ML Canonical)
+# Intentfile — Design intent and aspirations
+# Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 
 @abstract:
-Declared future intent for {{PROJECT}}.
+What this repository INTENDS to become. Aspirational goals and
+design philosophy — not current state, but target state.
 @end
 
-@requires:
-- section: Features
-- section: Quality
-@end
+## Architecture Intent
 
-## Features
+### formal-verification
+- description: All critical code paths should have formal proofs
+- target: Idris2 dependent types for ABI, Coq/Lean for algorithms
+- status: aspiration
 
-### initial-release
-- description: Ship v1.0.0
+### reproducible-builds
+- description: Builds should be bit-for-bit reproducible
+- target: Guix + Nix + Containerfile
+- status: aspiration
+
+### zero-dangerous-patterns
+- description: No believe_me, sorry, Admitted, unsafeCoerce in any code
+- target: All proofs completed, no escape hatches
 - status: in-progress
-- priority: critical
 
-## Quality
+## Quality Intent
 
-### test-coverage
-- description: Achieve meaningful test coverage
-- status: declared
-- priority: medium
+### comprehensive-testing
+- description: 80%+ code coverage with meaningful tests
+- target: Unit + integration + conformance + property-based
+- status: aspiration
+
+### documentation-complete
+- description: Every public API documented, every directory has README
+- target: Full API reference + architecture guide
+- status: in-progress
