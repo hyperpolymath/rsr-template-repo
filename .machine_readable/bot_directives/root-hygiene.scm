@@ -99,12 +99,42 @@
     (pattern "*-QUICKSTART.adoc" (action "move" "docs/") (reason "Quickstart guides belong in docs/"))
     (pattern "*-INTEGRATION.md" (action "move" "docs/design/") (reason "Integration docs belong in docs/design/"))
 
+    ;; Superseded format files
+    (pattern "AI.djot" (action "delete") (reason "Superseded by 0-AI-MANIFEST.a2ml — AI.djot was the predecessor format"))
+
     ;; General catch-all for non-standard root docs
     (pattern "NEXT_STEPS.md" (action "delete") (reason "Superseded by ROADMAP"))
     (pattern "TODO.md" (action "delete") (reason "Use issues, ROADMAP, or STATE.scm"))
     (pattern "NOTES.md" (action "delete") (reason "Notes are ephemeral — commit message or docs/"))
     (pattern "TASKS.md" (action "delete") (reason "Use issues or STATE.scm"))
     )
+
+  ;; =========================================================================
+  ;; MIGRATION ADVISORIES — flag but don't auto-fix
+  ;; =========================================================================
+  (migration-advisories
+    ;; SCM → A2ML migration
+    ;; The RSR template has moved to .a2ml format for all machine-readable
+    ;; state files. Repos still using .scm should migrate.
+    (advisory "scm-to-a2ml"
+      (severity "info")
+      (description "Machine-readable state files should migrate from .scm to .a2ml")
+      (affected-files
+        ".machine_readable/STATE.scm"
+        ".machine_readable/META.scm"
+        ".machine_readable/ECOSYSTEM.scm")
+      (target-format ".a2ml")
+      (reason "A2ML is the project standard format with IANA registration pending. SCM requires Guile; A2ML has dedicated parsers and Pandoc adapters in development.")
+      (action "flag-for-manual-migration")
+      (notes "Content converts from s-expression to A2ML directive syntax. Both formats are structured — automated conversion is feasible but should be reviewed."))
+
+    ;; AI.djot → 0-AI-MANIFEST.a2ml
+    (advisory "djot-to-a2ml"
+      (severity "warning")
+      (description "AI.djot is superseded by 0-AI-MANIFEST.a2ml")
+      (affected-files "AI.djot")
+      (action "delete-after-content-merged")
+      (reason "AI.djot was the transitional format. All content should be in 0-AI-MANIFEST.a2ml now.")))
 
   ;; =========================================================================
   ;; REQUIRED root files — must exist for RSR compliance
