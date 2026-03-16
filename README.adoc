@@ -76,6 +76,82 @@ just test              # Unified test
 just container-build   # Build verified OCI image
 ----
 
+== Contractile System
+
+This template includes five **contractile files** in `.machine_readable/contractiles/` that make your repository's rules executable:
+
+[cols="1,2,3"]
+|===
+| Tool | File | Purpose
+
+| `must check`
+| `Mustfile.a2ml`
+| Physical state invariants (files exist, code compiles, no secrets)
+
+| `trust verify`
+| `Trustfile.a2ml`
+| Integrity verification (hashes valid, signatures correct, provenance traceable)
+
+| `dust status`
+| `Dustfile.a2ml`
+| Cleanup tasks (stale files, build artifacts, expired tokens)
+
+| `intend list`
+| `Intentfile.a2ml`
+| Design intent and roadmap tracking
+
+| `k9 eval`
+| `*.k9.ncl`
+| Nickel-based deployment validation
+|===
+
+=== Installation
+
+[source,bash]
+----
+cargo install contractile
+
+# Create symlinks for individual commands
+for cmd in must trust dust intend k9; do
+  ln -sf $(which contractile) ~/.local/bin/$cmd
+done
+----
+
+=== Usage
+
+[source,bash]
+----
+# Symlink contractiles to project root (CLI searches ./contractiles/)
+ln -sf .machine_readable/contractiles contractiles
+
+# Run checks
+must check           # Verify physical state (23 checks in typical RSR project)
+trust verify         # Verify integrity and provenance
+dust status          # Show cleanup items
+intend list          # Show design intents and roadmap
+
+# Generate Just recipes from contractile files
+contractile gen-just # Creates contractile.just (already imported by Justfile)
+
+# Then use via Just:
+just must-check
+just trust-verify
+----
+
+=== Writing Checks
+
+Contractile files use A2ML format — simple, line-oriented:
+
+[source]
+----
+### check-name
+- description: Human-readable description
+- run: shell command (exit 0 = pass, non-zero = fail)
+- severity: critical | warning | info
+----
+
+See link:https://github.com/hyperpolymath/contractiles[contractiles documentation] for the full specification.
+
 == Documentation
 
 * link:CONTRIBUTING.adoc[Contributing Guide]
