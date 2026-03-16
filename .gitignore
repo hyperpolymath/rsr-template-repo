@@ -84,6 +84,9 @@ htmlcov/
 .maintenance-perms-state.tsv
 docs/reports/maintenance/*.json
 
+# Machine-readable locks
+.machine_readable/.locks/
+
 # Temp
 /tmp/
 *.tmp
