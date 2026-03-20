@@ -631,6 +631,7 @@ install-hooks:
     #!/bin/bash
     just fmt-check || exit 1
     just lint || exit 1
+    just assail || exit 1
     HOOKEOF
     @chmod +x .git/hooks/pre-commit
     @echo "Git hooks installed"
@@ -903,6 +904,10 @@ edit:
 # Run high-rigor security assault using panic-attacker
 maint-assault:
     @./.machine_readable/scripts/maintenance/maint-assault.sh
+
+# Run panic-attacker pre-commit scan (foundational floor-raise requirement)
+assail:
+    @command -v panic-attack >/dev/null 2>&1 && panic-attack assail . || echo "WARN: panic-attack not found — install from https://github.com/hyperpolymath/panic-attacker"
 
 # [AUTO-GENERATED] Multi-arch / RISC-V target
 build-riscv:
