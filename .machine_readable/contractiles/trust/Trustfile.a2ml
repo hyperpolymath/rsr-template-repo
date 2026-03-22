@@ -48,3 +48,27 @@ is traceable.
 - description: No Dockerfile (use Containerfile)
 - run: test ! -f Dockerfile
 - severity: warning
+
+## Dangerous Patterns
+
+### no-believe-me
+- description: No believe_me, assert_total, Admitted, sorry, unsafeCoerce, Obj.magic
+- run: "! grep -rE 'believe_me|assert_total|Admitted|sorry|unsafeCoerce|Obj\\.magic' --include='*.idr' --include='*.lean' --include='*.v' --include='*.ml' --include='*.hs' . 2>/dev/null | head -1 | grep -q ."
+- severity: critical
+
+### no-unsafe-without-comment
+- description: All unsafe blocks in Rust must have SAFETY comments
+- run: "! grep -B1 'unsafe {' --include='*.rs' -r . 2>/dev/null | grep -v SAFETY | grep 'unsafe {' | head -1 | grep -q ."
+- severity: warning
+
+## Service Security (if applicable)
+
+### localhost-only-bindings
+- description: Backend services bind to 127.0.0.1 only
+- run: "! grep -rE 'bind\\(\"0\\.0\\.0\\.0' --include='*.rs' --include='*.ex' --include='*.ts' . 2>/dev/null | head -1 | grep -q ."
+- severity: critical
+
+### coordination-file-permissions
+- description: Coordination/session files are owner-only (0600)
+- run: test ! -d ~/.claude/coordination || find ~/.claude/coordination -type f ! -perm 600 2>/dev/null | wc -l | grep -q '^0$'
+- severity: warning
