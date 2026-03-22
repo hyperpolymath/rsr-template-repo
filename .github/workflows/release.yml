@@ -23,15 +23,51 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Build
+      - name: Detect project type and build
+        id: build
         run: |
-          echo "Build your artifacts here"
-          # TODO: Replace with your build commands
-          # Examples:
-          #   cargo build --release
-          #   zig build -Doptimize=ReleaseFast
-          #   gleam build
-          #   mix release
+          # Auto-detect build system from project files.
+          # Order matters: more specific markers checked first.
+          if [ -f "mix.exs" ]; then
+            echo "::notice::Detected Elixir/Gleam project (mix.exs)"
+            echo "build_type=mix" >> "$GITHUB_OUTPUT"
+            mix local.hex --force --if-missing
+            mix local.rebar --force --if-missing
+            mix deps.get --only prod
+            MIX_ENV=prod mix release
+          elif [ -f "Cargo.toml" ]; then
+            echo "::notice::Detected Rust project (Cargo.toml)"
+            echo "build_type=cargo" >> "$GITHUB_OUTPUT"
+            cargo build --release
+          elif [ -f "build.zig" ]; then
+            echo "::notice::Detected Zig project (build.zig)"
+            echo "build_type=zig" >> "$GITHUB_OUTPUT"
+            zig build -Doptimize=ReleaseSafe
+          elif [ -f "deno.json" ] || [ -f "deno.jsonc" ]; then
+            echo "::notice::Detected Deno project (deno.json)"
+            echo "build_type=deno" >> "$GITHUB_OUTPUT"
+            deno task build
+          elif [ -f "gossamer.conf.json" ]; then
+            echo "::notice::Detected Gossamer project (gossamer.conf.json)"
+            echo "build_type=gossamer" >> "$GITHUB_OUTPUT"
+            gossamer build
+          elif [ -f "gleam.toml" ]; then
+            echo "::notice::Detected Gleam project (gleam.toml)"
+            echo "build_type=gleam" >> "$GITHUB_OUTPUT"
+            gleam build
+          elif [ -f "rebar.config" ]; then
+            echo "::notice::Detected Erlang/Rebar project (rebar.config)"
+            echo "build_type=rebar" >> "$GITHUB_OUTPUT"
+            rebar3 as prod release
+          elif [ -f "Justfile" ] || [ -f "justfile" ]; then
+            echo "::notice::Detected Justfile — running 'just build'"
+            echo "build_type=just" >> "$GITHUB_OUTPUT"
+            just build
+          else
+            echo "::error::No recognised build system found."
+            echo "Expected one of: mix.exs, Cargo.toml, build.zig, deno.json, gossamer.conf.json, gleam.toml, rebar.config, Justfile"
+            exit 1
+          fi
 
       # TODO: Upload build artifacts if needed
       # - uses: actions/upload-artifact@v4
