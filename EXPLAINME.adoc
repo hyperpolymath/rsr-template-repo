@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: PMPL-1.0-or-later
+= {project-name} — How It Works
+:toc:
+:icons: font
+
+A developer-oriented quick reference for the curious.
+Read the link:README.adoc[README] first for what this project does. This explains _how_.
+
+== Design Decisions
+
+Why the major architectural choices were made. Not "what" — the README covers
+that. This is the "why" and "how" for developers who want to understand, extend,
+or replicate the approach.
+
+=== Decision 1: [Title]
+
+**What we chose:** ...
+
+**Why:** ...
+
+**Trade-off:** ...
+
+=== Decision 2: [Title]
+
+**What we chose:** ...
+
+**Why:** ...
+
+**Trade-off:** ...
+
+== Key Implementation Details
+
+Details that aren't obvious from reading the code. Things a new contributor
+would need 30 minutes to figure out on their own.
+
+=== [Subsystem 1]
+
+...
+
+=== [Subsystem 2]
+
+...
+
+== File Map (for code spelunking)
+
+[cols="1,2"]
+|===
+| Path | What's There
+
+| `src/` | ...
+| `ffi/` | ...
+| `docs/` | ...
+|===
+
+== Common Questions
+
+**Q: Why not [alternative]?**
+
+A: ...
+
+**Q: How does [surprising thing] work?**
+
+A: ...
