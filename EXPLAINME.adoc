@@ -5,38 +5,32 @@
 
 The README makes claims. This file backs them up.
 
-For each headline feature, this explains _how it actually works_ with file paths
-so you can verify. Not a deep architecture document — that's in `docs/architecture/`.
-Not an academic paper — that's in `docs/papers/` or on arXiv. This is the "prove
-it" file for developers who are rightfully sceptical.
+For each headline feature: what makes it work, where the code is, and an honest
+caveat. Link out to the technology's own docs rather than over-explaining.
+Reference arXiv papers only where the approach is novel. Keep it brief — prove
+the claim, don't write a textbook.
 
-== "[Headline Claim 1]" — How?
+== "[Claim from README]"
 
-**What we claim:** ...
+[quote, README]
+____
+Paste the specific claim here.
+____
 
-**How it actually works:** ...
+Brief explanation of _how_ — 2-4 sentences. Link to the technology
+(https://elixir-lang.org[Elixir], https://ziglang.org[Zig], etc.) rather than
+explaining it from scratch.
 
-**The code:** `path/to/implementation` — run it yourself with `just [recipe]`
+**Caveat:** What doesn't this cover? Where are the limits?
 
-**The honest caveat:** ...
-
-== "[Headline Claim 2]" — Not Marketing Nonsense
-
-**What we claim:** ...
-
-**How it actually works:** ...
-
-**The code:** ...
-
-**The honest caveat:** ...
+- Implementation: `path/to/code`
+- Learn more: https://relevant-docs.example.com
 
 == File Map
 
-For when you want to verify for yourself:
-
 [cols="1,2"]
 |===
-| Path | What's There
+| Path | Proves
 
 | `src/` | ...
 | `ffi/` | ...
