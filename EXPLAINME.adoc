@@ -1,47 +1,38 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
-= {project-name} — How It Works
+= {project-name} — Show Me The Receipts
 :toc:
 :icons: font
 
-A developer-oriented quick reference for the curious.
-Read the link:README.adoc[README] first for what this project does. This explains _how_.
+The README makes claims. This file backs them up.
 
-== Design Decisions
+For each headline feature, this explains _how it actually works_ with file paths
+so you can verify. Not a deep architecture document — that's in `docs/architecture/`.
+Not an academic paper — that's in `docs/papers/` or on arXiv. This is the "prove
+it" file for developers who are rightfully sceptical.
 
-Why the major architectural choices were made. Not "what" — the README covers
-that. This is the "why" and "how" for developers who want to understand, extend,
-or replicate the approach.
+== "[Headline Claim 1]" — How?
 
-=== Decision 1: [Title]
+**What we claim:** ...
 
-**What we chose:** ...
+**How it actually works:** ...
 
-**Why:** ...
+**The code:** `path/to/implementation` — run it yourself with `just [recipe]`
 
-**Trade-off:** ...
+**The honest caveat:** ...
 
-=== Decision 2: [Title]
+== "[Headline Claim 2]" — Not Marketing Nonsense
 
-**What we chose:** ...
+**What we claim:** ...
 
-**Why:** ...
+**How it actually works:** ...
 
-**Trade-off:** ...
+**The code:** ...
 
-== Key Implementation Details
+**The honest caveat:** ...
 
-Details that aren't obvious from reading the code. Things a new contributor
-would need 30 minutes to figure out on their own.
+== File Map
 
-=== [Subsystem 1]
-
-...
-
-=== [Subsystem 2]
-
-...
-
-== File Map (for code spelunking)
+For when you want to verify for yourself:
 
 [cols="1,2"]
 |===
@@ -49,15 +40,4 @@ would need 30 minutes to figure out on their own.
 
 | `src/` | ...
 | `ffi/` | ...
-| `docs/` | ...
 |===
-
-== Common Questions
-
-**Q: Why not [alternative]?**
-
-A: ...
-
-**Q: How does [surprising thing] work?**
-
-A: ...
