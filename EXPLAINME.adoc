@@ -26,6 +26,18 @@ explaining it from scratch.
 - Implementation: `path/to/code`
 - Learn more: https://relevant-docs.example.com
 
+== Dogfooded Across The Account
+
+These aren't one-off choices — they're patterns used across hyperpolymath repos:
+
+[cols="1,2"]
+|===
+| Technology | Also Used In
+
+| **[Tech 1]** | https://github.com/hyperpolymath/[repo1], https://github.com/hyperpolymath/[repo2]
+| **[Tech 2]** | https://github.com/hyperpolymath/[repo3]
+|===
+
 == File Map
 
 [cols="1,2"]

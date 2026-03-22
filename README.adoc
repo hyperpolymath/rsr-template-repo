@@ -152,8 +152,15 @@ Contractile files use A2ML format — simple, line-oriented:
 
 See link:https://github.com/hyperpolymath/contractiles[contractiles documentation] for the full specification.
 
+== Wondering How This Works?
+
+If you're curious about the tech behind the claims in this README, see
+link:EXPLAINME.adoc[EXPLAINME.adoc] — feature highlights with code paths
+and honest caveats. Questions welcome via issues or direct contact.
+
 == Documentation
 
+* link:EXPLAINME.adoc[Show Me The Receipts] — how headline features work
 * link:CONTRIBUTING.adoc[Contributing Guide]
 * link:GOVERNANCE.adoc[Governance Model]
 * link:docs/attribution/MAINTAINERS.adoc[Maintainers & Citations]
