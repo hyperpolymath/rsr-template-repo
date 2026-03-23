@@ -66,9 +66,15 @@ Policy enforcement contracts (k9, dust, lust, must, trust).
 - `CONTRIBUTING.md` - Technical contribution manual
 - `CODE_OF_CONDUCT.md` - Conduct rules
 
-### Agent Instructions
+### Agent Instructions: `.machine_readable/agent_instructions/` ONLY
 
-- `0-AI-MANIFEST.a2ml` - THIS FILE (universal entry point)
+Methodology-aware AI agent configuration (ADR-002):
+- `methodology.a2ml` - Mode, invariants, ring ceiling, priority weights
+- `coverage.a2ml` - Session coverage tracking (visited, skipped, MUSTs)
+- `debt.a2ml` - Meander debt carried between sessions
+
+Entry points:
+- `0-AI-MANIFEST.a2ml` - THIS FILE (universal entry point, read FIRST)
 
 ## CORE INVARIANTS
 
