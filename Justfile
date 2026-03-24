@@ -253,12 +253,75 @@ init:
     fi
 
     echo ""
+    echo "Running OpenSSF compliance verification..."
+    just verify
+
+    echo ""
     echo "Done! Next steps:"
     echo "  1. Review changes: git diff"
     echo "  2. Remove template cruft: rm .machine_readable/ai/PLACEHOLDERS.adoc"
     echo "  3. Customize README.adoc for your project"
     echo "  4. Commit: git add -A && git commit -m 'feat: initialize from RSR template'"
     echo "  5. Push: git remote add origin git@${FORGE}:${OWNER}/${REPO}.git && git push -u origin main"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OPENSSF COMPLIANCE VERIFICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Verify OpenSSF Best Practices prerequisites — fails if any required file is missing
+verify:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "=== OpenSSF Best Practices Verification ==="
+    ERRORS=0
+
+    check_file() {
+        if [ ! -f "$1" ]; then
+            echo "  FAIL: $1 missing"
+            ERRORS=$((ERRORS + 1))
+        else
+            echo "  OK:   $1"
+        fi
+    }
+
+    # Accept either .md or .adoc for documentation files
+    check_either() {
+        if [ ! -f "$1" ] && [ ! -f "$2" ]; then
+            echo "  FAIL: $1 (or $2) missing"
+            ERRORS=$((ERRORS + 1))
+        else
+            local found="$1"
+            [ -f "$2" ] && found="$2"
+            [ -f "$1" ] && found="$1"
+            echo "  OK:   $found"
+        fi
+    }
+
+    check_either "SECURITY.md" "SECURITY.adoc"
+    check_file "LICENSE"
+    check_either "CONTRIBUTING.md" "CONTRIBUTING.adoc"
+    check_either "README.adoc" "README.md"
+    check_file ".machine_readable/STATE.a2ml"
+    check_file ".machine_readable/META.a2ml"
+    check_file ".machine_readable/ECOSYSTEM.a2ml"
+    check_either "CHANGELOG.md" "CHANGELOG.adoc"
+
+    # Check at least 1 workflow exists
+    WORKFLOW_COUNT=$(find .github/workflows -name '*.yml' -o -name '*.yaml' 2>/dev/null | wc -l)
+    if [ "$WORKFLOW_COUNT" -eq 0 ]; then
+        echo "  FAIL: No workflows in .github/workflows/"
+        ERRORS=$((ERRORS + 1))
+    else
+        echo "  OK:   .github/workflows/ ($WORKFLOW_COUNT workflows)"
+    fi
+
+    echo ""
+    if [ "$ERRORS" -gt 0 ]; then
+        echo "FAIL: $ERRORS OpenSSF prerequisites missing — repo cannot ship."
+        exit 1
+    fi
+    echo "PASS: All OpenSSF Best Practices prerequisites satisfied."
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BUILD & COMPILE

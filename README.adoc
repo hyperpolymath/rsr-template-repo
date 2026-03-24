@@ -2,6 +2,9 @@
 :toc: preamble
 :icons: font
 
+image:https://www.bestpractices.dev/projects/{{OPENSSF_PROJECT_ID}}/badge[OpenSSF Best Practices, link="https://www.bestpractices.dev/projects/{{OPENSSF_PROJECT_ID}}"]
+image:https://api.securityscorecards.dev/projects/github.com/{{OWNER}}/{{REPO}}/badge[OpenSSF Scorecard, link="https://securityscorecards.dev/viewer/?uri=github.com/{{OWNER}}/{{REPO}}"]
+
 [TIP]
 ====
 **AI-Assisted Install:** Just tell any AI assistant: +

@@ -33,8 +33,8 @@ jobs:
           [ -f "security.txt" ] && SECTXT="security.txt"
           
           if [ -z "$SECTXT" ]; then
-            echo "::warning::No security.txt found. See https://github.com/{{OWNER}}/well-known-ecosystem"
-            exit 0
+            echo "::error::No security.txt found — required for OpenSSF Best Practices. See https://github.com/{{OWNER}}/well-known-ecosystem"
+            exit 1
           fi
           
           # Required: Contact

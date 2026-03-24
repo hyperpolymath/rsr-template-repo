@@ -117,6 +117,7 @@ branches:
         contexts:
           - "hypatia-scan"
           - "codeql"
+          - "openssf-compliance"
       enforce_admins: true
       required_signatures: true
       restrictions: null
