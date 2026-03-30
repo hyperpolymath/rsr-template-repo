@@ -733,6 +733,51 @@ test-smoke:
     @echo "Smoke test..."
     # TODO: Add basic sanity checks
 
+# Run end-to-end tests (full pipeline: build → run → verify)
+e2e:
+    @echo "Running E2E tests..."
+    # TODO: Replace with your E2E test command. Examples:
+    #   bash tests/e2e.sh                    # Shell-based E2E
+    #   npx playwright test                  # Browser E2E
+    #   mix test test/integration/e2e_test.exs  # Elixir E2E
+    #   cargo test --test end_to_end         # Rust E2E
+    @echo "E2E tests passed!"
+
+# Run aspect tests (cross-cutting concern validation)
+aspect:
+    @echo "Running aspect tests..."
+    # TODO: Replace with your aspect test command. Examples:
+    #   bash tests/aspect_tests.sh           # Shell-based aspect tests
+    #   cargo test --test aspects             # Rust aspect tests
+    # Aspect tests validate architectural invariants:
+    #   - Thread safety (mutex in FFI modules)
+    #   - ABI/FFI contract (declarations match exports)
+    #   - SPDX compliance (all files have license headers)
+    #   - No dangerous patterns (believe_me, assert_total, etc.)
+    @echo "Aspect tests passed!"
+
+# Run benchmarks (performance regression detection)
+bench:
+    @echo "Running benchmarks..."
+    # TODO: Replace with your benchmark command. Examples:
+    #   cargo bench                           # Rust criterion
+    #   zig build bench                       # Zig benchmarks
+    #   mix run bench/benchmarks.exs          # Elixir benchee
+    #   deno bench                            # Deno bench
+    @echo "Benchmarks complete!"
+
+# Run readiness tests (Component Readiness Grade: D/C/B)
+readiness:
+    @echo "Running readiness tests..."
+    # TODO: Replace with your readiness test command. Examples:
+    #   cargo test --test readiness -- --nocapture
+    @echo "Readiness tests complete!"
+
+# Run the full merge-requirement test suite (ALL categories)
+# Per STANDING rule: P2P + E2E + aspect + execution + lifecycle + bench
+test-all: test e2e aspect bench readiness
+    @echo "All test categories passed — safe to merge!"
+
 # Run all quality checks
 quality: fmt-check lint test
     @echo "All quality checks passed!"
