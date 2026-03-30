@@ -8,6 +8,7 @@ This is the AI manifest for **[YOUR-REPO-NAME]**. It declares:
 - Canonical file locations (where things MUST be, and nowhere else)
 - Critical invariants (rules that must NEVER be violated)
 - Repository structure and organization
+- Key root audit documents that constrain release and publication claims
 
 ## CANONICAL LOCATIONS (UNIVERSAL RULE)
 
@@ -94,6 +95,7 @@ This repo follows the **Dual-Track** architecture:
 ```
 [YOUR-REPO-NAME]/
 ├── 0-AI-MANIFEST.a2ml         # THIS FILE (start here)
+├── AUDIT.adoc                 # Root audit gate summary (read before making release/publication claims)
 ├── README.adoc                 # High-level pitch — excitement and awe (Rich Human)
 ├── EXPLAINME.adoc              # Developer deep-dive — how it works (Rich Nerd)
 ├── ROADMAP.adoc                # Future direction
@@ -120,9 +122,10 @@ This repo follows the **Dual-Track** architecture:
 ## SESSION STARTUP CHECKLIST
 
 ✅ Read THIS file (0-AI-MANIFEST.a2ml) first
+✅ Read `AUDIT.adoc` before making release, stable, or publication claims
 ✅ Understand canonical location: `.machine_readable/`
 ✅ State understanding of canonical locations
 
 ## ATTESTATION PROOF
 
-**"I have read the AI manifest. All machine-readable content (state files, anchors, policies, bot directives, contractiles, AI guides) is located in `.machine_readable/` ONLY, and community metadata is in `.github/`. I will not create duplicate files in the root directory."**
+**"I have read the AI manifest. All machine-readable content (state files, anchors, policies, bot directives, contractiles, AI guides) is located in `.machine_readable/` ONLY, community metadata is in `.github/`, and `AUDIT.adoc` constrains release and publication claims. I will not create duplicate files in the root directory or make optimistic claims that bypass the audit gate."**
