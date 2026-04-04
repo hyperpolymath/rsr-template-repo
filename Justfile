@@ -773,6 +773,28 @@ readiness:
     #   cargo test --test readiness -- --nocapture
     @echo "Readiness tests complete!"
 
+# Print the current CRG grade (reads from READINESS.md '**Current Grade:** X' line)
+crg-grade:
+    @grade=$$(grep -oP '(?<=\*\*Current Grade:\*\* )[A-FX]' READINESS.md 2>/dev/null | head -1); \
+    [ -z "$$grade" ] && grade="X"; \
+    echo "$$grade"
+
+# Print a shields.io CRG badge for embedding in README files
+# Looks for '**Current Grade:** X' in READINESS.md; falls back to X
+crg-badge:
+    @grade=$$(grep -oP '(?<=\*\*Current Grade:\*\* )[A-FX]' READINESS.md 2>/dev/null | head -1); \
+    [ -z "$$grade" ] && grade="X"; \
+    case "$$grade" in \
+      A) color="brightgreen" ;; \
+      B) color="green" ;; \
+      C) color="yellow" ;; \
+      D) color="orange" ;; \
+      E) color="red" ;; \
+      F) color="critical" ;; \
+      *) color="lightgrey" ;; \
+    esac; \
+    echo "[![CRG $$grade](https://img.shields.io/badge/CRG-$$grade-$$color?style=flat-square)](https://github.com/hyperpolymath/standards/tree/main/component-readiness-grades)"
+
 # Run the full merge-requirement test suite (ALL categories)
 # Per STANDING rule: P2P + E2E + aspect + execution + lifecycle + bench
 test-all: test e2e aspect bench readiness
