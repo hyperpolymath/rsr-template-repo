@@ -1,131 +1,61 @@
-# ⚠️ STOP - CRITICAL READING REQUIRED
+# RSR Template AI Manifest (Read First)
 
-**THIS FILE MUST BE READ FIRST BY ALL AI AGENTS**
+This is the root AI manifest for the template repository.
 
-## WHAT IS THIS?
+## Template Status
 
-This is the AI manifest for **[YOUR-REPO-NAME]**. It declares:
-- Canonical file locations (where things MUST be, and nowhere else)
-- Critical invariants (rules that must NEVER be violated)
-- Repository structure and organization
-- Key root audit documents that constrain release and publication claims
+This repository intentionally contains template placeholders before bootstrap.
+Examples: `{{OWNER}}`, `{{REPO}}`, `{{PROJECT_NAME}}`, `[YOUR-REPO-NAME]`.
 
-## CANONICAL LOCATIONS (UNIVERSAL RULE)
+Do not invent project-specific values unless the operator runs template
+initialization (for example `just init`) or explicitly provides values.
 
-### Machine-Readable Metadata: `.machine_readable/` ONLY
+## Authority Split
 
-These 6 a2ml files MUST exist in `.machine_readable/` directory ONLY:
-1. **STATE.a2ml** - Project state, progress, blockers
-2. **META.a2ml** - Architecture decisions, governance
-3. **ECOSYSTEM.a2ml** - Position in ecosystem, relationships
-4. **AGENTIC.a2ml** - AI agent interaction patterns
-5. **NEUROSYM.a2ml** - Neurosymbolic integration config
-6. **PLAYBOOK.a2ml** - Operational runbook
+- Central protocol authority:
+  `standards/session-management-standards/`
+- Local integration authority (this repo):
+  - `Justfile` session recipes
+  - `session/dispatch.sh`
+  - `session/custom-checks.k9`
+  - `session/local-hooks.sh`
+  - `coordination.k9`
 
-**CRITICAL:** If ANY of these files exist in the root directory, this is an ERROR.
+## Canonical Session Commands
 
-### Anchor File: `.machine_readable/anchors/ANCHOR.a2ml` ONLY
+- `intake repo <path>`
+- `checkpoint change <path>`
+- `verify maintenance <path>`
+- `verify substantial <path>`
+- `verify release <path>`
+- `close planned <path>`
+- `close urgent <path>`
+- `recover repo <path>`
+- `handover full <path>`
+- `handover split <path>`
+- `handover model <path>`
+- `handover human <path>`
 
-Canonical authority and semantic-boundary declaration MUST exist at:
+## Core Invariants
 
-` .machine_readable/anchors/ANCHOR.a2ml `
+1. Keep protocol text centralized; do not duplicate full protocol specs here.
+2. Keep local policy and hook behavior local to this repo.
+3. Write runtime session artifacts in working repos (typically `.session/`).
+4. Keep README/AUDIT/manifest claims synchronized with actual files.
+5. Mark stubs and placeholders explicitly.
 
-Do not place `ANCHOR.a2ml` at repository root.
+## Key Local Files
 
-### Maintenance Policies: `.machine_readable/policies/` ONLY
+- `AUDIT.adoc` (local audit gate summary)
+- `README.adoc` (template orientation)
+- `EXPLAINME.adoc` (claim-to-implementation map)
+- `session/README.md` (session-binding usage)
+- `.machine_readable/` (machine-readable repo policy/state files)
 
-Canonical maintenance/governance files MUST exist under:
+## Startup Checklist For Agents
 
-` .machine_readable/policies/ `
-
-Minimum required files:
-- `MAINTENANCE-AXES.a2ml`
-- `MAINTENANCE-CHECKLIST.a2ml`
-- `SOFTWARE-DEVELOPMENT-APPROACH.a2ml`
-
-Do not place maintenance policy files in repository root.
-
-### Bot Directives: `.machine_readable/bot_directives/` ONLY
-
-Bot-specific instructions for your automated agents.
-
-### Contractiles: `.machine_readable/contractiles/` ONLY
-
-Policy enforcement contracts (k9, dust, lust, must, trust).
-
-### AI Configuration & Guides: `.machine_readable/ai/` ONLY
-
-- `AI.a2ml` - Language-specific or LLM-specific patterns
-- `PLACEHOLDERS.md` - Bootstrap guide
-
-### Community & Forge Metadata: `.github/` ONLY
-
-- `CODEOWNERS` - Review assignments
-- `MAINTAINERS` - Machine-readable contact list
-- `SUPPORT` - Support channels
-- `SECURITY.md` - Technical security policy
-- `CONTRIBUTING.md` - Technical contribution manual
-- `CODE_OF_CONDUCT.md` - Conduct rules
-
-### Agent Instructions: `.machine_readable/agent_instructions/` ONLY
-
-Methodology-aware AI agent configuration (ADR-002):
-- `methodology.a2ml` - Mode, invariants, ring ceiling, priority weights
-- `coverage.a2ml` - Session coverage tracking (visited, skipped, MUSTs)
-- `debt.a2ml` - Meander debt carried between sessions
-
-Entry points:
-- `0-AI-MANIFEST.a2ml` - THIS FILE (universal entry point, read FIRST)
-
-## CORE INVARIANTS
-
-1. **No state file duplication** - Root must NOT contain STATE.a2ml, META.a2ml, etc.
-2. **Single source of truth** - `.machine_readable/` is authoritative
-3. **No stale metadata** - If root state files exist, they are OUT OF DATE
-4. **License consistency** - All code PMPL-1.0-or-later unless platform requires MPL-2.0
-5. **Author attribution** - Always "{{AUTHOR}} <{{AUTHOR_EMAIL}}>"
-6. **Container images** - MUST use Chainguard base (`cgr.dev/chainguard/wolfi-base:latest` or `cgr.dev/chainguard/static:latest`)
-7. **Container runtime** - Podman, never Docker. Files are `Containerfile`, never `Dockerfile`
-8. **Container orchestration** - `selur-compose`, never `docker-compose`
-
-## REPOSITORY STRUCTURE
-
-This repo follows the **Dual-Track** architecture:
-
-```
-[YOUR-REPO-NAME]/
-├── 0-AI-MANIFEST.a2ml         # THIS FILE (start here)
-├── AUDIT.adoc                 # Root audit gate summary (read before making release/publication claims)
-├── README.adoc                 # High-level pitch — excitement and awe (Rich Human)
-├── EXPLAINME.adoc              # Developer deep-dive — how it works (Rich Nerd)
-├── ROADMAP.adoc                # Future direction
-├── CONTRIBUTING.adoc           # Human contribution guide
-├── GOVERNANCE.adoc             # Decision-making model
-├── Justfile                    # Task runner
-├── Containerfile               # OCI build
-├── LICENSE                     # Primary license
-├── src/                        # Source code
-│   └── interface/              # Verified Interface Seams
-│       ├── abi/                # Idris2 ABI (The Spec)
-│       ├── ffi/                # Zig FFI (The Bridge)
-│       └── generated/          # C Headers (The Result)
-├── container/                  # Stapeln container ecosystem
-├── docs/                       # Technical depths
-│   ├── attribution/            # Citations, owners, maintainers (adoc)
-│   ├── architecture/           # Topology, diagrams
-│   ├── theory/                 # Domain theory
-│   └── practice/               # Manuals
-├── docs/legal/                  # Legal exhibits and full texts
-└── .machine_readable/          # ALL machine-readable metadata
-```
-
-## SESSION STARTUP CHECKLIST
-
-✅ Read THIS file (0-AI-MANIFEST.a2ml) first
-✅ Read `AUDIT.adoc` before making release, stable, or publication claims
-✅ Understand canonical location: `.machine_readable/`
-✅ State understanding of canonical locations
-
-## ATTESTATION PROOF
-
-**"I have read the AI manifest. All machine-readable content (state files, anchors, policies, bot directives, contractiles, AI guides) is located in `.machine_readable/` ONLY, community metadata is in `.github/`, and `AUDIT.adoc` constrains release and publication claims. I will not create duplicate files in the root directory or make optimistic claims that bypass the audit gate."**
+1. Read `0-AI-MANIFEST.a2ml`.
+2. Read `AUDIT.adoc`.
+3. Confirm whether placeholders have been initialized.
+4. Use canonical session commands through `session/dispatch.sh` or Just aliases.
+5. Avoid claiming files/paths exist unless verified in this repository.

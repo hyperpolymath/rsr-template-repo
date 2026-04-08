@@ -3,7 +3,7 @@
 
 = Audit Gate
 Codex
-v1.0, 2026-03-30
+v1.1, 2026-04-07
 :toc:
 :toclevels: 2
 :sectnums:
@@ -40,6 +40,7 @@ Read these as the authoritative source:
 * `standards/release-pre-flight/V1-GATE.adoc`
 * `standards/publication-pre-flight/PREFLIGHT.adoc`
 * `standards/publication-pre-flight/ESTATE-AUDIT-BASELINE-2026-03-30.adoc`
+* `standards/session-management-standards/README.adoc`
 
 == Bot Requirement
 

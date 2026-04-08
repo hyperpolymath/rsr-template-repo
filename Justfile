@@ -503,10 +503,10 @@ self-assess:
     echo "── RELEVANT (matches your project) ───────────────────────"
     echo ""
 
-    if $HAS_IDRIS && [ -d "src/interface/abi" ]; then
-        echo "  ✓ src/interface/abi/ — KEEP (Idris2 ABI definitions)"
-    elif ! $HAS_IDRIS && [ -d "src/interface/abi" ]; then
-        echo "  ? src/interface/abi/ — No Idris2 detected."
+    if $HAS_IDRIS && { [ -d "src/interface/Abi" ] || [ -d "src/interface/abi" ]; }; then
+        echo "  ✓ src/interface/Abi|abi/ — KEEP (Idris2 ABI definitions)"
+    elif ! $HAS_IDRIS && { [ -d "src/interface/Abi" ] || [ -d "src/interface/abi" ]; }; then
+        echo "  ? src/interface/Abi|abi/ — No Idris2 detected."
         echo "    → KEEP if you plan to add formal verification later."
         echo "    → SAFE TO REMOVE if this project will never use Idris2."
         echo "    ⚠ Consequence: no formally verified interface definitions."
@@ -1143,10 +1143,13 @@ validate-rsr:
     for f in licensing/exhibits/EXHIBIT-A-ETHICAL-USE.txt licensing/exhibits/EXHIBIT-B-QUANTUM-SAFE.txt licensing/texts/PMPL-1.0-or-later.txt; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    for f in src/interface/abi src/interface/ffi src/interface/generated; do
+    if [ ! -d "src/interface/Abi" ] && [ ! -d "src/interface/abi" ]; then
+        MISSING="$MISSING src/interface/Abi"
+    fi
+    for f in src/interface/ffi src/interface/generated; do
         [ -d "$f" ] || MISSING="$MISSING $f"
     done
-    for f in docs/maintenance/MAINTENANCE-CHECKLIST.adoc docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc; do
+    for f in docs/governance/MAINTENANCE-CHECKLIST.adoc docs/governance/SOFTWARE-DEVELOPMENT-APPROACH.adoc; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     if [ -f ".machine_readable/META.a2ml" ]; then
@@ -1160,8 +1163,8 @@ validate-rsr:
         grep -q 'effects-evidence = "benchmark execution/results and maintainer status dialogue/review"' .machine_readable/META.a2ml || MISSING="$MISSING META.a2ml:effects-evidence"
         grep -q 'compliance-tooling = "panic-attack"' .machine_readable/policies/MAINTENANCE-AXES.a2ml || MISSING="$MISSING MAINTENANCE-AXES.a2ml:compliance-tooling"
         grep -q 'effects-tooling = "ecological checking with sustainabot guidance"' .machine_readable/policies/MAINTENANCE-AXES.a2ml || MISSING="$MISSING MAINTENANCE-AXES.a2ml:effects-tooling"
-        grep -q 'source-human = "docs/maintenance/MAINTENANCE-CHECKLIST.adoc"' .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml || MISSING="$MISSING MAINTENANCE-CHECKLIST.a2ml:source-human"
-        grep -q 'source-human = "docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc"' .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml || MISSING="$MISSING SOFTWARE-DEVELOPMENT-APPROACH.a2ml:source-human"
+        grep -q 'source-human = "docs/governance/MAINTENANCE-CHECKLIST.adoc"' .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml || MISSING="$MISSING MAINTENANCE-CHECKLIST.a2ml:source-human"
+        grep -q 'source-human = "docs/governance/SOFTWARE-DEVELOPMENT-APPROACH.adoc"' .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml || MISSING="$MISSING SOFTWARE-DEVELOPMENT-APPROACH.a2ml:source-human"
     fi
     if [ -n "$MISSING" ]; then
         echo "MISSING:$MISSING"
@@ -1564,3 +1567,62 @@ proof-status:
     else
         echo "(No PROOF-STATUS.md found)"
     fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SESSION MANAGEMENT (THIN BINDINGS TO CENTRAL STANDARDS)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Show canonical session-management command model
+session-help:
+    @echo "Canonical command model:"
+    @echo "  intake repo <path>"
+    @echo "  checkpoint change <path>"
+    @echo "  verify maintenance <path>"
+    @echo "  verify substantial <path>"
+    @echo "  verify release <path>"
+    @echo "  close planned <path>"
+    @echo "  close urgent <path>"
+    @echo "  recover repo <path>"
+    @echo "  handover full <path>"
+    @echo "  handover split <path>"
+    @echo "  handover model <path>"
+    @echo "  handover human <path>"
+    @echo ""
+    @echo "Use Just aliases below (thin wrappers around ./session/dispatch.sh)."
+
+# Canonical aliases (friendly recipe names that map to canonical commands)
+intake-repo path=".":
+    @./session/dispatch.sh intake repo "{{path}}"
+
+checkpoint-change path=".":
+    @./session/dispatch.sh checkpoint change "{{path}}"
+
+verify-maintenance path=".":
+    @./session/dispatch.sh verify maintenance "{{path}}"
+
+verify-substantial path=".":
+    @./session/dispatch.sh verify substantial "{{path}}"
+
+verify-release path=".":
+    @./session/dispatch.sh verify release "{{path}}"
+
+close-planned path=".":
+    @./session/dispatch.sh close planned "{{path}}"
+
+close-urgent path=".":
+    @./session/dispatch.sh close urgent "{{path}}"
+
+recover-repo path=".":
+    @./session/dispatch.sh recover repo "{{path}}"
+
+handover-full path=".":
+    @./session/dispatch.sh handover full "{{path}}"
+
+handover-split path=".":
+    @./session/dispatch.sh handover split "{{path}}"
+
+handover-model path=".":
+    @./session/dispatch.sh handover model "{{path}}"
+
+handover-human path=".":
+    @./session/dispatch.sh handover human "{{path}}"

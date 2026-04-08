@@ -1,49 +1,68 @@
 // SPDX-License-Identifier: PMPL-1.0-or-later
-= {project-name} — Show Me The Receipts
+= RSR Template Repo - Explainme
 :toc:
 :icons: font
 
-The README makes claims. This file backs them up.
+This file explains how the key template claims map to real files.
 
-For each headline feature: what makes it work, where the code is, and an honest
-caveat. Link out to the technology's own docs rather than over-explaining.
-Reference arXiv papers only where the approach is novel. Keep it brief — prove
-the claim, don't write a textbook.
+== Central Session Protocol Authority
 
-== [Claim from README]
+Claim:
+Session protocols are centrally maintained and not duplicated in this template.
 
-[quote, README]
-____
-Paste the specific claim here.
-____
+How this is implemented:
 
-Brief explanation of _how_ — 2-4 sentences. Link to the technology
-(https://elixir-lang.org[Elixir], https://ziglang.org[Zig], etc.) rather than
-explaining it from scratch.
+* The local dispatcher (`session/dispatch.sh`) maps canonical commands to central
+  protocol paths in `standards/session-management-standards`.
+* Local files (`session/custom-checks.k9`, `session/local-hooks.sh`,
+  `coordination.k9`) are integration-only.
 
-**Caveat:** What doesn't this cover? Where are the limits?
+Caveat:
 
-- Implementation: `path/to/code`
-- Learn more: https://relevant-docs.example.com
+* If `SESSION_STANDARDS_DIR` is unset and no adjacent standards checkout exists,
+  the dispatcher records the command but cannot resolve central checklist paths.
 
-== Dogfooded Across The Account
+== Canonical Command Surface
 
-These aren't one-off choices — they're patterns used across hyperpolymath repos:
+Claim:
+Template bindings align to one canonical command model.
 
-[cols="1,2"]
-|===
-| Technology | Also Used In
+How this is implemented:
 
-| **[Tech 1]** | https://github.com/hyperpolymath/[repo1], https://github.com/hyperpolymath/[repo2]
-| **[Tech 2]** | https://github.com/hyperpolymath/[repo3]
-|===
+* `Justfile` provides thin aliases (`intake-repo`, `checkpoint-change`,
+  `verify-maintenance`, `verify-substantial`, `verify-release`, `close-planned`,
+  `close-urgent`, `recover-repo`, `handover-*`).
+* Every alias calls `session/dispatch.sh` with canonical verb-object pairs.
 
-== File Map
+Caveat:
 
-[cols="1,2"]
-|===
-| Path | Proves
+* Recipes are wrappers only. They do not replace protocol content from
+  the central standards repo.
 
-| `src/` | ...
-| `ffi/` | ...
-|===
+== Runtime State Is Local
+
+Claim:
+Session state is per-repository runtime output, not standards text.
+
+How this is implemented:
+
+* `session/dispatch.sh` writes command and continuity-core capture stubs to
+  `.session/LAST-CANONICAL-COMMAND.md` in the target repository path.
+
+Caveat:
+
+* Runtime files are intentionally lightweight and require human/agent completion.
+
+== Template Token Policy
+
+Claim:
+Placeholders are explicit template content until initialization.
+
+How this is implemented:
+
+* `README.adoc` and bootstrap recipes keep `{{TOKEN}}` placeholders visible.
+* `just init` performs token replacement.
+
+Caveat:
+
+* Uninitialized placeholders must not be treated as project-specific truth.
