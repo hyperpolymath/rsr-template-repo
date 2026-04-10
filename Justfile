@@ -54,6 +54,10 @@ info:
     @echo "Recipes: $(just --summary | wc -w)"
     @[ -f ".machine_readable/STATE.a2ml" ] && grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/STATE.a2ml | head -1 | xargs -I{} echo "Phase: {}" || true
 
+# Run Invariant Path overlay tools for this repository
+invariant-path *ARGS:
+    ./scripts/invariant-path.sh {{ARGS}}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # INIT — Bootstrap a new project from this template
 # ═══════════════════════════════════════════════════════════════════════════════
