@@ -13,6 +13,12 @@ on:
 
 permissions:
   contents: read
+  # security-events: read lets the built-in GITHUB_TOKEN query this
+  # repo's own Dependabot alerts via the Hypatia DependabotAlerts rule
+  # (DA001-DA004). Without this, `scan_from_path` gets HTTP 403 and
+  # the rule silently returns no findings.
+  # See 007-lang/audits/audit-dependabot-automation-gap-2026-04-17.md.
+  security-events: read
 
 jobs:
   scan:
@@ -48,6 +54,12 @@ jobs:
 
       - name: Run Hypatia scan
         id: scan
+        env:
+          # Pass the built-in Actions token through to Hypatia so the
+          # DependabotAlerts rule can query this repo's own alerts.
+          # For cross-repo scanning (fleet-coordinator scan-supervised),
+          # a PAT with `security_events` scope is required instead.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Scanning repository: ${{ github.repository }}"
 
