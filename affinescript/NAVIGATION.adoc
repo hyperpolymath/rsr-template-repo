@@ -170,7 +170,7 @@ affinescript/
 │   └── guides/                    # Testing & guides
 │
 ├── .build/                        # Build system
-│   ├── justfile                   # Task runner
+│   ├── Justfile                   # Task runner
 │   ├── dune-project               # Dune config
 │   ├── affinescript.opam          # OPAM package
 │   └── .ocamlformat               # Code style
