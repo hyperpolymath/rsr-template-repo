@@ -32,7 +32,20 @@ type context = {
   lambda_funcs : func list;          (** lifted lambda functions *)
   next_lambda_id : int;              (** next lambda function ID *)
   heap_ptr : int option;             (** global index for heap pointer, if initialized *)
-  field_layouts : (string * (string * int) list) list;  (** type name -> [(field, offset)] *)
+  field_layouts : (string * (string * int) list) list;
+    (** variable name -> [(field, offset)] — populated by let-bindings
+        whose RHS is a record literal. Kept as the anonymous-record
+        fallback. *)
+  struct_layouts : (string * (string * int) list) list;
+    (** type name -> [(field, offset)] — populated by [TopType] when the
+        body is [TyStruct]. Used together with [var_types] to resolve
+        [ExprField] on variables whose RHS is not a record literal
+        (function parameters, let-bindings from function calls, etc.). *)
+  var_types : (string * string) list;
+    (** variable name -> declared type constructor name. Populated from
+        function-parameter annotations and from typed [let] bindings
+        (e.g. [let v : MyStruct = ...]). Feeds [ExprField]'s
+        variable -> type -> layout lookup. *)
   variant_tags : (string * int) list;  (** constructor name -> tag (int) *)
   string_data : (string * int) list; (** string content -> memory offset *)
   next_string_offset : int;          (** next available offset for string data *)
@@ -78,12 +91,29 @@ let create_context () : context = {
   next_lambda_id = 0;
   heap_ptr = None;
   field_layouts = [];
+  struct_layouts = [];
+  var_types = [];
   variant_tags = [];
   string_data = [];
   next_string_offset = 2048;  (* Start strings after heap at offset 2048 *)
   datas = [];
   ownership_annots = [];
 }
+
+(** Best-effort extraction of a single named type constructor from a
+    [type_expr]. Peels off [TyOwn]/[TyRef]/[TyMut] wrappers that do not
+    change the underlying nominal type. Returns [None] for anything
+    that is not a bare type constructor (polymorphic applications,
+    arrows, tuples, records, holes, variables).
+
+    Used when binding a variable (function parameter or typed let) to
+    remember the user's declared struct type so that a later
+    [ExprField] can resolve the field layout via [struct_layouts]. *)
+let rec type_name_of (t : type_expr) : string option =
+  match t with
+  | TyCon id -> Some id.name
+  | TyOwn inner | TyRef inner | TyMut inner -> type_name_of inner
+  | _ -> None
 
 (** Extract ownership kind from a parameter declaration.
     Checks p_ownership first; falls back to the shape of p_ty. *)
@@ -991,21 +1021,43 @@ let rec gen_expr (ctx : context) (expr : expr) : (context * instr list) result =
     (* Generate code for record expression (gets pointer) *)
     let* (ctx', record_code) = gen_expr ctx record_expr in
 
-    (* Look up field offset from field_layouts *)
-    (* For now, only supports field access on variables assigned record literals *)
-    let field_offset = match record_expr with
+    (* Look up the field's byte offset.  Resolution order:
+         1. variable's declared nominal type -> struct_layouts  (typed
+            lets, function parameters, lets from function calls);
+         2. variable's anonymous-record layout in field_layouts
+            (let v = {x:1, y:2} — the original behaviour);
+         3. fall back to offset 0 as a last resort to preserve prior
+            behaviour on unsupported shapes.  Step 3 is silently wrong
+            by design — upstream type-propagation is the right place to
+            fix it, not here. *)
+    let field_offset =
+      let lookup_in_layout layout =
+        List.assoc_opt field.name layout
+      in
+      match record_expr with
       | ExprVar var_name ->
-        (* Look up variable's field layout *)
-        begin match List.assoc_opt var_name.name ctx.field_layouts with
-          | Some layout ->
-            (* Find field offset in layout *)
-            begin match List.assoc_opt field.name layout with
-              | Some offset -> offset
-              | None -> 0  (* Field not found, default to 0 *)
+        let via_struct =
+          match List.assoc_opt var_name.name ctx.var_types with
+          | Some ty_name ->
+            begin match List.assoc_opt ty_name ctx.struct_layouts with
+              | Some layout -> lookup_in_layout layout
+              | None -> None
             end
-          | None -> 0  (* Variable layout not tracked, default to 0 *)
+          | None -> None
+        in
+        begin match via_struct with
+          | Some offset -> offset
+          | None ->
+            begin match List.assoc_opt var_name.name ctx.field_layouts with
+              | Some layout ->
+                begin match lookup_in_layout layout with
+                  | Some offset -> offset
+                  | None -> 0
+                end
+              | None -> 0
+            end
         end
-      | _ -> 0  (* Complex expression, default to 0 *)
+      | _ -> 0  (* Complex expression: no variable-keyed layout available *)
     in
 
     (* Load from memory at field offset *)
@@ -1204,10 +1256,24 @@ and gen_pattern (ctx : context) (scrutinee_local : int) (pat : pattern)
           Ok (ctx', test_code, [])
       end
     else
-      (* Constructor with arguments: Some(x), Ok(a, b), etc. *)
-      (* scrutinee is a pointer to [tag: i32][field1: i32][field2: i32]... *)
+      (* Constructor pattern with arguments: [Some(x)], [Ok(a, b)], etc.
 
-      (* Get or assign tag for this variant *)
+         scrutinee is a pointer to [tag: i32][field1: i32][field2: i32]...
+
+         CRITICAL: only dereference the scrutinee pointer AFTER
+         establishing that the tag matches.  Zero-argument variants
+         are represented directly as their tag (see [ExprVariant]),
+         so when a [match] compiles several arms in sequence and the
+         scrutinee is a zero-arg value, running the field loads
+         unconditionally would:
+           1. read i32s at arbitrary low memory offsets (the tag's
+              numeric value re-interpreted as a pointer), and
+           2. silently overwrite this arm's [field_idx] locals with
+              that garbage, masking the real flow in a debugger.
+         Gate the bindings behind an inner [If] that only runs when
+         the tag compares equal, and re-emit a bool for the outer
+         [gen_arms] [If] to switch on. *)
+
       let (ctx_with_tag, tag) = match List.assoc_opt con.name ctx.variant_tags with
         | Some t -> (ctx, t)
         | None ->
@@ -1215,29 +1281,27 @@ and gen_pattern (ctx : context) (scrutinee_local : int) (pat : pattern)
           ({ ctx with variant_tags = (con.name, new_tag) :: ctx.variant_tags }, new_tag)
       in
 
-      (* Allocate temp for match result *)
-      let (ctx_with_temp, match_result_idx) = alloc_local ctx_with_tag "__match_result" in
-
-      (* Test: load tag from scrutinee and compare, save result *)
+      (* Tag test: load the tag from offset 0 of the scrutinee and
+         compare to the expected tag.  Safe to run unconditionally —
+         the tag is the one field whose position is known before we
+         know the variant kind. *)
       let tag_test = [
-        LocalGet scrutinee_local;  (* variant pointer *)
-        I32Load (2, 0);            (* load tag from offset 0 *)
+        LocalGet scrutinee_local;
+        I32Load (2, 0);
         I32Const (Int32.of_int tag);
         I32Eq;
-        LocalTee match_result_idx; (* Save match result *)
       ] in
 
-      (* Extract fields and bind variables *)
-      (* For now, only support PatVar sub-patterns *)
+      (* Extract fields and bind variables.  Only [PatVar] and
+         [PatWildcard] sub-patterns are supported; nested constructor
+         patterns raise [UnsupportedFeature]. *)
       let rec bind_fields ctx_acc bindings_acc offset patterns =
         match patterns with
         | [] -> Ok (ctx_acc, bindings_acc)
         | pat :: rest ->
           begin match pat with
             | PatVar id ->
-              (* Allocate local for this field *)
               let (ctx', field_idx) = alloc_local ctx_acc id.name in
-              (* Code to load field: scrutinee[offset] *)
               let load_code = [
                 LocalGet scrutinee_local;
                 I32Load (2, offset);
@@ -1245,18 +1309,27 @@ and gen_pattern (ctx : context) (scrutinee_local : int) (pat : pattern)
               ] in
               bind_fields ctx' (bindings_acc @ load_code) (offset + 4) rest
             | PatWildcard _ ->
-              (* Wildcard - skip this field *)
               bind_fields ctx_acc bindings_acc (offset + 4) rest
             | _ ->
               Error (UnsupportedFeature "Only variable and wildcard patterns supported in variant constructor arguments")
           end
       in
 
-      let* (ctx_final, binding_code) = bind_fields ctx_with_temp [] 4 sub_patterns in
+      let* (ctx_final, binding_code) = bind_fields ctx_with_tag [] 4 sub_patterns in
 
-      (* Combine: test tag, bind fields, return test result *)
-      (* tag_test already ends with LocalTee, so it leaves the result on stack. *)
-      let full_code = tag_test @ binding_code in
+      (* Gate bindings on the tag comparison.  The inner [If] consumes
+         the bool left by [tag_test], runs the bindings on the matching
+         branch, and produces a fresh bool (1 on match, 0 otherwise)
+         for [gen_arms]' outer [If] to switch the arm body on.  Stack
+         effect of the whole [full_code] block: +1 i32, identical to
+         the previous (buggy) unconditional layout so callers are
+         unchanged. *)
+      let gated_bindings = [
+        If (BtType I32,
+            binding_code @ [I32Const 1l],
+            [I32Const 0l])
+      ] in
+      let full_code = tag_test @ gated_bindings in
       Ok (ctx_final, full_code, [])
 
   | PatTuple sub_patterns ->
@@ -1379,14 +1452,37 @@ and gen_stmt (ctx : context) (stmt : stmt) : (context * instr list) result =
     begin match sl.sl_pat with
       | PatVar id ->
         let (ctx'', idx) = alloc_local ctx' id.name in
-        (* If RHS is a record, track its field layout *)
-        let ctx_with_layout = match sl.sl_value with
+        (* Field-layout registration.  Two independent registries:
+
+             (a) field_layouts — per-variable, for anonymous-record lets
+                 ([let v = {x:1, y:2}]).  The ordering in [er_fields]
+                 defines the byte layout.
+             (b) var_types — per-variable, for nominal struct lets
+                 ([let v : MyStruct = ...]).  Used later by [ExprField]
+                 to look up [struct_layouts] registered at [TopType]
+                 time.  Also covers lets whose RHS is a function call
+                 returning a struct — the type annotation is the only
+                 reliable signal at this layer. *)
+        let ctx_with_field_layout =
+          match sl.sl_value with
           | ExprRecord rec_expr ->
             let field_layout = List.mapi (fun i (field_name, _) ->
               (field_name.name, i * 4)
             ) rec_expr.er_fields in
-            { ctx'' with field_layouts = (id.name, field_layout) :: ctx''.field_layouts }
+            { ctx'' with
+              field_layouts = (id.name, field_layout) :: ctx''.field_layouts }
           | _ -> ctx''
+        in
+        let ctx_with_layout =
+          match sl.sl_ty with
+          | Some ty ->
+            begin match type_name_of ty with
+              | Some ty_name ->
+                { ctx_with_field_layout with
+                  var_types = (id.name, ty_name) :: ctx_with_field_layout.var_types }
+              | None -> ctx_with_field_layout
+            end
+          | None -> ctx_with_field_layout
         in
         Ok (ctx_with_layout, rhs_code @ [LocalSet idx])
       | _ ->
@@ -1659,9 +1755,19 @@ let gen_function (ctx : context) (fd : fn_decl) : (context * func) result =
   (* Create fresh context for function scope, but preserve lambda_funcs and next_lambda_id *)
   let fn_ctx = { ctx with locals = []; next_local = 0; loop_depth = 0 } in
 
-  (* Parameters become locals 0..n-1 *)
+  (* Parameters become locals 0..n-1.  Also register var_types for
+     each parameter whose declared type resolves to a nominal struct
+     (directly or through TyOwn/TyRef/TyMut wrappers), so that a later
+     [ExprField (ExprVar param_name, f)] inside the body can resolve
+     the layout via [struct_layouts] set up at [TopType] time. *)
   let (ctx_with_params, _) = List.fold_left (fun (c, _) param ->
-    alloc_local c param.p_name.name
+    let (c', idx) = alloc_local c param.p_name.name in
+    let c'' = match type_name_of param.p_ty with
+      | Some ty_name ->
+        { c' with var_types = (param.p_name.name, ty_name) :: c'.var_types }
+      | None -> c'
+    in
+    (c'', idx)
   ) (fn_ctx, 0) fd.fd_params in
 
   let param_count = List.length fd.fd_params in
@@ -1747,17 +1853,25 @@ let gen_decl (ctx : context) (decl : top_level) : context result =
     Ok ctx''
 
   | TopType td ->
-    (* Register variant tags for enum types *)
+    (* Register per-type codegen metadata:
+         - TyEnum: sequential variant tags (constructor_name -> tag).
+         - TyStruct: field layout by declaration order (type_name ->
+           [(field, offset)]).  Needed so that [ExprField] can resolve
+           field offsets on variables whose type was declared via
+           [TopType] rather than created via an anonymous record
+           literal.
+         - TyAlias: nothing to register at codegen time. *)
     begin match td.td_body with
       | TyEnum variants ->
-        (* Assign sequential tags to each variant constructor *)
         let ctx_with_tags = List.fold_left (fun c_acc (idx, vd) ->
-          (* Register: constructor_name -> tag *)
           { c_acc with variant_tags = (vd.vd_name.name, idx) :: c_acc.variant_tags }
         ) ctx (List.mapi (fun i v -> (i, v)) variants) in
         Ok ctx_with_tags
-      | _ ->
-        (* Other type declarations (alias, struct) don't need codegen *)
+      | TyStruct fields ->
+        let layout = List.mapi (fun i sf -> (sf.sf_name.name, i * 4)) fields in
+        Ok { ctx with
+             struct_layouts = (td.td_name.name, layout) :: ctx.struct_layouts }
+      | TyAlias _ ->
         Ok ctx
     end
 
