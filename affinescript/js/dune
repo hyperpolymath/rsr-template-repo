@@ -16,5 +16,6 @@
   (pps js_of_ocaml-ppx))
  (js_of_ocaml
   (compilation_mode whole_program)
+  (javascript_files runtime.js)
   (flags
    (:standard --enable=effects --source-map))))
