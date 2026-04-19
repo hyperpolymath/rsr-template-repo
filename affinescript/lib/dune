@@ -1,18 +1,18 @@
-; WIP modules excluded from the build (2026-04-19):
-;   - face, {javascript,python,pseudocode}_face: the face-transformer
-;     stubs reference token / AST constructors (Ident, EIdent, EBinOp,
-;     EUnOp) that don't exist in the current Token.t / Ast.expr.
-;     Nothing outside face.mli consumes them either.  Exclude until
-;     the face stack is rebuilt against the current Token/Ast shape.
+; Face stack rewired 2026-04-19:
+;   - face.ml + face.mli now match the ADR-010 spec (face type,
+;     face_error_vocab, detect_face — no AST-level dispatch).
+;   - python_face.ml is a source-level text preprocessor per the
+;     spec; exposes parse_string_python, parse_file_python,
+;     preview_transform (used by test/test_e2e.ml §11).
+;   - javascript_face / pseudocode_face deleted: their previous
+;     content was WIP stubs against a non-existent AST and no test
+;     exercised them.  Face slots in `type face` remain for CLI
+;     dispatch when the preprocessors are written.
 ;
-; `backends.ml` and `lib/backends/` were deleted — the M5-sweep
-; scaffolding referenced 9+ modules that were never written.  Git
-; history preserves the content for anyone picking up the backend-
-; layer refactor.
+; `backends.ml` and `lib/backends/` were deleted (b981f90).
 (library
  (name affinescript)
  (libraries sedlex menhirLib yojson unix str)
- (modules :standard \ face javascript_face python_face pseudocode_face)
  ; ppx_jane dropped: code only uses [@@deriving show, eq, ord], all
  ; provided by ppx_deriving plugins.  ppx_jane transitively pulled in
  ; ppx_bin_prot / bin_prot whose runtime.js fires `joo_global_object`
