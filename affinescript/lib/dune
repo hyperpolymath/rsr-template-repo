@@ -1,24 +1,18 @@
 ; WIP modules excluded from the build (2026-04-19):
-;   - backends, backends/*: M5 sweep shipped a wrapper that references
-;     16 Backends_* modules, of which only 5 sub-files exist and none
-;     under the expected flat naming convention.  Nothing else in the
-;     tree consumes the Backends namespace, so exclude until whoever
-;     owns the backend-layer refactor rewires backends.ml.
 ;   - face, {javascript,python,pseudocode}_face: the face-transformer
 ;     stubs reference token / AST constructors (Ident, EIdent, EBinOp,
 ;     EUnOp) that don't exist in the current Token.t / Ast.expr.
 ;     Nothing outside face.mli consumes them either.  Exclude until
 ;     the face stack is rebuilt against the current Token/Ast shape.
+;
+; `backends.ml` and `lib/backends/` were deleted — the M5-sweep
+; scaffolding referenced 9+ modules that were never written.  Git
+; history preserves the content for anyone picking up the backend-
+; layer refactor.
 (library
  (name affinescript)
- ; `core` was only ever consumed by the face transformers (now
- ; excluded — see `modules` below), so dropping it from the library
- ; removes the bin_prot / core runtime.js transitive closure entirely.
- ; That closure is where the `joo_global_object` deprecation warnings
- ; come from during js_of_ocaml builds; pulling the dep silences them
- ; without needing a jsoo warning-suppress flag.
  (libraries sedlex menhirLib yojson unix str)
- (modules :standard \ backends face javascript_face python_face pseudocode_face)
+ (modules :standard \ face javascript_face python_face pseudocode_face)
  ; ppx_jane dropped: code only uses [@@deriving show, eq, ord], all
  ; provided by ppx_deriving plugins.  ppx_jane transitively pulled in
  ; ppx_bin_prot / bin_prot whose runtime.js fires `joo_global_object`
