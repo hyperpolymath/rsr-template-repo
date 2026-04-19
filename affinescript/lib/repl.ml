@@ -102,17 +102,17 @@ let create_state () : state =
     Hashtbl.replace type_ctx.var_types sym.sym_id scheme
   in
 
-  (* print : String -> () *)
-  let print_ty = TArrow (ty_string, ty_unit, EPure) in
+  (* print : String -{ω}-> () / Pure *)
+  let print_ty = TArrow (ty_string, QOmega, ty_unit, EPure) in
   register_builtin "print" print_ty;
 
-  (* println : String -> () *)
-  let println_ty = TArrow (ty_string, ty_unit, EPure) in
+  (* println : String -{ω}-> () / Pure *)
+  let println_ty = TArrow (ty_string, QOmega, ty_unit, EPure) in
   register_builtin "println" println_ty;
 
-  (* len : 'a -> Int (polymorphic, works for arrays and strings) *)
+  (* len : 'a -{ω}-> Int / Pure (polymorphic, works for arrays and strings) *)
   let alpha_var = TVar (ref (Unbound (0, 0))) in
-  let len_ty = TArrow (alpha_var, ty_int, EPure) in
+  let len_ty = TArrow (alpha_var, QOmega, ty_int, EPure) in
   register_builtin "len" len_ty;
 
   {
@@ -127,6 +127,7 @@ let process_line (state : state) (input : string) : (state * string) =
     Resolve.symbols = state.symbols;
     current_module = [];
     imports = [];
+    references = [];
   } in
   try
     (* Try parsing as expression first *)
@@ -136,13 +137,13 @@ let process_line (state : state) (input : string) : (state * string) =
     | Ok () ->
       (* Type check *)
       begin match Typecheck.synth state.type_ctx expr with
-        | Ok (ty, _eff) ->
+        | Ok ty ->
           (* Special handling for top-level let expressions *)
           begin match expr with
             | ExprLet lb when lb.el_body = None ->
               (* Top-level let binding - first type-check the RHS *)
               begin match Typecheck.synth state.type_ctx lb.el_value with
-                | Ok (rhs_ty, _rhs_eff) ->
+                | Ok rhs_ty ->
                   (* Evaluate the RHS *)
                   begin match eval state.env lb.el_value with
                     | Ok rhs_val ->

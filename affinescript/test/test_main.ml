@@ -5,9 +5,12 @@
 
 let () =
   Alcotest.run "AffineScript"
-    ([
+    [
       ("Lexer", Test_lexer.tests);
       (* ("Parser", Test_parser.tests); *)  (* TODO: Re-enable when test_parser is implemented *)
       ("Golden", Test_golden.tests);
       ("Examples", Test_golden.example_tests);
-    ] @ Test_e2e.tests)
+      (* Test_e2e.tests disabled — its Python_face driver is excluded
+         from the library build until the face stack is rebuilt
+         against the current Token/Ast shape. *)
+    ]

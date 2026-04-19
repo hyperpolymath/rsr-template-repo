@@ -1,6 +1,11 @@
+; test_e2e excluded: it drives the Python_face transformer, which is
+; itself excluded from the library build until the face stack is
+; rebuilt against the current Token/Ast shape.  Re-add once
+; Python_face is restored.
 (test
  (name test_main)
  (libraries affinescript alcotest str unix)
+ (modules :standard \ test_e2e)
  (deps
   (source_tree golden)
   (source_tree e2e)

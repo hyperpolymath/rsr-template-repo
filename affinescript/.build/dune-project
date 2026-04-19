@@ -21,6 +21,7 @@
 
 (package
  (name affinescript)
+ (allow_empty)
  (synopsis "A programming language with affine types, dependent types, row polymorphism, and extensible effects")
  (description
   "AffineScript combines Rust-style ownership (affine types), compile-time size verification (dependent types), extensible records (row polymorphism), and trackable side effects (extensible effects). It compiles to WebAssembly for efficient, portable execution.")
