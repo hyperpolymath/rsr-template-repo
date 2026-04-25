@@ -66,3 +66,19 @@ How this is implemented:
 Caveat:
 
 * Uninitialized placeholders must not be treated as project-specific truth.
+
+== Julia Registry Packages — Standalone Repo Requirement
+
+Claim:
+If this template is used to create a Julia package, it must remain a standalone repository registered with the Julia package registry.
+
+How this is implemented:
+
+* Julia's package registry (General.jl or other) expects each package to be a standalone GitHub repository with `Project.toml` at the repository root.
+* Installation via `Pkg.add()`, dependency resolution, and automated CI/CD all depend on this canonical structure.
+
+Caveat:
+
+* Do NOT move this repository into a monorepo or subdirectory, as this breaks registry registration and package discoverability.
+* See `JULIA-REGISTRY-REQUIREMENT.md` (workspace root) for the complete list of 34 registered Julia packages and enforcement rationale.
+* Non-registry Julia packages can be organized differently if they are not published to any registry.
