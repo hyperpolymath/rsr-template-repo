@@ -62,7 +62,7 @@ jobs:
   #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
   #     - uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406  # v2.2.1
   #       with:
-  #         version: 0.15.0
+  #         version: 0.15.1
   #     - run: cd ffi/zig && zig build test
   #     - run: bash tests/e2e.sh
 
@@ -173,7 +173,7 @@ jobs:
   #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
   #     - uses: goto-bus-stop/setup-zig@abea47f85e598557f500fa1fd2ab7464fcb39406  # v2.2.1
   #       with:
-  #         version: 0.15.0
+  #         version: 0.15.1
   #     - run: cd ffi/zig && zig build bench
 
   # ─── Readiness (CRG) ──────────────────────────────────────────────
