@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
+// Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 = RSR Template Repo - Explainme
+image:https://img.shields.io/badge/License-MPL_2.0-blue.svg[License: MPL-2.0,link="https://opensource.org/licenses/MPL-2.0"]
+
 :toc:
 :icons: font
 
@@ -82,3 +85,10 @@ Caveat:
 * Do NOT move this repository into a monorepo or subdirectory, as this breaks registry registration and package discoverability.
 * See `JULIA-REGISTRY-REQUIREMENT.md` (workspace root) for the complete list of 34 registered Julia packages and enforcement rationale.
 * Non-registry Julia packages can be organized differently if they are not published to any registry.
+
+
+== License
+
+This project is licensed under the Mozilla Public License, v. 2.0. See the `LICENSE` file for details.
+
+SPDX-License-Identifier: MPL-2.0
