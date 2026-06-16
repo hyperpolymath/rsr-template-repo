@@ -27,6 +27,7 @@ CHANGELOG.md
 # ─── Build entry points (must live at root for their tooling) ────────────────
 Justfile                   # delegates phases to build/just/*.just
 coordination.k9            # repo-local session binding (template-mandated)
+abi.ipkg                   # Idris2 package for the ABI seam; sourcedir=src/interface (estate canon: root-level *-abi.ipkg). Bridges lowercase abi/ files to uppercase `module Abi.*` via src/interface/Abi/ symlinks.
 
 # ─── Conventional dotfiles (tool-required at root) ───────────────────────────
 .editorconfig

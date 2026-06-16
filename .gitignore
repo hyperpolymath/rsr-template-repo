@@ -119,3 +119,7 @@ dist/
 # target/build/) — only the root-level path is exempt.
 !/build/
 !/build/**
+
+# ...but never track Idris2 typecheck output. `idris2 --typecheck abi.ipkg`
+# writes compiled .ttc/.ttm under build/ttc/; these are generated artifacts.
+/build/ttc/
