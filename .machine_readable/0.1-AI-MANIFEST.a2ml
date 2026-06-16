@@ -18,6 +18,7 @@ canonical_locations:
   agentic: "6a2/AGENTIC.a2ml"
   neurosym: "6a2/NEUROSYM.a2ml"
   playbook: "6a2/PLAYBOOK.a2ml"
+  clade: "6a2/CLADE.a2ml"
   anchors: "6a2/anchors/"
   policies: "policies/"
   ai_configs: "ai/"
