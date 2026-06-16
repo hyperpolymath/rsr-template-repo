@@ -3,23 +3,21 @@
 --
 -- Idris2 package for the formally-typed ABI seam.
 --
--- Source files live in src/interface/abi/ (lowercase — the canonical RSR
--- directory shape that validate-template.sh checks) but declare `module Abi.*`.
--- Idris2 requires capitalised namespace components, so the namespace cannot be
--- lowercased to match the directory. The symlinks in src/interface/Abi/ bridge
--- the uppercase module namespace to the physical lowercase files, so this
--- package typechecks via `sourcedir`.
+-- The seam lives in a single, case-consistent directory src/interface/Abi/
+-- (uppercase) so the physical path matches the `module Abi.*` namespace on
+-- EVERY filesystem. Idris2 requires capitalised namespace components, and a
+-- lowercase abi/ directory cannot satisfy that without a case-twin symlink
+-- (src/interface/Abi -> abi) that collides on case-insensitive filesystems
+-- (macOS/Windows). One case-consistent directory has exactly one path identity
+-- under case-folding, so the collision is impossible by construction.
 --
--- A bare `idris2 --check src/interface/abi/Foo.idr` warns ("module name does not
--- match file name") because Idris derives the expected module from the full
--- path; that warning is expected and tolerated. Use the package for a real
--- typecheck:
+-- A bare `idris2 --check src/interface/Abi/Foo.idr` still warns ("module name
+-- does not match file name") because Idris derives the expected module from the
+-- full path; that is expected. Use the package for a real typecheck:
 --   idris2 --typecheck abi.ipkg      (or --build)
 --
--- CAVEAT: the abi/ (real) and Abi/ (symlink) directories coexist only on a
--- case-sensitive filesystem (Linux/WSL). On a case-insensitive filesystem
--- (default macOS/Windows) the two paths collide; a checkout there needs
--- core.ignorecase handling or the case-consistent layout instead.
+-- The RSR validators accept either Abi/ (canonical, case-consistent) or a
+-- lowercase abi/ for downstream repos that ship lowercase — but never both.
 
 package abi
 

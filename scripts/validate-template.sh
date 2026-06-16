@@ -67,6 +67,30 @@ check_dir_exists() {
     fi
 }
 
+# Case-tolerant ABI seam checks: accept the canonical case-consistent
+# src/interface/Abi/ (matches `module Abi.*`) OR a lowercase src/interface/abi/
+# that some downstream repos ship. Never require BOTH (that would be a case-fold
+# collision on case-insensitive filesystems).
+check_abi_dir_exists() {
+    local description="${1:-}"
+    if [ -d "$REPO_ROOT/src/interface/Abi" ] || [ -d "$REPO_ROOT/src/interface/abi" ]; then
+        [ "$VERBOSE" = "1" ] && log_pass "Directory exists: src/interface/{Abi,abi}"
+        return 0
+    fi
+    log_error "Required directory missing: src/interface/Abi ${description:+(${description})}"
+    return 1
+}
+check_abi_file_exists() {
+    local fname="$1"
+    local description="${2:-}"
+    if [ -f "$REPO_ROOT/src/interface/Abi/$fname" ] || [ -f "$REPO_ROOT/src/interface/abi/$fname" ]; then
+        [ "$VERBOSE" = "1" ] && log_pass "File exists: src/interface/{Abi,abi}/$fname"
+        return 0
+    fi
+    log_error "Required file missing: src/interface/Abi/$fname ${description:+(${description})}"
+    return 1
+}
+
 has_spdx_header() {
     local file="$1"
     if head -10 "$file" | grep -q "SPDX-License-Identifier"; then
@@ -102,7 +126,7 @@ check_file_exists "AUDIT.adoc" "Release audit gate"
 # Directories
 check_dir_exists ".machine_readable" "Machine-readable metadata"
 check_dir_exists ".github" "GitHub community metadata"
-check_dir_exists "src/interface/abi" "Idris2 ABI definitions"
+check_abi_dir_exists "Idris2 ABI definitions"
 check_dir_exists "src/interface/ffi" "Zig FFI implementation"
 check_dir_exists "src/interface/generated/abi" "Generated C headers"
 check_dir_exists "docs" "Documentation"
@@ -190,9 +214,9 @@ log_info "Phase 4: Idris2 ABI and Zig FFI source files"
 echo ""
 
 # Idris2 ABI files
-check_file_exists "src/interface/abi/Types.idr" "Core type definitions"
-check_file_exists "src/interface/abi/Layout.idr" "Memory layout specifications"
-check_file_exists "src/interface/abi/Foreign.idr" "FFI foreign declarations"
+check_abi_file_exists "Types.idr" "Core type definitions"
+check_abi_file_exists "Layout.idr" "Memory layout specifications"
+check_abi_file_exists "Foreign.idr" "FFI foreign declarations"
 
 # Zig FFI files
 check_file_exists "src/interface/ffi/build.zig" "Zig build configuration"
@@ -278,17 +302,30 @@ else
     log_error "Zig build.zig not found"
 fi
 
-# Check Idris2 syntax (if available)
+# Check Idris2. Prefer a REAL typecheck via the package (abi.ipkg sets the
+# sourcedir so the `module Abi.*` namespace resolves); this catches namespace /
+# path / import breakage that a bare per-file `idris2 --check` masks as a
+# tolerated "module name does not match file name" warning.
 if command -v idris2 &> /dev/null; then
-    IDS_FILES=$(find "$REPO_ROOT/src/interface/abi" -name "*.idr" -type f 2>/dev/null || true)
-    while IFS= read -r ids_file; do
-        if [ -z "$ids_file" ]; then continue; fi
-        if ! idris2 --check "$ids_file" 2>&1 | grep -q "Error"; then
-            log_pass "Idris2 syntax OK: $(basename "$ids_file")"
+    if [ -f "$REPO_ROOT/abi.ipkg" ]; then
+        if (cd "$REPO_ROOT" && idris2 --typecheck abi.ipkg) > /dev/null 2>&1; then
+            log_pass "Idris2 ABI typechecks (abi.ipkg)"
         else
-            log_warning "Idris2 syntax issue: $(basename "$ids_file")"
+            log_error "Idris2 ABI does NOT typecheck (abi.ipkg)"
         fi
-    done <<< "$IDS_FILES"
+    else
+        # No package: fall back to a best-effort per-file syntax check (warns on
+        # the expected namespace/path mismatch). Look in either case of the dir.
+        IDS_FILES=$(find "$REPO_ROOT/src/interface/Abi" "$REPO_ROOT/src/interface/abi" -name "*.idr" -type f 2>/dev/null || true)
+        while IFS= read -r ids_file; do
+            if [ -z "$ids_file" ]; then continue; fi
+            if ! idris2 --check "$ids_file" 2>&1 | grep -q "Error"; then
+                log_pass "Idris2 syntax OK: $(basename "$ids_file")"
+            else
+                log_warning "Idris2 syntax issue: $(basename "$ids_file")"
+            fi
+        done <<< "$IDS_FILES"
+    fi
 else
     log_warning "Idris2 compiler not found - skipping Idris2 syntax checks"
 fi

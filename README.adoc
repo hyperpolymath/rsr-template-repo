@@ -54,7 +54,7 @@ across the tree, validates the result, and (if available) runs the `k9-svc` chec
   in a2ml, so tools and agents can read the project's state and boundaries.
 * *AI gatekeeper protocol* — `0-AI-MANIFEST.a2ml` is the universal entry point that
   tells an AI agent how to work in this repo before it touches anything.
-* *Typed ABI/FFI seam* — `src/interface/abi/` (Idris2 type + layout proofs) over
+* *Typed ABI/FFI seam* — `src/interface/Abi/` (Idris2 type + layout proofs) over
   `src/interface/ffi/` (Zig implementation), with generated C headers.
 * *CI/CD* — GitHub Actions for quality, security (CodeQL, Scorecard, secret
   scanning), multi-forge mirroring, and RSR anti-pattern enforcement.
