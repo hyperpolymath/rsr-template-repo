@@ -1,29 +1,39 @@
 # SPDX-License-Identifier: MPL-2.0
-# ECOSYSTEM.a2ml — Ecosystem position
-# Converted from ECOSYSTEM.scm on 2026-04-14
+# ECOSYSTEM.a2ml — Ecosystem position (META-TEMPLATE)
+#
+# This is the ECOSYSTEM file for rsr-template-repo itself. It records the
+# TEMPLATE's own position in the estate. When consumed by a new project,
+# replace these fields with the target project's ecosystem position and
+# related projects (see the NOTE FOR CONSUMERS at the bottom).
 
 [metadata]
-project = "pseudoscript"
+project = "rsr-template-repo"
 ecosystem = "hyperpolymath"
 
 [position]
-type = "programming-language"
-purpose = "Pseudocode-syntax AffineScript. Write code that looks like pseudocode. Get affine resource guarantees and typed WASM out."
+type = "repository-template"
+purpose = "Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from."
 
 [pipeline]
-position = "co-product"
-chain = "katagoria → typell → typed-wasm → PanLL"
-notes = "PseudoScript compiles to typed WasmGC. TypeLL grounds its type system. typed-wasm provides the shared binary layout and ABI conventions."
-coordination = "nextgen-typing"
+position = "foundation"
+chain = "standards → rsr-template-repo → (every estate repo)"
+notes = "rsr-template-repo turns the RSR standard into runnable scaffolding. New repos are created from it via `just init`, which substitutes the {{PLACEHOLDER}} tokens."
+coordination = "standards"
 
 [related-projects]
 projects = [
-  { name = "typell", relationship = "type-theory-foundation", notes = "TypeLL's open-ended progressive framework grounds PseudoScript's type system. typell-pseudoscript bridge crate." },
-  { name = "typed-wasm", relationship = "aggregate-library", notes = "Shared binary layout conventions for WasmGC cross-language calls. PseudoScript Option[T]/Result[T,E]/String have agreed layouts here." },
-  { name = "nextgen-typing", relationship = "coordination-parent", notes = "Coordination monorepo for the type theory pipeline. Canonical architecture doc." },
-  { name = "affinescript", relationship = "foundation", notes = "PseudoScript is a syntactic face of AffineScript." },
-  { name = "rattlescript", relationship = "sibling", notes = "Both are syntactic faces of AffineScript." },
-  { name = "ephapax", relationship = "sibling-wasm-target", notes = "Both compile to typed WasmGC. Independent designs; converge at binary level via typed-wasm." },
-  { name = "katagoria", relationship = "research-upstream", notes = "Type theory research origination. Future PseudoScript type system extensions may originate there." },
-  { name = "panll", relationship = "consumer", notes = "PseudoScript is one of PanLL's development language targets." },
+  { name = "standards", relationship = "standard-source", notes = "Defines the RSR standard, contractile canon, and policies that this template operationalises." },
+  { name = "stapeln", relationship = "build-tooling", notes = "Layer-based container build system; the template ships stapeln.toml scaffolding." },
+  { name = "selur-compose", relationship = "build-tooling", notes = "Service composition; the template ships selur-compose.toml scaffolding." },
+  { name = "k9-svc", relationship = "validation-tooling", notes = "Runs the self-validating k9.ncl checks (.machine_readable/self-validating/)." },
+  { name = "cerro-torre", relationship = "signing-tooling", notes = "Container/image signing provider referenced by the container scaffolding." },
+  { name = "svalinn", relationship = "verification-tooling", notes = "Supply-chain verification referenced by the container scaffolding." },
+  { name = "vordr", relationship = "verification-tooling", notes = "Build/artifact verification referenced by the container scaffolding." },
 ]
+
+# ---------------------------------------------------------------------------
+# NOTE FOR CONSUMERS: When using this template to create a new repo, replace
+# the project/purpose above and rewrite [related-projects] to describe YOUR
+# project's actual ecosystem. The entries above describe the TEMPLATE's own
+# position, not yours.
+# ---------------------------------------------------------------------------

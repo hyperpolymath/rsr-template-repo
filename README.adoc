@@ -1,189 +1,91 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 // SPDX-FileCopyrightText: 2024-2026 Jonathan D.A. Jewell (hyperpolymath)
-= PseudoScript
+= {{PROJECT_NAME}}
 :toc:
 :toc-placement: preamble
 
-image:https://img.shields.io/badge/OpenSSF-Best_Practices-green?logo=opensourcesecurity[OpenSSF Best Practices,link="https://www.bestpractices.dev/en/projects/new?repo_url=https://github.com/hyperpolymath/rsr-template-repo"]
+image:https://img.shields.io/badge/OpenSSF-Best_Practices-green?logo=opensourcesecurity[OpenSSF Best Practices,link="https://www.bestpractices.dev/en/projects/new?repo_url=https://{{FORGE}}/{{OWNER}}/{{REPO}}"]
 image:https://img.shields.io/badge/License-MPL_2.0-blue.svg[License: MPL-2.0,link="https://opensource.org/licenses/MPL-2.0"]
-image:https://api.thegreenwebfoundation.org/greencheckimage/github.com[Green Web,link="https://www.thegreenwebfoundation.org/green-web-check/?url=github.com"]
+image:https://api.thegreenwebfoundation.org/greencheckimage/{{FORGE}}[Green Web,link="https://www.thegreenwebfoundation.org/green-web-check/?url={{FORGE}}"]
 
-Pseudocode-syntax AffineScript.
-Write code that looks like pseudocode.
-Get affine resource guarantees and typed WASM out.
+{{PROJECT_DESCRIPTION}}
 
-**Status: alpha** — the syntax, type checker, and WASM output are solid.
-Effects runtime is in progress upstream.
+[IMPORTANT]
+====
+*This file is a template.* You are reading `README.adoc` from the *RSR template repo*
+(or a freshly-cloned copy of it). Run `just init` to replace every `{{PLACEHOLDER}}`
+token with your project's details, then delete this admonition. Until you do, the
+`{{...}}` markers below are intentional placeholders, not content.
+====
 
----
+== What this is
 
-== What it is
+A new repository scaffolded from the *Rhodium Standard Repository (RSR)* template:
+a batteries-included starting point that ships with CI/CD, machine-readable project
+metadata, an AI-agent gatekeeper protocol, a formally-typed ABI/FFI seam
+(Idris2 + Zig), container and reproducible-build scaffolding, and governance
+infrastructure — all wired and passing the RSR validators on day one.
 
-PseudoScript is https://github.com/hyperpolymath/affinescript[AffineScript]
-with its pseudocode face pre-selected.  If you write pseudocode, you already know
-most of the syntax.
+Replace this section with a description of *your* project once initialised.
 
-The compiler checks that your resources (files, sockets, tokens) are used
-*exactly as many times as you say* — and proves it at compile time.
-No null pointer exceptions.  No use-after-free.  No silent data races.
-
-[source,pseudocode]
-----
-FUNCTION greet(name: STRING) RETURNS STRING
-    RETURN "Hello, " + name + "!"
-END FUNCTION
-
-FUNCTION main() RETURNS VOID
-    LET msg = greet("world")
-    PRINT(msg)
-END FUNCTION
-----
-
-Save as `hello.pseudo` and run:
+== Quick start
 
 [source,bash]
 ----
-pseudo eval hello.pseudo
+# 1. Create a repo from this template (or clone it), then from the repo root:
+just init                # interactive bootstrap: fills every {{PLACEHOLDER}}
+
+# 2. See the available tasks:
+just                     # lists all phases (build, test, validate, audit, ...)
+
+# 3. Check the repo still satisfies the RSR shape:
+just validate            # structure + metadata checks
 ----
 
-== Why Pseudocode syntax?
+`just init` prompts for the project name, owner, author, licence contact, and the
+other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them
+across the tree, validates the result, and (if available) runs the `k9-svc` checks.
 
-Because pseudocode programmers deserve a sound type system.
+== What you get
 
-PseudoScript is pseudocode's more dangerous cousin — same comfortable
-whitespace-delimited blocks, but with teeth: the compiler tracks *ownership*
-of every value so you cannot accidentally drop, duplicate, or outlive a
-resource.  You never null-check.  You never wonder if a function consumes its
-argument or borrows it.  The type says so.
+* *Machine-readable metadata* (`.machine_readable/6a2/`) — `STATE`, `META`,
+  `ECOSYSTEM`, `PLAYBOOK`, `AGENTIC`, `NEUROSYM`, `CLADE`, and `anchors/ANCHOR`,
+  in a2ml, so tools and agents can read the project's state and boundaries.
+* *AI gatekeeper protocol* — `0-AI-MANIFEST.a2ml` is the universal entry point that
+  tells an AI agent how to work in this repo before it touches anything.
+* *Typed ABI/FFI seam* — `src/interface/abi/` (Idris2 type + layout proofs) over
+  `src/interface/ffi/` (Zig implementation), with generated C headers.
+* *CI/CD* — GitHub Actions for quality, security (CodeQL, Scorecard, secret
+  scanning), multi-forge mirroring, and RSR anti-pattern enforcement.
+* *Supply-chain & reproducibility* — container layering (stapeln), Nix/Guix shells,
+  SBOM, and signing hooks.
+* *Governance* — `GOVERNANCE.adoc`, `MAINTAINERS.adoc`, `.github/` community health
+  files, and a release `AUDIT.adoc` gate.
 
-The mascot is a pseudocode.
+== Repository map
 
-== Surface mappings
-
-[cols="1,1"]
+[cols="1,3"]
 |===
-|Pseudocode surface |What it means in PseudoScript
+| Path | What lives there
 
-|`FUNCTION f(x: T) RETURNS R:` |function declaration
-|`TRUE` / `FALSE`    |`true` / `false`
-|`NULL`              |unit `()` — not null, genuinely nothing
-|`AND` / `OR` / `NOT` |`&&` / `||` / `!`
-|`CLASS Name:`       |`type Name` (algebraic data type)
-|`PASS`              |`()` (unit expression)
-|`IMPORT a.b`        |`use a::b;`
-|`FROM a IMPORT b`   |`use a::b;`
-|`IF cond:` / `ELSE:` |`if cond { ... } else { ... }`
-|`ELIF cond:`        |`} else if cond {`
-|`FOR x IN e:`       |`for x in e { ... }`
-|`MATCH e:`          |`match e { ... }`
-|`# comment`         |`// comment`
+| `0-AI-MANIFEST.a2ml`      | Universal entry point for AI agents (read first).
+| `.machine_readable/`      | Project metadata, policies, contractiles, AI configs.
+| `src/interface/`          | Typed ABI (Idris2) + FFI (Zig) + generated headers.
+| `docs/`                   | Onboarding, status, governance, practice, decisions.
+| `build/`, `Justfile`      | Task orchestration (`just` phases delegate to `build/just/*.just`).
+| `.github/`                | Workflows + community health files.
+| `tests/`, `benches/`      | Test suites and benchmarks.
 |===
 
-Run `pseudo preview-pseudocode-transform <file>` to see the canonical
-AffineScript that the preprocessor generates from any `.pseudo` file.
+== Where to go next
 
-== Getting started
+* `EXPLAINME.adoc` — the engineering deep-dive: how the pieces actually work.
+* `AFFIRMATION.adoc` — the dated, signed honesty snapshot of the repo's true state.
+* `AUDIT.adoc` — the release audit gate.
+* `.machine_readable/ai/PLACEHOLDERS.adoc` — the full placeholder reference.
 
-=== Prerequisites
+== Licence
 
-* https://ocaml.org/[OCaml] + https://dune.build/[dune] (for the compiler)
-* https://www.rust-lang.org/[Rust] + cargo (for the `pseudo` wrapper)
-* https://just.systems/[just] (task runner)
-
-=== Install from source
-
-[source,bash]
-----
-git clone --recurse-submodules https://github.com/hyperpolymath/pseudoscript
-cd pseudoscript
-
-# Build affinescript compiler + pseudo wrapper in one step
-just bootstrap
-
-# Optional: install pseudo to ~/.cargo/bin
-just install
-----
-
-=== Usage
-
-[source,bash]
-----
-pseudo check   hello.pseudo      # type-check
-pseudo eval    hello.pseudo      # run
-pseudo compile hello.pseudo      # compile to WASM
-pseudo fmt     hello.pseudo      # format
-pseudo lint    hello.pseudo      # static analysis
-
-# See what the pseudocode preprocessor produces
-pseudo preview-pseudocode-transform hello.pseudo
-----
-
-`.pseudo` files are detected automatically — no `--face` flag needed.
-You can also use `.pyaff` if you prefer the AffineScript naming.
-
-== Ownership in one minute
-
-[source,pseudocode]
-----
-# @linear means: use this exactly once.
-FUNCTION send_token(@linear token: AuthToken) RETURNS Receipt:
-    network.submit(token)   # consumes token — compiler verifies this
-END FUNCTION
-
-# Option instead of None crashes.
-FUNCTION safe_divide(a: Int, b: Int) RETURNS Option[Int]:
-    IF b == 0:
-        NONE
-    ELSE:
-        SOME(a / b)
-    END IF
-END FUNCTION
-
-FUNCTION show(result: Option[Int]) RETURNS VOID:
-    MATCH result:
-        SOME(n) => IO.println(Int.to_string(n))
-        NONE    => IO.println("no result")
-    END MATCH
-END FUNCTION
-----
-
-The compiler rejects any program that drops a `@linear` value unused,
-uses it more than once, or tries to treat `NONE` as a value.
-
-== Relationship to AffineScript
-
-PseudoScript *is* AffineScript.  Same compiler, same type system, same WASM
-output.  The difference is `--face pseudocode` is the default and the entry
-point is `pseudo` instead of `affinescript`.
-
-The affinescript compiler lives in the `affinescript/` submodule of this
-repo.  `just update-affinescript` bumps the pointer to the latest upstream
-release — all language improvements flow through automatically.
-
-Face logic: `affinescript/lib/pseudocode_face.ml` (syntax transform) and
-`affinescript/lib/face.ml` (error vocabulary).  No compiler internals change
-when the face changes.
-
-== Alpha caveats
-
-* **Effects runtime**: `effect`/`handle` syntax is type-checked but not yet
-executed at runtime.  The effects story is coming in a near-upstream release.
-* **Closures and linear captures**: lambda-body linear capture tracking is
-conservative in the current release.
-* **Span fidelity**: error locations refer to the transformed canonical source,
-not the original `.pseudo` line numbers.  Source-map remapping is planned.
-
-== Contributing
-
-This repo is a thin distribution layer.  Language bugs and features go
-upstream: https://github.com/hyperpolymath/affinescript[hyperpolymath/affinescript].
-
-PseudoScript-specific contributions (branding, examples, tutorials, the
-`pseudo` CLI wrapper) are welcome here.
-
-== License
-
-This project is licensed under the Mozilla Public License, v. 2.0. See the `LICENSE` file for details.
-
-SPDX-License-Identifier: MPL-2.0
+Released under the link:LICENSE[Mozilla Public License 2.0] unless a per-file
+`SPDX-License-Identifier` says otherwise.

@@ -15,7 +15,12 @@
 README.adoc
 AUDIT.adoc
 EXPLAINME.adoc
+AFFIRMATION.adoc           # dated/signed honesty snapshot (README/EXPLAINME/AFFIRMATION trio)
 0-AI-MANIFEST.a2ml         # thin pointer to .machine_readable/0.1-AI-MANIFEST.a2ml
+GOVERNANCE.adoc            # governance model (validator accepts root or docs/governance/)
+MAINTAINERS.adoc           # maintainer roster
+CONTRIBUTING.md            # REQUIRED AT ROOT by scorecard-enforcer/openssf-compliance/quality CI (test -f, no .github fallback). The fuller copy in .github/ is GitHub's auto-discovery convention; dedupe is an owner decision (would need those CI checks updated to accept .github/).
+SECURITY.md                # REQUIRED AT ROOT by scorecard-enforcer CI + the security-policy contractile (test -f SECURITY.md). See CONTRIBUTING.md note re: the .github/ copy.
 LICENSE
 CHANGELOG.md
 
@@ -39,6 +44,8 @@ coordination.k9            # repo-local session binding (template-mandated)
 build/                     # contractile.just, setup.sh, flake.{nix,lock}, guix.scm, .guix-channel, Containerfile
 ci/                        # .gitlab-ci.yml, .pre-commit-config.yaml (root shims if tools require)
 docs/                      # onboarding/, status/, governance/, ...
+docs-template/             # template-only: scaffolding docs copied into new repos
+machine-readable-design/   # template-only: design rationale for .machine_readable/ layout
 session/                   # dispatch.sh, custom-checks.k9, local-hooks.sh
 
 # Source / test / artifact trees (project-specific but conventional)

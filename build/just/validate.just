@@ -22,8 +22,8 @@ validate-rsr:
     for f in licensing/exhibits/EXHIBIT-A-ETHICAL-USE.txt licensing/exhibits/EXHIBIT-B-QUANTUM-SAFE.txt licensing/texts/MPL-2.0.txt; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    if [ ! -d "src/interface/Abi" ] && [ ! -d "src/interface/abi" ]; then
-        MISSING="$MISSING src/interface/Abi"
+    if [ ! -d "src/interface/abi" ] && [ ! -d "src/interface/Abi" ]; then
+        MISSING="$MISSING src/interface/abi"
     fi
     for f in src/interface/ffi src/interface/generated; do
         [ -d "$f" ] || MISSING="$MISSING $f"

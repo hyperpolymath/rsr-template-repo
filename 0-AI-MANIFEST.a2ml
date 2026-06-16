@@ -5,11 +5,11 @@
 #
 [metadata]
 version = "0.1.0"
-last-updated = "2026-04-14"
+last-updated = "{{CURRENT_DATE}}"
 
 [project]
-name = "pseudoscript"
-purpose = "Pseudocode-syntax AffineScript. Write code that looks like pseudocode. Get affine resource guarantees and typed WASM out."
+name = "[YOUR-REPO-NAME]"
+purpose = "{{PROJECT_DESCRIPTION}}"
 
 [ai-allocation]
 agents = [
@@ -30,5 +30,5 @@ items = [
   { agent = "CLAUDE", task = "proofs, compilers, repo-local implementation, CI/CD, formal verification, Rust/Idris2/Zig" },
   { agent = "CHATGPT", task = "prose, papers, publication review, standards docs, outreach drafts, letters" },
   { agent = "GEMINI", task = "estate audits, cross-repo sweeps, long-context triage, pattern detection" },
-  { agent = "VIBE", role = "UI/frontend, PanLL panels, ReScript components, theming, rapid prototyping" },
+  { agent = "VIBE", task = "UI/frontend, PanLL panels, ReScript components, theming, rapid prototyping" },
 ]

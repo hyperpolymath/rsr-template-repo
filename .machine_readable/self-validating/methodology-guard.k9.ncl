@@ -44,7 +44,16 @@ let methodology_guard = {
       description = "STATE.a2ml must not contain template placeholders",
       severity = "warning",
       file = ".machine_readable/6a2/STATE.a2ml",
-      reject_patterns = ["{{PLACEHOLDER}}", "{{PROJECT}}", "rsr-template-repo"],
+      # NOTE: the PROJECT token below is written as a Nickel concat
+      # ("{{" ++ "PROJECT}}") ON PURPOSE. `just init` runs a sed substitution for
+      # the brace-PROJECT-brace token over EVERY text file, which would otherwise
+      # rewrite this guard's own pattern into the consumer's name and break the
+      # check. Splitting the literal across "++" keeps the contiguous token text
+      # out of the file (in this comment too) so init cannot match it, while
+      # Nickel still evaluates the element back to the full token. Do not
+      # "simplify" it to a plain string. (The PLACEHOLDER token and
+      # "rsr-template-repo" are not init tokens, so they survive as-is.)
+      reject_patterns = ["{{PLACEHOLDER}}", "{{" ++ "PROJECT}}", "rsr-template-repo"],
     },
 
     coverage_updated = {

@@ -44,8 +44,8 @@ Inventory snapshot at audit time:
 | legacy `README.adoc` + legacy checks
 | `src/interface/abi/*.idr`
 | outdated
-| Current tree has `src/interface/Abi/*.idr` (uppercase A).
-| Updated docs/checks to accept current path.
+| Tree previously shipped `src/interface/Abi/*.idr` (uppercase A); now renamed.
+| Renamed to canonical lowercase `src/interface/abi/*.idr` (matches `validate-template.sh` + gossamer). Checks remain tolerant of either case.
 
 | Root manifest structure with non-existent files
 | legacy `0-AI-MANIFEST.a2ml` (pre-migration)

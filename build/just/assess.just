@@ -67,10 +67,10 @@ self-assess:
     echo "── RELEVANT (matches your project) ───────────────────────"
     echo ""
 
-    if $HAS_IDRIS && { [ -d "src/interface/Abi" ] || [ -d "src/interface/abi" ]; }; then
-        echo "  ✓ src/interface/Abi|abi/ — KEEP (Idris2 ABI definitions)"
-    elif ! $HAS_IDRIS && { [ -d "src/interface/Abi" ] || [ -d "src/interface/abi" ]; }; then
-        echo "  ? src/interface/Abi|abi/ — No Idris2 detected."
+    if $HAS_IDRIS && { [ -d "src/interface/abi" ] || [ -d "src/interface/Abi" ]; }; then
+        echo "  ✓ src/interface/abi/ — KEEP (Idris2 ABI definitions)"
+    elif ! $HAS_IDRIS && { [ -d "src/interface/abi" ] || [ -d "src/interface/Abi" ]; }; then
+        echo "  ? src/interface/abi/ — No Idris2 detected."
         echo "    → KEEP if you plan to add formal verification later."
         echo "    → SAFE TO REMOVE if this project will never use Idris2."
         echo "    ⚠ Consequence: no formally verified interface definitions."
