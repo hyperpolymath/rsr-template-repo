@@ -203,9 +203,9 @@ verify:
     check_file "LICENSE"
     check_either "CONTRIBUTING.md" "CONTRIBUTING.adoc"
     check_either "README.adoc" "README.md"
-    check_file ".machine_readable/STATE.a2ml"
-    check_file ".machine_readable/META.a2ml"
-    check_file ".machine_readable/ECOSYSTEM.a2ml"
+    check_file ".machine_readable/6a2/STATE.a2ml"
+    check_file ".machine_readable/6a2/META.a2ml"
+    check_file ".machine_readable/6a2/ECOSYSTEM.a2ml"
     check_either "CHANGELOG.md" "CHANGELOG.adoc"
 
     # Check at least 1 workflow exists

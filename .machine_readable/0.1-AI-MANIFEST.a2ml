@@ -12,13 +12,13 @@ description: |
   automation scripts.
 
 canonical_locations:
-  state: "STATE.a2ml"
-  meta: "META.a2ml"
-  ecosystem: "ECOSYSTEM.a2ml"
-  agentic: "AGENTIC.a2ml"
-  neurosym: "NEUROSYM.a2ml"
-  playbook: "PLAYBOOK.a2ml"
-  anchors: "anchors/"
+  state: "6a2/STATE.a2ml"
+  meta: "6a2/META.a2ml"
+  ecosystem: "6a2/ECOSYSTEM.a2ml"
+  agentic: "6a2/AGENTIC.a2ml"
+  neurosym: "6a2/NEUROSYM.a2ml"
+  playbook: "6a2/PLAYBOOK.a2ml"
+  anchors: "6a2/anchors/"
   policies: "policies/"
   ai_configs: "ai/"
   compliance: "compliance/"
