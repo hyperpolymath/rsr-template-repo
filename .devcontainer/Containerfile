@@ -4,6 +4,8 @@
 # Dev Container image for {{PROJECT_NAME}}
 # Base: Chainguard Wolfi (minimal, supply-chain-secure)
 # Build: podman build -t {{PROJECT_NAME}}-dev -f .devcontainer/Containerfile .
+# `:latest` suits a dev container (rebuilt daily); pin by digest
+# (...@sha256:<digest>) if you need a reproducible dev environment.
 
 FROM cgr.dev/chainguard/wolfi-base:latest
 
