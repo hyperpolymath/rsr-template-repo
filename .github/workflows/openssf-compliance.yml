@@ -50,7 +50,8 @@ jobs:
           echo "LICENSE: OK"
       - name: Check CONTRIBUTING exists
         run: |
-          if [ ! -f "CONTRIBUTING.md" ] && [ ! -f "CONTRIBUTING.adoc" ]; then
+          if [ ! -f "CONTRIBUTING.md" ] && [ ! -f "CONTRIBUTING.adoc" ] \
+             && [ ! -f ".github/CONTRIBUTING.md" ] && [ ! -f ".github/CONTRIBUTING.adoc" ]; then
             echo "::error::CONTRIBUTING file is required for OpenSSF Best Practices"
             exit 1
           fi
