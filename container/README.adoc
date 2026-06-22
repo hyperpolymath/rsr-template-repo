@@ -1,179 +1,211 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
-= {{PROJECT_NAME}} Container Templates
+= {{PROJECT_NAME}} Containerisation
 :toc: left
 :toclevels: 3
 :sectnums:
 
 == Overview
 
-This directory contains container templates for the
-https://github.com/hyperpolymath/stapeln[stapeln] container ecosystem.
-The stapeln stack provides verified container packaging, edge gateway
-policies, runtime monitoring, and supply-chain signing for Podman-based
-deployments using https://www.chainguard.dev/[Chainguard] Wolfi base images.
+Containerisation in this template is organised in *three tiers*, from the most
+portable to the most sovereign. You can use only the tier you need and ignore —
+or delete — the rest.
 
-All files use `{{PLACEHOLDER}}` tokens that are replaced by `just container-init`
-(or by the top-level `just init` during project bootstrap).
+[cols="1,2,4"]
+|===
+| Tier | What | Why
+
+| *A — OCI standard*
+| `Containerfile`, `.containerignore`
+| A plain, multi-stage OCI image on https://www.chainguard.dev/[Chainguard]
+  Wolfi. Builds with any OCI engine. No dependency on tiers B or C.
+
+| *B — Portable engine*
+| `compose.yaml`, `compose.example.yaml`
+| A https://compose-spec.io[compose-spec] stack that runs unchanged on
+  `podman`, `nerdctl` or `docker`. For everyday local and simple production use.
+
+| *C — stapeln (sovereign)*
+| `stapeln/` directory
+| Verified `.ctp` bundles, zero-copy IPC, edge-gateway trust policy, secrets
+  gating, runtime monitoring and signed deployment — the full
+  https://github.com/hyperpolymath/stapeln[stapeln] stack.
+|===
+
+All files use `{{PLACEHOLDER}}` tokens, replaced by `just container-init`
+(or the top-level `just init` during project bootstrap).
+
+The container engine is *auto-detected* (`podman`, then `nerdctl`, then
+`docker`). Override with `CONTAINER_ENGINE=docker just container-build`.
 
 == File Reference
+
+=== Tier A + B (this directory)
+
+[cols="1,3"]
+|===
+| File | Purpose
+
+| `Containerfile`
+| Multi-stage OCI build. Stage 1 builds the app; Stage 2 is a minimal Wolfi
+  runtime image. Engine-agnostic. Carries the stapeln files only as labels,
+  so it has no hard dependency on tier C.
+
+| `.containerignore`
+| Build-context exclusions (honoured by podman/nerdctl/docker). Keeps `.git`,
+  secrets, docs, tests and build caches out of image layers.
+
+| `compose.yaml`
+| Portable compose-spec stack: app + `rokur` + `svalinn`. Use with
+  `just container-up` or `podman compose -f container/compose.yaml up -d`.
+
+| `compose.example.yaml`
+| Concrete multi-service example (Rust API + Elixir worker + gate + gateway).
+  Copy to `compose.yaml` and customise.
+
+| `entrypoint.sh`
+| Container entrypoint: signal handling (SIGTERM/SIGINT), startup logging,
+  `exec` into the main process.
+|===
+
+=== Tier C — `stapeln/`
 
 [cols="1,3"]
 |===
 | File | Purpose
 
 | `compose.toml`
-| **selur-compose** stack definition. Declares services, volumes, networks,
-  and health checks. The primary orchestration file for local and production
-  deployment. Use `selur-compose up` or fall back to `podman compose`.
+| *selur-compose* stack definition (TOML, selur-native — not parseable by
+  `podman compose`; use `compose.yaml` for that). Declares services, volumes,
+  the selur zero-copy network, and health checks.
 
 | `compose.example.toml`
-| Concrete multi-service example with detailed comments. Copy and customise
-  for your own stack. Not used directly by any tooling.
-
-| `Containerfile`
-| Multi-stage OCI container build specification. Stage 1 builds the
-  application; Stage 2 produces a minimal runtime image on
-  `cgr.dev/chainguard/wolfi-base`. Uses Podman (never Docker).
+| Concrete multi-service selur example.
 
 | `manifest.toml`
-| **cerro-torre** bundle metadata. Describes the `.ctp` verified container
-  package: provenance, dependencies, attestations, and runtime security
-  profile. Used by `ct pack` and `ct verify`.
+| *cerro-torre* `.ctp` bundle metadata: provenance, dependencies,
+  attestations, and the runtime security profile. Used by `ct pack` / `ct verify`.
 
 | `.gatekeeper.yaml`
-| **svalinn** edge gateway policy. Controls authentication, rate limiting,
-  container trust, request validation, CORS, and audit logging at the
-  network boundary.
+| *svalinn* edge-gateway policy: authentication, rate limiting, container
+  trust, request validation, CORS, audit logging.
 
-| `ct-build.sh`
-| Build, sign, and verify pipeline script. Five stages: build (Podman),
-  pack (cerro-torre `.ctp`), sign (Ed25519), verify, and push (optional).
-  Gracefully degrades when cerro-torre tools are not installed.
-
-| `entrypoint.sh`
-| Container entrypoint with signal handling (SIGTERM, SIGINT), startup
-  logging, and `exec` into the main application process.
+| `rokur.toml`
+| *rokur* secrets-gate configuration: required secrets, listener/backend,
+  rate limiting, policy engine, and audit log.
 
 | `vordr.toml`
-| **vordr** runtime monitoring configuration. Defines health endpoints,
-  crash detection, resource thresholds, and log output.
+| *vordr* runtime monitoring: health/readiness probes (app, rokur, svalinn),
+  crash detection, resource thresholds, structured logs.
+
+| `ct-build.sh`
+| *cerro-torre* build → pack → sign (Ed25519) → verify → push pipeline.
+  Engine-agnostic; degrades gracefully when cerro-torre tools are absent.
 
 | `deploy.k9.ncl`
-| **k9-svc** deployment component at Hunt trust level. Full pedigree
-  (L1--L5), environment configs (dev/staging/prod), container
-  configuration, and rolling deployment strategy.
-
-| `0-AI-MANIFEST.a2ml`
-| AI-readable manifest describing the container directory, file
-  interconnections, and the stapeln ecosystem.
+| *k9-svc* deployment component at Hunt trust level: full pedigree (L1–L5),
+  dev/staging/prod configs, rolling deployment strategy.
 |===
 
-== The stapeln Ecosystem
+== The stapeln ecosystem
 
-The stapeln container ecosystem comprises six interconnected tools:
+The sovereign tier wires together the stapeln container stack:
 
-**selur** (compose)::
-  Container orchestration with zero-copy IPC for co-located services.
-  Reads `compose.toml` files. Falls back to standard Podman Compose
-  when the selur driver is unavailable.
-
-**cerro-torre** (bundles and signing)::
-  Verified container packaging. Produces `.ctp` bundles from OCI images,
-  signs them with Ed25519, and verifies the full chain. Tools: `ct pack`,
+*cerro-torre* (build + sign)::
+  Produces signed, minimal `.ctp` bundles from OCI images. Tools: `ct pack`,
   `ct sign`, `ct verify`, `ct push`, `ct explain`.
 
-**svalinn** (edge gateway)::
-  Policy-driven reverse proxy. Enforces authentication, rate limiting,
-  CORS, and container trust policies defined in `.gatekeeper.yaml`.
+*selur* (compose + IPC)::
+  Orchestration with zero-copy IPC for co-located services. Reads
+  `stapeln/compose.toml`.
 
-**vordr** (monitoring)::
-  Runtime container monitoring. Watches health endpoints, detects crashes,
-  tracks resource usage, and emits structured logs.
+*rokur* (secrets gate)::
+  A Deno service that fronts the application and refuses to pass traffic unless
+  the declared secrets are present; rate-limits per client and writes a
+  structured audit log. Configured by `stapeln/rokur.toml`. In the stack it
+  sits between `svalinn` and the app.
 
-**rokur** (secrets)::
-  Secrets management for container deployments. Injects secrets at runtime
-  without baking them into images. Currently a stub/placeholder.
+*svalinn* (edge gateway)::
+  Policy-driven reverse proxy: TLS termination, authentication, rate limiting,
+  CORS and container trust, from `stapeln/.gatekeeper.yaml`.
 
-**k9-svc** (deployment components)::
-  Nickel-based deployment specification. Components declare their pedigree
-  (identity, target, security, validation, recipes) and execute at one of
-  three trust levels: Kennel (data only), Yard (evaluation), Hunt (full
-  execution with cryptographic handshake).
+*vordr* (monitoring)::
+  Runtime monitoring: health probes, crash detection, resource tracking,
+  structured logs, from `stapeln/vordr.toml`.
 
-== How to Initialise
+*k9-svc* (deployment)::
+  Nickel-based deployment components with pedigree and trust levels
+  (Kennel / Yard / Hunt).
 
-[source,bash]
-----
-# Option 1: During project bootstrap (includes all placeholders)
-just init
+The request path in the full stack is:
+`svalinn` (edge) → `rokur` (secrets gate) → `{{SERVICE_NAME}}` (app).
 
-# Option 2: Container-specific initialisation
-just container-init
-----
-
-The `container-init` recipe prompts for container-specific values
-(service name, port, registry) and substitutes all `{{PLACEHOLDER}}`
-tokens in the `container/` directory.
-
-== Development Workflow
+== Initialise
 
 [source,bash]
 ----
-# 1. Build the container image
-just container-build
-
-# 2. Verify the compose configuration
-just container-verify
-
-# 3. Start the stack locally
-just container-up --detach
-
-# 4. Check logs
-podman compose --file container/compose.toml logs -f
-
-# 5. Stop the stack
-just container-down
+just init             # full project bootstrap (all placeholders)
+# or
+just container-init   # container-only: prompts for service/port/registry
 ----
 
-== Production Deployment
+== Everyday workflow (tiers A + B)
 
 [source,bash]
 ----
-# 1. Build, sign, and verify the .ctp bundle
-just container-sign
+just container-build               # build image (auto-detected engine)
+just container-verify              # validate the compose config
+just container-up -d               # start the stack
+just container-down                # stop the stack
 
-# 2. Push the signed bundle to the registry
-just container-push
-
-# 3. Deploy on the target host
-selur-compose up --detach
+# Explicit engine:
+CONTAINER_ENGINE=docker just container-build
 ----
 
-For k9-svc managed deployments:
+`just container-up` uses `selur-compose` automatically when it is installed,
+otherwise it falls back to `<engine> compose -f container/compose.yaml`.
+
+== Sovereign workflow (tier C)
 
 [source,bash]
 ----
-# Validate the deployment component
-nickel typecheck container/deploy.k9.ncl
-
-# Deploy (requires Hunt-level authorisation)
-k9-svc deploy container/deploy.k9.ncl --env production
+just container-sign                # build → pack → sign → verify (.ctp)
+just container-push                # push the signed bundle
+cd container/stapeln && selur-compose up --detach
 ----
 
-== Base Images
+k9-svc managed deployment:
 
-All Containerfiles use Chainguard Wolfi base images:
+[source,bash]
+----
+nickel typecheck container/stapeln/deploy.k9.ncl
+k9-svc deploy container/stapeln/deploy.k9.ncl --env production
+----
 
-* **Builder stage:** `cgr.dev/chainguard/wolfi-base:latest`
-* **Runtime stage:** `cgr.dev/chainguard/wolfi-base:latest` (or
-  `cgr.dev/chainguard/static:latest` for statically-linked binaries)
+== Removing containerisation
 
-Chainguard images are minimal, CVE-free, and rebuilt daily. They use the
-`apk` package manager (Alpine-compatible).
+If your project does not need containers (e.g. a pure library), strip the whole
+apparatus in one command:
 
-== Container Runtime
+[source,bash]
+----
+just no-container
+----
 
-This project uses **Podman** (never Docker). All scripts, compose files,
-and documentation reference Podman commands. The OCI Containerfile format
-is compatible with Podman, Docker, and nerdctl.
+This removes `container/`, `.devcontainer/`, the `build/just/container.just`
+module and its Justfile import. Review `.github/workflows/` afterwards for any
+image build/publish jobs you no longer need.
+
+== Base images
+
+* Builder: `cgr.dev/chainguard/wolfi-base:latest`
+* Runtime: `cgr.dev/chainguard/wolfi-base:latest` (or
+  `cgr.dev/chainguard/static:latest` for static binaries)
+
+Chainguard images are minimal, low-CVE, and rebuilt daily (`apk` package
+manager, Alpine-compatible).
+
+== Container runtime
+
+Podman is recommended, but the OCI Containerfile and compose-spec files work
+unchanged with `nerdctl` and `docker`. Set `CONTAINER_ENGINE` to choose.

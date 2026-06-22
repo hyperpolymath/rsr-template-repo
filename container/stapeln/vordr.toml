@@ -34,15 +34,32 @@ failure_threshold = 3
 readiness_endpoint = "http://localhost:{{PORT}}/ready"
 readiness_timeout = "10s"
 
-# Action on failure: "alert" (log + notify) or "restart" (alert + podman restart).
+# Action on failure: "alert" (log + notify) or "restart" (alert + restart).
 on_failure = "alert"
+
+# Additional deep probes for the sidecar stapeln services. Crash detection
+# below already tracks every container's lifecycle via the engine; these add
+# endpoint-level health checks for the secrets gate and the edge gateway.
+[[health.extra]]
+name = "rokur"
+endpoint = "http://localhost:8081/health"
+interval = "30s"
+timeout = "5s"
+failure_threshold = 3
+
+[[health.extra]]
+name = "svalinn"
+endpoint = "http://localhost:80/health"
+interval = "30s"
+timeout = "5s"
+failure_threshold = 3
 
 # ============================================================================
 # Crash Detection
 # ============================================================================
 #
-# Monitors container state via Podman. Detects OOM kills, segfaults,
-# and unexpected exits.
+# Monitors container state via the engine (podman/nerdctl/docker). Detects
+# OOM kills, segfaults, and unexpected exits across the whole stack.
 
 [crash_detection]
 enabled = true

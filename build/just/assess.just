@@ -29,7 +29,7 @@ self-assess:
     HAS_IDRIS=false; ls *.ipkg >/dev/null 2>&1 && HAS_IDRIS=true
     HAS_ZIG=false; [ -f "build.zig" ] || [ -d "ffi/zig" ] && HAS_ZIG=true
     HAS_GLEAM=false; [ -f "gleam.toml" ] && HAS_GLEAM=true
-    HAS_CONTAINER=false; [ -f "Containerfile" ] || [ -f "container/Containerfile" ] || [ -f "build/Containerfile" ] && HAS_CONTAINER=true
+    HAS_CONTAINER=false; [ -f "Containerfile" ] || [ -f "container/Containerfile" ] && HAS_CONTAINER=true
     HAS_TESTS=false; [ -d "test" ] || [ -d "tests" ] || [ -d "__tests__" ] && HAS_TESTS=true
     HAS_API=false; grep -rq 'port\|listen\|endpoint' --include="*.exs" --include="*.rs" --include="*.toml" . 2>/dev/null && HAS_API=true
     IS_LIBRARY=false; [ -f "Cargo.toml" ] && grep -q '\[lib\]' Cargo.toml 2>/dev/null && IS_LIBRARY=true
@@ -102,7 +102,7 @@ self-assess:
     elif ! $HAS_CONTAINER && [ -d "container" ]; then
         echo "  ? container/ — No Containerfile detected in use."
         echo "    → KEEP if you plan to containerise later."
-        echo "    → SAFE TO REMOVE for libraries and CLI tools."
+        echo "    → SAFE TO REMOVE for libraries and CLI tools (run: just no-container)."
     fi
 
     echo ""

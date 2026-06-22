@@ -8,7 +8,7 @@
 # when cerro-torre tools are not installed.
 #
 # Prerequisites:
-#   - podman (container build — required)
+#   - podman / nerdctl / docker (container build — required; set CONTAINER_ENGINE)
 #   - ct (cerro-torre CLI: pack, sign, verify — optional)
 #   - cerro-sign (Ed25519 signing — optional, ct sign used as fallback)
 #
@@ -28,8 +28,14 @@ set -euo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 
+# This script lives in container/stapeln/. The repo root is two levels up,
+# and the Tier-A Containerfile is one level up in container/.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONTAINER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Container engine — podman (recommended), nerdctl or docker.
+ENGINE="${CONTAINER_ENGINE:-podman}"
 
 PUSH=""
 for arg in "$@"; do
@@ -53,14 +59,14 @@ echo "  Bundle: ${CTP_FILE}"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 1: Build container image with Podman
+# Step 1: Build container image (CONTAINER_ENGINE, default podman)
 # ---------------------------------------------------------------------------
 
-echo "--- Step 1: Building container image ---"
+echo "--- Step 1: Building container image (${ENGINE}) ---"
 
-podman build \
+"${ENGINE}" build \
     -t "${FULL_IMAGE}" \
-    -f "${SCRIPT_DIR}/Containerfile" \
+    -f "${CONTAINER_DIR}/Containerfile" \
     "${REPO_ROOT}"
 
 echo "  Built: ${FULL_IMAGE}"
@@ -82,7 +88,7 @@ else
     echo ""
     if [ "$PUSH" = "--push" ]; then
         echo "--- Pushing unsigned OCI image (no .ctp) ---"
-        podman push "${FULL_IMAGE}"
+        "${ENGINE}" push "${FULL_IMAGE}"
         echo "  Pushed: ${FULL_IMAGE} (unsigned OCI — not a .ctp bundle)"
     fi
     echo ""
@@ -137,8 +143,8 @@ if [ "$PUSH" = "--push" ]; then
         echo "  Pushed: ${FULL_IMAGE}"
     else
         # Fall back to podman push (unsigned OCI image)
-        echo "  ct not available, falling back to podman push (unsigned)"
-        podman push "${FULL_IMAGE}"
+        echo "  ct not available, falling back to '${ENGINE}' push (unsigned)"
+        "${ENGINE}" push "${FULL_IMAGE}"
         echo "  Pushed: ${FULL_IMAGE} (unsigned OCI — not a .ctp bundle)"
     fi
     echo ""
@@ -153,7 +159,7 @@ echo "  Image:  ${FULL_IMAGE}"
 echo "  Bundle: ${CTP_FILE}"
 echo ""
 echo "  To deploy with selur-compose:"
-echo "    cd container && selur-compose up"
+echo "    cd container/stapeln && selur-compose up"
 echo ""
 echo "  To verify at any time:"
 echo "    ct verify ${CTP_FILE}"

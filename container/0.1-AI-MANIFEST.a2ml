@@ -23,15 +23,24 @@ purpose: |
   build, sign, verify, deploy, monitor, and govern.
 
 canonical_locations:
-  compose: "container/compose.toml"
+  # Tier A — OCI standard
   containerfile: "container/Containerfile"
-  manifest: "container/manifest.toml"
-  gatekeeper: "container/.gatekeeper.yaml"
-  build_pipeline: "container/ct-build.sh"
+  containerignore: "container/.containerignore"
   entrypoint: "container/entrypoint.sh"
-  monitoring: "container/vordr.toml"
-  deployment: "container/deploy.k9.ncl"
-  example: "container/compose.example.toml"
+  # Tier B — portable engine (podman/nerdctl/docker)
+  compose_portable: "container/compose.yaml"
+  compose_portable_example: "container/compose.example.yaml"
+  # Tier C — stapeln sovereign
+  compose: "container/stapeln/compose.toml"
+  compose_example: "container/stapeln/compose.example.toml"
+  manifest: "container/stapeln/manifest.toml"
+  gatekeeper: "container/stapeln/.gatekeeper.yaml"
+  secrets_gate: "container/stapeln/rokur.toml"
+  build_pipeline: "container/stapeln/ct-build.sh"
+  monitoring: "container/stapeln/vordr.toml"
+  deployment: "container/stapeln/deploy.k9.ncl"
+  # Just module + opt-out
+  just_module: "build/just/container.just"
 
 ---
 ### [FILE_RELATIONSHIPS]
@@ -45,13 +54,15 @@ files:
     depends_on: ["Containerfile", ".gatekeeper.yaml"]
 
   - name: "Containerfile"
-    role: "Image Build"
+    role: "Image Build (Tier A)"
     description: |
       Multi-stage OCI container build. Stage 1 compiles the application on
-      wolfi-base; Stage 2 copies the binary into a minimal runtime image.
-      Copies entrypoint.sh, .gatekeeper.yaml, and manifest.toml into the
-      final image.
-    depends_on: ["entrypoint.sh", ".gatekeeper.yaml", "manifest.toml"]
+      wolfi-base; Stage 2 copies the binary into a minimal runtime image and
+      copies entrypoint.sh. Engine-agnostic (podman/nerdctl/docker). The
+      stapeln files (.gatekeeper.yaml, manifest.toml) are referenced only as
+      OCI labels and copied in only if you uncomment those COPY lines, so the
+      image has no hard dependency on tier C.
+    depends_on: ["entrypoint.sh"]
 
   - name: "manifest.toml"
     role: "Bundle Metadata"

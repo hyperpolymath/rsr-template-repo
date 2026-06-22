@@ -5,7 +5,12 @@
 # Customise the builder stage for your language and copy the
 # resulting binary/release into the minimal runtime stage.
 #
-# Build with Podman:
+# This is the Tier-A artifact: a plain OCI image, buildable by ANY
+# OCI-compliant engine — podman (recommended), nerdctl, or docker.
+# It carries no hard dependency on the stapeln tier; the cerro-torre /
+# svalinn files under container/stapeln/ are referenced only as labels.
+#
+# Build (engine-agnostic — substitute podman | nerdctl | docker):
 #   podman build -t {{SERVICE_NAME}}:latest -f container/Containerfile .
 #
 # Run:
@@ -13,6 +18,9 @@
 #
 # Run with persistent volume:
 #   podman run -p {{PORT}}:{{PORT}} -v {{SERVICE_NAME}}-data:/data {{SERVICE_NAME}}:latest
+#
+# Via the Justfile (auto-detects engine, prefers cerro-torre when present):
+#   just container-build
 
 # ============================================================================
 # Stage 1: Builder
@@ -76,9 +84,9 @@ LABEL org.opencontainers.image.title="{{PROJECT_NAME}}" \
       org.opencontainers.image.vendor="{{OWNER}}" \
       org.opencontainers.image.licenses="{{LICENSE}}" \
       org.opencontainers.image.authors="{{AUTHOR}} <{{AUTHOR_EMAIL}}>" \
-      dev.cerrotorre.manifest="container/manifest.toml" \
-      dev.cerrotorre.gatekeeper="container/.gatekeeper.yaml" \
-      dev.stapeln.compose="container/compose.toml"
+      dev.cerrotorre.manifest="container/stapeln/manifest.toml" \
+      dev.cerrotorre.gatekeeper="container/stapeln/.gatekeeper.yaml" \
+      dev.stapeln.compose="container/stapeln/compose.toml"
 
 # Install minimal runtime dependencies.
 # Adjust this list for your application:
@@ -104,9 +112,12 @@ WORKDIR /app
 COPY container/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Copy stapeln integration files (svalinn gatekeeper policy, cerro-torre manifest)
-COPY container/.gatekeeper.yaml /etc/svalinn/gatekeeper.yaml
-COPY container/manifest.toml /app/manifest.toml
+# OPTIONAL (Tier C — stapeln). A pure OCI image does NOT need these baked in:
+# svalinn reads .gatekeeper.yaml from a mounted volume (see stapeln/compose.toml),
+# and cerro-torre reads manifest.toml at pack time. Uncomment only if you want
+# the policy/manifest embedded in the image itself.
+# COPY container/stapeln/.gatekeeper.yaml /etc/svalinn/gatekeeper.yaml
+# COPY container/stapeln/manifest.toml /app/manifest.toml
 
 # Create data directory for persistent storage (mountable volume)
 RUN mkdir -p /data && chown appuser:appuser /data

@@ -6,7 +6,7 @@
 # Then hands off to `just setup` for project-specific configuration.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/hyperpolymath/rsr-template-repo/main/setup.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/hyperpolymath/rsr-template-repo/main/setup.sh -o setup.sh && sh setup.sh
 #   # or after cloning:
 #   ./setup.sh
 #
@@ -102,7 +102,6 @@ detect_platform() {
             elif command -v zypper >/dev/null 2>&1; then PKG_MGR="zypper"
             elif command -v rpm-ostree >/dev/null 2>&1; then PKG_MGR="rpm-ostree"
             elif command -v guix >/dev/null 2>&1; then PKG_MGR="guix"
-            elif command -v nix >/dev/null 2>&1; then PKG_MGR="nix"
             fi
             ;;
         Darwin*)
@@ -129,6 +128,22 @@ detect_platform() {
 }
 
 # ── Install just ──
+# Fetch-then-run rather than `curl | sh`: piping a remote script straight into a
+# shell executes whatever the network returns with no chance to inspect or
+# verify it (CWE-494). Download to a temp file first, then run that file.
+install_just_upstream() {
+    _ji_tmp=$(mktemp 2>/dev/null || echo "/tmp/just-install.$$.sh")
+    if curl -fsSL https://just.systems/install.sh -o "$_ji_tmp"; then
+        sh "$_ji_tmp" --to /usr/local/bin
+        _ji_rc=$?
+    else
+        fail "Could not download the just installer."
+        _ji_rc=1
+    fi
+    rm -f "$_ji_tmp"
+    return $_ji_rc
+}
+
 install_just() {
     if command -v just >/dev/null 2>&1; then
         ok "just already installed: $(just --version 2>/dev/null | head -1)"
@@ -139,10 +154,7 @@ install_just() {
 
     case "$PKG_MGR" in
         dnf)        sudo dnf install -y just ;;
-        apt)        sudo apt-get install -y just 2>/dev/null || {
-                        # just not in older apt repos — use installer
-                        curl -fsSL https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-                    } ;;
+        apt)        sudo apt-get install -y just 2>/dev/null || install_just_upstream ;;
         pacman)     sudo pacman -S --noconfirm just ;;
         apk)        sudo apk add just ;;
         brew)       brew install just ;;
@@ -150,10 +162,9 @@ install_just() {
         winget)     winget install Casey.Just ;;
         rpm-ostree) sudo rpm-ostree install just ;;
         guix)       guix install just ;;
-        nix)        nix-env -iA nixpkgs.just ;;
         *)
             info "Using just installer script..."
-            curl -fsSL https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+            install_just_upstream
             ;;
     esac
 

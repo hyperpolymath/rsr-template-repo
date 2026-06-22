@@ -114,7 +114,7 @@ let scripts = {
 #!/bin/sh
 set -eu
 echo "K9: Pre-deployment validation for {{SERVICE_NAME}}..."
-cd container && selur-compose verify || podman compose --file compose.toml config
+cd container/stapeln && selur-compose verify || podman compose --file ../compose.yaml config
 echo "K9: Validation passed."
 "%,
 
@@ -124,9 +124,9 @@ echo "K9: Validation passed."
 set -eu
 ENV="${1:-dev}"
 echo "K9: Deploying {{SERVICE_NAME}} to $ENV environment..."
-cd container
+cd container/stapeln
 ./ct-build.sh
-selur-compose up --detach || podman compose --file compose.toml up --detach
+selur-compose up --detach || podman compose --file ../compose.yaml up --detach
 echo "K9: Deployment to $ENV complete."
 "%,
 
@@ -135,8 +135,8 @@ echo "K9: Deployment to $ENV complete."
 #!/bin/sh
 set -eu
 echo "K9: Rolling back {{SERVICE_NAME}} deployment..."
-cd container
-selur-compose down || podman compose --file compose.toml down
+cd container/stapeln
+selur-compose down || podman compose --file ../compose.yaml down
 echo "K9: Rollback complete."
 "%,
 } in

@@ -13,8 +13,10 @@
 #   selur-compose logs -f {{SERVICE_NAME}}  # Stream logs
 #   selur-compose down                   # Stop all services
 #
-# Fallback (when selur is not installed):
-#   podman compose --file compose.toml up --detach
+# Fallback (when selur is not installed): this TOML is selur-native and is
+# NOT parseable by `podman compose` / `docker compose`. For the portable
+# (podman/nerdctl/docker) path use the compose-spec file instead:
+#   podman compose -f ../compose.yaml up -d        # (or: just container-up)
 
 version = "1.0"
 
@@ -36,17 +38,36 @@ volumes = ["{{SERVICE_NAME}}-data:/data"]
 restart = "always"
 healthcheck = { test = "curl -sf http://localhost:{{PORT}}/health", interval = "30s", timeout = "5s", retries = 3 }
 
-# Svalinn edge gateway: validates requests, enforces policies, TLS termination
+# Rokur secrets gate: refuses to start (and refuses to proxy) unless the
+# declared secrets are present; emits a structured audit log of every access.
+# Sits between svalinn and the application. Remove if you do not gate secrets.
+[services.rokur]
+image = "ghcr.io/hyperpolymath/rokur:latest.ctp"
+ports = ["8081:8081"]
+environment = {
+  ROKUR_BACKEND = "http://{{SERVICE_NAME}}:{{PORT}}",
+  ROKUR_LISTEN = "[::]:8081",
+  ROKUR_REQUIRED_SECRETS = "",
+  ROKUR_AUDIT_LOG = "/var/log/rokur/audit.jsonl",
+  ROKUR_LOG_FORMAT = "json",
+}
+volumes = ["rokur-audit:/var/log/rokur"]
+depends_on = ["{{SERVICE_NAME}}"]
+restart = "always"
+healthcheck = { test = "curl -sf http://localhost:8081/health", interval = "30s", timeout = "5s", retries = 3 }
+
+# Svalinn edge gateway: validates requests, enforces policies, TLS termination.
+# Proxies to rokur, which in turn fronts the application.
 [services.svalinn]
 image = "ghcr.io/hyperpolymath/svalinn:latest.ctp"
 ports = ["443:443", "80:80"]
 environment = {
-  SVALINN_BACKEND = "http://{{SERVICE_NAME}}:{{PORT}}",
+  SVALINN_BACKEND = "http://rokur:8081",
   SVALINN_POLICY_FILE = "/etc/svalinn/gatekeeper.yaml",
   SVALINN_TLS_AUTO = "true",
 }
 volumes = ["svalinn-config:/etc/svalinn:ro"]
-depends_on = ["{{SERVICE_NAME}}"]
+depends_on = ["rokur"]
 restart = "always"
 healthcheck = { test = "curl -sf http://localhost:80/health", interval = "30s", timeout = "5s", retries = 3 }
 
@@ -55,6 +76,9 @@ healthcheck = { test = "curl -sf http://localhost:80/health", interval = "30s", 
 # ============================================================================
 
 [volumes.{{SERVICE_NAME}}-data]
+driver = "local"
+
+[volumes.rokur-audit]
 driver = "local"
 
 [volumes.svalinn-config]

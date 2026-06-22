@@ -113,7 +113,7 @@ RSR compliance verdict: *met* / *partial* / *not met* — Grade D floor satisfie
 |===
 | Item | Count | Notes
 
-| Idris2 ABI modules (`src/abi/**/*.idr`)
+| Idris2 ABI modules (`src/interface/Abi/**/*.idr`)
 | N files, N LOC
 | Note any proof modules that typecheck green.
 

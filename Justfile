@@ -65,6 +65,13 @@ invariant-path *ARGS:
 import? "build/just/init.just"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# CONTAINERS (three-tier: OCI · portable engine · stapeln) — see build/just/container.just
+# Removable with `just no-container`.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import? "build/just/container.just"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # GROOVE PROTOCOL — see build/just/groove.just
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -352,157 +359,6 @@ man:
     echo "Generated: docs/man/{{project}}.1"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CONTAINERS (stapeln ecosystem — Podman + Chainguard Wolfi)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Initialise container templates — substitute placeholders with project values
-container-init:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    if [ ! -d "container" ]; then
-        echo "Error: container/ directory not found."
-        echo "This repo may not have been created from rsr-template-repo."
-        exit 1
-    fi
-
-    echo "=== Container Template Initialisation ==="
-    echo ""
-
-    # Load RSR defaults if available
-    DEFAULTS="${XDG_CONFIG_HOME:-$HOME/.config}/rsr/defaults"
-    if [ -f "$DEFAULTS" ]; then
-        echo "Loading defaults from $DEFAULTS"
-        # shellcheck source=/dev/null
-        source "$DEFAULTS"
-        echo ""
-    fi
-
-    # Prompt for container-specific values
-    read -rp "Service name (e.g. my-api) [{{project}}]: " _SERVICE_NAME
-    SERVICE_NAME="${_SERVICE_NAME:-{{project}}}"
-
-    read -rp "Primary port [8080]: " _PORT
-    PORT="${_PORT:-8080}"
-
-    read -rp "Container registry [ghcr.io/${OWNER:-{{OWNER}}}]: " _REGISTRY
-    REGISTRY="${_REGISTRY:-ghcr.io/${OWNER:-{{OWNER}}}}"
-
-    echo ""
-    echo "  Service: $SERVICE_NAME"
-    echo "  Port:    $PORT"
-    echo "  Registry: $REGISTRY"
-    echo ""
-    read -rp "Proceed? [Y/n] " CONFIRM
-    [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
-
-    echo ""
-    echo "Replacing container placeholders..."
-
-    # Brace tokens as variables (hex escapes avoid just interpolation)
-    LB=$(printf '\x7b\x7b')
-    RB=$(printf '\x7d\x7d')
-
-    SED_ARGS=(
-        -e "s|${LB}SERVICE_NAME${RB}|${SERVICE_NAME}|g"
-        -e "s|${LB}PORT${RB}|${PORT}|g"
-        -e "s|${LB}REGISTRY${RB}|${REGISTRY}|g"
-    )
-
-    find container/ -type f | while read -r file; do
-        if file --brief "$file" | grep -qi 'text\|ascii\|utf'; then
-            sed -i "${SED_ARGS[@]}" "$file"
-        fi
-    done
-
-    echo "Container templates initialised."
-    echo ""
-    echo "Next steps:"
-    echo "  1. Edit container/Containerfile — add your build commands"
-    echo "  2. Edit container/entrypoint.sh — set your application binary"
-    echo "  3. Review container/compose.toml — adjust services and volumes"
-    echo "  4. Build: just container-build"
-
-# Build container image via cerro-torre pipeline
-container-build *args:
-    #!/usr/bin/env bash
-    if [ -f "container/ct-build.sh" ]; then
-        cd container && ./ct-build.sh {{args}}
-    elif [ -f "container/Containerfile" ]; then
-        podman build -t {{project}}:latest -f container/Containerfile .
-    elif [ -f "build/Containerfile" ]; then
-        podman build -t {{project}}:latest -f build/Containerfile .
-    elif [ -f "Containerfile" ]; then
-        podman build -t {{project}}:latest -f Containerfile .
-    else
-        echo "No Containerfile found in container/, build/, or project root"
-        exit 1
-    fi
-
-# Verify compose configuration
-container-verify:
-    #!/usr/bin/env bash
-    if [ ! -f "container/compose.toml" ]; then
-        echo "No container/compose.toml found"
-        exit 1
-    fi
-    cd container
-    if command -v selur-compose &>/dev/null; then
-        selur-compose verify
-    else
-        echo "selur-compose not found, falling back to podman compose"
-        podman compose --file compose.toml config
-    fi
-
-# Start container stack
-container-up *args:
-    #!/usr/bin/env bash
-    if [ ! -f "container/compose.toml" ]; then
-        echo "No container/compose.toml found"
-        exit 1
-    fi
-    cd container
-    if command -v selur-compose &>/dev/null; then
-        selur-compose up {{args}}
-    else
-        podman compose --file compose.toml up {{args}}
-    fi
-
-# Stop container stack
-container-down:
-    #!/usr/bin/env bash
-    cd container 2>/dev/null || { echo "No container/ directory"; exit 1; }
-    if command -v selur-compose &>/dev/null; then
-        selur-compose down
-    else
-        podman compose --file compose.toml down
-    fi
-
-# Sign and verify container bundle (build + pack + sign + verify)
-container-sign:
-    #!/usr/bin/env bash
-    if [ -f "container/ct-build.sh" ]; then
-        cd container && ./ct-build.sh
-    else
-        echo "No container/ct-build.sh found"
-        exit 1
-    fi
-
-# Push signed bundle to registry
-container-push:
-    #!/usr/bin/env bash
-    if [ -f "container/ct-build.sh" ]; then
-        cd container && ./ct-build.sh --push
-    else
-        echo "No container/ct-build.sh found — falling back to podman push"
-        podman push {{project}}:latest
-    fi
-
-# Run container interactively (for debugging)
-container-run *args:
-    podman run --rm -it {{project}}:latest {{args}}
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # CI & AUTOMATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -600,10 +456,6 @@ build-matrix mode="debug" target="" features="":
 test-matrix suite="unit" verbosity="normal" parallel="true":
     @echo "Test matrix: suite={{suite}} verbosity={{verbosity}} parallel={{parallel}}"
 
-# Container matrix: [build|run|push|shell|scan] x [registry] x [tag]
-container-matrix action="build" registry="ghcr.io/{{OWNER}}" tag="latest":
-    @echo "Container matrix: action={{action}} registry={{registry}} tag={{tag}}"
-
 # CI matrix: [lint|test|build|security|all] x [quick|full]
 ci-matrix stage="all" depth="quick":
     @echo "CI matrix: stage={{stage}} depth={{depth}}"
@@ -614,7 +466,7 @@ combinations:
     @echo ""
     @echo "Build Matrix: just build-matrix [debug|release] [target] [features]"
     @echo "Test Matrix:  just test-matrix [unit|integration|e2e|all] [verbosity] [parallel]"
-    @echo "Container:    just container-matrix [build|run|push|shell|scan] [registry] [tag]"
+    @echo "Container:    just container-matrix [build|run|push|shell|scan] [registry] [tag]  (needs container module)"
     @echo "CI Matrix:    just ci-matrix [lint|test|build|security|all] [quick|full]"
 
 # ═══════════════════════════════════════════════════════════════════════════════
