@@ -38,6 +38,9 @@ name: Dependabot Auto-Merge
 on:
   pull_request:
     types: [opened, reopened, synchronize]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: write # needed to enable auto-merge
   pull-requests: write # needed to approve

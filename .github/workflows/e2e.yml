@@ -18,14 +18,14 @@ on:
     branches: [main, master, develop]
     paths:
       - 'src/**'
-      - 'ffi/**'
+      - 'src/interface/ffi/**'
       - 'tests/**'
       - '.github/workflows/e2e.yml'
   pull_request:
     branches: [main, master]
     paths:
       - 'src/**'
-      - 'ffi/**'
+      - 'src/interface/ffi/**'
       - 'tests/**'
   workflow_dispatch:
 permissions: read-all

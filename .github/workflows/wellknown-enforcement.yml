@@ -10,9 +10,12 @@ on:
     paths:
       - '.well-known/**'
   schedule:
-    # Weekly expiry check
-    - cron: '0 9 * * *'
+    # Weekly expiry check (Mondays 09:00 UTC)
+    - cron: '0 9 * * 1'
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

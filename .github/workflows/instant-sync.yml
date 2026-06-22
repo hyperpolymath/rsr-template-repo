@@ -6,6 +6,9 @@ on:
     branches: [main, master]
   release:
     types: [published]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
