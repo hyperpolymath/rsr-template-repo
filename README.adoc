@@ -60,7 +60,7 @@ across the tree, validates the result, and (if available) runs the `k9-svc` chec
   `src/interface/ffi/` (Zig implementation), with generated C headers.
 * *CI/CD* — GitHub Actions for quality, security (CodeQL, Scorecard, secret
   scanning), multi-forge mirroring, and RSR anti-pattern enforcement.
-* *Supply-chain & reproducibility* — container layering (stapeln), Nix/Guix shells,
+* *Supply-chain & reproducibility* — container layering (stapeln), Guix shells,
   SBOM, and signing hooks.
 * *Governance* — `GOVERNANCE.adoc`, `MAINTAINERS.adoc`, `.github/` community health
   files, and a release `AUDIT.adoc` gate.

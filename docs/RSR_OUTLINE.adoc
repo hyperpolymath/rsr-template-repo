@@ -207,7 +207,7 @@ project/
 === Language Tiers
 
 * **Tier 1** (Gold): Rust, Elixir, Zig, Ada, Haskell, ReScript, Gleam
-* **Tier 2** (Silver): Nickel, Guile Scheme, Nix, Idris2, OCaml
+* **Tier 2** (Silver): Nickel, Guile Scheme, Idris2, OCaml
 * **Infrastructure**: Guix channels, derivations, Julia batch scripts
 
 === Required Files
@@ -221,7 +221,7 @@ project/
 * `.well-known/security.txt`
 * `.well-known/ai.txt`
 * `.well-known/humans.txt`
-* `guix.scm` OR `flake.nix`
+* `guix.scm`
 
 === Prohibited
 

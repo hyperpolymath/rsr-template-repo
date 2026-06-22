@@ -76,7 +76,7 @@ Do *not* mark PRESENT without citing the path.
 | PRESENT / PARTIAL / ABSENT
 | `docs/`
 
-| `guix.scm` + `flake.nix`
+| `guix.scm`
 | PRESENT (primary + fallback) / PARTIAL / ABSENT
 | Root
 
