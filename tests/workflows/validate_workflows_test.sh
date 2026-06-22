@@ -95,14 +95,12 @@ REQUIRED_WORKFLOWS=(
     "quality.yml"
     "mirror.yml"
     "instant-sync.yml"
-    "guix-nix-policy.yml"
-    "rsr-antipattern.yml"
+    "guix-policy.yml"
     "security-policy.yml"
     "wellknown-enforcement.yml"
     "workflow-linter.yml"
     "npm-bun-blocker.yml"
     "ts-blocker.yml"
-    "scorecard-enforcer.yml"
     "secret-scanner.yml"
 )
 
