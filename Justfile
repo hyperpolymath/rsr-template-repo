@@ -301,6 +301,18 @@ deps-audit:
     @echo "Audit complete"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ARRIVAL PACK — agent-facing CLAUDE.md, compiled from a2ml
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Compile CLAUDE.md (the agent arrival pack) from this repo's a2ml
+claude-md:
+    @bash .machine_readable/arrival-pack/generate.sh
+
+# Fail if CLAUDE.md's generated region drifted from a2ml or was hand-edited
+validate-claude-md:
+    @bash .machine_readable/arrival-pack/verify.sh
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DOCUMENTATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
