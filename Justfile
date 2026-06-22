@@ -425,7 +425,7 @@ state-phase:
     @grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/6a2/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GUIX & NIX
+# GUIX
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Enter Guix development shell (primary)
@@ -435,10 +435,6 @@ guix-shell:
 # Build with Guix
 guix-build:
     guix build -f guix.scm
-
-# Enter Nix development shell (fallback)
-nix-shell:
-    @if [ -f "flake.nix" ]; then nix develop; else echo "No flake.nix"; fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HYBRID AUTOMATION

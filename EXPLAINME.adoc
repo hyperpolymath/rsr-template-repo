@@ -83,7 +83,7 @@ How this is implemented:
 Caveat:
 
 * Do NOT move this repository into a monorepo or subdirectory, as this breaks registry registration and package discoverability.
-* See `JULIA-REGISTRY-REQUIREMENT.md` (workspace root) for the complete list of 34 registered Julia packages and enforcement rationale.
+* Julia packages published to a registry must each remain a standalone top-level repository (registry registration and package discovery require it).
 * Non-registry Julia packages can be organized differently if they are not published to any registry.
 
 

@@ -22,7 +22,6 @@
 *.a2ml  text eol=lf linguist-language=TOML
 *.ncl   text eol=lf
 *.k9    text eol=lf linguist-language=Nickel
-*.nix   text eol=lf
 
 # Docs
 *.md    text eol=lf diff=markdown
@@ -56,4 +55,3 @@ Containerfile  text eol=lf
 
 # Lock files
 Cargo.lock  text eol=lf -diff
-flake.lock  text eol=lf -diff
