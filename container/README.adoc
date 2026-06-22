@@ -182,6 +182,40 @@ nickel typecheck container/stapeln/deploy.k9.ncl
 k9-svc deploy container/stapeln/deploy.k9.ncl --env production
 ----
 
+== Continuous integration
+
+A `container build` workflow ships in `.github/workflows/container-build.yml`.
+It is **off by default** — it costs nothing in a repository created from this
+template until you opt in.
+
+To enable it, set a repository (or organisation) variable:
+
+[cols="1,3"]
+|===
+| Variable | Effect
+
+| `CONTAINER_CI=true`
+| Enables the workflow. It builds the image (`just container-build`), verifies
+  the compose config, runs a best-effort `trivy` scan, and on `v*` tags signs
+  the `.ctp` bundle (`just container-sign`).
+
+| `CONTAINER_RUNNER`
+| Optional JSON array of runner labels. Defaults to
+  `["self-hosted","owned","container"]` — owned compute, so **no metered
+  GitHub Actions minutes**. Set e.g. `["ubuntu-latest"]` to use GitHub-hosted
+  runners instead.
+|===
+
+[source,bash]
+----
+gh variable set CONTAINER_CI --body true
+# optional: gh variable set CONTAINER_RUNNER --body '["ubuntu-latest"]'
+----
+
+The owned runner is expected to have `just` and a container engine installed;
+`trivy` and cerro-torre (`ct`/`cerro-sign`) are used when present and skipped
+otherwise.
+
 == Removing containerisation
 
 If your project does not need containers (e.g. a pure library), strip the whole

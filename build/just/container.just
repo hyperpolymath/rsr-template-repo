@@ -240,6 +240,7 @@ container-keep +tiers:
     else
         plan+=("container/  (entire image + compose + stapeln)")
         plan+=("build/just/container.just  (this module) + its Justfile import")
+        [ -f .github/workflows/container-build.yml ] && plan+=(".github/workflows/container-build.yml")
     fi
 
     echo "Keeping: oci=$keep_oci portable=$keep_port stapeln=$keep_stap devcontainer=$keep_dev"
@@ -259,6 +260,7 @@ container-keep +tiers:
     else
         rm -rf container
         rm -f .machine_readable/configs/selur-compose.toml
+        rm -f .github/workflows/container-build.yml
         rm -f build/just/container.just
         [ -f Justfile ] && sed -i '/# >>> container-module/,/# <<< container-module/d' Justfile
         for jf in Justfile .machine_readable/contractiles/Justfile; do
