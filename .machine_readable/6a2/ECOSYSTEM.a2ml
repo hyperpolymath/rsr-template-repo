@@ -13,6 +13,12 @@ ecosystem = "hyperpolymath"
 [position]
 type = "repository-template"
 purpose = "Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from."
+# IS-NOT — anti-identity (the boundary-erosion guard; each line is a real past confusion)
+what-this-is-not = [
+  "a project in its own right",
+  "Scaffoldia (the full-featured repo designer)",
+  "standards (the canon source this template operationalises)",
+]
 
 [pipeline]
 position = "foundation"
