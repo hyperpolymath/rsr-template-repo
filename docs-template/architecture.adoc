@@ -52,7 +52,7 @@ Example:
 
 | 1
 | All HTTP requests carry a valid `X-Request-ID`.
-| `src/middleware/request_id.rs`
+| `src/request_id.rs`
 | Logs become unjoinable; correlation breaks.
 
 | 2

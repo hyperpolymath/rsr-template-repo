@@ -12,13 +12,13 @@ Thumbs.db
 .direnv/
 
 # Build
-/target/
-/_build/
+target/
+_build/
 /dist/
 /out/
 
 # Dependencies
-/node_modules/
+node_modules/
 /vendor/
 /deps/
 /.elixir_ls/

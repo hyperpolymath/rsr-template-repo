@@ -68,8 +68,9 @@ jobs:
             echo "Expected one of: mix.exs, Cargo.toml, build.zig, deno.json, gossamer.conf.json, gleam.toml, rebar.config, Justfile"
             exit 1
           fi
-        # TODO: Upload build artifacts if needed
-        # - uses: actions/upload-artifact@v4
+        # TODO: Upload build artifacts if needed (pin actions/upload-artifact
+        #   to a full commit SHA when enabling, per the SHA-pin policy):
+        # - uses: actions/upload-artifact@<full-commit-sha>  # vX.Y.Z
         #   with:
         #     name: release-artifacts
         #     path: target/release/
@@ -122,8 +123,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      # TODO: Download build artifacts if uploading to the release
-      # - uses: actions/download-artifact@v4
+      # TODO: Download build artifacts if uploading to the release (pin
+      #   actions/download-artifact to a full commit SHA when enabling):
+      # - uses: actions/download-artifact@<full-commit-sha>  # vX.Y.Z
       #   with:
       #     name: release-artifacts
       #     path: artifacts/

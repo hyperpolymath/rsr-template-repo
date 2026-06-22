@@ -5,6 +5,11 @@
 # Detects your shell, platform, and installs prerequisites.
 # Then hands off to `just setup` for project-specific configuration.
 #
+# hypatia: allow code_safety/shell_download_then_run -- the only remote fetch
+#   (install_just_upstream) deliberately downloads to a temp file and runs that
+#   file rather than piping `curl | sh`, so the script can be inspected; the
+#   upstream just installer is a rolling script that cannot be checksum-pinned.
+#
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/hyperpolymath/rsr-template-repo/main/setup.sh -o setup.sh && sh setup.sh
 #   # or after cloning:
