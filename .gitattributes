@@ -16,8 +16,12 @@
 *.hs    text eol=lf
 *.chpl  text eol=lf
 *.scm   text eol=lf
+*.zig   text eol=lf
+*.idr   text eol=lf
+*.ipkg  text eol=lf
 *.a2ml  text eol=lf linguist-language=TOML
 *.ncl   text eol=lf
+*.k9    text eol=lf linguist-language=Nickel
 *.nix   text eol=lf
 
 # Docs

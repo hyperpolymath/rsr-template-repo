@@ -46,5 +46,17 @@ repos:
         exclude: '(\.git|node_modules|target|_build|deps|\.deno|external_corpora|\.lake)/'
 
   # --- Secret detection ---
+  - repo: https://github.com/gitleaks/gitleaks
     rev: v8.24.3
     hooks:
+      - id: gitleaks
+
+  # --- Arrival pack drift: CLAUDE.md must stay in sync with a2ml ---
+  - repo: local
+    hooks:
+      - id: validate-claude-md
+        name: CLAUDE.md arrival pack in sync with a2ml
+        entry: bash .machine_readable/arrival-pack/verify.sh
+        language: system
+        pass_filenames: false
+        files: '^(\.machine_readable/6a2/.*|CLAUDE\.md)$'

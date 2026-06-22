@@ -56,6 +56,15 @@ indent_size = 2
 [*.scm]
 indent_size = 2
 
+[*.idr]
+indent_size = 2
+
+[*.ipkg]
+indent_size = 2
+
+[*.k9]
+indent_size = 2
+
 [*.nix]
 indent_size = 2
 
