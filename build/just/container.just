@@ -14,8 +14,9 @@
 # Engine is auto-selected: $CONTAINER_ENGINE, else the first of podman /
 # nerdctl / docker found on PATH. Override with:  CONTAINER_ENGINE=docker just …
 #
-# To remove containerisation entirely from a repo created off this template:
-#   just no-container
+# Narrow the template to the tiers you want (see the Narrowing section below):
+#   just container-keep oci portable   # keep image + portable compose, drop the rest
+#   just no-stapeln | no-devcontainer | no-container   # convenience aliases
 
 # ── Engine detection (shared snippet) ──────────────────────────────────────
 # Resolves the OCI engine into $ENGINE. Sourced at the top of each recipe.
@@ -190,31 +191,92 @@ container-run *args:
 container-matrix action="build" registry="ghcr.io/{{OWNER}}" tag="latest":
     @echo "Container matrix: action={{action}} registry={{registry}} tag={{tag}}"
 
-# ── Opt-out ────────────────────────────────────────────────────────────────
-
-# Remove all containerisation from this repo (Tiers A/B/C + dev container)
-no-container:
+# ── Narrowing / opt-out ──────────────────────────────────────────────────────
+#
+# `container-keep` is the workhorse: declare exactly which tiers to KEEP; the
+# rest are removed. Tiers: oci (A) · portable (B) · stapeln (C) · devcontainer.
+# Idempotent — safe to re-run. The aliases below are thin wrappers.
+#
+#   just container-keep oci                       # bare OCI image only
+#   just container-keep oci portable              # image + portable compose
+#   just container-keep oci portable stapeln      # full prod stack, no dev container
+#   just container-keep all                       # no-op (keep everything)
+#   just container-keep none                      # remove everything (= no-container)
+#   DRY_RUN=1 just container-keep oci             # show what would change, do nothing
+#   FORCE=1   just container-keep oci             # skip the confirm prompt
+#
+# Accepts space- or comma-separated tokens, and aliases: a/A, b/B/compose,
+# c/C/sovereign, dev. 'portable'/'stapeln' require 'oci' (they build the image).
+container-keep +tiers:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "This removes containerisation entirely:"
-    echo "  - container/           (Containerfile, compose, stapeln/ stack)"
-    echo "  - .devcontainer/       (VS Code / Codespaces / Gitpod dev container)"
-    echo "  - build/just/container.just  (this module) + its Justfile import"
-    echo "  - .machine_readable/configs/selur-compose.toml (if present)"
-    echo ""
-    read -rp "Proceed? [y/N] " CONFIRM
-    [[ "${CONFIRM:-N}" =~ ^[Yy] ]] || { echo "Aborted."; exit 0; }
-
-    rm -rf container .devcontainer
-    rm -f .machine_readable/configs/selur-compose.toml
-    rm -f build/just/container.just
-
-    # Strip the import line from the root Justfile (and any contractile mirror).
-    for jf in Justfile .machine_readable/contractiles/Justfile; do
-        [ -f "$jf" ] && sed -i '\|import? "build/just/container.just"|d' "$jf"
+    sel="$(echo "$@" | tr ',' ' ')"
+    keep_oci=false keep_port=false keep_stap=false keep_dev=false
+    for t in $sel; do
+        case "$t" in
+            all)                      keep_oci=true; keep_port=true; keep_stap=true; keep_dev=true ;;
+            none)                     : ;;
+            oci|a|A)                  keep_oci=true ;;
+            portable|compose|b|B)     keep_port=true ;;
+            stapeln|sovereign|c|C)    keep_stap=true ;;
+            devcontainer|dev)         keep_dev=true ;;
+            *) echo "Unknown tier '$t'. Valid: oci portable stapeln devcontainer | all | none" >&2; exit 1 ;;
+        esac
     done
 
+    # Coherence: tiers B and C build the OCI image, so they need tier A.
+    if { $keep_port || $keep_stap; } && ! $keep_oci; then
+        echo "Incoherent selection: 'portable'/'stapeln' build the OCI image — add 'oci'." >&2
+        exit 1
+    fi
+
+    # Build the removal plan.
+    plan=()
+    $keep_dev  || plan+=(".devcontainer/  (dev container)")
+    if $keep_oci; then
+        $keep_stap || plan+=("container/stapeln/  (cerro-torre, svalinn, vordr, selur, rokur, k9)")
+        $keep_port || plan+=("container/compose.yaml + compose.example.yaml  (portable stack)")
+    else
+        plan+=("container/  (entire image + compose + stapeln)")
+        plan+=("build/just/container.just  (this module) + its Justfile import")
+    fi
+
+    echo "Keeping: oci=$keep_oci portable=$keep_port stapeln=$keep_stap devcontainer=$keep_dev"
+    if [ ${#plan[@]} -eq 0 ]; then echo "Nothing to remove — selection already matches."; exit 0; fi
+    echo "Will remove:"; printf '  - %s\n' "${plan[@]}"
+
+    if [ "${DRY_RUN:-}" = "1" ]; then echo "(DRY_RUN — no changes made)"; exit 0; fi
+    if [ "${FORCE:-}" != "1" ]; then
+        read -rp "Proceed? [y/N] " c; [[ "${c:-N}" =~ ^[Yy] ]] || { echo "Aborted."; exit 0; }
+    fi
+
+    # Apply.
+    $keep_dev || rm -rf .devcontainer
+    if $keep_oci; then
+        $keep_stap || rm -rf container/stapeln
+        $keep_port || rm -f container/compose.yaml container/compose.example.yaml
+    else
+        rm -rf container
+        rm -f .machine_readable/configs/selur-compose.toml
+        rm -f build/just/container.just
+        [ -f Justfile ] && sed -i '/# >>> container-module/,/# <<< container-module/d' Justfile
+        for jf in Justfile .machine_readable/contractiles/Justfile; do
+            [ -f "$jf" ] && sed -i '\|import? "build/just/container.just"|d' "$jf"
+        done
+    fi
+
     echo ""
-    echo "Containerisation removed."
-    echo "Review .github/workflows/ for any image-build/publish jobs you no longer need."
+    echo "Done. Review .github/workflows/ for image build/publish jobs you no longer need."
+
+# Remove ALL containerisation (image, compose, stapeln, dev container)
+no-container:
+    @just container-keep none
+
+# Drop only the stapeln sovereign tier (keep OCI image + portable compose + dev container)
+no-stapeln:
+    @just container-keep oci portable devcontainer
+
+# Drop only the dev container (keep the full image/compose/stapeln stack)
+no-devcontainer:
+    @just container-keep oci portable stapeln

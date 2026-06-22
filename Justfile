@@ -64,12 +64,10 @@ invariant-path *ARGS:
 
 import? "build/just/init.just"
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# CONTAINERS (three-tier: OCI · portable engine · stapeln) — see build/just/container.just
-# Removable with `just no-container`.
-# ═══════════════════════════════════════════════════════════════════════════════
-
+# >>> container-module (three-tier: OCI · portable engine · stapeln) >>>
+# Self-contained. Remove the entire block — this and the import — with `just no-container`.
 import? "build/just/container.just"
+# <<< container-module <<<
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GROOVE PROTOCOL — see build/just/groove.just
