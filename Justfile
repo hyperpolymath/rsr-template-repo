@@ -313,6 +313,22 @@ validate-claude-md:
     @bash .machine_readable/arrival-pack/verify.sh
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# COAPTATION — typed descriptile↔contractile face-off (homeostasis reading)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Emit the coaptation receipt: how the descriptiles coapt with the contractiles (SITREP)
+coapt:
+    @bash .machine_readable/coaptation/coapt.sh --report
+
+# Assemble a re-anchor basis IF the band is red (the drop itself is a human act)
+coapt-reanchor:
+    @bash .machine_readable/coaptation/coapt.sh --reanchor
+
+# Fail if the committed coaptation receipt drifted from the contractiles/descriptiles
+validate-coapt:
+    @bash .machine_readable/coaptation/verify.sh
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DOCUMENTATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
