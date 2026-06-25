@@ -3,7 +3,7 @@
 #
 # Release workflow — triggered by version tags (v*).
 # Builds artifacts, generates changelog via git-cliff, creates a GitHub Release,
-# and produces SLSA provenance attestations.
+# and produces GitHub native build-provenance attestations (OIDC + Sigstore).
 name: Release
 on:
   push:
@@ -121,6 +121,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write       # mint the OIDC token attestation provenance is signed with
+      attestations: write   # write the build-provenance attestation (the "claim")
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       # TODO: Download build artifacts if uploading to the release (pin
@@ -141,18 +143,16 @@ jobs:
           #   artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  provenance:
-    name: SLSA Provenance
-    needs: [build]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    # SLSA generator must run in a separate, isolated workflow
-    # See: https://slsa.dev/spec/v1.0/requirements#build-l3
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
-    with:
-      base64-subjects: ""
-      # TODO: Replace with actual artifact hashes
-      # Generate with: sha256sum artifact | base64 -w0
-      # base64-subjects: "${{ needs.build.outputs.hashes }}"
+      # GitHub native artifact attestation (build provenance). Generates a
+      # signed, verifiable claim binding each released artifact to this build
+      # (commit, workflow, runner) via OIDC + Sigstore — verify with
+      # `gh attest verify <artifact> --repo ${{ github.repository }}`.
+      # Replaces the older SLSA-generator job; native attestations need no
+      # separate isolated workflow.
+      # TODO: point subject-path at the artifacts this release actually ships
+      #   (must match the `files:` uploaded above, e.g. artifacts/*).
+      - name: Attest build provenance
+        if: ${{ hashFiles('artifacts/*') != '' }}   # skip until real artifacts are wired
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: 'artifacts/*'
