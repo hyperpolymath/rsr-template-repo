@@ -130,9 +130,9 @@ K9!
     },
 
     "add-license" = {
-      description = "Add PMPL-1.0 license",
+      description = "Add MPL-2.0 license",
       commands = [
-        "curl -sL https://raw.githubusercontent.com/{{OWNER}}/pmpl/main/LICENSE -o LICENSE",
+        "cp LICENSES/MPL-2.0.txt LICENSE",
         "echo '✓ License added'",
       ],
     },

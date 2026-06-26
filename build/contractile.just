@@ -60,9 +60,9 @@ must-no-banned-files:
 trust-verify: trust-license-content trust-no-secrets-committed trust-container-images-pinned
     @echo 'All trust verifications passed'
 
-# LICENSE contains expected SPDX identifier
+# LICENSE is the canonical MPL-2.0 text
 trust-license-content:
-    grep -q 'SPDX\|License\|MIT\|Apache\|PMPL\|MPL' LICENSE
+    grep -q 'Mozilla Public License Version 2.0' LICENSE
 
 # No .env or credential files in repo
 trust-no-secrets-committed:

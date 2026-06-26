@@ -71,6 +71,8 @@ init:
     read -rp "Website URL [https://${FORGE}/${OWNER}/${REPO}]: " WEBSITE
     WEBSITE="${WEBSITE:-https://${FORGE}/${OWNER}/${REPO}}"
 
+    read -rp "OpenSSF Best Practices project ID (blank if not yet registered) []: " OPENSSF_BP_ID
+
     # --- Container values (optional — only relevant if container/ exists) ---
     if [ -d "container" ]; then
         echo ""
@@ -162,6 +164,10 @@ init:
         -e "s|${LB}EMAIL${RB}|${AUTHOR_EMAIL}|g"
     )
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
+    # OpenSSF Best Practices badge ID — substitute only if registered; left blank
+    # it stays {{OPENSSF_BP_ID}} and surfaces in the post-init "remaining" notice
+    # as a reminder to register at bestpractices.dev, then fill it in README.adoc.
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|${OPENSSF_BP_ID}|g")
 
     # Replace in all text files (skip .git, LICENSE text, and binaries)
     find . -type f \

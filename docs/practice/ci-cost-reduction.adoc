@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
-// (MPL-2.0 is automatic legal fallback until PMPL is formally recognised)
 = CI Cost Reduction — RSR Estate Spec
 :toc: left
 :toclevels: 3

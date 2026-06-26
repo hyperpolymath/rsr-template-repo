@@ -1,15 +1,17 @@
 SPDX-License-Identifier: MPL-2.0
 
 ================================================================================
-EXHIBIT B — QUANTUM-SAFE PROVENANCE SPECIFICATION
-Palimpsest-MPL License Version 1.0
+QUANTUM-SAFE PROVENANCE SPECIFICATION
+Rhodium Standard Repository (RSR) — Exhibit B
 ================================================================================
 
 1. PURPOSE
 
    This exhibit specifies the cryptographic algorithms and procedures for
-   quantum-safe provenance in software distributed under the Palimpsest-MPL
-   License.
+   quantum-safe provenance of contributions in an RSR-compliant repository.
+   It is a standalone, licence-agnostic specification: it imposes no licence
+   terms of its own and may be referenced by software under any licence
+   (this repository is MPL-2.0 for code, CC-BY-SA-4.0 for prose).
 
 2. APPROVED ALGORITHMS
 
@@ -50,7 +52,7 @@ Palimpsest-MPL License Version 1.0
 
    3.2. Optional Fields
         - parent-hash: Hash of the previous contribution in the chain
-        - emotional-lineage: Narrative context markers
+        - context-notes: Narrative context markers
         - platform: Build/development environment
         - witnesses: Third-party attestation signatures
 
@@ -93,9 +95,9 @@ Palimpsest-MPL License Version 1.0
 
 7. COMPLIANCE
 
-   Quantum-safe provenance is OPTIONAL under PMPL-1.0. When present,
-   it must follow this specification. Stripping quantum-safe signatures
-   from distributions is prohibited per Section 4.1 of the License.
+   Quantum-safe provenance is OPTIONAL. When present, it must follow this
+   specification, and quantum-safe signatures should not be stripped from
+   distributions that carry them.
 
 ================================================================================
 END OF EXHIBIT B

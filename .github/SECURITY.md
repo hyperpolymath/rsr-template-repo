@@ -327,7 +327,7 @@ To stay informed about security updates:
 
 - **Watch this repository**: Click "Watch" → "Custom" → Select "Security alerts"
 - **GitHub Security Advisories**: Published at [Security Advisories](https://github.com/{{OWNER}}/{{REPO}}/security/advisories)
-- **Release notes**: Security fixes noted in [CHANGELOG](CHANGELOG.md)
+- **Release notes**: Security fixes noted in [CHANGELOG](../CHANGELOG.md)
 
 ### Update Policy
 
@@ -376,7 +376,7 @@ When using {{PROJECT_NAME}}, we recommend:
 
 - [Our PGP Public Key]({{PGP_KEY_URL}})
 - [Security Advisories](https://github.com/{{OWNER}}/{{REPO}}/security/advisories)
-- [Changelog](CHANGELOG.md)
+- [Changelog](../CHANGELOG.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [CVE Database](https://cve.mitre.org/)
 - [CVSS Calculator](https://www.first.org/cvss/calculator/3.1)
@@ -389,7 +389,7 @@ When using {{PROJECT_NAME}}, we recommend:
 |---------|---------|
 | **Security issues** | [Report via GitHub](https://github.com/{{OWNER}}/{{REPO}}/security/advisories/new) or {{SECURITY_EMAIL}} |
 | **General questions** | [GitHub Discussions](https://github.com/{{OWNER}}/{{REPO}}/discussions) |
-| **Other enquiries** | See [README](README.md) for contact information |
+| **Other enquiries** | See [README](../README.adoc) for contact information |
 
 ---
 

@@ -2,7 +2,7 @@
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 = RSR Template Repository
 
-image:[Palimpsest-MPL-1.0,link="https://github.com/hyperpolymath/palimpsest-license"] image:[Palimpsest,link="https://github.com/hyperpolymath/palimpsest-license"]
+image:https://img.shields.io/badge/Code-MPL--2.0-blue.svg[Code licence: MPL-2.0,link="https://opensource.org/licenses/MPL-2.0"] image:https://img.shields.io/badge/Docs-CC--BY--SA--4.0-blue.svg[Docs licence: CC-BY-SA-4.0,link="https://creativecommons.org/licenses/by-sa/4.0/"]
 :toc:
 :sectnums:
 
@@ -80,7 +80,7 @@ just validate-rsr
 |Container build (Wolfi base, Podman)
 
 |`LICENSE`
-|MPL-2.0 (Palimpsest MPL)
+|MPL-2.0 (code) / CC-BY-SA-4.0 (docs)
 
 |`EXHIBIT-A-ETHICAL-USE.txt`
 |Ethical use guidelines (LICENSE Exhibit A)
