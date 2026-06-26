@@ -47,7 +47,7 @@ jobs:
       - name: Scan image (trivy, best-effort)
         run: |
           if command -v trivy >/dev/null 2>&1; then
-            trivy image --severity HIGH,CRITICAL --exit-code 0 {{project}}:latest || true
+            trivy image --severity HIGH,CRITICAL --exit-code 0 "${{ github.event.repository.name }}:latest" || true
           else
             echo "trivy not installed on this runner — skipping image scan"
           fi

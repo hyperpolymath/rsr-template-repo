@@ -111,6 +111,14 @@ jobs:
           exit 1
   # ---------------------------------------------------------------------------
   # Job 2: hypatia-scan
+  #
+  # NOTE — this is NOT a duplicate of the standalone `hypatia-scan.yml`.
+  #   * THIS job runs Hypatia inside the gate and hands its findings to the
+  #     `deposit-findings` job below, which feeds the gitbot-fleet LEARNING
+  #     pipeline (artifact -> fleet). It is a REQUIRED status check.
+  #   * `hypatia-scan.yml` runs Hypatia standalone as the repo's security scan,
+  #     independent of the fleet-learning deposit.
+  # Same tool, two different consumers — keep both. See .github/workflows/README.adoc.
   # ---------------------------------------------------------------------------
   hypatia-scan:
     name: Hypatia neurosymbolic scan

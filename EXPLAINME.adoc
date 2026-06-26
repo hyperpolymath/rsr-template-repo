@@ -70,6 +70,30 @@ Caveat:
 
 * Uninitialized placeholders must not be treated as project-specific truth.
 
+== Dependency Updates (Dependabot)
+
+Claim:
+Dependency bumps land fast and safely, without manual chasing.
+
+How this is implemented:
+
+* `dependabot.yml` watches the Dependabot-supported ecosystems the estate
+  actually uses: `github-actions`, `cargo`, `mix` (Elixir), `docker`.
+* `dependabot-automerge.yml` auto-merges *every* bump (patch/minor/major,
+  security or routine) **once the required checks are green** — a broken bump
+  fails CI and stays open (you get an email); it never lands on a red `main`.
+
+Caveat:
+
+* Dependabot has **no Deno or Bun ecosystem**, and `pnpm` only rides under the
+  `npm` ecosystem (itself banned). For this Deno-first estate Dependabot cannot
+  watch the runtime dependencies; the `npm`/`pip` entries are retained only for
+  transitional/legacy manifests and are otherwise inert. Deno dependency
+  currency is managed via `deno.json`/`deno.lock`, not Dependabot.
+* Do **not** add Dependabot as a ruleset *bypass* actor: that lets bumps skip
+  the required checks (secret-scanning, SAST), removing the safety gate and the
+  "it broke" signal. Auto-merge-on-green gives fast merges without it.
+
 == Julia Registry Packages — Standalone Repo Requirement
 
 Claim:

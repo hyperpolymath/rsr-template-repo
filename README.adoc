@@ -10,6 +10,8 @@ image:https://img.shields.io/badge/License-MPL_2.0-blue.svg[License: MPL-2.0,lin
 image:https://raw.githubusercontent.com/hyperpolymath/palimpsest-license/main/assets/badges/svg/badge-quantum-safe.svg[Quantum-Safe Provenance,link="https://github.com/hyperpolymath/palimpsest-license/blob/main/v1.0/exhibits/EXHIBIT-B-QUANTUM-SAFE.txt"]
 image:https://img.shields.io/badge/Docs-CC--BY--SA--4.0-blue.svg[Docs: CC-BY-SA-4.0,link="https://creativecommons.org/licenses/by-sa/4.0/"]
 image:https://api.thegreenwebfoundation.org/greencheckimage/{{FORGE}}[Green Web,link="https://www.thegreenwebfoundation.org/green-web-check/?url={{FORGE}}"]
+image:https://img.shields.io/badge/RSR-Rhodium_Standard-9C27B0[Rhodium Standard Repository,link="https://github.com/hyperpolymath/rhodium-standard-repositories"]
+image:https://img.shields.io/badge/Idris-Inside-5E5086?logo=idris&logoColor=white[Idris Inside,link="https://github.com/hyperpolymath/proven"]
 
 {{PROJECT_DESCRIPTION}}
 

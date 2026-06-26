@@ -1,4 +1,10 @@
 # SPDX-License-Identifier: MPL-2.0
+#
+# Standalone Hypatia security scan (push / PR / weekly). This is NOT a duplicate
+# of the `hypatia-scan` job in `static-analysis-gate.yml`: that job exists to
+# feed the gitbot-fleet LEARNING pipeline (via `deposit-findings`), whereas this
+# workflow is the repo's independent security scan. Same tool, two consumers.
+# See .github/workflows/README.adoc.
 name: Hypatia Security Scan
 
 on:

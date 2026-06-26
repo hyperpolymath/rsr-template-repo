@@ -7,12 +7,17 @@ This document describes the governance model for this repository.
 
 == Overview
 
-This repository follows a **Sole Maintainer Governance Model**:
+This repository follows a **Benevolent Dictator (BDFL) Governance Model**:
 
-* Single maintainer (@hyperpolymath) has full authority over the project
-* All contributions are welcome and reviewed by the maintainer
-* Decisions are made transparently through GitHub issues and discussions
-* The project adheres to the hyperpolymath estate policies where applicable
+* A single champion (@hyperpolymath) holds the project's vision and final
+  decision authority, while actively welcoming contributions and delegating.
+* *Current reality:* the project is presently staffed by a sole maintainer.
+  That is a staffing fact, not a closed door — contributions are welcome and
+  reviewed, and authority is delegable to anyone who demonstrably carries the
+  project's essence. "If someone can do it better, let them"; the model only
+  insists the essence always has a champion.
+* Decisions are made transparently through GitHub issues and discussions.
+* The project adheres to the hyperpolymath estate policies where applicable.
 
 == Core Principles
 
