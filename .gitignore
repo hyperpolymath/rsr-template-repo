@@ -11,6 +11,9 @@ Thumbs.db
 .vscode/
 .direnv/
 
+# Agent / local session artifacts (Claude Code worktrees, scratch) — never commit
+.claude/
+
 # Build
 target/
 _build/

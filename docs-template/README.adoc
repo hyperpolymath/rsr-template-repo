@@ -7,6 +7,17 @@
 
 This directory is the *minimum heavy-wiki seed* for a hyperpolymath repo.
 
+[NOTE]
+====
+*This is NOT a duplicate of `docs/`.* `docs/` holds *this* template's own,
+fully-written documentation; `docs-template/` is the un-filled *seed* (with
+`{{PLACEHOLDER}}` tokens and illustrative example paths) that gets copied into a
+*newly scaffolded* repo's `docs/`. Example paths inside `docs-template/`
+describe a hypothetical downstream project, so they intentionally do not resolve
+against this template's tree (see `.hypatia-ignore` for the matching SD022
+carve-out).
+====
+
 == How to adopt
 
 . Copy `docs-template/` → `docs/` in your repo.
