@@ -11,6 +11,7 @@
 # Validate RSR compliance
 validate-rsr:
     #!/usr/bin/env bash
+    cd "{{justfile_directory()}}"
     echo "=== RSR Compliance Check ==="
     MISSING=""
     for f in .editorconfig .gitignore Justfile README.adoc LICENSE 0-AI-MANIFEST.a2ml; do
@@ -19,7 +20,7 @@ validate-rsr:
     for f in .machine_readable/6a2/STATE.a2ml .machine_readable/6a2/META.a2ml .machine_readable/6a2/ECOSYSTEM.a2ml .machine_readable/6a2/anchors/ANCHOR.a2ml .machine_readable/policies/MAINTENANCE-AXES.a2ml .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    for f in licensing/exhibits/EXHIBIT-A-ETHICAL-USE.txt licensing/exhibits/EXHIBIT-B-QUANTUM-SAFE.txt licensing/texts/MPL-2.0.txt; do
+    for f in docs/legal/EXHIBIT-A-ETHICAL-USE.txt docs/legal/EXHIBIT-B-QUANTUM-SAFE.txt LICENSES/MPL-2.0.txt; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     if [ ! -d "src/interface/abi" ] && [ ! -d "src/interface/Abi" ]; then
@@ -53,7 +54,7 @@ validate-rsr:
 
 # Validate STATE.a2ml syntax
 validate-state:
-    @if [ -f ".machine_readable/6a2/STATE.a2ml" ]; then \
+    @cd "{{justfile_directory()}}" && if [ -f ".machine_readable/6a2/STATE.a2ml" ]; then \
         grep -q '^\[metadata\]' .machine_readable/6a2/STATE.a2ml && \
         grep -q 'project\s*=' .machine_readable/6a2/STATE.a2ml && \
         echo "STATE.a2ml: valid" || echo "STATE.a2ml: INVALID (missing required sections)"; \
@@ -64,6 +65,7 @@ validate-state:
 # Validate AI installation guide completeness (finishbot pre-release check)
 validate-ai-install:
     #!/usr/bin/env bash
+    cd "{{justfile_directory()}}"
     echo "=== AI Installation Guide Check ==="
     GUIDE="docs/AI_INSTALLATION_GUIDE.adoc"
     README="README.adoc"
