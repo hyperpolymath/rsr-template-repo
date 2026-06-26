@@ -83,7 +83,7 @@ just validate-rsr
 |MPL-2.0 (code) / CC-BY-SA-4.0 (docs)
 
 |`EXHIBIT-A-ETHICAL-USE.txt`
-|Ethical use guidelines (LICENSE Exhibit A)
+|MPL-2.0 source-code-form license notice (LICENSE Exhibit A)
 
 |`EXHIBIT-B-QUANTUM-SAFE.txt`
 |Quantum-safe provenance spec (LICENSE Exhibit B)
@@ -193,7 +193,7 @@ project/
 ├── Justfile                   # Task runner
 ├── Containerfile              # Container build
 ├── LICENSE                    # MPL-2.0
-├── EXHIBIT-A-ETHICAL-USE.txt  # Ethical use guidelines
+├── EXHIBIT-A-ETHICAL-USE.txt  # MPL-2.0 source-code-form license notice
 ├── EXHIBIT-B-QUANTUM-SAFE.txt # Quantum-safe provenance
 ├── README.adoc                # Overview
 ├── TOPOLOGY.md                # Architecture + completion
