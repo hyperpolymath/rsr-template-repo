@@ -26,6 +26,7 @@ If you are unsure what something is, **read the canon; do not guess** (guessing 
 11. **Stop-first** when an action is costly to undo or outward-facing.
 12. **Boundaries are real** — respect IS / IS-NOT; never assimilate or rename across them.
 13. **Equivalence as identity** — the estate's intellectual through-line.
+14. **Solutions at source** — fix the canonical/upstream origin, never patch the downstream symptom; trace and respect every up- and down-stream before you act.
 
 ## The machine-readable substrate (read in this order on arrival)
 **CLADE** → **ANCHOR** → **AGENTIC** → **ECOSYSTEM** → **STATE**
