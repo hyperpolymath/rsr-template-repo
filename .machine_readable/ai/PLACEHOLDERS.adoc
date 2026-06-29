@@ -114,8 +114,8 @@ surfaces any left unfilled.
 | `{{TARGET_AUDIENCE}}` | Intended audience | `library authors` | machine-readable-design/canonical-directory-structure/Intentfile.a2ml |
 | `{{EXPECTED_AUTHOR}}` | Expected author identity (trust anchor) | `hyperpolymath` | machine-readable-design/canonical-directory-structure/Trustfile.a2ml |
 | `{{PROJECT_UNIQUE_STRENGTH}}` | What this project does better than alternatives | `proof-carrying FFI` | .machine_readable/bot_directives/methodology.a2ml |
-| `{{PROJECT_KIND}}` | Project kind / category | `library` | .machine_readable/6a2/anchors/ANCHOR.a2ml |
-| `{{PROJECT_DOMAIN}}` | Project domain | `formal-methods` | .machine_readable/6a2/anchors/ANCHOR.a2ml |
+| `{{PROJECT_KIND}}` | Project kind / category | `library` | .machine_readable/descriptiles/anchors/ANCHOR.a2ml |
+| `{{PROJECT_DOMAIN}}` | Project domain | `formal-methods` | .machine_readable/descriptiles/anchors/ANCHOR.a2ml |
 | `{{OPENSSF_PROJECT_ID}}` | OpenSSF Best Practices project ID (same value as `{{OPENSSF_BP_ID}}`) | `1234` | docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc |
 
 ### AI Manifest

@@ -62,7 +62,7 @@ across the tree, validates the result, and (if available) runs the `k9-svc` chec
 
 == What you get
 
-* *Machine-readable metadata* (`.machine_readable/6a2/`) — `STATE`, `META`,
+* *Machine-readable metadata* (`.machine_readable/descriptiles/`) — `STATE`, `META`,
   `ECOSYSTEM`, `PLAYBOOK`, `AGENTIC`, `NEUROSYM`, `CLADE`, and `anchors/ANCHOR`,
   in a2ml, so tools and agents can read the project's state and boundaries.
 * *AI gatekeeper protocol* — `0-AI-MANIFEST.a2ml` is the universal entry point that
