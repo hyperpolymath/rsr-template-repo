@@ -36,9 +36,14 @@ Witnesses  : Clause -> Fact -> Type     -- inhabited iff the fact attests the cl
 
 The dependent-array spine makes coverage *total by construction*: the obligation
 vector indexes the evidence vector, so an unwitnessed `Must` clause is a
-compile-time error, not a forgotten check. The Idris2 core is a *skeleton* today
-(`core/Coaptation.idr`, build-path step 6); the *authoritative* reading this
-session is the Nickel comparator, `coapt.ncl`.
+compile-time error, not a forgotten check. This is now *proven*, not just declared:
+in `core/Coaptation.idr` the `MayGap` type has no constructor for `Must`/`Trust`, so
+`TotalCoverage` forces a witness on every hard obligation — and a `failing` block
+makes `idris2 --check` itself the proof (it asserts that gapping a `Must` does not
+typecheck). What is still pending (build-path step 6's remaining sub-step) is
+*wiring* that core to consume the runner's atomised JSON; until then the
+*authoritative* reading is the Nickel comparator, `coapt.ncl`, and the core proves
+the property on hand-built examples.
 
 == The cybernetic loop is the k9 ladder
 
@@ -92,7 +97,7 @@ the "how far is too far" that proposes a re-anchor: `green` (nothing) /
 | `verify.sh`          | Yard drift gate. Regenerates the receipt and byte-compares the committed one.
 | `coapt.k9.ncl`       | k9 contract (Yard) documenting + validating the drift check. Sibling of `arrival-pack/claude-md.k9.ncl`.
 | `receipts/latest.a2ml` | The committed coaptation receipt — the drift baseline.
-| `core/Coaptation.idr`  | Skeleton of the dependent-typed sound core (build-path step 6; not yet wired).
+| `core/Coaptation.idr`  | Dependent-typed sound core. Proves the totality property (unwitnessed Must = compile-time error) via a `failing` block; not yet wired to the runner JSON (build-path step 6).
 |===
 
 == Usage
@@ -113,12 +118,14 @@ just validate-coapt     # Yard drift gate: fail if the committed receipt is stal
   `probe-deferred`. *Trust in particular has ZERO descriptile witnesses* — the
   descriptive self-model carries no security/provenance evidence — so the whole
   Trust gate defers to Hunt. A Hunt-tier run is required for a full hard-gate.
-* *The Nickel prototype does NOT make an unwitnessed Must a hard error.* That
-  totality guarantee ("an unwitnessed Must is a compile-time error") is the property
-  of the *Idris2 sound core* (still a skeleton). In the authoritative Nickel reading
-  today, a Must with a probe but no descriptile witness is soft `probe-deferred`,
-  not red; only a Must with neither witness nor probe (`unmeasured`) trips red. The
-  hard totality lands when the core is wired (build-path step 6).
+* *The Nickel prototype does NOT make an unwitnessed Must a hard error.* In the
+  authoritative Nickel reading today, a Must with a probe but no descriptile witness
+  is soft `probe-deferred`, not red; only a Must with neither witness nor probe
+  (`unmeasured`) trips red. The hard totality guarantee ("an unwitnessed Must is a
+  compile-time error") is *proven in the Idris2 sound core* (`core/Coaptation.idr`,
+  machine-checked by a `failing` block), but on hand-built examples — it does not
+  govern the Nickel reading until the core is *wired* to consume the runner's JSON
+  (build-path step 6's remaining sub-step).
 * *ANCHOR has no drift/ledger schema yet.* `ANCHOR.a2ml` (`hyperpolymath.anchor/1`)
   encodes semantic-authority + golden-path, not a recognised-drift / re-anchor
   ledger. So `--reanchor` assembles a basis but cannot record the drop; wiring the
@@ -136,5 +143,5 @@ just validate-coapt     # Yard drift gate: fail if the committed receipt is stal
 . *Grade types per verb* + aggregation — `grades.ncl`. ✅
 . *Comparator in the Yard tier* — `coapt.ncl` (Nickel prototype). ✅
 . *Actuation in Hunt* with bands — `coapt.sh` (green=nil / amber=advisory / red=basis). ✅ (basis; ledger pending)
-. *Dependent-type coverage totality* in the Idris2 core. ⏳ skeleton only.
+. *Dependent-type coverage totality* in the Idris2 core. 🔶 property PROVEN (`failing`-block, `idris2 --check`); JSON wiring to the runner pending.
 . *Promote the runner to `standards`* as canon after dogfooding here. ⏳
