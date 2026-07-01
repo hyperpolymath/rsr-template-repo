@@ -44,6 +44,11 @@ case "$MODE" in
   --reanchor)
     if [ "$band" = "red" ]; then
       basis="$CO/receipts/reanchor-basis.a2ml"
+      # repo name from the CLADE descriptile, not a hardcoded literal — this
+      # script is shared verbatim by every repo instantiated from
+      # rsr-template-repo, so a literal "rsr-template-repo" here would
+      # misreport every one of them.
+      repo_name="$(grep -oP '^canonical-name = "\K[^"]+' "$ROOT/.machine_readable/descriptiles/CLADE.a2ml" | head -1)"
       {
         echo "# SPDX-License-Identifier: MPL-2.0"
         echo "# reanchor-basis — assembled by \`coapt --reanchor\`. This is the BASIS (the"
@@ -53,7 +58,7 @@ case "$MODE" in
         echo ""
         echo "[reanchor-basis]"
         echo "schema = \"hyperpolymath.reanchor-basis/0\""
-        echo "repo = \"rsr-template-repo\""
+        echo "repo = \"$repo_name\""
         echo "occasioned-by = \"band=red in the coaptation receipt\""
         echo ""
         echo "[carnage]"

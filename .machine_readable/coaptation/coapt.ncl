@@ -113,6 +113,11 @@ let fp = facts_doc.provenance in
 let contractile_prov = "intend@%{cp.intend} must@%{cp.must} trust@%{cp.trust} adjust@%{cp.adjust} dust@%{cp.dust} bust@%{cp.bust}" in
 let descriptile_prov = "clade@%{fp.clade} state@%{fp.state} ecosystem@%{fp.ecosystem} agentic@%{fp.agentic} anchor@%{fp.anchor}" in
 
+# repo name comes from the CLADE descriptile, not a hardcoded literal — this
+# script is shared verbatim by every repo instantiated from rsr-template-repo,
+# so a literal "rsr-template-repo" here would misreport every one of them.
+let repo_name = (lookup "clade.canonical-name").value in
+
 let s = std.to_string in
 m%"
 # SPDX-License-Identifier: MPL-2.0
@@ -122,7 +127,7 @@ m%"
 
 [receipt]
 schema = "hyperpolymath.coaptation/1"
-repo = "rsr-template-repo"
+repo = "%{repo_name}"
 band = "%{band}"
 proposed-action = "%{action}"
 
