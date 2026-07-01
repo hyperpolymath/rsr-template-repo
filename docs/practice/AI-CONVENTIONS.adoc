@@ -21,11 +21,20 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 
 ## License
 
-- All original code: **MPL-2.0**
-- Fallback (platform-required only): MPL-2.0 with comment explaining why.
-- NEVER use AGPL-3.0.
-- Preserve third-party licenses verbatim.
-- Every source file needs `# SPDX-License-Identifier: CC-BY-SA-4.0`.
+Per estate policy (hyperpolymath/standards `LICENCE-POLICY.adoc` Rule 1 + Addendum A8):
+
+- Code / config / scripts: `SPDX-License-Identifier: MPL-2.0`.
+- Prose docs (`*.adoc`, `*.md` narrative): `SPDX-License-Identifier: CC-BY-SA-4.0`.
+- GitHub shows only one repo licence: the root `LICENSE` is MPL-2.0 (so the
+  sidebar reads MPL-2.0); **both** canonical texts live in `LICENSES/`
+  (`MPL-2.0.txt` + `CC-BY-SA-4.0.txt`) and prose is CC-BY-SA-4.0 by its
+  per-file header, not a second root licence file.
+- Fallback (platform-required only): MPL-2.0 with a comment explaining why.
+- NEVER use AGPL-3.0 (son-shared repos are the only exception, per Rule 3 — not this template).
+- Preserve third-party licenses verbatim; never relicense.
+- Licence-header remediation on existing files is manual, owner-only — no
+  automated/bulk SPDX edits (Addendum A2). New files may carry the correct
+  SPDX from birth.
 
 ## Author Attribution
 
