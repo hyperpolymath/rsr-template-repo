@@ -1,5 +1,18 @@
+K9!
+# SPDX-License-Identifier: MPL-2.0
 # Local repository session checks (thin policy layer)
 version: "0.1"
+
+pedigree = {
+  schema_version = "1.0.0",
+  metadata = {
+    name = "session-custom-checks",
+    version = "0.1.0",
+  },
+  security = {
+    leash = 'Kennel,
+  },
+}
 
 checks:
   - id: "session-state-has-next-action"

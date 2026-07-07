@@ -84,6 +84,17 @@ jobs:
           echo "CHANGELOG: OK"
       - name: Check no unfilled placeholder tokens in required files
         run: |
+          # Template repos are the one place where {{PLACEHOLDER}} tokens are
+          # the product, not debt: they are replaced by `just init` when a
+          # project is instantiated. Instantiated repos (any other name) are
+          # still checked in full.
+          case "$GITHUB_REPOSITORY" in
+            */*-template-repo)
+              echo "Template repo — unfilled placeholder tokens are intentional; skipping."
+              exit 0
+              ;;
+          esac
+
           ERRORS=0
           REQUIRED_FILES=""
 

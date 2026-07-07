@@ -1,4 +1,17 @@
+K9!
+# SPDX-License-Identifier: MPL-2.0
 # Thin coordination bindings for central session-management standards
+
+pedigree = {
+  schema_version = "1.0.0",
+  metadata = {
+    name = "coordination",
+    version = "1.0.0",
+  },
+  security = {
+    leash = 'Kennel,
+  },
+}
 
 session_management:
   source_of_truth: "standards/session-management-standards"

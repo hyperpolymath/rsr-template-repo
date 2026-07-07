@@ -25,6 +25,7 @@ LICENSE
 LICENSES/                  # REUSE licence texts (MPL-2.0.txt + CC-BY-SA-4.0.txt) for the dual-licence model (code MPL-2.0 / docs CC-BY-SA-4.0)
 CHANGELOG.md
 CITATION.cff               # citation metadata (surfaced at root by #96)
+RSR-PHILOSOPHY.adoc        # RSR philosophy statement (root authority file; was drift until 2026-07-07)
 
 # ─── Build entry points (must live at root for their tooling) ────────────────
 Justfile                   # delegates phases to build/just/*.just
