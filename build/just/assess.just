@@ -43,11 +43,27 @@ self-assess:
     echo "── ESSENTIAL (removing breaks Rhodium Standard) ──────────"
     echo ""
 
-    for f in LICENSE SECURITY.md CODE_OF_CONDUCT.md CONTRIBUTING.md .editorconfig .gitignore; do
+    for f in LICENSE .editorconfig .gitignore; do
         if [ -f "$f" ]; then
             echo "  ✓ $f — KEEP (RSR required)"
         else
             echo "  ✗ $f — MISSING (RSR violation!)"
+        fi
+    done
+
+    # Community health files live at root OR .github/ (.github/ is the estate's
+    # canonical location — see .machine_readable/root-allow.txt). Checking root
+    # alone reported the template's own .github/ copies as "MISSING (RSR
+    # violation!)", which is a false negative.
+    for f in SECURITY CODE_OF_CONDUCT CONTRIBUTING; do
+        found=""
+        for cand in "$f.md" "$f.adoc" ".github/$f.md" ".github/$f.adoc"; do
+            [ -f "$cand" ] && { found="$cand"; break; }
+        done
+        if [ -n "$found" ]; then
+            echo "  ✓ $found — KEEP (RSR required)"
+        else
+            echo "  ✗ $f.md — MISSING at root and .github/ (RSR violation!)"
         fi
     done
 
@@ -199,9 +215,38 @@ verify:
         fi
     }
 
-    check_either "SECURITY.md" "SECURITY.adoc"
+    # Community health files: accept root OR .github/, .md OR .adoc.
+    #
+    # .github/ is the canonical estate location for these — see
+    # .machine_readable/root-allow.txt, which says of CONTRIBUTING.md:
+    #   "Accepted at root OR .github/ — CI (openssf/quality/rhodibot) now
+    #    checks both; .github/ is the canonical estate location
+    #    (org-inherited). Allow-listed if present at root."
+    # and of SECURITY.md: "security-policy contractile now accepts the
+    # .github/ copy."
+    #
+    # GitHub and the OpenSSF Best Practices criteria both treat .github/ as a
+    # valid home for them. Checking root only made this recipe a FALSE
+    # NEGATIVE: the files exist in .github/ and always have, so the template
+    # failed its own `just verify` ("repo cannot ship"), and so did every repo
+    # instantiated from it. This recipe was the last checker still looking at
+    # root alone.
+    check_community_file() {
+        local base="$1"
+        local cand
+        for cand in "$base.md" "$base.adoc" ".github/$base.md" ".github/$base.adoc"; do
+            if [ -f "$cand" ]; then
+                echo "  OK:   $cand"
+                return 0
+            fi
+        done
+        echo "  FAIL: $base.md (or $base.adoc) missing at root or .github/"
+        ERRORS=$((ERRORS + 1))
+    }
+
+    check_community_file "SECURITY"
     check_file "LICENSE"
-    check_either "CONTRIBUTING.md" "CONTRIBUTING.adoc"
+    check_community_file "CONTRIBUTING"
     check_either "README.adoc" "README.md"
     check_file ".machine_readable/descriptiles/STATE.a2ml"
     check_file ".machine_readable/descriptiles/META.a2ml"
