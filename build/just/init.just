@@ -96,6 +96,19 @@ init:
     CURRENT_DATE=$(date +%Y-%m-%d)
     VERSION="0.1.0"
 
+    # --- Derive the repo's uuid --------------------------------------------
+    # THE UUID IS DERIVED, NOT ALLOCATED (gv-clade-index:
+    # docs/SPEC-clade-verisim-portal.adoc §Identity Model):
+    #     uuid = UUIDv5(namespace = URL, name = "github.com/<owner>/<name>")
+    # We know OWNER and REPO, so this is computable here and must never be
+    # guessed or copied. The owner segment is part of the derived name, so it is
+    # part of the identity — a repo hosted elsewhere derives a different uuid.
+    if command -v uuidgen >/dev/null 2>&1; then
+        REPO_UUID=$(uuidgen --sha1 --namespace @url --name "${FORGE}/${OWNER}/${REPO}")
+    else
+        REPO_UUID="UNASSIGNED"
+    fi
+
     # Derive citation name parts (best-effort split on last space)
     AUTHOR_LAST="${AUTHOR##* }"
     AUTHOR_FIRST="${AUTHOR% *}"
@@ -162,6 +175,7 @@ init:
         -e "s|${LB}IMAGE${RB}|${REGISTRY}/${SERVICE_NAME}|g"
         -e "s|${LB}VERSION${RB}|${VERSION}|g"
         -e "s|${LB}EMAIL${RB}|${AUTHOR_EMAIL}|g"
+        -e "s|${LB}UUID${RB}|${REPO_UUID}|g"
     )
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
     # OpenSSF Best Practices badge ID — substitute only if registered; if left
@@ -185,6 +199,48 @@ init:
     # Also replace [YOUR-REPO-NAME] and [YOUR-NAME/ORG] in AI manifest
     sed -i "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
     sed -i "s|\[YOUR-NAME/ORG\]|${OWNER}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
+
+    echo ""
+    echo "── Identity (CLADE.a2ml) ────────────────────────"
+
+    # Install THIS repo's CLADE.a2ml, replacing rsr-template-repo's own.
+    #
+    # The CLADE.a2ml shipped in the template is the TEMPLATE's real identity — a
+    # real uuid for a real repo. Nothing in SED_ARGS ever touched it, so every
+    # repo created from this template inherited uuid a5ea1382-… and
+    # canonical-name "rsr-template-repo" verbatim, and told every arriving agent
+    # it WAS the template. Nothing caught it: each value was individually valid.
+    # chronicles-of-slavia and scaffoldia were corrected for exactly this on
+    # 2026-07-16; paint-type, cargo-zigbuild, email-octad-experiment, llm-grace
+    # and rsr-template-how-to still carry it.
+    #
+    # build/templates/CLADE.a2ml.in has already had its brace tokens filled by
+    # the substitution loop above (including the UUID one, derived earlier).
+    # NB: literal double-brace tokens cannot be written in this recipe body —
+    # just interpolates them, which is why LB/RB are built with printf above.
+    # The split is the whole point:
+    #   DERIVABLE -> computed, never guessed  (uuid, owner, canonical-name)
+    #   JUDGEMENT -> left UNASSIGNED, fails loudly until a human chooses (clade)
+    CLADE_IN="build/templates/CLADE.a2ml.in"
+    CLADE_OUT=".machine_readable/descriptiles/CLADE.a2ml"
+    if [ -f "$CLADE_IN" ]; then
+        mkdir -p "$(dirname "$CLADE_OUT")"
+        cp "$CLADE_IN" "$CLADE_OUT"
+        rm -rf build/templates          # template-only; not part of your repo
+        if [ "$REPO_UUID" = "UNASSIGNED" ]; then
+            echo "  uuid:  UNASSIGNED — uuidgen not found."
+            echo "         Install util-linux (uuid-runtime), then run:"
+            echo "           uuidgen --sha1 --namespace @url --name \"${FORGE}/${OWNER}/${REPO}\""
+            echo "         and put the result in $CLADE_OUT."
+        else
+            echo "  uuid:  $REPO_UUID"
+            echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived, recomputable, not invented)"
+        fi
+        echo "  clade: UNASSIGNED — a human must choose one of the 12."
+        echo "         CLADE-003/006 FAIL until you do. That is deliberate:"
+        echo "         an unchosen clade must not look like a chosen one."
+        echo "         The taxonomy is listed in $CLADE_OUT."
+    fi
 
     echo ""
     echo "── Validation ───────────────────────────────────"
