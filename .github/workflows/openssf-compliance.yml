@@ -82,46 +82,14 @@ jobs:
             exit 1
           fi
           echo "CHANGELOG: OK"
-      - name: Check no unfilled placeholder tokens in required files
-        run: |
-          # Template repos are the one place where {{PLACEHOLDER}} tokens are
-          # the product, not debt: they are replaced by `just init` when a
-          # project is instantiated. Instantiated repos (any other name) are
-          # still checked in full.
-          case "$GITHUB_REPOSITORY" in
-            */*-template-repo)
-              echo "Template repo — unfilled placeholder tokens are intentional; skipping."
-              exit 0
-              ;;
-          esac
-
-          ERRORS=0
-          REQUIRED_FILES=""
-
-          # Collect all required files that exist
-          for f in SECURITY.md SECURITY.adoc .github/SECURITY.md LICENSE LICENSE.txt \
-                   CONTRIBUTING.md CONTRIBUTING.adoc README.md README.adoc \
-                   .machine_readable/descriptiles/STATE.a2ml .machine_readable/descriptiles/META.a2ml \
-                   .machine_readable/descriptiles/ECOSYSTEM.a2ml CHANGELOG.md CHANGELOG.adoc; do
-            [ -f "$f" ] && REQUIRED_FILES="$REQUIRED_FILES $f"
-          done
-
-          for f in $REQUIRED_FILES; do
-            # Match {{ANYTHING}} placeholder tokens
-            PLACEHOLDERS=$(grep -cE '\{\{[A-Z_]+\}\}' "$f" 2>/dev/null || true)
-            if [ "$PLACEHOLDERS" -gt 0 ]; then
-              echo "::error::$f contains $PLACEHOLDERS unfilled {{PLACEHOLDER}} tokens"
-              grep -nE '\{\{[A-Z_]+\}\}' "$f" | head -5
-              ERRORS=$((ERRORS + 1))
-            fi
-          done
-
-          if [ "$ERRORS" -gt 0 ]; then
-            echo ""
-            echo "::error::$ERRORS file(s) still contain placeholder tokens — run 'just init' to fill them"
-            exit 1
-          fi
-          echo "Placeholder check: OK (no unfilled tokens in required files)"
+      - name: Check no unfilled placeholder tokens
+        # Delegates to the same script tests/e2e/template_instantiation_test.sh
+        # runs, so the gate and the test can never disagree about the rule.
+        # This step used to check a hand-maintained list of required files that
+        # omitted .github/settings.yml and ANCHOR.a2ml — the two places the
+        # leaks actually were. The script scans everything and allow-lists the
+        # legitimate carriers instead.
+        run: bash scripts/check-no-placeholders.sh .
       - name: Summary
         run: |
           echo "=== OpenSSF Best Practices Compliance: PASS ==="

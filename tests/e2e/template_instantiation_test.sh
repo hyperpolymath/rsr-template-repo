@@ -94,52 +94,63 @@ fi
 
 log_step "Replacing placeholder tokens"
 
-# Function to replace all occurrences of a placeholder in a file
-replace_placeholder() {
-    local file="$1"
-    local placeholder="$2"
-    local value="$3"
+# Substitution is `just init`'s job. This test MUST drive the real recipe:
+# a second, hand-rolled replacement list here would be a mock that silently
+# diverges from init.just (it did — it carried {{REPO_DESCRIPTION}} and
+# {{PRIMARY_LANGUAGE}}, tokens init has never defined), so the test passed
+# while real instantiation leaked placeholders into every new repo.
+if ! command -v just >/dev/null 2>&1; then
+    log_error "just is not installed — cannot exercise the real init recipe"
+    exit 1
+fi
 
-    if [ ! -f "$file" ]; then
-        return 0
-    fi
+# Answers, in the exact order init.just prompts for them.
+INIT_ANSWERS=(
+    "$TEST_PROJECT_NAME"        # Project name
+    "$TEST_REPO_NAME"           # Repository slug
+    "$TEST_OWNER"               # Owner
+    "$TEST_AUTHOR"              # Author full name
+    "$TEST_AUTHOR_EMAIL"        # Author email
+    ""                          # Author organization
+    ""                          # Previous/alt email
+    "$TEST_DESCRIPTION"         # Project description
+    ""                          # Forge domain      -> default
+    ""                          # Security email    -> default
+    ""                          # Conduct email     -> default
+    "library"                   # Project type
+    ""                          # Website URL       -> default
+    ""                          # OpenSSF BP ID
+)
+# init only asks the container questions when container/ exists.
+if [ -d "$TEST_REPO_PATH/container" ]; then
+    INIT_ANSWERS+=("" "" "")    # service name, port, registry -> defaults
+fi
+INIT_ANSWERS+=("Y")             # Proceed?
 
-    # Use sed to replace (platform-portable)
-    if grep -q "$placeholder" "$file" 2>/dev/null; then
-        sed -i "s|$placeholder|$value|g" "$file"
-        echo "  Replaced $placeholder in $(basename "$file")"
-    fi
-}
+if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | just init) > "$TEST_DIR/init.log" 2>&1; then
+    log_error "just init failed:"
+    cat "$TEST_DIR/init.log" >&2
+    exit 1
+fi
 
-# Replace in all text files
-find "$TEST_REPO_PATH" -type f \
-    \( -name "*.md" -o -name "*.adoc" -o -name "*.a2ml" -o -name "*.zig" -o -name "*.idr" \
-       -o -name "Justfile" -o -name "Containerfile" -o -name "*.yml" -o -name "*.yaml" \
-       -o -name "*.json" -o -name "*.scm" -o -name "contractile" \) \
-    -exec bash -c '
-        file="$1"
-        placeholder_pairs=(
-            "{{REPO}}|$TEST_REPO_NAME"
-            "{{OWNER}}|$TEST_OWNER"
-            "{{FORGE}}|$TEST_FORGE"
-            "{{PROJECT}}|$TEST_PROJECT_NAME"
-            "{{project}}|'"${TEST_REPO_NAME//-/_}"'"
-            "{{REPO_DESCRIPTION}}|$TEST_DESCRIPTION"
-            "{{PRIMARY_LANGUAGE}}|$TEST_PRIMARY_LANGUAGE"
-            "{{AUTHOR}}|$TEST_AUTHOR"
-            "{{AUTHOR_EMAIL}}|$TEST_AUTHOR_EMAIL"
-            "{{CURRENT_DATE}}|2026-04-04"
-        )
+log_pass "just init completed"
 
-        for pair in "${placeholder_pairs[@]}"; do
-            IFS="|" read -r placeholder value <<< "$pair"
-            if grep -q "$placeholder" "$file" 2>/dev/null; then
-                sed -i "s|$placeholder|$value|g" "$file"
-            fi
-        done
-    ' _ "$file"
+#==============================================================================
+# PHASE 3b: NO PLACEHOLDER MAY SURVIVE INSTANTIATION
+#==============================================================================
 
-log_pass "All placeholder tokens replaced"
+log_step "Checking for placeholders that survived instantiation"
+
+# Same script the openssf-compliance workflow runs, deliberately: a second
+# copy of this logic here is what let the two drift last time. GITHUB_REPOSITORY
+# is cleared so the check does not mistake the instantiated repo for a template
+# repo and skip itself — the instantiated name is what we want it to judge.
+if ! env -u GITHUB_REPOSITORY bash "$TEMPLATE_ROOT/scripts/check-no-placeholders.sh" "$TEST_REPO_PATH"; then
+    log_error "just init left unfilled placeholder tokens (see above)"
+    exit 1
+fi
+
+log_pass "No placeholders survived instantiation"
 
 #==============================================================================
 # PHASE 4: VALIDATE STRUCTURE
@@ -176,27 +187,6 @@ if [ -f "$TEST_REPO_PATH/src/interface/ffi/build.zig" ]; then
         log_error "Zig compiler not found - cannot verify build"
         exit 1
     fi
-fi
-
-#==============================================================================
-# PHASE 6: VERIFY NO REMAINING PLACEHOLDERS
-#==============================================================================
-
-log_step "Checking for remaining placeholders"
-
-REMAINING_PLACEHOLDERS=$(
-    find "$TEST_REPO_PATH" -type f \
-        \( -name "*.md" -o -name "*.adoc" -o -name "*.a2ml" -o -name "*.zig" -o -name "*.idr" \
-           -o -name "Justfile" -o -name "*.yml" \) \
-        -exec grep -l "{{[A-Z_]*}}" {} \; 2>/dev/null || true
-)
-
-if [ -z "$REMAINING_PLACEHOLDERS" ]; then
-    log_pass "No remaining placeholders found"
-else
-    log_error "Found remaining placeholders in:"
-    echo "$REMAINING_PLACEHOLDERS" | sed 's/^/  /'
-    exit 1
 fi
 
 #==============================================================================

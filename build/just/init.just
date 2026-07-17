@@ -176,13 +176,44 @@ init:
         -e "s|${LB}VERSION${RB}|${VERSION}|g"
         -e "s|${LB}EMAIL${RB}|${AUTHOR_EMAIL}|g"
         -e "s|${LB}UUID${RB}|${REPO_UUID}|g"
+        -e "s|${LB}DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
     )
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
-    # OpenSSF Best Practices badge ID — substitute only if registered; if left
-    # blank the OPENSSF_BP_ID placeholder stays unfilled and surfaces in the
-    # post-init "remaining" notice as a reminder to register at
-    # bestpractices.dev, then fill it in README.adoc.
     [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|${OPENSSF_BP_ID}|g")
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|${OPENSSF_BP_ID}|g")
+
+    # Tokens only the author can answer. init cannot know a project's unique
+    # strength or its language stack, and guessing would write fiction into
+    # ANCHOR.a2ml — the file the estate treats as semantic authority. They
+    # become UNASSIGNED, the same marker `just init` already writes for an
+    # unchosen clade: honest, greppable, and obviously unfinished, whereas a
+    # leftover brace token just looks like the template broke.
+    #   grep -rn UNASSIGNED . — to find what still needs you
+    # (Brace tokens are spelled via ${LB}/${RB} throughout this recipe: just
+    #  interpolates literal double braces even inside comments.)
+    for tok in PROJECT_KIND PROJECT_DOMAIN PROJECT_UNIQUE_STRENGTH \
+               TARGET_AUDIENCE LANG_STACK BUILD_CMD TEST_CMD MUST_INVARIANTS \
+               PACKAGE_NAME DEPS BUILD_OUTPUT_PATH MAIN_FUNCTION; do
+        SED_ARGS+=(-e "s|${LB}${tok}${RB}|UNASSIGNED|g")
+    done
+
+    # Optional values with no answer: drop the line that depends on them rather
+    # than leaving the token in place. An unfilled token is not a neutral
+    # reminder — the OpenSSF line renders a broken badge image and a dead link
+    # in the new repo's README, and it trips the placeholder gate on every
+    # subsequent push, which trains people to ignore a red CI. No id yet means
+    # no badge yet; add it when you register at bestpractices.dev.
+    if [ -z "$OPENSSF_BP_ID" ]; then
+        sed -i "/bestpractices\.dev\/projects\/${LB}OPENSSF_BP_ID${RB}/d" README.adoc 2>/dev/null || true
+        sed -i "/${LB}OPENSSF_PROJECT_ID${RB}/d" docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc 2>/dev/null || true
+    fi
+    # A .mailmap exists to map an alternate address onto the canonical one.
+    # With no alternate address there is nothing to map, and the sole entry
+    # would keep an unfilled alt-email token in the angle brackets, which is a
+    # malformed mailmap rather than a harmless leftover.
+    if [ -z "$AUTHOR_EMAIL_ALT" ]; then
+        printf '# No alternate author address to map.\n' > .github/.mailmap
+    fi
 
     # Replace in all text files (skip .git, LICENSE text, and binaries)
     find . -type f \

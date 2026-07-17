@@ -7,15 +7,22 @@
 # applied by the probot/settings app when changes are pushed to the default
 # branch. Install the app at: https://github.com/apps/settings
 #
-# Template file — replace {{REPO}} and {{DESCRIPTION}} with actual values.
+# Template file — `just init` fills {{REPO}}, {{DESCRIPTION}}, {{FORGE}} and
+# {{OWNER}}.
+#
+# `private` defaults to true: probot/settings applies this file on every push to
+# the default branch, so a wrong value here does not merely describe visibility,
+# it enforces it. Publishing a repo that should have stayed private is the
+# unrecoverable direction — the estate rule is fail-closed. Set this to false
+# deliberately, when the repo is genuinely meant to be public.
 
 # ─── Repository Settings ───────────────────────────────────────────────────────
 
 repository:
   name: "{{REPO}}"
   description: "{{DESCRIPTION}}"
-  homepage: "https://github.com/hyperpolymath/{{REPO}}"
-  private: false
+  homepage: "https://{{FORGE}}/{{OWNER}}/{{REPO}}"
+  private: true
   has_issues: true
   has_projects: true
   has_wiki: false

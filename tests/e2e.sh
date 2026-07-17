@@ -127,6 +127,30 @@ echo ""
 # fi
 
 # ═══════════════════════════════════════════════════════════════════════
+# Template instantiation
+# ═══════════════════════════════════════════════════════════════════════
+# This is the harness CI runs (.github/workflows/e2e.yml calls tests/e2e.sh),
+# so the instantiation test has to be called from here to run at all. Until
+# now its only caller was benches/template_bench.sh, which discards the exit
+# code with `|| true` because a benchmark wants a duration, not a verdict —
+# so the test could fail on every run and nothing said so.
+INSTANTIATION_TEST="$(dirname "$0")/e2e/template_instantiation_test.sh"
+if [ -f "$INSTANTIATION_TEST" ]; then
+    echo ""
+    echo "── Template instantiation ─────────────────────────────────────"
+    if bash "$INSTANTIATION_TEST" "$(dirname "$0")/.."; then
+        green "PASS: template instantiation"
+        PASS=$((PASS + 1))
+    else
+        red "FAIL: template instantiation"
+        FAIL=$((FAIL + 1))
+    fi
+else
+    yellow "SKIP: template instantiation (test not found)"
+    SKIP=$((SKIP + 1))
+fi
+
+# ═══════════════════════════════════════════════════════════════════════
 # Summary
 # ═══════════════════════════════════════════════════════════════════════
 echo ""
