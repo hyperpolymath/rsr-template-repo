@@ -12,126 +12,33 @@
 proof-check-all: proof-check-idris2 proof-check-lean4 proof-check-agda proof-check-coq proof-scan-dangerous
     @echo "=== All proof checks complete ==="
 
-# Check Idris2 proofs (ABI, types, dependent type proofs)
+# Each proof-check-<prover> delegates to scripts/check-proofs.sh, the single
+# source of truth. A missing toolchain is FATAL (never a skip); every module is
+# checked from its own source root; a proof file absent from the prover's
+# manifest (verification/proofs/<prover>/MANIFEST) is an error. See the script
+# header for the four "checks that could not fail" this replaces.
+
+# Check Idris2 proofs (per MANIFEST; fatal if idris2 absent)
 proof-check-idris2:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Checking Idris2 proofs ==="
-    if ! command -v idris2 &>/dev/null; then
-        echo "SKIP: idris2 not installed"
-        exit 0
-    fi
-    ERRORS=0
-    for f in $(find verification/proofs/idris2 -name '*.idr' 2>/dev/null); do
-        echo -n "  Checking $f ... "
-        if idris2 --check "$f" 2>/dev/null; then
-            echo "OK"
-        else
-            echo "FAIL"
-            ERRORS=$((ERRORS + 1))
-        fi
-    done
-    if [ "$ERRORS" -gt 0 ]; then
-        echo "FAIL: $ERRORS Idris2 proof(s) failed"
-        exit 1
-    fi
-    echo "PASS: All Idris2 proofs verified"
+    @bash scripts/check-proofs.sh idris2
 
-# Check Lean4 proofs
+# Check Lean4 proofs (per MANIFEST; fatal if lean absent)
 proof-check-lean4:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Checking Lean4 proofs ==="
-    if ! command -v lean &>/dev/null; then
-        echo "SKIP: lean not installed"
-        exit 0
-    fi
-    ERRORS=0
-    for f in $(find verification/proofs/lean4 -name '*.lean' 2>/dev/null); do
-        echo -n "  Checking $f ... "
-        if lean "$f" 2>/dev/null; then
-            echo "OK"
-        else
-            echo "FAIL"
-            ERRORS=$((ERRORS + 1))
-        fi
-    done
-    if [ "$ERRORS" -gt 0 ]; then
-        echo "FAIL: $ERRORS Lean4 proof(s) failed"
-        exit 1
-    fi
-    echo "PASS: All Lean4 proofs verified"
+    @bash scripts/check-proofs.sh lean4
 
-# Check Agda proofs
+# Check Agda proofs (per MANIFEST; fatal if agda absent)
 proof-check-agda:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Checking Agda proofs ==="
-    if ! command -v agda &>/dev/null; then
-        echo "SKIP: agda not installed"
-        exit 0
-    fi
-    ERRORS=0
-    for f in $(find verification/proofs/agda -name '*.agda' 2>/dev/null); do
-        echo -n "  Checking $f ... "
-        if agda --safe "$f" 2>/dev/null; then
-            echo "OK"
-        else
-            echo "FAIL"
-            ERRORS=$((ERRORS + 1))
-        fi
-    done
-    if [ "$ERRORS" -gt 0 ]; then
-        echo "FAIL: $ERRORS Agda proof(s) failed"
-        exit 1
-    fi
-    echo "PASS: All Agda proofs verified"
+    @bash scripts/check-proofs.sh agda
 
-# Check Coq proofs
+# Check Coq proofs (per MANIFEST; fatal if coqc absent)
 proof-check-coq:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Checking Coq proofs ==="
-    if ! command -v coqc &>/dev/null; then
-        echo "SKIP: coqc not installed"
-        exit 0
-    fi
-    ERRORS=0
-    for f in $(find verification/proofs/coq -name '*.v' 2>/dev/null); do
-        echo -n "  Checking $f ... "
-        if coqc "$f" 2>/dev/null; then
-            echo "OK"
-        else
-            echo "FAIL"
-            ERRORS=$((ERRORS + 1))
-        fi
-    done
-    if [ "$ERRORS" -gt 0 ]; then
-        echo "FAIL: $ERRORS Coq proof(s) failed"
-        exit 1
-    fi
-    echo "PASS: All Coq proofs verified"
+    @bash scripts/check-proofs.sh coq
 
-# Scan for dangerous patterns in proof files (believe_me, sorry, Admitted, etc.)
+# Scan for dangerous constructs USED in proof code (believe_me, sorry, Admitted,
+# postulate, ...). Comments are ignored — a comment naming a banned construct
+# must not trip the gate. See scripts/scan-dangerous.sh.
 proof-scan-dangerous:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "=== Scanning for dangerous patterns in proofs ==="
-    DANGEROUS=0
-    PATTERNS="believe_me|assert_total|postulate|sorry|Admitted|unsafeCoerce|Obj\.magic"
-    for f in $(find verification/proofs -name '*.idr' -o -name '*.lean' -o -name '*.agda' -o -name '*.v' 2>/dev/null); do
-        MATCHES=$(grep -nE "$PATTERNS" "$f" 2>/dev/null || true)
-        if [ -n "$MATCHES" ]; then
-            echo "  DANGEROUS: $f"
-            echo "$MATCHES" | sed 's/^/    /'
-            DANGEROUS=$((DANGEROUS + 1))
-        fi
-    done
-    if [ "$DANGEROUS" -gt 0 ]; then
-        echo "FAIL: $DANGEROUS file(s) contain dangerous patterns"
-        exit 1
-    fi
-    echo "PASS: No dangerous patterns found in proofs"
+    @bash scripts/scan-dangerous.sh
 
 # Show proof status summary
 proof-status:

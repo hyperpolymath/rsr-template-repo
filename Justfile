@@ -389,7 +389,9 @@ man:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Run full CI pipeline locally
-ci: deps quality
+# proof-check-all is FATAL if any prover toolchain is absent (idris2/lean/agda/coqc):
+# the full CI gate must not pass on a machine that cannot verify the proofs.
+ci: deps quality proof-check-all
     @echo "CI pipeline complete!"
 
 # Install git hooks
