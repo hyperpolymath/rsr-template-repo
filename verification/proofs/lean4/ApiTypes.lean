@@ -29,6 +29,7 @@ namespace ApiResult
     cases r with
     | ok v => simp [map, Function.comp]
     | error c m => simp [map]
+end ApiResult
 
 -- Example: Bounded confidence value (0.0 to 1.0 modelled as Nat/1000)
 -- Replace with your project's numeric invariants
@@ -36,9 +37,9 @@ structure BoundedNat (max : Nat) where
   val : Nat
   le_max : val ≤ max
 
-theorem bounded_nat_le (b : BoundedNat max) : b.val ≤ max :=
+theorem bounded_nat_le {max : Nat} (b : BoundedNat max) : b.val ≤ max :=
   b.le_max
 
 -- Proof: zero is always bounded
-def zeroBounded (h : 0 < max) : BoundedNat max :=
+def zeroBounded {max : Nat} (h : 0 < max) : BoundedNat max :=
   ⟨0, Nat.zero_le max⟩

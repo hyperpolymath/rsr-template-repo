@@ -7,6 +7,8 @@
 
 module Types
 
+import Data.Nat
+
 %default total
 
 ||| Example: A bounded natural number (0 to max).
@@ -15,7 +17,7 @@ public export
 record Bounded (max : Nat) where
   constructor MkBounded
   value : Nat
-  {auto 0 inBounds : LTE value max}
+  {auto inBounds : LTE value max}
 
 ||| Proof that a Bounded value is always <= max.
 export
