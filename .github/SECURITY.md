@@ -4,22 +4,11 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 -->
 # Security Policy
 
-<!-- 
-============================================================================
-TEMPLATE INSTRUCTIONS (delete this block before publishing)
-============================================================================
-Replace all {{PLACEHOLDER}} values with your information:
-  {{PROJECT_NAME}}     - Your project name
-  {{OWNER}}            - GitHub username or org (e.g., hyperpolymath)
-  {{REPO}}             - Repository name
-  {{SECURITY_EMAIL}}   - Security contact email
-  {{PGP_FINGERPRINT}}  - Your PGP key fingerprint (40 chars, no spaces)
-  {{PGP_KEY_URL}}      - URL to your public PGP key
-  {{WEBSITE}}          - Your website/domain
-  {{CURRENT_YEAR}}     - Current year for copyright
-
-Optional: Remove sections that don't apply (e.g., PGP if you don't use it)
-============================================================================
+<!--
+The token vocabulary lives in .machine_readable/ai/PLACEHOLDERS.adoc, not here.
+This file used to restate it in a "delete before publishing" block, but `just
+init` substitutes tokens inside comments too — so the block's own instructions
+were rewritten into nonsense and then shipped, because nothing deleted it.
 -->
 
 We take security seriously. We appreciate your efforts to responsibly disclose vulnerabilities and will make every effort to acknowledge your contributions.
@@ -56,26 +45,17 @@ This method ensures:
 - Coordinated disclosure tooling
 - Automatic credit when the advisory is published
 
-### Alternative: Encrypted Email
+### Alternative: Email
 
 If you cannot use GitHub Security Advisories, you may email us directly:
 
 | | |
 |---|---|
 | **Email** | {{SECURITY_EMAIL}} |
-| **PGP Key** | [Download Public Key]({{PGP_KEY_URL}}) |
-| **Fingerprint** | `{{PGP_FINGERPRINT}}` |
 
-```bash
-# Import our PGP key
-curl -sSL {{PGP_KEY_URL}} | gpg --import
-
-# Verify fingerprint
-gpg --fingerprint {{SECURITY_EMAIL}}
-
-# Encrypt your report
-gpg --armor --encrypt --recipient {{SECURITY_EMAIL}} report.txt
-```
+This mailbox is not encrypted. For anything sensitive enough to need
+encryption, prefer GitHub Security Advisories above — the report stays private
+to the maintainers until an advisory is published.
 
 > **⚠️ Important:** Do not report security vulnerabilities through public GitHub issues, pull requests, discussions, or social media.
 
@@ -374,7 +354,6 @@ When using {{PROJECT_NAME}}, we recommend:
 
 ## Additional Resources
 
-- [Our PGP Public Key]({{PGP_KEY_URL}})
 - [Security Advisories](https://github.com/{{OWNER}}/{{REPO}}/security/advisories)
 - [Changelog](../CHANGELOG.md)
 - [Contributing Guidelines](CONTRIBUTING.md)

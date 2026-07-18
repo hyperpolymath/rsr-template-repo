@@ -96,6 +96,19 @@ init:
     CURRENT_DATE=$(date +%Y-%m-%d)
     VERSION="0.1.0"
 
+    # --- Derive the repo's uuid --------------------------------------------
+    # THE UUID IS DERIVED, NOT ALLOCATED (gv-clade-index:
+    # docs/SPEC-clade-verisim-portal.adoc §Identity Model):
+    #     uuid = UUIDv5(namespace = URL, name = "github.com/<owner>/<name>")
+    # We know OWNER and REPO, so this is computable here and must never be
+    # guessed or copied. The owner segment is part of the derived name, so it is
+    # part of the identity — a repo hosted elsewhere derives a different uuid.
+    if command -v uuidgen >/dev/null 2>&1; then
+        REPO_UUID=$(uuidgen --sha1 --namespace @url --name "${FORGE}/${OWNER}/${REPO}")
+    else
+        REPO_UUID="UNASSIGNED"
+    fi
+
     # Derive citation name parts (best-effort split on last space)
     AUTHOR_LAST="${AUTHOR##* }"
     AUTHOR_FIRST="${AUTHOR% *}"
@@ -162,13 +175,45 @@ init:
         -e "s|${LB}IMAGE${RB}|${REGISTRY}/${SERVICE_NAME}|g"
         -e "s|${LB}VERSION${RB}|${VERSION}|g"
         -e "s|${LB}EMAIL${RB}|${AUTHOR_EMAIL}|g"
+        -e "s|${LB}UUID${RB}|${REPO_UUID}|g"
+        -e "s|${LB}DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
     )
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
-    # OpenSSF Best Practices badge ID — substitute only if registered; if left
-    # blank the OPENSSF_BP_ID placeholder stays unfilled and surfaces in the
-    # post-init "remaining" notice as a reminder to register at
-    # bestpractices.dev, then fill it in README.adoc.
     [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|${OPENSSF_BP_ID}|g")
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|${OPENSSF_BP_ID}|g")
+
+    # Tokens only the author can answer. init cannot know a project's unique
+    # strength or its language stack, and guessing would write fiction into
+    # ANCHOR.a2ml — the file the estate treats as semantic authority. They
+    # become UNASSIGNED, the same marker `just init` already writes for an
+    # unchosen clade: honest, greppable, and obviously unfinished, whereas a
+    # leftover brace token just looks like the template broke.
+    #   grep -rn UNASSIGNED . — to find what still needs you
+    # (Brace tokens are spelled via ${LB}/${RB} throughout this recipe: just
+    #  interpolates literal double braces even inside comments.)
+    for tok in PROJECT_KIND PROJECT_DOMAIN PROJECT_UNIQUE_STRENGTH \
+               TARGET_AUDIENCE LANG_STACK BUILD_CMD TEST_CMD MUST_INVARIANTS \
+               PACKAGE_NAME DEPS BUILD_OUTPUT_PATH MAIN_FUNCTION; do
+        SED_ARGS+=(-e "s|${LB}${tok}${RB}|UNASSIGNED|g")
+    done
+
+    # Optional values with no answer: drop the line that depends on them rather
+    # than leaving the token in place. An unfilled token is not a neutral
+    # reminder — the OpenSSF line renders a broken badge image and a dead link
+    # in the new repo's README, and it trips the placeholder gate on every
+    # subsequent push, which trains people to ignore a red CI. No id yet means
+    # no badge yet; add it when you register at bestpractices.dev.
+    if [ -z "$OPENSSF_BP_ID" ]; then
+        sed -i "/bestpractices\.dev\/projects\/${LB}OPENSSF_BP_ID${RB}/d" README.adoc 2>/dev/null || true
+        sed -i "/${LB}OPENSSF_PROJECT_ID${RB}/d" docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc 2>/dev/null || true
+    fi
+    # A .mailmap exists to map an alternate address onto the canonical one.
+    # With no alternate address there is nothing to map, and the sole entry
+    # would keep an unfilled alt-email token in the angle brackets, which is a
+    # malformed mailmap rather than a harmless leftover.
+    if [ -z "$AUTHOR_EMAIL_ALT" ]; then
+        printf '# No alternate author address to map.\n' > .github/.mailmap
+    fi
 
     # Replace in all text files (skip .git, LICENSE text, and binaries)
     find . -type f \
@@ -185,6 +230,48 @@ init:
     # Also replace [YOUR-REPO-NAME] and [YOUR-NAME/ORG] in AI manifest
     sed -i "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
     sed -i "s|\[YOUR-NAME/ORG\]|${OWNER}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
+
+    echo ""
+    echo "── Identity (CLADE.a2ml) ────────────────────────"
+
+    # Install THIS repo's CLADE.a2ml, replacing rsr-template-repo's own.
+    #
+    # The CLADE.a2ml shipped in the template is the TEMPLATE's real identity — a
+    # real uuid for a real repo. Nothing in SED_ARGS ever touched it, so every
+    # repo created from this template inherited uuid a5ea1382-… and
+    # canonical-name "rsr-template-repo" verbatim, and told every arriving agent
+    # it WAS the template. Nothing caught it: each value was individually valid.
+    # chronicles-of-slavia and scaffoldia were corrected for exactly this on
+    # 2026-07-16; paint-type, cargo-zigbuild, email-octad-experiment, llm-grace
+    # and rsr-template-how-to still carry it.
+    #
+    # build/templates/CLADE.a2ml.in has already had its brace tokens filled by
+    # the substitution loop above (including the UUID one, derived earlier).
+    # NB: literal double-brace tokens cannot be written in this recipe body —
+    # just interpolates them, which is why LB/RB are built with printf above.
+    # The split is the whole point:
+    #   DERIVABLE -> computed, never guessed  (uuid, owner, canonical-name)
+    #   JUDGEMENT -> left UNASSIGNED, fails loudly until a human chooses (clade)
+    CLADE_IN="build/templates/CLADE.a2ml.in"
+    CLADE_OUT=".machine_readable/descriptiles/CLADE.a2ml"
+    if [ -f "$CLADE_IN" ]; then
+        mkdir -p "$(dirname "$CLADE_OUT")"
+        cp "$CLADE_IN" "$CLADE_OUT"
+        rm -rf build/templates          # template-only; not part of your repo
+        if [ "$REPO_UUID" = "UNASSIGNED" ]; then
+            echo "  uuid:  UNASSIGNED — uuidgen not found."
+            echo "         Install util-linux (uuid-runtime), then run:"
+            echo "           uuidgen --sha1 --namespace @url --name \"${FORGE}/${OWNER}/${REPO}\""
+            echo "         and put the result in $CLADE_OUT."
+        else
+            echo "  uuid:  $REPO_UUID"
+            echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived, recomputable, not invented)"
+        fi
+        echo "  clade: UNASSIGNED — a human must choose one of the 12."
+        echo "         CLADE-003/006 FAIL until you do. That is deliberate:"
+        echo "         an unchosen clade must not look like a chosen one."
+        echo "         The taxonomy is listed in $CLADE_OUT."
+    fi
 
     echo ""
     echo "── Validation ───────────────────────────────────"

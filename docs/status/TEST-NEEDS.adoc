@@ -39,11 +39,19 @@
 
 * [x] `tests/e2e/template_instantiation_test.sh` — full workflow
 ** Clones template to temp directory
-** Replaces all `{{PLACEHOLDER}}` tokens with test values
+** Runs the real `just init` (never a second copy of its substitution list)
 ** Validates resulting structure with `scripts/validate-template.sh`
 ** Verifies Zig build works after instantiation
-** Checks no remaining placeholders
+** Checks no placeholder survives, via `scripts/check-no-placeholders.sh`
 ** Cleans up temp directory
+
+NOTE: this entry read `[x]` from the day it was written until 2026-07-17, while
+the test aborted at its first substitution line (`file: unbound variable`) on
+every invocation. Nothing noticed: CI ran `tests/e2e.sh`, which did not call it,
+and its only caller — `benches/template_bench.sh` — pipes it to `/dev/null` and
+appends `|| true`, so it was timing a script that died instantly. The tick was
+copied from the test's intent, not from a run. Tick these boxes from observed
+output only.
 * Status: *READY TO TEST* (can be verified by CI)
 
 === Workflow Validation Test ✅
