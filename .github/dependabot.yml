@@ -13,6 +13,7 @@ updates:
       actions:
         patterns:
           - "*"
+    open-pull-requests-limit: 2
 
   # Rust/Cargo
   #
@@ -37,18 +38,30 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      dependency-updates:
+        patterns: ["*"]
 
   # Node.js/npm
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      dependency-updates:
+        patterns: ["*"]
 
   # Python/pip
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      dependency-updates:
+        patterns: ["*"]
 
   # NOTE: Nix is banned estate-wide — Guix is the sole package manager.
   # Do not add a `nix` ecosystem here. Guix has no Dependabot ecosystem;
