@@ -31,9 +31,11 @@
 #      its parent without being wrong.
 #
 # Repository identity and visibility are therefore set OUT OF BAND: once per
-# repo, at creation time. `just init` sets them via `gh` when it mints a repo,
-# defaulting to private (fail-closed); the template's own name and visibility
-# are set deliberately by the owner.
+# repo, at creation time, by the operator (the Configure stage of ADR-0003).
+# `just init` deliberately runs NO `gh` commands — it prints the exact
+# `gh repo edit` commands as next steps instead. Fail-closed default: repos
+# stay private unless the owner flips visibility deliberately; the template's
+# own name and visibility are set deliberately by the owner.
 #
 # Everything below is safe to inherit: it is true of every RSR repo regardless
 # of that repo's name, purpose or visibility.
