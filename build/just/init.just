@@ -273,6 +273,46 @@ init archetype="":
     sed -i "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
     sed -i "s|\[YOUR-NAME/ORG\]|${OWNER}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
 
+    # --- Self-name pass (ADR-0003) -----------------------------------------
+    # The template's own name is written as a LITERAL, not as a placeholder
+    # token, so the substitution loop above never touched it. Measured on a
+    # scratch mint of 346ae56: a repo minted as `mint-check-lib` still carried
+    #     Justfile:                project := "rsr-template-repo"
+    #     Justfile:                REPO    := "rsr-template-repo"
+    #     sonar-project.properties sonar.projectKey=hyperpolymath_rsr-template-repo
+    #     STATE.a2ml / ECOSYSTEM.a2ml  project = "rsr-template-repo"
+    # i.e. it declared that it WAS the template, and would have reported its
+    # code analysis into the TEMPLATE's SonarCloud project. This is the same
+    # failure the CLADE.a2ml block below fixes for the uuid/canonical-name;
+    # nothing generalised it to the rest of the tree. Confirmed in the wild:
+    # hyperpolymath/cargo-zigbuild still carries both Justfile lines.
+    #
+    # Provenance must SURVIVE this pass — a minted repo is supposed to record
+    # what it came from. Two protections: paths that are ABOUT the template
+    # (ADRs, its changelog, its own audit, and this recipe itself — which
+    # holds PARENT_SLUG) are skipped wholesale, and within every other file
+    # any line that names the parent AS a parent is left byte-for-byte alone.
+    if [ "$REPO" != "rsr-template-repo" ]; then
+        SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: '
+        find . -type f \
+            -not -path './.git/*' \
+            -not -path './build/just/init.just' \
+            -not -path './docs/decisions/*' \
+            -not -path './.machine_readable/descriptiles/CLADE.a2ml' \
+            -not -path './.machine_readable/descriptiles/VARIANT.a2ml' \
+            -not -name 'CHANGELOG.md' \
+            -not -name 'TEMPLATE-STANDARDS-AUDIT.adoc' \
+            -not -name '*.png' -not -name '*.jpg' -not -name '*.gif' \
+            -not -name '*.woff' -not -name '*.woff2' \
+            | while read -r file; do
+            grep -q 'rsr-template-repo' "$file" 2>/dev/null || continue
+            file --brief "$file" | grep -qi 'text\|ascii\|utf' || continue
+            # sed -i preserves the mode bit; rewriting via a temp file would not.
+            sed -i -E "/${SELF_PROV}/!{s|hyperpolymath/rsr-template-repo|${OWNER}/${REPO}|g;s|rsr-template-repo|${REPO}|g;}" "$file"
+        done
+        echo "  self-name: rewrote template literal -> ${REPO} (provenance lines preserved)"
+    fi
+
     echo ""
     echo "── Identity (CLADE.a2ml) ────────────────────────"
 
