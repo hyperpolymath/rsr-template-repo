@@ -45,7 +45,14 @@ has produced a measured incident:
 criteria in SCAFFOLD-LIFECYCLE.adoc:
 
 1. **Mint** — tree exists, placeholders rendered, identity derived,
-   archetype overlay applied, `rsr-profile.a2ml` and provenance written.
+   archetype overlay applied, `rsr-profile.a2ml` and provenance written,
+   and **no template identity survives in the child**: the spine's own
+   name is a literal rather than a token, so rendering placeholders is not
+   sufficient — a self-name pass must rewrite it everywhere it denotes
+   *this* repo, while leaving every line that names the parent *as* a
+   parent untouched. A minted repo that still declares
+   `sonar.projectKey=…_rsr-template-repo` has not been minted; it has been
+   copied.
 2. **Provision** — the recorded `BUILD_CMD`/`TEST_CMD` actually run
    (echoed advice is not provisioning).
 3. **Configure** — identity, visibility, branch protection set out of band
