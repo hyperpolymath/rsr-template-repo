@@ -42,12 +42,61 @@ if [ ! -d "$REPO_ROOT" ]; then
     exit 2
 fi
 
+# ─── settings.yml identity guard — runs EVERYWHERE, template repos included ────
+#
+# This check deliberately precedes the template exemption below. That exemption
+# is why the original incident went unseen: the gate skipped `*-template-repo`
+# entirely, so nobody noticed that .github/settings.yml shipped `name: "{{REPO}}"`
+# — and .github/settings.yml is not inert content in a template. probot/settings
+# applies it on every push to the default branch, in the template as much as in
+# an instantiation. The template submitted the literal `{{REPO}}` as its own
+# name; GitHub collapsed the illegal braces to dashes and renamed the repository
+# to `-REPO-`, which then read as a deleted repo.
+#
+# So: in this one file, a placeholder is never "the product". Neither is an
+# identity key with a real value — `name`/`private` cannot be inherited by a
+# child repo without being wrong (see the header of .github/settings.yml).
+SETTINGS="$REPO_ROOT/.github/settings.yml"
+if [ -f "$SETTINGS" ]; then
+    settings_fail=0
+
+    # Comment-aware: the file's own header documents the incident and has to be
+    # able to quote the offending token. Prose about a token is not a token —
+    # the same distinction META_TOKENS draws below. Line numbers are preserved
+    # by filtering `grep -n` output rather than the file.
+    settings_tokens="$(grep -nE '\{\{' "$SETTINGS" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+    if [ -n "$settings_tokens" ]; then
+        echo "FAIL: .github/settings.yml contains an unrendered {{ token." >&2
+        printf '%s\n' "$settings_tokens" | sed 's/^/  /' >&2
+        settings_fail=1
+    fi
+
+    # Keys of the `repository:` map sit at exactly two spaces of indent. Label
+    # and branch entries are list items ("  - name:") and are not matched.
+    if grep -qE '^[[:space:]]{2}(name|description|homepage|private):' "$SETTINGS"; then
+        echo "FAIL: .github/settings.yml declares repository identity." >&2
+        grep -nE '^[[:space:]]{2}(name|description|homepage|private):' "$SETTINGS" \
+            | sed 's/^/  /' >&2
+        settings_fail=1
+    fi
+
+    if [ "$settings_fail" -ne 0 ]; then
+        echo "" >&2
+        echo "probot/settings applies this file on every push to the default branch," >&2
+        echo "so these keys are enforced, not described. Repository identity and" >&2
+        echo "visibility are set out of band at creation time — by \`just init\` via" >&2
+        echo "\`gh\` for minted repos, and deliberately by the owner for the template." >&2
+        exit 1
+    fi
+fi
+
 # A template repo's placeholders ARE its product — they are what `just init`
 # consumes. Any other repo is an instantiation and is checked in full.
 REPO_NAME="${GITHUB_REPOSITORY:-$(cd "$REPO_ROOT" && basename "$(pwd)")}"
 case "$REPO_NAME" in
     *-template-repo)
         echo "PASS: $REPO_NAME is a template repo — unfilled tokens are intentional"
+        echo "      (.github/settings.yml identity guard above still applied)"
         exit 0
         ;;
 esac
