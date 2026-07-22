@@ -159,7 +159,6 @@ REQUIRED_WORKFLOWS=(
     "scorecard.yml"
     "quality.yml"
     "mirror.yml"
-    "instant-sync.yml"
     "guix-policy.yml"
     "security-policy.yml"
     "wellknown-enforcement.yml"
