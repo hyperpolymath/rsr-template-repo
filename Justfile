@@ -119,7 +119,12 @@ build-watch:
 clean:
     @echo "Cleaning..."
     # TODO: Customize for your build system
-    rm -rf target/ _build/ build/ dist/ out/ obj/ bin/
+    #
+    # `build/` is DELIBERATELY ABSENT from this list. It is not an artifact
+    # directory in an RSR repo: it holds 11 tracked files, including
+    # build/just/init.just, which the root Justfile imports at line 65.
+    # Deleting it destroys `just init`, `just verify` and the proof gates.
+    rm -rf target/ _build/ dist/ out/ obj/ bin/
 
 # Deep clean including caches [reversible: rebuild]
 clean-all: clean
@@ -131,14 +136,19 @@ clean-all: clean
 
 # Run all tests
 test *args:
-    @echo "Running tests..."
-    # TODO: Replace with your test command
-    # Examples:
-    #   cargo test {{args}}
+    #!/usr/bin/env bash
+    # A check that cannot fail is not a check. This recipe MUST be replaced at
+    # mint with the project's real test command; until then it fails loudly
+    # rather than printing "Tests passed!" over an empty run.
+    #
+    # Replace this whole body with one of:
+    #   cargo test --workspace {{args}}
     #   mix test {{args}}
     #   zig build test {{args}}
     #   deno test {{args}}
-    @echo "Tests passed!"
+    echo "FAIL: \`just test\` has not been wired to a real test command yet." >&2
+    echo "      Edit the 'test' recipe in the Justfile before relying on this gate." >&2
+    exit 1
 
 # Run tests with verbose output
 test-verbose:

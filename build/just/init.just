@@ -311,6 +311,32 @@ init archetype="":
             sed -i -E "/${SELF_PROV}/!{s|hyperpolymath/rsr-template-repo|${OWNER}/${REPO}|g;s|rsr-template-repo|${REPO}|g;}" "$file"
         done
         echo "  self-name: rewrote template literal -> ${REPO} (provenance lines preserved)"
+
+        # ── self-OWNER pass ──────────────────────────────────────────────────
+        #
+        # Same class as the self-name leak above, and missed by it: the
+        # template's own OWNER is a plain literal, so nothing rewrote it. A repo
+        # minted under a different owner shipped:
+        #
+        #     Justfile                 OWNER := "hyperpolymath"
+        #     sonar-project.properties sonar.projectKey=hyperpolymath_<repo>
+        #
+        # i.e. it declared the wrong owner and reported its code analysis into
+        # the wrong SonarCloud project. Measured on a metadatastician mint.
+        #
+        # This pass is deliberately NARROW — three exact, identity-bearing
+        # lines. A blanket `hyperpolymath` -> ${OWNER} rewrite would be WRONG:
+        # `hyperpolymath/standards`, `hyperpolymath/proven` and the other estate
+        # dependencies are real repos every child genuinely points at, and
+        # rewriting those would break the child's canon, CI and badges.
+        if [ "$OWNER" != "hyperpolymath" ]; then
+            sed -i -E 's|^(OWNER[[:space:]]*:=[[:space:]]*)"hyperpolymath"|\1"'"${OWNER}"'"|' Justfile
+            sed -i -E 's|^sonar\.organization=hyperpolymath$|sonar.organization='"${OWNER}"'|' sonar-project.properties
+            sed -i -E 's|^sonar\.projectKey=hyperpolymath_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
+            echo "  self-owner: rewrote owner literal -> ${OWNER} (estate dependency paths preserved)"
+            echo "  NOTE: confirm the SonarCloud ORG is really '${OWNER}' before provisioning —"
+            echo "        the GitHub owner and the SonarCloud org are not always the same."
+        fi
     fi
 
     echo ""

@@ -35,12 +35,29 @@ for entry in "${ALLOW[@]}"; do
     ALLOW_SET["$entry"]=1
 done
 
-# Enumerate everything tracked or present at the repository root.
+# Enumerate everything at the repository root, EXCLUDING git-ignored entries.
+#
+# This was a bare `find`, which contradicted the contract root-allow.txt states
+# ("Anything tracked at root that is not in this list is drift"): a plain
+# filesystem scan also sees build output. Any repo with a root-level build
+# directory -- `target/` for Cargo, `node_modules/`, `_build/` for Mix --
+# therefore failed this gate the moment someone built before running it, and
+# the tempting "fix" was to allowlist an artifact directory that must never be
+# committed.
+#
+# Filtering through `git check-ignore` makes the check mean what it says. The
+# fallback keeps the script working outside a git worktree.
 mapfile -t ACTUAL < <(
     cd "$REPO_ROOT" && \
     find . -mindepth 1 -maxdepth 1 \
         ! -name '.' \
         -printf '%f\n' \
+    | { if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            git check-ignore --stdin --non-matching --verbose 2>/dev/null \
+                | sed -n 's/^::[[:space:]]//p'
+        else
+            cat
+        fi; } \
     | sort
 )
 
