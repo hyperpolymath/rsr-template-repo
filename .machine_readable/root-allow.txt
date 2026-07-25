@@ -78,3 +78,11 @@ tools/                     # TODO: consolidate with scripts/ or document the spl
 ARCHITECTURE.md            # repo layout + design rationale; shipped at root
 GOVERNANCE.md              # GitHub renders .md natively; ships alongside GOVERNANCE.adoc
 MAINTAINERS                # plain-text roster shipped alongside MAINTAINERS.adoc
+
+PROOF-NEEDS.adoc           # (Estate drift remediation #83)
+PROOF-STATUS.adoc          # (Estate drift remediation #83)
+READINESS.adoc             # (Estate drift remediation #83)
+TEST-NEEDS.adoc            # (Estate drift remediation #83)
+TOPOLOGY.adoc              # (Estate drift remediation #83)
+llm-warmup-dev.adoc        # (Estate drift remediation #83)
+llm-warmup-user.adoc       # (Estate drift remediation #83)
