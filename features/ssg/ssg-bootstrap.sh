@@ -52,3 +52,21 @@ case "$choice" in
         exit 1
         ;;
 esac
+
+echo "═══════════════════════════════════════════════════"
+echo "  SCAFFOLDING SECURITY & RESOURCE DIRECTORIES"
+echo "═══════════════════════════════════════════════════"
+mkdir -p "$DEST/security_headers"
+mkdir -p "$DEST/.well-known"
+mkdir -p "$DEST/resource_records"
+
+cat << 'EOF' > "$DEST/security_headers/csp.conf"
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests;
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+EOF
+
+echo "Scaffolding complete. Please ensure these directories are copied to your site's output root."
