@@ -165,6 +165,28 @@ validate_k9() {
     local in_pedigree=false
     local pedigree_depth=0
 
+    # Resolve a one-hop `let` indirection before scanning.
+    #
+    # Nickel lets you build the pedigree separately and attach it by name:
+    #
+    #     let component_pedigree = {
+    #       metadata = { name = "verisimdb-test-infra", ... },
+    #     } in
+    #     { pedigree = component_pedigree, ... }
+    #
+    # The brace-depth scanner below only sees `pedigree = component_pedigree,`
+    # — a line with no braces — so depth never rises, the block appears empty,
+    # and `name` is invisible. The file is valid; the grep could not follow the
+    # reference. Observed on verisimdb/connectors/test-infra/deploy.k9.ncl,
+    # which does declare metadata.name at its line 23.
+    #
+    # If `pedigree = <identifier>` names a binding, treat `let <identifier> = {`
+    # as the block opener too. One hop only: chased aliases would need a real
+    # Nickel evaluator, and `nickel typecheck` cannot be used here because the
+    # mandatory `K9!` magic line on line 1 is not valid Nickel.
+    local pedigree_alias=""
+    pedigree_alias=$(sed -nE 's/^[[:space:]]*pedigree[[:space:]]*=[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*,?[[:space:]]*$/\1/p' "$file" | head -1)
+
     line_num=0
     while IFS= read -r line; do
         line_num=$((line_num + 1))
@@ -184,6 +206,16 @@ validate_k9() {
             in_pedigree=true
             pedigree_depth=0
             # fall through
+        fi
+
+        # `let <alias> = {` where <alias> is what `pedigree =` points at.
+        # See the pedigree_alias note above.
+        if [[ -n "$pedigree_alias" ]] && \
+           [[ "$line" =~ ^[[:space:]]*let[[:space:]]+${pedigree_alias}[[:space:]]*= ]]; then
+            has_pedigree=true
+            in_pedigree=true
+            pedigree_depth=0
+            # fall through — this line carries the opening brace
         fi
 
         if [[ "$in_pedigree" == "true" ]]; then
