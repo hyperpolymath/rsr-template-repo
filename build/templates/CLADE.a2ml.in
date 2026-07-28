@@ -18,7 +18,7 @@
 #     uuidgen --sha1 --namespace @url --name "github.com/{{OWNER}}/{{REPO}}"
 #
 # Verify the method first by reproducing a known worked example:
-#     januskey -> e216170e-ff47-5a5c-bbdd-15e61c8190c8
+#     janus example -> e216170e-ff47-5a5c-bbdd-15e61c8190c8
 #
 # The owner segment is part of the derived name, so it is part of the IDENTITY:
 # the same repo hosted under a different owner has a different uuid. Record the

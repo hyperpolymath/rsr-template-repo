@@ -16,6 +16,7 @@
 
 [metadata]
 archetype = "julia-library"
+name = "julia-library"
 schema_version = "0.1.0"
 harvested-from = "rsr-julia-library-template-repo VARIANT.a2ml + scaffoldia registry julia/package.ncl"
 

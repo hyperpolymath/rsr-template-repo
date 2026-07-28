@@ -129,8 +129,21 @@ validate_a2ml() {
         line_num=$((line_num + 1))
 
         # Check for identity fields (various A2ML patterns)
-        # TOML/kv form: `name = "..."`, `project = "..."`, `agent-id = "..."`
-        if [[ "$line" =~ ^[[:space:]]*(agent[-_]id|name|project)[[:space:]]*= ]]; then
+        # TOML/kv form: `name = "..."`, `project = "..."`, `agent-id = "..."`.
+        #
+        # `archetype` is the identity key of the ARCHETYPE.a2ml shape — the
+        # `just init` scaffolding descriptors under archetypes/. It names the
+        # archetype exactly as `name` names a manifest, and is the fourth
+        # dialect this recogniser accommodates alongside TOML, s-expression and
+        # brace-block. Without it, archetypes/julia-library/ARCHETYPE.a2ml
+        # failed with "Missing required identity field" — on main, in this repo
+        # and in every repo instantiated from it.
+        #
+        # Recognising the shape is the right fix rather than adding a redundant
+        # `name = "julia-library"` beside `archetype = "julia-library"`: that
+        # file's own header states an archetype "must not write fiction", and
+        # duplicating its identity to satisfy a grep is exactly that.
+        if [[ "$line" =~ ^[[:space:]]*(agent[-_]id|name|project|archetype)[[:space:]]*= ]]; then
             has_identity=true
         fi
         # S-expression form: `(name "...")`, `(project "...")`,

@@ -225,7 +225,12 @@ check_file_exists "src/interface/ffi/test/integration_test.zig" "Integration tes
 #==============================================================================
 
 echo ""
-log_info "Phase 5: Placeholder token replacement (skipped in template repo)"
+# The heading is unconditional; the skip below is not. It previously read
+# "(skipped in template repo)" on every run, so in an instantiated repo — where
+# the check DOES run — the log said it had been skipped. A live check that
+# reports itself as skipped is worse than a silent one: it invites people to
+# stop reading the phase. The skip announces itself on the line that performs it.
+log_info "Phase 5: Placeholder token replacement"
 echo ""
 
 # Note: Template repo is allowed to have placeholders
@@ -251,9 +256,33 @@ echo ""
 log_info "Phase 6: SPDX License Headers"
 echo ""
 
-# Check source files for SPDX headers (excluding build artifacts)
-SOURCE_FILES=$(find "$REPO_ROOT/src" -type f \( -name "*.idr" -o -name "*.zig" \) \
-              ! -path "*/.zig-cache/*" ! -path "*/zig-cache/*" 2>/dev/null || true)
+# Check source files for SPDX headers (excluding build artifacts).
+#
+# Scans the whole repository, not just src/, and every estate source language —
+# not just Idris2 and Zig.
+#
+# This used to be `find "$REPO_ROOT/src" ... \( -name "*.idr" -o -name "*.zig" \)`.
+# That is fine for the template, whose only sources are src/interface/{abi,ffi},
+# but wrong for the repos instantiated from it: a multi-language project keeps
+# code in core-zig/, beam/, clients/, normalizer/ and so on, so the scan saw a
+# handful of files and printed "SPDX headers: 10/10 (100%)". Measured across all
+# languages the same repo was at 172/188 (91%) — the number was not wrong, it was
+# answering a much narrower question than it appeared to.
+#
+# Uses `git ls-files` so it follows .gitignore and never descends into vendored
+# or build directories; falls back to `find` outside a work tree.
+SPDX_EXTS='idr|zig|rs|ex|exs|res|resi|factor|fs|lean|jl|gleam|ml|mli|hs|sh|nix|scm'
+if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    SOURCE_FILES=$(git -C "$REPO_ROOT" ls-files \
+        | grep -E "\.($SPDX_EXTS)$" \
+        | sed "s|^|$REPO_ROOT/|" || true)
+else
+    SOURCE_FILES=$(find "$REPO_ROOT" -type f \
+        ! -path "*/.git/*" ! -path "*/.zig-cache/*" ! -path "*/zig-cache/*" \
+        ! -path "*/node_modules/*" ! -path "*/target/*" ! -path "*/_build/*" \
+        ! -path "*/.lake/*" ! -path "*/deps/*" \
+        2>/dev/null | grep -E "\.($SPDX_EXTS)$" || true)
+fi
 SOURCE_COUNT=$(echo "$SOURCE_FILES" | grep -c "." || true)
 SPDX_COUNT=0
 

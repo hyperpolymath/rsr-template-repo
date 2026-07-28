@@ -92,7 +92,25 @@ fi
 
 # A template repo's placeholders ARE its product — they are what `just init`
 # consumes. Any other repo is an instantiation and is checked in full.
-REPO_NAME="${GITHUB_REPOSITORY:-$(cd "$REPO_ROOT" && basename "$(pwd)")}"
+#
+# Identity comes from the git remote, not the directory name.
+#
+# This used to be `basename "$(pwd)"`, which is right in CI — GITHUB_REPOSITORY
+# is set to `owner/rsr-template-repo` and matches — but wrong anywhere the
+# checkout is not literally named `*-template-repo`. A git worktree is the common
+# case: `git worktree add .claude/worktrees/defects` gives basename `defects`,
+# the exemption misses, and the gate reports every one of the template's ~85
+# deliberate placeholder files as a failure. A clone into `rsr-template-repo-2`,
+# or any renamed directory, does the same.
+#
+# The remote URL is the repo's actual identity and survives all of that. The
+# basename remains as the last fallback for a checkout with no remote.
+REPO_NAME="${GITHUB_REPOSITORY:-}"
+if [ -z "$REPO_NAME" ]; then
+    REPO_NAME="$(git -C "$REPO_ROOT" config --get remote.origin.url 2>/dev/null \
+                 | sed -E 's#(\.git)?/?$##; s#^.*[:/]([^/]+/[^/]+)$#\1#')"
+fi
+[ -z "$REPO_NAME" ] && REPO_NAME="$(cd "$REPO_ROOT" && basename "$(pwd)")"
 case "$REPO_NAME" in
     *-template-repo)
         echo "PASS: $REPO_NAME is a template repo — unfilled tokens are intentional"
