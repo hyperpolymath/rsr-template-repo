@@ -64,7 +64,7 @@ Placeholders are explicit template content until initialization.
 How this is implemented:
 
 * `README.adoc` and bootstrap recipes keep `{{TOKEN}}` placeholders visible.
-* `just init` performs token replacement.
+* `just repo-init` performs token replacement.
 
 Caveat:
 

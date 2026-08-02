@@ -59,10 +59,10 @@ invariant-path *ARGS:
     ./scripts/invariant-path.sh {{ARGS}}
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# INIT — see build/just/init.just
+# INIT — see build/just/repo-init.just
 # ═══════════════════════════════════════════════════════════════════════════════
 
-import? "build/just/init.just"
+import? "build/just/repo-init.just"
 
 # >>> container-module (three-tier: OCI · portable engine · stapeln) >>>
 # Self-contained. Remove the entire block — this and the import — with `just no-container`.
@@ -122,8 +122,8 @@ clean:
     #
     # `build/` is DELIBERATELY ABSENT from this list. It is not an artifact
     # directory in an RSR repo: it holds 11 tracked files, including
-    # build/just/init.just, which the root Justfile imports at line 65.
-    # Deleting it destroys `just init`, `just verify` and the proof gates.
+    # build/just/repo-init.just, which the root Justfile imports at line 65.
+    # Deleting it destroys `just repo-init`, `just verify` and the proof gates.
     rm -rf target/ _build/ dist/ out/ obj/ bin/
 
 # Deep clean including caches [reversible: rebuild]

@@ -33,7 +33,7 @@ or delete — the rest.
 |===
 
 All files use `{{PLACEHOLDER}}` tokens, replaced by `just container-init`
-(or the top-level `just init` during project bootstrap).
+(or the top-level `just repo-init` during project bootstrap).
 
 The container engine is *auto-detected* (`podman`, then `nerdctl`, then
 `docker`). Override with `CONTAINER_ENGINE=docker just container-build`.
@@ -144,7 +144,7 @@ The request path in the full stack is:
 
 [source,bash]
 ----
-just init             # full project bootstrap (all placeholders)
+just repo-init             # full project bootstrap (all placeholders)
 # or
 just container-init   # container-only: prompts for service/port/registry
 ----

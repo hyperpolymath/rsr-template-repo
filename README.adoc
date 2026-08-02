@@ -27,7 +27,7 @@ image:https://api.thegreenwebfoundation.org/greencheckimage/{{FORGE}}[Green Web,
 [IMPORTANT]
 ====
 *This file is a template.* You are reading `README.adoc` from the *RSR template repo*
-(or a freshly-cloned copy of it). Run `just init` to replace every `{{PLACEHOLDER}}`
+(or a freshly-cloned copy of it). Run `just repo-init` to replace every `{{PLACEHOLDER}}`
 token with your project's details, then delete this admonition. Until you do, the
 `{{...}}` markers below are intentional placeholders, not content.
 ====
@@ -47,7 +47,7 @@ Replace this section with a description of *your* project once initialised.
 [source,bash]
 ----
 # 1. Create a repo from this template (or clone it), then from the repo root:
-just init                # interactive bootstrap: fills every {{PLACEHOLDER}}
+just repo-init                # interactive bootstrap: fills every {{PLACEHOLDER}}
 
 # 2. See the available tasks:
 just                     # lists all phases (build, test, validate, audit, ...)
@@ -56,7 +56,7 @@ just                     # lists all phases (build, test, validate, audit, ...)
 just validate            # structure + metadata checks
 ----
 
-`just init` prompts for the project name, owner, author, licence contact, and the
+`just repo-init` prompts for the project name, owner, author, licence contact, and the
 other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them
 across the tree, validates the result, and (if available) runs the `k9-svc` checks.
 

@@ -39,7 +39,7 @@
 
 * [x] `tests/e2e/template_instantiation_test.sh` — full workflow
 ** Clones template to temp directory
-** Runs the real `just init` (never a second copy of its substitution list)
+** Runs the real `just repo-init` (never a second copy of its substitution list)
 ** Validates resulting structure with `scripts/validate-template.sh`
 ** Verifies Zig build works after instantiation
 ** Checks no placeholder survives, via `scripts/check-no-placeholders.sh`

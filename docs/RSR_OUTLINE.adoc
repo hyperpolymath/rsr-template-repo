@@ -34,7 +34,7 @@ rm -rf .git
 git init
 
 # Interactive bootstrap — replaces all placeholders
-just init
+just repo-init
 
 # Enter development environment
 guix shell -D -f guix.scm

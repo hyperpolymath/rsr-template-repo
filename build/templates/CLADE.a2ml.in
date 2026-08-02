@@ -2,7 +2,7 @@
 # Clade declaration — part of the gv-clade-index registry
 # See: https://github.com/hyperpolymath/gv-clade-index
 #
-# Installed by `just init` from build/templates/CLADE.a2ml.in.
+# Installed by `just repo-init` from build/templates/CLADE.a2ml.in.
 # The identity below is DERIVED. The clade is NOT — a human must choose it.
 
 [identity]

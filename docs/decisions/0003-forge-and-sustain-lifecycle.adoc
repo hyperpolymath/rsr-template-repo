@@ -18,7 +18,7 @@ the decision and its mechanics in the spine.
 The scaffolding machinery exists but is disconnected, and each disconnection
 has produced a measured incident:
 
-- `just init` renders 34 substitutions and derives identity, but leaves 12
+- `just repo-init` renders 34 substitutions and derives identity, but leaves 12
   tokens `UNASSIGNED`, performs no platform configuration, and — decisive —
   records **no provenance**. A minted repo does not know which template
   commit it came from, so template improvements cannot be propagated and
@@ -33,7 +33,7 @@ has produced a measured incident:
 - Identity in the probot-managed `settings.yml` renamed this very repo to
   `-REPO-` on every push (the 2026-07-20 incident). Identity must be set
   out of band, but no stage of the lifecycle owned that step, and this
-  file's own header previously claimed `just init` did it via `gh` — it
+  file's own header previously claimed `just repo-init` did it via `gh` — it
   never has.
 - ADR-0002's variant contract + drift gate work (reference:
   rsr-julia-library-template-repo) but apply only to variant *templates*,
@@ -68,7 +68,7 @@ broken invariants), **adaptive** (parent-pin bumps + fan-out campaigns),
 placeholder guard, drift-gate cron).
 
 **One contract.** The ADR-0002 `VARIANT.a2ml` shape is extended in *use*,
-not in format, to minted repos: `just init` writes
+not in format, to minted repos: `just repo-init` writes
 `.machine_readable/descriptiles/VARIANT.a2ml` with `direction =
 "generated-from-core"`, `parent = hyperpolymath/rsr-template-repo`,
 `parent-pin` = the template tip at mint (resolved via `git ls-remote`;
@@ -86,7 +86,7 @@ plus a `[tokens]` table filling the previously-`UNASSIGNED` init tokens
 that are archetype-determined (`PROJECT_KIND`, `LANG_STACK`, `BUILD_CMD`,
 `TEST_CMD`, …). Tokens that are genuine per-repo judgement
 (`PROJECT_UNIQUE_STRENGTH`, `MUST_INVARIANTS`, …) stay `UNASSIGNED` — an
-archetype must not write fiction. `just init <archetype>` applies the
+archetype must not write fiction. `just repo-init <archetype>` applies the
 overlay; the `archetypes/` directory is template-only and removed from the
 minted tree (like `build/templates/`). First archetype: `julia-library`,
 harvested from the Julia variant's contract. Declared next (content to
@@ -108,7 +108,7 @@ its implementation.
   real values; judgement ones stay loud.
 - The `settings.yml` header's false claim about `gh` automation is
   corrected: Configure is an operator stage today, printed as exact
-  commands by `just init`; automating it is future work and must not be
+  commands by `just repo-init`; automating it is future work and must not be
   described as existing.
 - Retrofit of already-minted repos = writing the provenance contract into
   them (megasweep can detect which repos lack one; mutation stays

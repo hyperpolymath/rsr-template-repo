@@ -132,7 +132,7 @@ validate_a2ml() {
         # TOML/kv form: `name = "..."`, `project = "..."`, `agent-id = "..."`.
         #
         # `archetype` is the identity key of the ARCHETYPE.a2ml shape — the
-        # `just init` scaffolding descriptors under archetypes/. It names the
+        # `just repo-init` scaffolding descriptors under archetypes/. It names the
         # archetype exactly as `name` names a manifest, and is the fourth
         # dialect this recogniser accommodates alongside TOML, s-expression and
         # brace-block. Without it, archetypes/julia-library/ARCHETYPE.a2ml

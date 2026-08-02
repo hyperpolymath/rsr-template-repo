@@ -4,7 +4,7 @@
 #
 # check-no-placeholders.sh — no repo may ship an unfilled {{PLACEHOLDER}}.
 #
-# Estate rule (methodology.a2ml: reject-if-contains): a token that `just init`
+# Estate rule (methodology.a2ml: reject-if-contains): a token that `just repo-init`
 # did not fill is debt, and in .github/settings.yml or SECURITY.md it is a
 # defect with consequences — probot/settings applies settings.yml on every push,
 # and a security policy that cites a key nobody holds is worse than one that
@@ -84,13 +84,13 @@ if [ -f "$SETTINGS" ]; then
         echo "" >&2
         echo "probot/settings applies this file on every push to the default branch," >&2
         echo "so these keys are enforced, not described. Repository identity and" >&2
-        echo "visibility are set out of band at creation time — by \`just init\` via" >&2
+        echo "visibility are set out of band at creation time — by \`just repo-init\` via" >&2
         echo "\`gh\` for minted repos, and deliberately by the owner for the template." >&2
         exit 1
     fi
 fi
 
-# A template repo's placeholders ARE its product — they are what `just init`
+# A template repo's placeholders ARE its product — they are what `just repo-init`
 # consumes. Any other repo is an instantiation and is checked in full.
 #
 # Identity comes from the git remote, not the directory name.

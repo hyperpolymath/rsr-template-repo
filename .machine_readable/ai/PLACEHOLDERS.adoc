@@ -9,7 +9,7 @@ After cloning, replace them with your project-specific values.
 ## Recommended: Interactive Bootstrap
 
 ```bash
-just init
+just repo-init
 ```
 
 This interactively prompts for all values, replaces every placeholder,
@@ -90,12 +90,12 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 |---|---|---|---|
 | `{{LICENSE}}` | License name | `MPL-2.0` | ABI-FFI-README.md |
 | `{{PROJECT_PURPOSE}}` | One-line project description | `FFI bridges between languages` | STATE.a2ml |
-| `{{OPENSSF_BP_ID}}` | OpenSSF Best Practices numeric project ID (from registering at bestpractices.dev). Optional — leave blank until registered; `just init` then surfaces it in the post-init "remaining placeholders" notice as a reminder. | `1234` | README.adoc (OpenSSF Best Practices badge) |
+| `{{OPENSSF_BP_ID}}` | OpenSSF Best Practices numeric project ID (from registering at bestpractices.dev). Optional — leave blank until registered; `just repo-init` then surfaces it in the post-init "remaining placeholders" notice as a reminder. | `1234` | README.adoc (OpenSSF Best Practices badge) |
 
 ### Project Content & Onboarding (manual-fill, post-init)
 
 These tokens carry free-form, per-project content that the interactive
-`just init` bootstrap does **not** prompt for (you cannot sensibly answer
+`just repo-init` bootstrap does **not** prompt for (you cannot sensibly answer
 "required invariants" in a 30-second bootstrap). Like the `{{PGP_*}}` tokens,
 fill them by hand after `init`; the post-init "remaining placeholders" notice
 surfaces any left unfilled.

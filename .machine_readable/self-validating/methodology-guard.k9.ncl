@@ -57,7 +57,7 @@ let methodology_guard = {
       severity = "warning",
       file = ".machine_readable/descriptiles/STATE.a2ml",
       # NOTE: the PROJECT token below is written as a Nickel concat
-      # ("{{" ++ "PROJECT}}") ON PURPOSE. `just init` runs a sed substitution for
+      # ("{{" ++ "PROJECT}}") ON PURPOSE. `just repo-init` runs a sed substitution for
       # the brace-PROJECT-brace token over EVERY text file, which would otherwise
       # rewrite this guard's own pattern into the consumer's name and break the
       # check. Splitting the literal across "++" keeps the contiguous token text

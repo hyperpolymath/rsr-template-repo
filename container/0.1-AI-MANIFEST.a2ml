@@ -12,7 +12,7 @@ context:
 description: |
   Container templates for the stapeln container ecosystem. This directory
   provides Podman-Chainguard-stapeln templates that are customised via
-  `just container-init` or `just init` during project bootstrap.
+  `just container-init` or `just repo-init` during project bootstrap.
 
   All files use {{PLACEHOLDER}} tokens that are substituted with project-
   specific values during initialisation.
@@ -140,7 +140,7 @@ invariants:
 ### [USAGE]
 initialisation: |
   Run `just container-init` to substitute all {{PLACEHOLDER}} tokens with
-  project-specific values. This is also run as part of `just init`.
+  project-specific values. This is also run as part of `just repo-init`.
 
 development: |
   1. `just container-build`   — Build the container image

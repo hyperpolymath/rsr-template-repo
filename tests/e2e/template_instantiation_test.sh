@@ -94,7 +94,7 @@ fi
 
 log_step "Replacing placeholder tokens"
 
-# Substitution is `just init`'s job. This test MUST drive the real recipe:
+# Substitution is `just repo-init`'s job. This test MUST drive the real recipe:
 # a second, hand-rolled replacement list here would be a mock that silently
 # diverges from init.just (it did — it carried {{REPO_DESCRIPTION}} and
 # {{PRIMARY_LANGUAGE}}, tokens init has never defined), so the test passed
@@ -127,13 +127,13 @@ if [ -d "$TEST_REPO_PATH/container" ]; then
 fi
 INIT_ANSWERS+=("Y")             # Proceed?
 
-if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | just init) > "$TEST_DIR/init.log" 2>&1; then
-    log_error "just init failed:"
+if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | just repo-init) > "$TEST_DIR/init.log" 2>&1; then
+    log_error "just repo-init failed:"
     cat "$TEST_DIR/init.log" >&2
     exit 1
 fi
 
-log_pass "just init completed"
+log_pass "just repo-init completed"
 
 #==============================================================================
 # PHASE 3b: NO PLACEHOLDER MAY SURVIVE INSTANTIATION
@@ -146,7 +146,7 @@ log_step "Checking for placeholders that survived instantiation"
 # is cleared so the check does not mistake the instantiated repo for a template
 # repo and skip itself — the instantiated name is what we want it to judge.
 if ! env -u GITHUB_REPOSITORY bash "$TEMPLATE_ROOT/scripts/check-no-placeholders.sh" "$TEST_REPO_PATH"; then
-    log_error "just init left unfilled placeholder tokens (see above)"
+    log_error "just repo-init left unfilled placeholder tokens (see above)"
     exit 1
 fi
 

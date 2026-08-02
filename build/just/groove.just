@@ -15,7 +15,7 @@ groove-setup:
     set -euo pipefail
     MANIFEST=".machine_readable/integrations/groove.a2ml"
     if [ ! -f "$MANIFEST" ]; then
-        echo "Error: $MANIFEST not found. Run 'just init' first."
+        echo "Error: $MANIFEST not found. Run 'just repo-init' first."
         exit 1
     fi
 
@@ -93,6 +93,6 @@ verify-template:
         echo "✓ No template placeholders found — project is properly customised."
     else
         echo ""
-        echo "Run 'just init' to replace placeholders, or edit files manually."
+        echo "Run 'just repo-init' to replace placeholders, or edit files manually."
         exit 1
     fi

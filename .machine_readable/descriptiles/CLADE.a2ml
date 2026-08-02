@@ -6,7 +6,7 @@
 # THIS IS rsr-template-repo's OWN IDENTITY. IT IS NOT A TEMPLATE FOR YOURS.
 #
 # If you are reading this inside a repo created FROM the template, something
-# went wrong: `just init` should have REPLACED this file with one derived for
+# went wrong: `just repo-init` should have REPLACED this file with one derived for
 # your repo (from build/templates/CLADE.a2ml.in). Do not copy the values below
 # into yours — recompute them. See the uuid note.
 #

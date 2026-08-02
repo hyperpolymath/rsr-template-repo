@@ -59,10 +59,10 @@ invariant-path *ARGS:
     ./scripts/invariant-path.sh {{ARGS}}
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# INIT — see build/just/init.just
+# INIT — see build/just/repo-init.just
 # ═══════════════════════════════════════════════════════════════════════════════
 
-import? "build/just/init.just"
+import? "build/just/repo-init.just"
 
 # >>> container-module (three-tier: OCI · portable engine · stapeln) >>>
 # Self-contained. Remove the entire block — this and the import — with `just no-container`.
