@@ -82,10 +82,33 @@ TEST_REPO_PATH="$TEST_DIR/$TEST_REPO_NAME"
 cp -r "$TEMPLATE_ROOT" "$TEST_REPO_PATH"
 log_pass "Template cloned to $TEST_REPO_PATH"
 
-# Remove .git directory for clean state
+# Remove .git directory for clean state, then re-init as the INSTANTIATED repo.
+#
+# The re-init is not cosmetic. check-no-placeholders.sh identifies the repo from
+# `git config --get remote.origin.url`, so that a worktree whose basename is not
+# `*-template-repo` still gets the template exemption. With no git repo at all
+# that lookup fails and the script exits 1 having printed NOTHING — so this test
+# reported "left unfilled placeholder tokens (see above)" with nothing above,
+# and had been failing for a reason that has nothing to do with placeholders.
+#
+# That is worth stating plainly: the one gate whose whole job is "no placeholder
+# may survive instantiation" was inoperative, which is exactly consistent with
+# 211 estate repos shipping an un-deleted template instruction block.
+#
+# The origin is set to the INSTANTIATED name deliberately, for the same reason
+# the check below clears GITHUB_REPOSITORY: we want the checker to judge this as
+# a real minted repo, not to exempt itself as a template.
 if [ -d "$TEST_REPO_PATH/.git" ]; then
     rm -rf "$TEST_REPO_PATH/.git"
     log_pass ".git directory removed (fresh clone)"
+fi
+if git -C "$TEST_REPO_PATH" init -q 2>/dev/null \
+   && git -C "$TEST_REPO_PATH" remote add origin \
+        "git@github.com:${TEST_OWNER}/${TEST_REPO_NAME}.git" 2>/dev/null; then
+    log_pass "re-initialised as ${TEST_OWNER}/${TEST_REPO_NAME} (checker needs a remote)"
+else
+    log_error "could not re-init the test repo — check-no-placeholders.sh will exit 1 silently"
+    exit 1
 fi
 
 #==============================================================================
@@ -151,6 +174,36 @@ if ! env -u GITHUB_REPOSITORY bash "$TEMPLATE_ROOT/scripts/check-no-placeholders
 fi
 
 log_pass "No placeholders survived instantiation"
+
+#==============================================================================
+# PHASE 3c: NO TEMPLATE INSTRUCTION BLOCK MAY SURVIVE INSTANTIATION
+#==============================================================================
+
+log_step "Checking for un-deleted template instruction blocks"
+
+# This is a SEPARATE assertion from 3b on purpose, and the two cannot be merged.
+#
+# check-no-placeholders.sh exempts metasyntactic tokens (PLACEHOLDER, TOKEN,
+# ANYTHING, UPPER_SNAKE) so that prose ABOUT tokens does not fail the build. It
+# has to: without that exemption README.adoc, EXPLAINME.adoc and both
+# descriptiles fail on every mint, and a gate that always fires gets switched
+# off. But the instruction block's ONLY doubled-brace text is the metasyntactic
+# PLACEHOLDER token, so 3b is structurally incapable of seeing it.
+#
+# That gap is why 211 estate repos shipped the block, 206 of them in
+# CODE_OF_CONDUCT.md, each one naming "Squisher Corpus" as the project it
+# protects and routing conduct reports to the wrong repository. Measured
+# 2026-08-04. Catch it by name instead.
+LEFTOVER=$(grep -rl 'TEMPLATE INSTRUCTIONS' "$TEST_REPO_PATH" \
+    --exclude-dir=.git 2>/dev/null \
+    | grep -vE '/(scripts/strip-instruction-blocks\.py|build/just/repo-init\.just|tests/e2e/template_instantiation_test\.sh)$' || true)
+if [ -n "$LEFTOVER" ]; then
+    log_error "just repo-init left a TEMPLATE INSTRUCTIONS block in:"
+    echo "$LEFTOVER" | sed 's/^/    /' >&2
+    exit 1
+fi
+
+log_pass "No template instruction blocks survived instantiation"
 
 #==============================================================================
 # PHASE 4: VALIDATE STRUCTURE
