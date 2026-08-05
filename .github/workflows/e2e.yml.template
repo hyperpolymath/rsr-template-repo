@@ -1,4 +1,23 @@
+# ⚠ THIS FILE IS A SCAFFOLD, NOT A WORKFLOW.
+#
+# It is named .yml.template deliberately: GitHub Actions reads only *.yml and
+# *.yaml under .github/workflows/, so this file is ignored until someone
+# instantiates it.
+#
+# It used to be called e2e.yml, and because every job block below is commented
+# out, `jobs:` parsed as null — an invalid workflow. It therefore FAILED on
+# every run, in every repository minted from this template, without ever
+# executing a single check. 29 repos inherited that.
+#
+# A scaffold that is invalid until edited WILL be merged unedited. Naming it
+# so the platform ignores it removes the failure without removing the guidance.
+#
+# TO USE: copy to .github/workflows/e2e.yml, uncomment the block matching your
+# stack, delete the rest, and confirm it can FAIL before treating it as a gate
+# (standards docs/language-testing-standards.md R10).
+#
 # SPDX-License-Identifier: MPL-2.0
+# This workflow is managed by gh actions-lock.
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # RSR Standard E2E + Aspect + Benchmark Workflow Template
@@ -43,7 +62,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
       - name: Run E2E harness
         run: |
           if [ -f tests/e2e.sh ]; then
