@@ -28,8 +28,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
-
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check SPDX Headers
         run: |
           echo "=== Checking SPDX License Headers ==="
@@ -69,7 +68,17 @@ jobs:
           echo "=== Checking Action Pinning ==="
           # Find any uses: lines that don't have @SHA format
           # Pattern: uses: owner/repo@<40-char-hex>
-          unpinned=$(grep -rnE "^[[:space:]]+uses:" .github/workflows/ | \
+          # Scan ACTUAL workflow files only. A bare `-r` over the directory
+          # also reads:
+          #   * .github/workflows/actions.lock — the lockfile's own `uses:`
+          #     keys are not action refs, so they were reported as "unpinned"
+          #     and this gate could never pass once a lockfile existed;
+          #   * *.yml.template — a template for minted repos, whose tag ref is
+          #     deliberate and is resolved at mint time, not here.
+          # Both were false positives that made this linter permanently red.
+          unpinned=$(find .github/workflows -maxdepth 1 \
+              \( -name '*.yml' -o -name '*.yaml' \) -print0 2>/dev/null \
+            | xargs -0 -r grep -nE "^[[:space:]]+uses:" /dev/null | \
             grep -v "@[a-f0-9]\{40\}" | \
             grep -v "uses: \./\|uses: docker://\|uses: actions/github-script" || true)
 
