@@ -142,7 +142,6 @@ If you experience or witness unacceptable behaviour, or have any other concerns,
 |--------|---------|----------|
 | **Email** | {{CONDUCT_EMAIL}} | Detailed reports, sensitive matters |
 | **Private Message** | Contact any maintainer directly | Quick questions, minor issues |
-| **Anonymous Form** | [Link to form if available] | When you need anonymity |
 
 **What to Include**
 
@@ -173,7 +172,7 @@ All reports will be handled with discretion:
 
 ### Conflicts of Interest
 
-If a {{CONDUCT_TEAM}} member is involved in an incident:
+If the {{CONDUCT_TEAM}} are themselves involved in an incident:
 
 - They will recuse themselves from the process
 - Another maintainer or external party will handle the report
@@ -219,6 +218,14 @@ The {{CONDUCT_TEAM}} will follow these guidelines in determining consequences:
 
 ### Enforcement Across Perimeters
 
+This project uses the estate's **Tri-Perimeter Contribution Framework (TPCF)**, a
+graduated trust model defined in `hyperpolymath/standards`
+(`rhodium-standard-repositories/README.adoc`):
+
+- 🔒 **Perimeter 1 (Core)** — maintainers only; shell runtime, build systems
+- 🧠 **Perimeter 2 (Expert)** — trusted contributors; protocol extensions, validators
+- 🌱 **Perimeter 3 (Community)** — open to all; docs, tests, proposals
+
 For contributors with elevated access (Perimeter 2 or 1):
 
 | Level | Additional Consequence |
@@ -241,7 +248,7 @@ If you believe an enforcement decision was made in error:
 
 **Appeals Process**
 
-- Appeals are reviewed by a different {{CONDUCT_TEAM}} member than the original
+- Appeals are reviewed by the {{CONDUCT_TEAM}}, excluding anyone involved in the original
 - You will receive a response within 14 days
 - The appeals decision is final
 - You may only appeal once per incident
