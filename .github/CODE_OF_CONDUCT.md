@@ -172,7 +172,7 @@ All reports will be handled with discretion:
 
 ### Conflicts of Interest
 
-If someone on the {{CONDUCT_TEAM}} is involved in an incident:
+If the {{CONDUCT_TEAM}} are themselves involved in an incident:
 
 - They will recuse themselves from the process
 - Another maintainer or external party will handle the report
@@ -248,7 +248,7 @@ If you believe an enforcement decision was made in error:
 
 **Appeals Process**
 
-- Appeals are reviewed by someone else on the {{CONDUCT_TEAM}}, not the original
+- Appeals are reviewed by the {{CONDUCT_TEAM}}, excluding anyone involved in the original
 - You will receive a response within 14 days
 - The appeals decision is final
 - You may only appeal once per incident
