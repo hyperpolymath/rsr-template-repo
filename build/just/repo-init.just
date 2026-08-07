@@ -3,7 +3,7 @@
 #
 # INIT — Bootstrap a new project from this template
 #
-# Imported by ../../Justfile via `import? "build/just/init.just"`.
+# Imported by ../../Justfile via `import? "build/just/repo-init.just"`.
 # Variables (project, OWNER, REPO, version, tier) and the `set shell` directive
 # are inherited from the root Justfile.
 
@@ -302,7 +302,7 @@ repo-init archetype="":
         SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: '
         find . -type f \
             -not -path './.git/*' \
-            -not -path './build/just/init.just' \
+            -not -path './build/just/repo-init.just' \
             -not -path './docs/decisions/*' \
             -not -path './.machine_readable/descriptiles/CLADE.a2ml' \
             -not -path './.machine_readable/descriptiles/VARIANT.a2ml' \
