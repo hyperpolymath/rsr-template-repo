@@ -98,3 +98,7 @@ llm-warmup-user.adoc       # (Estate drift remediation #83)
 
 # ─── Minting artefacts ───────────────────────────────────────────────────────
 REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just init` runs
+.gitmessage
+.mailmap
+FUNDING
+www
