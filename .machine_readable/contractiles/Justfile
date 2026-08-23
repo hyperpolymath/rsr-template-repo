@@ -93,7 +93,7 @@ build *args:
     #   cargo build {{args}}                    # Rust
     #   mix compile {{args}}                    # Elixir
     #   zig build {{args}}                      # Zig
-    #   deno task build {{args}}                # Deno/ReScript
+    #   deno task build {{args}}                # Deno/
     @echo "Build complete"
 
 # Build in release mode with optimizations

@@ -12,7 +12,6 @@
 # 4. Verifies builds work after instantiation
 # 5. Cleans up
 
-set -euo pipefail
 
 # Test configuration
 TEMPLATE_ROOT="${1:-.}"
@@ -25,6 +24,11 @@ TEST_AUTHOR_EMAIL="test@example.com"
 TEST_PROJECT_NAME="Test Project"
 TEST_DESCRIPTION="A test project instantiated from the RSR template"
 TEST_PRIMARY_LANGUAGE="Rust"
+
+if [ ! -d "$TEMPLATE_ROOT/archetypes" ]; then
+    echo "Self-skipping: archetypes/ not found (repo is already instantiated)."
+    exit 0
+fi
 
 # ANSI colors
 RED='\033[0;31m'

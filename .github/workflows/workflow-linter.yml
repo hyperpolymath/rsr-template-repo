@@ -131,7 +131,6 @@ jobs:
           has_rb=$(find . -name "*.rb" -path "*/lib/*" -o -path "*/app/*" 2>/dev/null | head -1)
 
           echo "Detected languages:"
-          [ -n "$has_js" ] && echo "  - javascript-typescript"
           [ -n "$has_py" ] && echo "  - python"
           [ -n "$has_go" ] && echo "  - go"
           [ -n "$has_rs" ] && echo "  - rust (note: CodeQL rust is limited)"

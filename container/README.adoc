@@ -120,7 +120,7 @@ The sovereign tier wires together the stapeln container stack:
   `stapeln/compose.toml`.
 
 *rokur* (secrets gate)::
-  A Deno service that fronts the application and refuses to pass traffic unless
+  A  service that fronts the application and refuses to pass traffic unless
   the declared secrets are present; rate-limits per client and writes a
   structured audit log. Configured by `stapeln/rokur.toml`. In the stack it
   sits between `svalinn` and the app.

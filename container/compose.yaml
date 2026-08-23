@@ -44,7 +44,7 @@ services:
 
   # ──────────────────────────────────────────────────────────────────────
   # rokur — secrets-management gate (stapeln). Fronts the app and refuses
-  # to start the stack unless required secrets are present. Deno on Wolfi.
+  # to start the stack unless required secrets are present.  on Wolfi.
   # Remove this service if you do not use secret gating.
   # ──────────────────────────────────────────────────────────────────────
   rokur:

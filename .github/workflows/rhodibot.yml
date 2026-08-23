@@ -65,7 +65,7 @@ jobs:
           fi
           # SPDX drift — MANUAL owner-only fix, never auto-edited
           for dotfile in .gitignore .gitattributes .editorconfig; do
-            if [ -f "$dotfile" ] && grep -q "AGPL-3.0" "$dotfile" 2>/dev/null; then
+            if [ -f "$dotfile" ] && grep "AGPL-3.0" "$dotfile" 2>/dev/null | grep -v "AGPL-3.0-or-later" | grep -q .; then
               warn "$dotfile carries an AGPL-3.0 SPDX header; estate policy is MPL-2.0 — fix MANUALLY (owner-only, never auto-edited)"
             fi
           done
@@ -80,7 +80,7 @@ jobs:
 
           # --- advisory only: dangerous verification-bypass patterns ---
           for pattern in believe_me assert_total Admitted sorry unsafeCoerce Obj.magic; do
-            count=$(grep -rl "$pattern" --include='*.idr' --include='*.v' --include='*.lean' --include='*.hs' --include='*.ml' --include='*.res' . 2>/dev/null | grep -v node_modules | wc -l || echo 0)
+            count=$(grep -rl "$pattern" --include='*.idr' --include='*.v' --include='*.lean' --include='*.hs' --include='*.ml' --include='*.res' . 2>/dev/null | grep -v node_modules | wc -l || true)
             [ "$count" -gt 0 ] && note "verification-bypass pattern '$pattern' in $count file(s) (advisory)"
           done
 

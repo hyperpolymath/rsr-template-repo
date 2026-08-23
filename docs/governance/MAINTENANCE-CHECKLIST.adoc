@@ -52,7 +52,7 @@ Before Axis 2/3 execution, assemble a scoped worklist from evidence:
 - [ ] Audit compliance seams/compromises explicitly:
   - policy exceptions are recorded with rationale, scope, and expiry/review
   - exception does not silently broaden into general policy drift
-  - language-policy contamination checks run (example: a single TS exception must not trigger broad TypeScript conversion)
+  - language-policy contamination checks run (example: a single TS exception must not trigger broad  conversion)
   - run `panic-attack` as the compliance-audit scanner
   - run ecological checking under effects (using sustainabot guidance as current baseline)
 

@@ -93,7 +93,7 @@ build *args:
     #   cargo build {{args}}                    # Rust
     #   mix compile {{args}}                    # Elixir
     #   zig build {{args}}                      # Zig
-    #   deno task build {{args}}                # Deno/ReScript
+    #   deno task build {{args}}                # Deno/
     @echo "Build complete"
 
 # Build in release mode with optimizations
@@ -668,3 +668,38 @@ handover-human path=".":
 
 secret-scan-trufflehog:
     @command -v trufflehog >/dev/null && trufflehog filesystem . --only-verified || true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WINDOWS RGONOMICS (CLOAKING)
+# ═══════════════════════════════════════════════════════════════════════════════╓
+
+# Hide all dotfiles and dot-folders from Windows Explorer
+[windows]
+cloak;
+    @powershell -NoProfile -Command "\
+      Write-Host 'Cloaking dotfiles in Windows Explorer...' -ForegroundColor Cyan; \
+      Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { $$_.Name -match '^\.' } | ForEach-Object { \
+          $$_.Attributes = $$_.Attributes -bor [System.IO.FileAttributes]::Hidden \
+      }; \
+      Write-Host 'Cloak engaged.' -ForegroundColor Green"
+
+# Reveal all dotfiles and dot-folders in Windows Explorer
+[windows]
+uncloak;
+    @powershell -NoProfile -Command "\
+      Write-Host 'Uncloaking dotfiles in Windows Explorer...' -ForegroundColor Cyan; \
+      Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { $$_.Name -match '^\.' } | ForEach-Object { \
+          $$_.Attributes = $$_.Attributes -band -bnot [System.IO.FileAttributes]::Hidden \
+      }; \
+      Write-Host 'Cloak lifted.' -ForegroundColor Green"
+
+# Fallback for Linux/macOS users (since dotfiles are natively cloaked by the OS)
+[linux]
+macos]
+cloak:
+    @echo "Dotfiles are natively cloaked on this OS. No action required."
+
+[linux]
+[macos]
+uncloak:
+    @echo "Use 'ls -a' to view dotfiles on this OS."

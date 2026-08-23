@@ -73,7 +73,7 @@ defmodule MyPropertyTest do
 end
 ----
 
-=== ReScript / Deno (fast-check)
+===  /  (fast-check)
 
 [source,javascript]
 ----
@@ -81,7 +81,7 @@ end
 import fc from "npm:fast-check";
 import { parse } from "../../src/parser.mjs";
 
-Deno.test("parser handles arbitrary strings", () => {
+.test("parser handles arbitrary strings", () => {
   fc.assert(
     fc.property(fc.string(), (input) => {
       // Should not throw

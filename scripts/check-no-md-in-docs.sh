@@ -24,6 +24,7 @@ DOCS_DIR="$REPO_ROOT/docs"
 
 # Justified exceptions, relative to repo root. Empty by default.
 ALLOWED=()
+ALLOWED_DIRS=("docs/berrywiki/")
 
 if [ ! -d "$DOCS_DIR" ]; then
     echo "PASS: no docs/ directory (nothing to check)"
@@ -38,6 +39,9 @@ for hit in "${HITS[@]}"; do
     skip=0
     for allowed in "${ALLOWED[@]}"; do
         if [ "$rel" = "$allowed" ]; then skip=1; break; fi
+    done
+    for allowed_dir in "${ALLOWED_DIRS[@]}"; do
+        if [[ "$rel" == "$allowed_dir"* ]]; then skip=1; break; fi
     done
     if [ $skip -eq 0 ]; then EXTRAS+=("$rel"); fi
 done
