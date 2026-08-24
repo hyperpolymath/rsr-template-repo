@@ -17,3 +17,5 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   that both Guix package definitions receive the rendered slug and project URL.
 * Keep template validation aligned with authority documents moved under
   `docs/`, and repair the cross-platform `cloak`/`uncloak` recipe syntax.
+* Restore the tracked-file language-ban gate with regression fixtures proving
+  that supported Zig passes while prohibited V-language remnants fail.
