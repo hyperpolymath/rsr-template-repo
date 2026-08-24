@@ -672,34 +672,26 @@ secret-scan-trufflehog:
 # ═══════════════════════════════════════════════════════════════════════════════
 # WINDOWS RGONOMICS (CLOAKING)
 # ═══════════════════════════════════════════════════════════════════════════════╓
-
-# Hide all dotfiles and dot-folders from Windows Explorer
-[windows]
-cloak;
-    @powershell -NoProfile -Command "\
-      Write-Host 'Cloaking dotfiles in Windows Explorer...' -ForegroundColor Cyan; \
-      Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { $$_.Name -match '^\.' } | ForEach-Object { \
-          $$_.Attributes = $$_.Attributes -bor [System.IO.FileAttributes]::Hidden \
-      }; \
-      Write-Host 'Cloak engaged.' -ForegroundColor Green"
-
-# Reveal all dotfiles and dot-folders in Windows Explorer
-[windows]
-uncloak;
-    @powershell -NoProfile -Command "\
-      Write-Host 'Uncloaking dotfiles in Windows Explorer...' -ForegroundColor Cyan; \
-      Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { $$_.Name -match '^\.' } | ForEach-Object { \
-          $$_.Attributes = $$_.Attributes -band -bnot [System.IO.FileAttributes]::Hidden \
-      }; \
-      Write-Host 'Cloak lifted.' -ForegroundColor Green"
-
-# Fallback for Linux/macOS users (since dotfiles are natively cloaked by the OS)
-[linux]
-macos]
+# Hide all dotfiles and dot-folders from Windows Explorer. On POSIX systems,
+# leading-dot names are already hidden by convention, so these recipes are
+# intentionally harmless no-ops.
 cloak:
-    @echo "Dotfiles are natively cloaked on this OS. No action required."
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v powershell.exe >/dev/null 2>&1; then
+        powershell.exe -NoProfile -Command "Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { \$_.Name -match '^\\.' } | ForEach-Object { \$_.Attributes = \$_.Attributes -bor [System.IO.FileAttributes]::Hidden }"
+        echo "Cloak engaged."
+    else
+        echo "Dotfiles are natively cloaked on this OS. No action required."
+    fi
 
-[linux]
-[macos]
+# Reveal dotfiles in Windows Explorer; on POSIX, explain the native mechanism.
 uncloak:
-    @echo "Use 'ls -a' to view dotfiles on this OS."
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v powershell.exe >/dev/null 2>&1; then
+        powershell.exe -NoProfile -Command "Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { \$_.Name -match '^\\.' } | ForEach-Object { \$_.Attributes = \$_.Attributes -band -bnot [System.IO.FileAttributes]::Hidden }"
+        echo "Cloak lifted."
+    else
+        echo "Use 'ls -a' to view dotfiles on this OS."
+    fi

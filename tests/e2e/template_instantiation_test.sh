@@ -86,6 +86,12 @@ TEST_REPO_PATH="$TEST_DIR/$TEST_REPO_NAME"
 cp -r "$TEMPLATE_ROOT" "$TEST_REPO_PATH"
 log_pass "Template cloned to $TEST_REPO_PATH"
 
+# Local ignored agent state is not part of the template product. A filesystem
+# copy sees it anyway, unlike a real GitHub-template instantiation, and can make
+# the placeholder gate judge unrelated nested worktrees. Remove it from the
+# fixture before exercising the mint.
+rm -rf "$TEST_REPO_PATH/.claude"
+
 # Remove .git directory for clean state, then re-init as the INSTANTIATED repo.
 #
 # The re-init is not cosmetic. check-no-placeholders.sh identifies the repo from
@@ -120,6 +126,28 @@ fi
 #==============================================================================
 
 log_step "Replacing placeholder tokens"
+
+# Guix package names cannot contain spaces, capitals, underscores, or doubled
+# separators. Fail before mutating the fixture when the repository slug cannot
+# be used as a valid Guix name.
+if (cd "$TEST_REPO_PATH" && \
+    RSR_NON_INTERACTIVE=1 \
+    PROJECT_NAME="$TEST_PROJECT_NAME" \
+    REPO="Invalid Guix_Name" \
+    OWNER="$TEST_OWNER" \
+    AUTHOR="$TEST_AUTHOR" \
+    AUTHOR_EMAIL="$TEST_AUTHOR_EMAIL" \
+    just repo-init) > "$TEST_DIR/invalid-slug.log" 2>&1; then
+    log_error "just repo-init accepted a repository slug that is invalid for Guix"
+    exit 1
+fi
+if ! grep -q 'repo slug must be lowercase alphanumeric words separated by single hyphens' \
+    "$TEST_DIR/invalid-slug.log"; then
+    log_error "invalid repository slug failed for the wrong reason"
+    cat "$TEST_DIR/invalid-slug.log" >&2
+    exit 1
+fi
+log_pass "Invalid Guix package slug rejected before instantiation"
 
 # Substitution is `just repo-init`'s job. This test MUST drive the real recipe:
 # a second, hand-rolled replacement list here would be a mock that silently
@@ -161,6 +189,33 @@ if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | just repo-ini
 fi
 
 log_pass "just repo-init completed"
+
+#==============================================================================
+# PHASE 3a: GUIX IDENTITY MUST BE RENDERED FROM THE REPOSITORY SLUG
+#==============================================================================
+
+log_step "Checking rendered Guix package identity"
+
+for guix_file in guix.scm build/guix.scm; do
+    if [ ! -f "$TEST_REPO_PATH/$guix_file" ]; then
+        log_error "$guix_file is missing after instantiation"
+        exit 1
+    fi
+    if ! grep -qF "(name \"$TEST_REPO_NAME\")" "$TEST_REPO_PATH/$guix_file"; then
+        log_error "$guix_file does not use the lowercase repository slug as its Guix name"
+        exit 1
+    fi
+    if ! grep -qF "(home-page \"https://github.com/$TEST_OWNER/$TEST_REPO_NAME\")" "$TEST_REPO_PATH/$guix_file"; then
+        log_error "$guix_file does not contain the rendered project home page"
+        exit 1
+    fi
+    if grep -q 'rsr-template-repo' "$TEST_REPO_PATH/$guix_file"; then
+        log_error "$guix_file still contains the template repository identity"
+        exit 1
+    fi
+done
+
+log_pass "Guix package names and home pages were rendered correctly"
 
 #==============================================================================
 # PHASE 3b: NO PLACEHOLDER MAY SURVIVE INSTANTIATION
@@ -233,7 +288,8 @@ log_step "Verifying build system works after instantiation"
 if [ -f "$TEST_REPO_PATH/src/interface/ffi/build.zig" ]; then
     if command -v zig &> /dev/null; then
         cd "$TEST_REPO_PATH/src/interface/ffi"
-        if zig build 2>&1; then
+        if ZIG_GLOBAL_CACHE_DIR="$TEST_DIR/zig-global-cache" \
+           ZIG_LOCAL_CACHE_DIR="$TEST_DIR/zig-local-cache" zig build 2>&1; then
             log_pass "Zig build successful"
         else
             log_error "Zig build failed"
@@ -254,7 +310,7 @@ log_step "Verifying critical files have been instantiated"
 
 CRITICAL_FILES=(
     "README.adoc"
-    "EXPLAINME.adoc"
+    "docs/EXPLAINME.adoc"
     "Justfile"
 )
 
