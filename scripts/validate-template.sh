@@ -55,6 +55,18 @@ check_file_exists() {
     fi
 }
 
+check_file_either() {
+    local first="$1"
+    local second="$2"
+    local description="${3:-}"
+    if [ -f "$REPO_ROOT/$first" ] || [ -f "$REPO_ROOT/$second" ]; then
+        [ "$VERBOSE" = "1" ] && log_pass "File exists: $first or $second"
+        return 0
+    fi
+    log_error "Required file missing: $first or $second ${description:+($description)}"
+    return 1
+}
+
 check_dir_exists() {
     local dir="$1"
     local description="${2:-}"
@@ -118,10 +130,10 @@ echo ""
 # Root files
 check_file_exists "0-AI-MANIFEST.a2ml" "AI manifest (universal entry point)"
 check_file_exists "README.adoc" "High-level pitch"
-check_file_exists "EXPLAINME.adoc" "Developer deep-dive"
+check_file_either "EXPLAINME.adoc" "docs/EXPLAINME.adoc" "Developer deep-dive"
 check_file_exists "LICENSE" "License file"
 check_file_exists "Justfile" "Task runner"
-check_file_exists "AUDIT.adoc" "Release audit gate"
+check_file_either "AUDIT.adoc" "docs/AUDIT.adoc" "Release audit gate"
 
 # Directories
 check_dir_exists ".machine_readable" "Machine-readable metadata"
