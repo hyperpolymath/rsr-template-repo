@@ -20,38 +20,15 @@ just test    # Run test suite
 ```
 
 ### Repository Structure
-```
-{{REPO}}/
-├── src/                 # Source code (Perimeter 1-2)
-├── lib/                 # Library code (Perimeter 1-2)
-├── extensions/          # Extensions (Perimeter 2)
-├── plugins/             # Plugins (Perimeter 2)
-├── tools/               # Tooling (Perimeter 2)
-├── docs/                # Documentation (Perimeter 3)
-│   ├── architecture/    # ADRs, specs (Perimeter 2)
-│   └── proposals/       # RFCs (Perimeter 3)
-├── examples/            # Examples (Perimeter 3)
-├── spec/                # Spec tests (Perimeter 3)
-├── tests/               # Test suite (Perimeter 2-3)
-├── machine-readable/   # ALL machine-readable content (Perimeter 1)
-│   ├── *.a2ml           # State files (STATE, META, ECOSYSTEM, etc.)
-│   ├── bot_directives/  # Bot configs
-│   └── contractiles/    # Policy contracts (k9, dust, lust, must, trust)
-├── .well-known/         # Protocol files (Perimeter 1-3)
-├── .github/             # GitHub config (Perimeter 1)
-│   ├── ISSUE_TEMPLATE/
-│   └── workflows/
-├── CHANGELOG.md
-├── CODE_OF_CONDUCT.md
-├── CONTRIBUTING.md      # This file
-├── GOVERNANCE.md
-├── LICENSE
-├── MAINTAINERS.md
-├── README.adoc
-├── SECURITY.md
-├── guix.scm             # Guix package — primary (Perimeter 1)
-└── Justfile             # Task runner (Perimeter 1)
-```
+
+The authoritative map is **generated** from the tree and checked in CI, so it
+cannot drift:
+[`docs/architecture/REPOSITORY-MAP.adoc`](../docs/architecture/REPOSITORY-MAP.adoc).
+Regenerate it with `just repo-map`.
+
+A hand-written tree used to live here. It described `lib/`, `extensions/`,
+`plugins/` and `spec/` directories that this repository has never contained,
+which is precisely why the map is now generated rather than typed.
 
 ---
 

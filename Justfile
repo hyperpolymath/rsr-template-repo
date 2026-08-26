@@ -318,6 +318,26 @@ deps-audit:
 claude-md:
     @bash machine-readable/arrival-pack/generate.sh
 
+# Regenerate the single authoritative repository map
+repo-map:
+    @bash scripts/gen-repo-map.sh .
+
+# Fail if the repository map is stale (the map is generated; CI diffs it)
+validate-repo-map:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    before=$(mktemp); cp docs/architecture/REPOSITORY-MAP.adoc "$before" 2>/dev/null || true
+    bash scripts/gen-repo-map.sh . >/dev/null
+    if ! diff -q "$before" docs/architecture/REPOSITORY-MAP.adoc >/dev/null 2>&1; then
+        echo "FAIL: docs/architecture/REPOSITORY-MAP.adoc is stale. Run: just repo-map" >&2
+        diff -u "$before" docs/architecture/REPOSITORY-MAP.adoc | head -40 >&2 || true
+        cp "$before" docs/architecture/REPOSITORY-MAP.adoc
+        rm -f "$before"; exit 1
+    fi
+    rm -f "$before"
+    echo "repository map: up to date"
+
 # Fail if CLAUDE.md's generated region drifted from a2ml or was hand-edited
 validate-claude-md:
     @bash machine-readable/arrival-pack/verify.sh

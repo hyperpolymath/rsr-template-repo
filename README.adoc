@@ -89,25 +89,32 @@ stdin instead.
 
 == Repository map
 
+The authoritative map is generated, so it cannot drift from the tree:
+link:docs/architecture/REPOSITORY-MAP.adoc[docs/architecture/REPOSITORY-MAP.adoc]
+(regenerate with `just repo-map`; CI fails if it is stale).
+
+The short version:
+
 [cols="1,3"]
 |===
 | Path | What lives there
 
-| `0-AI-MANIFEST.a2ml`      | Universal entry point for AI agents (read first).
-| `machine-readable/`      | Project metadata, policies, contractiles, AI configs.
-| `src/interface/`          | Typed ABI (Idris2) + FFI (Zig) + generated headers.
-| `docs/`                   | Onboarding, status, governance, practice, decisions.
-| `build/`, `Justfile`      | Task orchestration (`just` phases delegate to `build/just/*.just`).
-| `.github/`                | Workflows + community health files.
-| `tests/`, `benches/`      | Test suites and benchmarks.
+| `README.adoc`, `CLAUDE.md` | Start here - humans and AI agents respectively.
+| `src/`, `tests/`           | The code and its tests.
+| `docs/`                    | Human documentation, including the full map above.
+| `machine-readable/`        | Manifests, contractiles and policies that tools read.
+| `build/`, `Justfile`       | Every task runs through `just`; phases live in `build/just/`.
+| `ci/`, `.github/`          | CI configuration; GitHub reads `.github/` and no other path.
 |===
 
 == Where to go next
 
-* `EXPLAINME.adoc` — the engineering deep-dive: how the pieces actually work.
-* `AFFIRMATION.adoc` — the dated, signed honesty snapshot of the repo's true state.
-* `AUDIT.adoc` — the release audit gate.
-* `machine-readable/ai/PLACEHOLDERS.adoc` — the full placeholder reference.
+* link:docs/architecture/REPOSITORY-MAP.adoc[The repository map] — generated; what every directory is for.
+* link:docs/EXPLAINME.adoc[EXPLAINME] — the engineering deep-dive: how the pieces actually work.
+* link:docs/AFFIRMATION.adoc[AFFIRMATION] — the dated, signed honesty snapshot of the repo's true state.
+* link:docs/AUDIT.adoc[AUDIT] — the release audit gate.
+* link:docs/AI_INSTALLATION_GUIDE.adoc[AI installation guide] — for agents instantiating this template.
+* link:machine-readable/ai/PLACEHOLDERS.adoc[PLACEHOLDERS] — the full placeholder reference.
 
 == Licence
 

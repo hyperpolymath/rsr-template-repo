@@ -2,15 +2,27 @@
 # SPDX-License-Identifier: MPL-2.0
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
-# check-root-shape.sh — fail when the repository root contains entries that
-# are not on the canonical allowlist (machine-readable/root-allow.txt).
+# check-root-shape.sh — enforce the canonical root shape, in BOTH directions,
+# against machine-readable/root-allow.txt.
+#
+#   * an entry at root that is not listed          -> drift (extra)
+#   * a listed entry WITHOUT '?' that is missing   -> drift (missing)
+#
+# The second direction was absent until 2026-08, and its absence is why the
+# allowlist rotted: it accumulated 19 permissions for files the April root
+# cleanup had already moved into docs/, and nothing could ever notice. A
+# one-directional allowlist only ratchets open, so over time it licenses
+# exactly the drift it was written to prevent.
+#
+# '?' marks an entry that is legitimately absent in some conforming repo —
+# template-only material removed at mint, or a capability-gated module.
 #
 # Companion to scripts/validate-template.sh: that script enforces required
-# files; this one enforces that nothing else has crept in.
+# files; this one enforces the shape as a whole.
 #
 # Exit codes:
 #   0 — root matches allowlist
-#   1 — extras found at root (drift)
+#   1 — drift (extras at root, or required entries missing)
 #   2 — usage / setup error
 
 set -euo pipefail
@@ -24,15 +36,26 @@ if [ ! -f "$ALLOW_FILE" ]; then
 fi
 
 # Build the allow set: strip comments, trailing slashes, and blank lines.
-mapfile -t ALLOW < <(
+# A leading '?' marks the entry optional; it is not part of the name.
+mapfile -t ALLOW_RAW < <(
     sed -E 's/[[:space:]]*#.*$//' "$ALLOW_FILE" \
         | sed -E 's|/$||' \
-        | awk 'NF'
+        | awk 'NF' \
+        | sed -E 's/[[:space:]]+$//'
 )
 
 declare -A ALLOW_SET=()
-for entry in "${ALLOW[@]}"; do
+REQUIRED=()
+ALLOW=()
+for raw in "${ALLOW_RAW[@]}"; do
+    if [[ "$raw" == '?'* ]]; then
+        entry="${raw#\?}"
+    else
+        entry="$raw"
+        REQUIRED+=("$entry")
+    fi
     ALLOW_SET["$entry"]=1
+    ALLOW+=("$entry")
 done
 
 # Enumerate everything at the repository root, EXCLUDING git-ignored entries.
@@ -61,6 +84,12 @@ mapfile -t ACTUAL < <(
     | sort
 )
 
+declare -A ACTUAL_SET=()
+for entry in "${ACTUAL[@]}"; do
+    ACTUAL_SET["$entry"]=1
+done
+
+# Direction 1 — present at root but not permitted.
 EXTRAS=()
 for entry in "${ACTUAL[@]}"; do
     if [ -z "${ALLOW_SET[$entry]+x}" ]; then
@@ -68,20 +97,42 @@ for entry in "${ACTUAL[@]}"; do
     fi
 done
 
-if [ ${#EXTRAS[@]} -eq 0 ]; then
-    echo "PASS: root matches allowlist (${#ACTUAL[@]} entries, ${#ALLOW[@]} permitted)"
+# Direction 2 — required by the allowlist but not present.
+MISSING=()
+for entry in "${REQUIRED[@]}"; do
+    if [ -z "${ACTUAL_SET[$entry]+x}" ]; then
+        MISSING+=("$entry")
+    fi
+done
+
+if [ ${#EXTRAS[@]} -eq 0 ] && [ ${#MISSING[@]} -eq 0 ]; then
+    OPTIONAL_COUNT=$(( ${#ALLOW[@]} - ${#REQUIRED[@]} ))
+    echo "PASS: root matches allowlist (${#ACTUAL[@]} entries; ${#REQUIRED[@]} required, ${OPTIONAL_COUNT} optional)"
     exit 0
 fi
 
-echo "FAIL: ${#EXTRAS[@]} root entries are not on the allowlist:" >&2
-for e in "${EXTRAS[@]}"; do
-    if [ -d "$REPO_ROOT/$e" ]; then
-        echo "  - $e/  (directory)" >&2
-    else
+if [ ${#EXTRAS[@]} -gt 0 ]; then
+    echo "FAIL: ${#EXTRAS[@]} root entries are not on the allowlist:" >&2
+    for e in "${EXTRAS[@]}"; do
+        if [ -d "$REPO_ROOT/$e" ]; then
+            echo "  - $e/  (directory)" >&2
+        else
+            echo "  - $e" >&2
+        fi
+    done
+    echo "" >&2
+    echo "Either move them into the appropriate subdirectory, or add a justified" >&2
+    echo "entry to machine-readable/root-allow.txt." >&2
+fi
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+    echo "FAIL: ${#MISSING[@]} allowlist entries are required but absent:" >&2
+    for e in "${MISSING[@]}"; do
         echo "  - $e" >&2
-    fi
-done
-echo "" >&2
-echo "Either move them into the appropriate subdirectory, or add a justified" >&2
-echo "entry to machine-readable/root-allow.txt." >&2
+    done
+    echo "" >&2
+    echo "Either restore them, or - if they are legitimately absent in this repo -" >&2
+    echo "mark the entry optional with a leading '?' in root-allow.txt and say why." >&2
+    echo "Do not mark an entry optional merely to silence this." >&2
+fi
 exit 1
