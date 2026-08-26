@@ -39,7 +39,7 @@ container-init:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [ ! -d "container" ]; then
+    if [ ! -d "build/container" ]; then
         echo "Error: build/container/ directory not found."
         echo "This repo may not have been created from rsr-template-repo,"
         echo "or containerisation was removed with 'just no-container'."
