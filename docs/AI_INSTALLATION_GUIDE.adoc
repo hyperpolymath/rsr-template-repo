@@ -18,7 +18,7 @@ Read, in this order, before running anything:
 
 . `0-AI-MANIFEST.a2ml` — the universal AI entry point at the repository root.
 . `CLAUDE.md` — the generated arrival pack (estate doctrine + repo identity).
-. `.machine_readable/descriptiles/STATE.a2ml` — current phase and completion.
+. `machine-readable/descriptiles/STATE.a2ml` — current phase and completion.
 
 Do not infer the repository's purpose from its name. If a fact is not written
 down, record it as `UNASSIGNED` rather than inventing it.

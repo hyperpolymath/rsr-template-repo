@@ -69,7 +69,7 @@ placeholder guard, drift-gate cron).
 
 **One contract.** The ADR-0002 `VARIANT.a2ml` shape is extended in *use*,
 not in format, to minted repos: `just repo-init` writes
-`.machine_readable/descriptiles/VARIANT.a2ml` with `direction =
+`machine-readable/descriptiles/VARIANT.a2ml` with `direction =
 "generated-from-core"`, `parent = hyperpolymath/rsr-template-repo`,
 `parent-pin` = the template tip at mint (resolved via `git ls-remote`;
 `UNASSIGNED` when offline — honest, never guessed), and empty path lists

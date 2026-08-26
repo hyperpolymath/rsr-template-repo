@@ -2,7 +2,7 @@
 # Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 # Authoritative source: docs/practice/AI-CONVENTIONS.adoc
 
-# STARTUP: Read 0-AI-MANIFEST.a2ml first, then .machine_readable/descriptiles/STATE.a2ml.
+# STARTUP: Read 0-AI-MANIFEST.a2ml first, then machine-readable/descriptiles/STATE.a2ml.
 
 # LICENSE
 # All original code: MPL-2.0.
@@ -10,10 +10,10 @@
 # SPDX header required on every source file.
 # Copyright: {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
-# STATE FILES (.machine_readable/ ONLY)
+# STATE FILES (machine-readable/ ONLY)
 # Never create in repo root: STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml,
 # AGENTIC.a2ml, NEUROSYM.a2ml, PLAYBOOK.a2ml.
-# The .machine_readable/ directory is the single source of truth.
+# The machine-readable/ directory is the single source of truth.
 
 # BANNED PATTERNS
 # Idris2: believe_me, assert_total, assert_smaller, unsafePerformIO

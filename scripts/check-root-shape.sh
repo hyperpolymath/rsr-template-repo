@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # check-root-shape.sh — fail when the repository root contains entries that
-# are not on the canonical allowlist (.machine_readable/root-allow.txt).
+# are not on the canonical allowlist (machine-readable/root-allow.txt).
 #
 # Companion to scripts/validate-template.sh: that script enforces required
 # files; this one enforces that nothing else has crept in.
@@ -16,7 +16,7 @@
 set -euo pipefail
 
 REPO_ROOT="${1:-.}"
-ALLOW_FILE="${REPO_ROOT}/.machine_readable/root-allow.txt"
+ALLOW_FILE="${REPO_ROOT}/machine-readable/root-allow.txt"
 
 if [ ! -f "$ALLOW_FILE" ]; then
     echo "ERROR: allowlist not found at $ALLOW_FILE" >&2
@@ -83,5 +83,5 @@ for e in "${EXTRAS[@]}"; do
 done
 echo "" >&2
 echo "Either move them into the appropriate subdirectory, or add a justified" >&2
-echo "entry to .machine_readable/root-allow.txt." >&2
+echo "entry to machine-readable/root-allow.txt." >&2
 exit 1

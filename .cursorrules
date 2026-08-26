@@ -10,7 +10,7 @@
 # Copyright: {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
 # STATE FILES
-# .a2ml metadata files go in .machine_readable/ ONLY.
+# .a2ml metadata files go in machine-readable/ ONLY.
 # Never create STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml,
 # NEUROSYM.a2ml, or PLAYBOOK.a2ml in the repository root.
 

@@ -185,7 +185,7 @@ validate_a2ml() {
     if [[ "$basename" == *"AI-MANIFEST"* ]]; then
         is_manifest=true
     fi
-    # Canonical typed manifests under .machine_readable/descriptiles/ — identity comes
+    # Canonical typed manifests under machine-readable/descriptiles/ — identity comes
     # from the enclosing directory + filename, not an in-file field. Sibling
     # files in the same directory (ECOSYSTEM.a2ml, STATE.a2ml) DO carry their
     # own $name/project and continue to be validated normally.
@@ -216,18 +216,18 @@ validate_a2ml() {
         is_contractile_shape=true
     fi
 
-    # Canonical structured A2ML tree. Everything under a `.machine_readable/`
+    # Canonical structured A2ML tree. Everything under a `machine-readable/`
     # directory is a typed agent-readable doc (CLADE, ANCHOR, STATE,
     # ECOSYSTEM, bot_directives/{debt,coverage,methodology}, ai/AI,
     # policies/*, integrations/*, …). Per the RSR convention these carry
     # identity structurally — owning repo + path + filename — not via an
-    # in-file `name`/`agent-id`. This generalises the `.machine_readable/descriptiles/`
+    # in-file `name`/`agent-id`. This generalises the `machine-readable/descriptiles/`
     # rationale above to the whole tree: rsr-template-repo itself ships these
     # files without an in-file identity key, so requiring one produces
     # estate-wide false positives on every repo built from the canonical
-    # template. Files outside `.machine_readable/` are still validated.
+    # template. Files outside `machine-readable/` are still validated.
     local is_structural_identity=false
-    if [[ "$file" == *"/.machine_readable/"* || "$file" == "./.machine_readable/"* || "$file" == ".machine_readable/"* ]]; then
+    if [[ "$file" == *"/machine-readable/"* || "$file" == "./machine-readable/"* || "$file" == "machine-readable/"* ]]; then
         is_structural_identity=true
     fi
 

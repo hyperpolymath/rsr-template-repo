@@ -56,7 +56,7 @@ repos:
     hooks:
       - id: validate-claude-md
         name: CLAUDE.md arrival pack in sync with a2ml
-        entry: bash .machine_readable/arrival-pack/verify.sh
+        entry: bash machine-readable/arrival-pack/verify.sh
         language: system
         pass_filenames: false
-        files: '^(\.machine_readable/descriptiles/.*|CLAUDE\.md)$'
+        files: '^(\machine-readable/descriptiles/.*|CLAUDE\.md)$'

@@ -26,7 +26,7 @@
 
 * [x] `scripts/validate-template.sh` — 8-phase validation
 ** Phase 1: Core repository structure (root files, directories)
-** Phase 2: Machine-readable metadata (`.machine_readable/`)
+** Phase 2: Machine-readable metadata (`machine-readable/`)
 ** Phase 3: GitHub Actions workflows (17 required + all present)
 ** Phase 4: Idris2 ABI and Zig FFI source files
 ** Phase 5: Placeholder token replacement (skipped in template)

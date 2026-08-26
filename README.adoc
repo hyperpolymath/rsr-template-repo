@@ -57,7 +57,7 @@ just validate            # structure + metadata checks
 ----
 
 `just repo-init` prompts for the project name, owner, author, licence contact, and the
-other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them
+other values listed in `machine-readable/ai/PLACEHOLDERS.adoc`, substitutes them
 across the tree, validates the result, and (if available) runs the `k9-svc` checks.
 
 == AI-Assisted Installation
@@ -73,7 +73,7 @@ stdin instead.
 
 == What you get
 
-* *Machine-readable metadata* (`.machine_readable/descriptiles/`) — `STATE`, `META`,
+* *Machine-readable metadata* (`machine-readable/descriptiles/`) — `STATE`, `META`,
   `ECOSYSTEM`, `PLAYBOOK`, `AGENTIC`, `NEUROSYM`, `CLADE`, and `anchors/ANCHOR`,
   in a2ml, so tools and agents can read the project's state and boundaries.
 * *AI gatekeeper protocol* — `0-AI-MANIFEST.a2ml` is the universal entry point that
@@ -94,7 +94,7 @@ stdin instead.
 | Path | What lives there
 
 | `0-AI-MANIFEST.a2ml`      | Universal entry point for AI agents (read first).
-| `.machine_readable/`      | Project metadata, policies, contractiles, AI configs.
+| `machine-readable/`      | Project metadata, policies, contractiles, AI configs.
 | `src/interface/`          | Typed ABI (Idris2) + FFI (Zig) + generated headers.
 | `docs/`                   | Onboarding, status, governance, practice, decisions.
 | `build/`, `Justfile`      | Task orchestration (`just` phases delegate to `build/just/*.just`).
@@ -107,7 +107,7 @@ stdin instead.
 * `EXPLAINME.adoc` — the engineering deep-dive: how the pieces actually work.
 * `AFFIRMATION.adoc` — the dated, signed honesty snapshot of the repo's true state.
 * `AUDIT.adoc` — the release audit gate.
-* `.machine_readable/ai/PLACEHOLDERS.adoc` — the full placeholder reference.
+* `machine-readable/ai/PLACEHOLDERS.adoc` — the full placeholder reference.
 
 == Licence
 

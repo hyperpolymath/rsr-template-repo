@@ -259,11 +259,11 @@ container-keep +tiers:
         $keep_port || rm -f container/compose.yaml container/compose.example.yaml
     else
         rm -rf container
-        rm -f .machine_readable/configs/selur-compose.toml
+        rm -f machine-readable/configs/selur-compose.toml
         rm -f .github/workflows/container-build.yml
         rm -f build/just/container.just
         [ -f Justfile ] && sed -i '/# >>> container-module/,/# <<< container-module/d' Justfile
-        for jf in Justfile .machine_readable/contractiles/Justfile; do
+        for jf in Justfile machine-readable/contractiles/Justfile; do
             [ -f "$jf" ] && sed -i '\|import? "build/just/container.just"|d' "$jf"
         done
     fi

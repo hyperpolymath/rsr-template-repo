@@ -344,8 +344,8 @@ repo-init archetype="":
             -not -path './.git/*' \
             -not -path './build/just/repo-init.just' \
             -not -path './docs/decisions/*' \
-            -not -path './.machine_readable/descriptiles/CLADE.a2ml' \
-            -not -path './.machine_readable/descriptiles/VARIANT.a2ml' \
+            -not -path './machine-readable/descriptiles/CLADE.a2ml' \
+            -not -path './machine-readable/descriptiles/VARIANT.a2ml' \
             -not -name 'CHANGELOG.md' \
             -not -name 'TEMPLATE-STANDARDS-AUDIT.adoc' \
             -not -name '*.png' -not -name '*.jpg' -not -name '*.gif' \
@@ -407,7 +407,7 @@ repo-init archetype="":
     #   DERIVABLE -> computed, never guessed  (uuid, owner, canonical-name)
     #   JUDGEMENT -> left UNASSIGNED, fails loudly until a human chooses (clade)
     CLADE_IN="build/templates/CLADE.a2ml.in"
-    CLADE_OUT=".machine_readable/descriptiles/CLADE.a2ml"
+    CLADE_OUT="machine-readable/descriptiles/CLADE.a2ml"
     if [ -f "$CLADE_IN" ]; then
         mkdir -p "$(dirname "$CLADE_OUT")"
         cp "$CLADE_IN" "$CLADE_OUT"
@@ -434,7 +434,7 @@ repo-init archetype="":
     # dogfood target). A minted repo must NOT inherit it: declaring
     # capabilities the tree lacks makes the oracle score modules that are
     # absent (na-honesty, RSR-SPEC-v2 §scoring). Rewrite it minimally.
-    PROFILE_OUT=".machine_readable/rsr-profile.a2ml"
+    PROFILE_OUT="machine-readable/rsr-profile.a2ml"
     {
         echo "# SPDX-License-Identifier: MPL-2.0"
         echo "#"
@@ -450,7 +450,7 @@ repo-init archetype="":
             echo "preset = \"${ARCH_PRESET}\""
         else
             echo "# UNASSIGNED: declare capabilities (or a preset) — see standards"
-            echo "# .machine_readable/template-capability-gates.toml"
+            echo "# machine-readable/template-capability-gates.toml"
             echo "capabilities = []"
         fi
     } > "$PROFILE_OUT"
@@ -463,7 +463,7 @@ repo-init archetype="":
     PARENT_SLUG="hyperpolymath/rsr-template-repo"
     PARENT_PIN=$(git ls-remote "https://github.com/${PARENT_SLUG}.git" HEAD 2>/dev/null | cut -f1 || true)
     PARENT_PIN="${PARENT_PIN:-UNASSIGNED}"
-    VARIANT_OUT=".machine_readable/descriptiles/VARIANT.a2ml"
+    VARIANT_OUT="machine-readable/descriptiles/VARIANT.a2ml"
     mkdir -p "$(dirname "$VARIANT_OUT")"
     {
         echo "# SPDX-License-Identifier: MPL-2.0"
@@ -502,9 +502,9 @@ repo-init archetype="":
         echo "[paths.diverged]"
         echo "# Files a minted repo owns from birth."
         echo "paths = ["
-        echo "  \".machine_readable/descriptiles/CLADE.a2ml\","
-        echo "  \".machine_readable/descriptiles/VARIANT.a2ml\","
-        echo "  \".machine_readable/rsr-profile.a2ml\","
+        echo "  \"machine-readable/descriptiles/CLADE.a2ml\","
+        echo "  \"machine-readable/descriptiles/VARIANT.a2ml\","
+        echo "  \"machine-readable/rsr-profile.a2ml\","
         echo "]"
     } > "$VARIANT_OUT"
     if [ "$PARENT_PIN" = "UNASSIGNED" ]; then
@@ -561,7 +561,7 @@ repo-init archetype="":
     META='PLACEHOLDER|ANYTHING|TOKEN|UPPER_SNAKE'
     REMAINING=$(grep -rl "$PATTERN" . --include='*.md' --include='*.adoc' --include='*.yml' --include='*.yaml' --include='*.a2ml' --include='*.toml' --include='*.scm' --include='*.ncl' --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null | grep -v '.git/' | while IFS= read -r f; do
         case "${f#./}" in
-            .machine_readable/ai/PLACEHOLDERS.adoc|EXPLAINME.adoc|scripts/check-no-placeholders.sh|tests/e2e/template_instantiation_test.sh) continue ;;
+            machine-readable/ai/PLACEHOLDERS.adoc|EXPLAINME.adoc|scripts/check-no-placeholders.sh|tests/e2e/template_instantiation_test.sh) continue ;;
         esac
         # Bracketed [{]{2} rather than a doubled brace written literally, for
         # two independent reasons. First, `grep -E` is ugrep on some estate
@@ -625,7 +625,7 @@ repo-init archetype="":
     echo ""
     echo "Done! Mint complete. Remaining Forge stages (ADR-0003):"
     echo "  1. Review changes: git diff"
-    echo "  2. Remove template cruft: rm .machine_readable/ai/PLACEHOLDERS.adoc"
+    echo "  2. Remove template cruft: rm machine-readable/ai/PLACEHOLDERS.adoc"
     echo "  3. Customize README.adoc; then: grep -rn UNASSIGNED . for what still needs you"
     echo "  4. PROVISION — actually run your build and test commands and watch"
     echo "     them pass (echoed advice is not provisioning)."

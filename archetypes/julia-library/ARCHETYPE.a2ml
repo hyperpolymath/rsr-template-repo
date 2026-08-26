@@ -21,7 +21,7 @@ schema_version = "0.1.0"
 harvested-from = "rsr-julia-library-template-repo VARIANT.a2ml + scaffoldia registry julia/package.ncl"
 
 [capability]
-# Preset defined in standards .machine_readable/template-capability-gates.toml
+# Preset defined in standards machine-readable/template-capability-gates.toml
 preset = "julia-library"
 
 [tokens]

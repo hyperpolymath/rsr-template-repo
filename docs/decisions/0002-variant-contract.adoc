@@ -29,7 +29,7 @@ needs variant deltas to exist as data, not tribal knowledge.
 ## Decision
 
 Every variant template carries a **variant contract** at
-`.machine_readable/descriptiles/VARIANT.a2ml` declaring:
+`machine-readable/descriptiles/VARIANT.a2ml` declaring:
 
 - **parent** (owner/repo) and **parent-pin** — the last reconciled parent
   commit. Bumping the pin after reconciling is the template-maintenance sync

@@ -166,7 +166,7 @@ rsr-template-repo/
     local-hooks.sh
   docs/
     ... (repo-local human docs)
-  .machine_readable/
+  machine-readable/
     ... (repo-local machine-readable policy/state)
 ----
 

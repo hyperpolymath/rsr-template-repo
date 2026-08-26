@@ -64,7 +64,7 @@ just validate-rsr
 |`.well-known/`
 |RFC-compliant metadata (security.txt, ai.txt, humans.txt)
 
-|`.machine_readable/`
+|`machine-readable/`
 |All machine-readable content: state files (6 a2ml), `bot_directives/`, `contractiles/`
 
 |`docs/`
@@ -160,7 +160,7 @@ project/
 │   ├── ai.txt
 │   ├── humans.txt
 │   └── security.txt
-├── .machine_readable/         # ALL machine-readable content
+├── machine-readable/         # ALL machine-readable content
 │   ├── STATE.a2ml             # Project state, progress, blockers
 │   ├── META.a2ml              # Architecture decisions, governance
 │   ├── ECOSYSTEM.a2ml         # Ecosystem position, relationships
@@ -217,7 +217,7 @@ project/
 * `Justfile`
 * `README.adoc`
 * `LICENSE` (MPL-2.0)
-* `.machine_readable/descriptiles/STATE.a2ml`
+* `machine-readable/descriptiles/STATE.a2ml`
 * `.well-known/security.txt`
 * `.well-known/ai.txt`
 * `.well-known/humans.txt`

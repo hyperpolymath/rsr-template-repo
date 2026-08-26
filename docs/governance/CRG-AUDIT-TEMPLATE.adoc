@@ -24,7 +24,7 @@ Evaluates the `{{REPO}}` repository against
 - Standard: `standards/component-readiness-grades/COMPONENT-READINESS-GRADES.md`
 - Template (criteria boilerplate): `rsr-template-repo/docs/governance/CRG-CRITERIA.adoc`
 - Self-declared grade (prior art):
-  * `.machine_readable/descriptiles/STATE.a2ml` → `grade = "<declared>"`
+  * `machine-readable/descriptiles/STATE.a2ml` → `grade = "<declared>"`
   * `docs/READINESS.md` (if present) → per-component grades
   * Third-party badges (Glama, OpenSSF, etc.) if any — note date and scope
 - Audit date: {{CURRENT_DATE}}
@@ -64,7 +64,7 @@ Do *not* mark PRESENT without citing the path.
 | PRESENT / PARTIAL (count) / ABSENT
 | `.github/workflows/`
 
-| `.machine_readable/descriptiles/` canonical A2ML
+| `machine-readable/descriptiles/` canonical A2ML
 | PRESENT (STATE, META, ECOSYSTEM, AGENTIC, NEUROSYM, PLAYBOOK) / ABSENT
 | Layout matches CLAUDE.md invariant
 
@@ -94,7 +94,7 @@ Do *not* mark PRESENT without citing the path.
 
 | Contractile trident
 | PRESENT (`INTENT.contractile`, `TRUST.contractile`, `MUST.contractile`, `ADJUST.contractile`) / PARTIAL / ABSENT
-| `.machine_readable/`
+| `machine-readable/`
 
 | `Justfile` + `Mustfile` (no `Makefile`)
 | PRESENT / VIOLATION (Makefile found)
@@ -143,7 +143,7 @@ RSR compliance verdict: *met* / *partial* / *not met* — Grade D floor satisfie
 Cite *from authoritative source* (STATE.a2ml or CI log). Do not re-count by
 filesystem grep — grade the evidence that already exists.
 
-- `total-tests = N` (from `.machine_readable/descriptiles/STATE.a2ml` or CI).
+- `total-tests = N` (from `machine-readable/descriptiles/STATE.a2ml` or CI).
 - Breakdown by suite: list each named suite and its count.
 - CI: `.github/workflows/<test-workflow>.yml` runs on push / tag / schedule.
 - Last green run: date + commit SHA.
@@ -162,7 +162,7 @@ v2.0 C requires **per-file and per-directory orientation**. Evidence checklist:
   and note whether purpose comments, invariants, and boundary conditions
   are documented.
 - Per-subtree README: which non-trivial source subtrees lack an orienting
-  README (e.g. `<unit>/`, `.machine_readable/`, `ffi/zig/src/`).
+  README (e.g. `<unit>/`, `machine-readable/`, `ffi/zig/src/`).
 
 === Dogfooding / home-stable evidence
 
@@ -280,7 +280,7 @@ them. Examples:
 == Related Files
 
 - `docs/READINESS.md` — per-component table. Note v1.0-vs-v2.0 schema alignment.
-- `.machine_readable/descriptiles/STATE.a2ml` — authoritative self-declared state.
+- `machine-readable/descriptiles/STATE.a2ml` — authoritative self-declared state.
 - `docs/governance/CRG-LIFT-PLAN-{{CURRENT_DATE}}.adoc` — companion plan for
   D→C (and medium-term C→B) lifts.
 - `docs/governance/CRG-CRITERIA.adoc` — boilerplate criteria doc.

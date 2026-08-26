@@ -4,7 +4,7 @@
 # check-variant-drift.sh — verify the shared RSR spine of this variant
 # template stays convergent with its parent at the pinned commit.
 #
-# Reads the contract at .machine_readable/descriptiles/VARIANT.a2ml:
+# Reads the contract at machine-readable/descriptiles/VARIANT.a2ml:
 #   - every tracked file NOT declared added/removed/diverged/pending/operational
 #     must be identical to the parent's copy at parent-pin, modulo the
 #     [normalise] rules (action-pin SHAs, self-name substitution);
@@ -18,7 +18,7 @@ set -euo pipefail
 
 PARENT_DIR="${1:?usage: check-variant-drift.sh <parent-checkout-dir> [self-dir]}"
 SELF_DIR="${2:-.}"
-CONTRACT="$SELF_DIR/.machine_readable/descriptiles/VARIANT.a2ml"
+CONTRACT="$SELF_DIR/machine-readable/descriptiles/VARIANT.a2ml"
 
 [ -f "$CONTRACT" ] || { echo "FAIL: contract not found: $CONTRACT"; exit 1; }
 
