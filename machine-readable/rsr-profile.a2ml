@@ -25,6 +25,11 @@
 version = "1.0.0"
 spec = "rsr-criteria-v2"
 declares-against = "2.0.0-draft"
+# Role in the estate pipeline: standards (canon) -> THIS (spine) -> scaffoldia
+# (composer) -> minted repos. A spine may carry capability-gated modules it
+# does not declare, for the repos minted from it; see [carrier] in the canon
+# gates table. A minted repo doing the same is still drift.
+role = "spine"
 # Effective capability set (direct declaration; no preset shorthand used).
 capabilities = [
   "zig",                # src/interface/ffi/build.zig + Zig FFI layer
