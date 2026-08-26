@@ -140,7 +140,7 @@ self-assess:
         echo "    → KEEP if others might build with Nix."
     fi
 
-    if { [ -f "build/guix.scm" ] || [ -f "guix.scm" ]; } && ! command -v guix >/dev/null 2>&1; then
+    if [ -f "guix.scm" ] && ! command -v guix >/dev/null 2>&1; then
         echo "  ○ guix.scm — Guix package. Safe to remove if you don't use Guix."
         echo "    → KEEP if others might build with Guix."
     fi

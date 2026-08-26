@@ -65,7 +65,7 @@ release schedules, contributor access, and community standards.
 - Reviews and merges pull requests.
 - Triages issues and manages releases.
 - Upholds code quality, security standards, and the Code of Conduct.
-- Listed in [MAINTAINERS.adoc](../MAINTAINERS.adoc).
+- Listed in [MAINTAINERS.adoc](../docs/MAINTAINERS.adoc).
 
 ### Contributor
 
@@ -105,7 +105,7 @@ A contributor may be nominated to become a maintainer when they demonstrate:
 2. The BDFL reviews the candidate's contribution history and community interactions.
 3. The BDFL approves or declines the nomination, with reasoning provided to the
    nominator.
-4. If approved, the new maintainer is added to [MAINTAINERS.adoc](../MAINTAINERS.adoc) and
+4. If approved, the new maintainer is added to [MAINTAINERS.adoc](../docs/MAINTAINERS.adoc) and
    granted appropriate repository access.
 
 ---
@@ -125,7 +125,7 @@ A maintainer may be removed under the following circumstances:
   documented privately.
 
 Removed maintainers are moved to the Emeritus section of
-[MAINTAINERS.adoc](../MAINTAINERS.adoc) unless removal was due to a serious Code of Conduct
+[MAINTAINERS.adoc](../docs/MAINTAINERS.adoc) unless removal was due to a serious Code of Conduct
 violation.
 
 ---

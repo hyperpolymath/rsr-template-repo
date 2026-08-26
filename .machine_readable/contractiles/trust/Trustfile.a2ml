@@ -71,8 +71,8 @@ Current trust level: maximal
 - severity: advisory
 - areas:
   - .machine_readable/
-  - GOVERNANCE.adoc
-  - MAINTAINERS.adoc
+  - docs/GOVERNANCE.adoc
+  - docs/MAINTAINERS.adoc
   - .github/CODEOWNERS
 
 ## Container Security

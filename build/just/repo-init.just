@@ -263,8 +263,11 @@ repo-init archetype="":
     # With no alternate address there is nothing to map, and the sole entry
     # would keep an unfilled alt-email token in the angle brackets, which is a
     # malformed mailmap rather than a harmless leftover.
+    # git reads .mailmap from the WORKTREE ROOT only (or via mailmap.file /
+    # mailmap.blob, which nothing here configures). The copy that used to live
+    # under .github/ was therefore inert and was never filled.
     if [ -z "$AUTHOR_EMAIL_ALT" ]; then
-        printf '# No alternate author address to map.\n' > .github/.mailmap
+        printf '# No alternate author address to map.\n' > .mailmap
     fi
 
     # Replace in all text files (skip .git, LICENSE text, and binaries)

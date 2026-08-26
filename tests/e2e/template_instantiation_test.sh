@@ -196,7 +196,7 @@ log_pass "just repo-init completed"
 
 log_step "Checking rendered Guix package identity"
 
-for guix_file in guix.scm build/guix.scm; do
+for guix_file in guix.scm; do
     if [ ! -f "$TEST_REPO_PATH/$guix_file" ]; then
         log_error "$guix_file is missing after instantiation"
         exit 1

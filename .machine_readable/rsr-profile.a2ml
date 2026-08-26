@@ -37,7 +37,7 @@ capabilities = [
   "formal-proofs",      # verification/proofs/ (in-tree mechanised proofs)
   "docs-site",          # .github/workflows/pages.yml (casket/Pages)
   "container",          # container/ + .devcontainer/Containerfile
-  "reproducible-build", # build/guix.scm
+  "reproducible-build", # guix.scm
   "benchmarks",         # benches/
   "governance-tier",    # full AUDIT/AFFIRMATION/GOVERNANCE/MAINTAINERS trio
 ]

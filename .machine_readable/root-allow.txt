@@ -17,8 +17,6 @@ AUDIT.adoc
 EXPLAINME.adoc
 AFFIRMATION.adoc           # dated/signed honesty snapshot (README/EXPLAINME/AFFIRMATION trio)
 0-AI-MANIFEST.a2ml         # thin pointer to .machine_readable/0.1-AI-MANIFEST.a2ml
-GOVERNANCE.adoc            # governance model (validator accepts root or docs/governance/)
-MAINTAINERS.adoc           # maintainer roster
 CONTRIBUTING.md            # Accepted at root OR .github/ — CI (openssf/quality/rhodibot) now checks both; .github/ is the canonical estate location (org-inherited). Allow-listed if present at root.
 SECURITY.md                # Accepted at root OR .github/ — see CONTRIBUTING.md note above; security-policy contractile now accepts the .github/ copy.
 LICENSE
@@ -63,7 +61,7 @@ sonar-project.properties   # SonarCloud analysis config; the SonarQube scan acti
 .github/                   # CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, workflows/
 .machine_readable/         # AI manifests, contractiles, custom-format configs
 .well-known/
-build/                     # contractile.just, setup.sh, guix.scm, .guix-channel, Containerfile
+build/                     # contractile.just, setup.sh, .guix-channel, just/ phase modules
 ci/                        # .gitlab-ci.yml, .pre-commit-config.yaml (root shims if tools require)
 docs/                      # onboarding/, status/, governance/, ...
 docs-template/             # template-only: scaffolding docs copied into new repos
@@ -88,12 +86,9 @@ tools/                     # TODO: consolidate with scripts/ or document the spl
 
 # ─── Shipped by the template but previously unlisted (same class as mise.toml) ─
 ARCHITECTURE.md            # repo layout + design rationale; shipped at root
-GOVERNANCE.md              # GitHub renders .md natively; ships alongside GOVERNANCE.adoc
-MAINTAINERS                # plain-text roster shipped alongside MAINTAINERS.adoc
 
 # ─── Minting artefacts ───────────────────────────────────────────────────────
 REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just init` runs
 .gitmessage
 .mailmap
 FUNDING
-www
