@@ -16,6 +16,15 @@
 # Usage: bash scripts/gen-repo-map.sh [repo_root]
 set -euo pipefail
 
+# Byte order, everywhere. `sort` is LOCALE-DEPENDENT: under en_US.UTF-8 it
+# ignores leading punctuation, so dotfiles interleave with ordinary names;
+# under LC_ALL=C (what CI runs) they sort first. The generator was therefore
+# deterministic WITHIN an environment but not ACROSS environments, and the
+# CI freshness check caught precisely that on its first real run. Running the
+# generator twice in one shell cannot detect it - the check must vary the
+# locale, which is what tests/shape/repo_map_determinism_test.sh now does.
+export LC_ALL=C
+
 REPO_ROOT="${1:-.}"
 cd "$REPO_ROOT"
 ALLOW="machine-readable/root-allow.txt"

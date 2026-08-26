@@ -36,6 +36,11 @@ jobs:
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
       # nothing diffed them.
+      # The freshness check below is only meaningful if the generator is
+      # environment-independent. It wasn't: sort is locale-dependent, so the
+      # map generated differently in CI than locally. Vary the locale first.
+      - name: Repository map generates identically across locales
+        run: bash tests/shape/repo_map_determinism_test.sh
       - name: Repository map is not stale
         run: |
           cp docs/architecture/REPOSITORY-MAP.adoc /tmp/map.before
