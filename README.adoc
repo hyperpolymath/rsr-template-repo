@@ -60,6 +60,17 @@ just validate            # structure + metadata checks
 other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them
 across the tree, validates the result, and (if available) runs the `k9-svc` checks.
 
+== AI-Assisted Installation
+
+If you are an AI agent installing this project, read
+link:docs/AI_INSTALLATION_GUIDE.adoc[the AI installation guide] first — it gives
+the orientation order, the full prompt sequence, and the privacy notice.
+
+The one trap worth stating up front: **do not set `RSR_NON_INTERACTIVE=1`**. It
+stubs the shell builtin `read`, which also disables the loops that perform token
+substitution — the run never terminates and substitutes nothing. Pipe answers to
+stdin instead.
+
 == What you get
 
 * *Machine-readable metadata* (`.machine_readable/descriptiles/`) — `STATE`, `META`,
