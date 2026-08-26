@@ -37,11 +37,24 @@ to new repositories.
 
 ## Format Duplicates
 
-### no-duplicate-justfile
-- description: Only one Justfile (hardlinked from root to machine-readable/contractiles/)
-- run: test $(stat -c '%i' Justfile) = $(stat -c '%i' machine-readable/contractiles/Justfile 2>/dev/null)
+### justfile-imports-in-sync
+- description: The root Justfile and its contractiles mirror declare the SAME import? set
+- run: diff <(grep '^import?' Justfile) <(grep '^import?' machine-readable/contractiles/Justfile) >/dev/null
 - severity: warning
-- notes: Justfile should be hardlinked, not copied
+- notes: |
+    Replaces a no-duplicate-justfile rule that compared INODES to assert the two
+    files were hardlinked. That rule could never pass: git does not track
+    hardlinks, so the pair have separate inodes after any clone (measured:
+    1026120 vs 1031824). Its premise was also false — these are not one file
+    seen twice but two deliberately different Justfiles, differing by 88 lines,
+    so swapping the inode test for `cmp` would merely exchange one
+    always-failing check for another. `stat -c` is GNU-only too, so it broke on
+    macOS regardless.
+
+    What actually must hold is that the mirror declares the same import? set as
+    the root — that is the drift which silently breaks recipes, because `import?`
+    is the OPTIONAL form and fails quietly rather than erroring. Both currently
+    declare 7 imports and agree.
 
 ### no-duplicate-readme-format
 - description: Only one README format in contractiles/ (.adoc canonical)

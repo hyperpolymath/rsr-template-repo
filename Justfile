@@ -470,7 +470,7 @@ state-touch:
 
 # Show current phase from STATE.a2ml
 state-phase:
-    @grep -oP 'phase\s*=\s*"\K[^"]+' machine-readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
+    @sed -n 's/^[[:space:]]*phase[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' machine-readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GUIX
@@ -535,11 +535,14 @@ status:
 log count="20":
     @git log --oneline -{{count}}
 
-# Generate CHANGELOG.md with git-cliff
+# Generate CHANGELOG.adoc with git-cliff
 changelog:
     @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
-    git cliff --config machine-readable/configs/git-cliff/cliff.toml --output CHANGELOG.md
-    @echo "Generated CHANGELOG.md"
+    # AsciiDoc, not .md: CHANGELOG.adoc is what root-allow.txt permits, so a
+    # .md here would fail check-root-shape AND the estate's no-.md rule the
+    # moment anyone ran this recipe.
+    git cliff --config machine-readable/configs/git-cliff/cliff.toml --output CHANGELOG.adoc
+    @echo "Generated CHANGELOG.adoc"
 
 # Preview changelog for unreleased commits (does not write)
 changelog-preview:
