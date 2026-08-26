@@ -65,7 +65,6 @@ build/                     # contractile.just, setup.sh, .guix-channel, just/ ph
 ci/                        # .gitlab-ci.yml + .pre-commit-config.yaml; see ci/README.adoc for the
                            # out-of-band GitLab project setting these require
 docs/                      # onboarding/, status/, governance/, ...
-docs-template/             # template-only: scaffolding docs copied into new repos
 machine-readable-design/   # template-only: design rationale for machine-readable/ layout
 session/                   # dispatch.sh, custom-checks.k9, local-hooks.sh
 
@@ -77,7 +76,7 @@ examples/
 features/
 scripts/
 verification/
-container/                 # may host Containerfile if not at build/
+build/container/                 # may host Containerfile if not at build/
 
 # ─── Tolerated pending follow-up (re-evaluate when item lands) ───────────────
 affinescript/              # AffineScript source subtree consumed by this template
@@ -89,4 +88,3 @@ ARCHITECTURE.md            # repo layout + design rationale; shipped at root
 REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just init` runs
 .gitmessage
 .mailmap
-FUNDING

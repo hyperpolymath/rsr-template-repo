@@ -57,7 +57,7 @@ The container engine is *auto-detected* (`podman`, then `nerdctl`, then
 
 | `compose.yaml`
 | Portable compose-spec stack: app + `rokur` + `svalinn`. Use with
-  `just container-up` or `podman compose -f container/compose.yaml up -d`.
+  `just container-up` or `podman compose -f build/container/compose.yaml up -d`.
 
 | `compose.example.yaml`
 | Concrete multi-service example (Rust API + Elixir worker + gate + gateway).
@@ -163,7 +163,7 @@ CONTAINER_ENGINE=docker just container-build
 ----
 
 `just container-up` uses `selur-compose` automatically when it is installed,
-otherwise it falls back to `<engine> compose -f container/compose.yaml`.
+otherwise it falls back to `<engine> compose -f build/container/compose.yaml`.
 
 == Sovereign workflow (tier C)
 
@@ -171,15 +171,15 @@ otherwise it falls back to `<engine> compose -f container/compose.yaml`.
 ----
 just container-sign                # build → pack → sign → verify (.ctp)
 just container-push                # push the signed bundle
-cd container/stapeln && selur-compose up --detach
+cd build/container/stapeln && selur-compose up --detach
 ----
 
 k9-svc managed deployment:
 
 [source,bash]
 ----
-nickel typecheck container/stapeln/deploy.k9.ncl
-k9-svc deploy container/stapeln/deploy.k9.ncl --env production
+nickel typecheck build/container/stapeln/deploy.k9.ncl
+k9-svc deploy build/container/stapeln/deploy.k9.ncl --env production
 ----
 
 == Continuous integration
@@ -226,7 +226,7 @@ apparatus in one command:
 just no-container
 ----
 
-This removes `container/`, `.devcontainer/`, the `build/just/container.just`
+This removes `build/container/`, `.devcontainer/`, the `build/just/container.just`
 module and its Justfile import. Review `.github/workflows/` afterwards for any
 image build/publish jobs you no longer need.
 

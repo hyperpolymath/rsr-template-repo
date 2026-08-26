@@ -176,7 +176,7 @@ INIT_ANSWERS=(
     ""                          # Website URL       -> default
     ""                          # OpenSSF BP ID
 )
-# init only asks the container questions when container/ exists.
+# init only asks the container questions when build/container/ exists.
 if [ -d "$TEST_REPO_PATH/container" ]; then
     INIT_ANSWERS+=("" "" "")    # service name, port, registry -> defaults
 fi

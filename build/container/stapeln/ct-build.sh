@@ -28,11 +28,11 @@ set -euo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 
-# This script lives in container/stapeln/. The repo root is two levels up,
-# and the Tier-A Containerfile is one level up in container/.
+# This script lives in build/container/stapeln/. The repo root is two levels up,
+# and the Tier-A Containerfile is one level up in build/container/.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONTAINER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"   # build/container/stapeln -> repo root
 
 # Container engine — podman (recommended), nerdctl or docker.
 ENGINE="${CONTAINER_ENGINE:-podman}"
@@ -159,7 +159,7 @@ echo "  Image:  ${FULL_IMAGE}"
 echo "  Bundle: ${CTP_FILE}"
 echo ""
 echo "  To deploy with selur-compose:"
-echo "    cd container/stapeln && selur-compose up"
+echo "    cd build/container/stapeln && selur-compose up"
 echo ""
 echo "  To verify at any time:"
 echo "    ct verify ${CTP_FILE}"

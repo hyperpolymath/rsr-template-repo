@@ -9,9 +9,9 @@ K9!
 # It requires explicit authorisation via the Leash system.
 #
 # Usage:
-#   nickel typecheck container/deploy.k9.ncl
-#   k9-svc validate container/deploy.k9.ncl
-#   k9-svc deploy container/deploy.k9.ncl --env production
+#   nickel typecheck build/container/deploy.k9.ncl
+#   k9-svc validate build/container/deploy.k9.ncl
+#   k9-svc deploy build/container/deploy.k9.ncl --env production
 
 # The component's pedigree (self-description across five layers)
 let component_pedigree = {
@@ -115,7 +115,7 @@ let scripts = {
 #!/bin/sh
 set -eu
 echo "K9: Pre-deployment validation for {{SERVICE_NAME}}..."
-cd container/stapeln && selur-compose verify || podman compose --file ../compose.yaml config
+cd build/container/stapeln && selur-compose verify || podman compose --file ../compose.yaml config
 echo "K9: Validation passed."
 "%,
 
@@ -125,7 +125,7 @@ echo "K9: Validation passed."
 set -eu
 ENV="${1:-dev}"
 echo "K9: Deploying {{SERVICE_NAME}} to $ENV environment..."
-cd container/stapeln
+cd build/container/stapeln
 ./ct-build.sh
 selur-compose up --detach || podman compose --file ../compose.yaml up --detach
 echo "K9: Deployment to $ENV complete."
@@ -136,7 +136,7 @@ echo "K9: Deployment to $ENV complete."
 #!/bin/sh
 set -eu
 echo "K9: Rolling back {{SERVICE_NAME}} deployment..."
-cd container/stapeln
+cd build/container/stapeln
 selur-compose down || podman compose --file ../compose.yaml down
 echo "K9: Rollback complete."
 "%,
@@ -162,6 +162,6 @@ Before running, ensure you have:
 2. Verified the signature (when implemented)
 3. Explicitly authorised Hunt-level execution
 
-Run with: k9-svc authorize container/deploy.k9.ncl && k9-svc deploy container/deploy.k9.ncl
+Run with: k9-svc authorize build/container/deploy.k9.ncl && k9-svc deploy build/container/deploy.k9.ncl
 "%,
 }

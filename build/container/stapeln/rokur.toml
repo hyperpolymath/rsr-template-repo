@@ -12,7 +12,7 @@
 # and re-read on SIGHUP. Environment variables win over file values.
 #
 # Usage:
-#   rokur serve --config container/stapeln/rokur.toml
+#   rokur serve --config build/container/stapeln/rokur.toml
 #   # or, in the stack, via compose (see compose.toml / compose.yaml)
 
 [metadata]

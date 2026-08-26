@@ -37,7 +37,7 @@ environment = {
 }
 
 # Bind-mount a named volume for persistent data.
-# Format: "volume-name:/container/path"
+# Format: "volume-name:/build/container/path"
 volumes = ["api-data:/data"]
 
 # Restart policy: "always" ensures the service comes back after crashes.

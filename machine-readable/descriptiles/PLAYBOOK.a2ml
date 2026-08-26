@@ -68,7 +68,7 @@ enforcement-workflow = ".github/workflows/estate-rules.yml"
 # docs/                onboarding/, status/, architecture/, governance/  (all .adoc)
 # session/             dispatch.sh, custom-checks.k9, local-hooks.sh
 # src/                 Project source (Idris2 ABI under abi/, Zig FFI under ffi/)
-# tests/, benches/, examples/, features/, scripts/, verification/, container/
+# tests/, benches/, examples/, features/, scripts/, verification/, build/container/
 
 # === Documentation format rule ===
 # `.adoc` is the default for all general docs (TOPOLOGY, READINESS, ROADMAP,

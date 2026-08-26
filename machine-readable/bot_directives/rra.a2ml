@@ -17,20 +17,19 @@
       ;; Files that are strictly allowed to exist at the root
       (allow-list
         (file "README.adoc")
-        (file "CHANGELOG.md")
+        (file "CHANGELOG.adoc")
         (file "Justfile")
         (file "LICENSE")
         (file "0-AI-MANIFEST.a2ml")
         (file "CITATION.cff")
-        (file "FUNDING")
+        (file "CLAUDE.md")   ;; generated arrival pack; git/Claude/pre-commit all read it from the ROOT
         (pattern ".*")) ;; Allows hidden dotfiles implicitly, RRA will check specific dotfile rules below
 
       ;; Relocation rules: Move heavy prose out of the root
       (relocations
-        (move (pattern "*.adoc") (dest "docs/") (except "README.adoc"))
+        (move (pattern "*.adoc") (dest "docs/") (except "README.adoc" "CHANGELOG.adoc"))
         (move (pattern "GOVERNANCE.*") (dest "docs/"))
         (move (pattern "ARCHITECTURE.*") (dest "docs/"))
-        (move (file "CLAUDE.md") (dest ".github/"))
         (move (file "MAINTAINERS.adoc") (dest "docs/")))
       
       ;; Consolidation rules: Reduce the dotfile "wall of noise"

@@ -10,23 +10,33 @@ This directory is the *minimum heavy-wiki seed* for a hyperpolymath repo.
 [NOTE]
 ====
 *This is NOT a duplicate of `docs/`.* `docs/` holds *this* template's own,
-fully-written documentation; `docs-template/` is the un-filled *seed* (with
-`{{PLACEHOLDER}}` tokens and illustrative example paths) that gets copied into a
-*newly scaffolded* repo's `docs/`. Example paths inside `docs-template/`
+fully-written documentation; `build/docs-seed/` is the un-filled *seed* (with
+`{{PLACEHOLDER}}` tokens and illustrative example paths) that is copied into a
+*newly scaffolded* repo's `docs/`. Example paths inside `build/docs-seed/`
 describe a hypothetical downstream project, so they intentionally do not resolve
 against this template's tree (see `.hypatia-ignore` for the matching SD022
 carve-out).
 ====
 
-== How to adopt
+== How adoption works
 
-. Copy `docs-template/` → `docs/` in your repo.
-. Replace `{{PROJECT_NAME}}`, `{{OWNER}}`, `{{AUTHOR}}`, `{{AUTHOR_EMAIL}}`,
-  `{{CURRENT_YEAR}}` placeholders.
-. Delete any sections that genuinely do not apply (don't leave empty
-  scaffolding — the 2026-05-26 doc-debt audit flagged 61 estate repos
-  with empty `docs/` dirs as a separate category of debt).
-. Add repo-specific sections as needed.
+`just repo-init` does the first two steps for you. It was previously a manual
+four-step procedure that nothing automated, with the result that minted repos
+carried the un-filled seed *and* the spine's own rendered docs side by side.
+
+. **Automatic** — repo-init copies this seed over `docs/` before substitution.
+  It is an *overlay*: these files win on collision, and everything else the
+  spine ships under `docs/` survives (notably `docs/governance/` and
+  `docs/legal/`, which `build/just/validate.just` requires). This README is not
+  copied. The seed directory is then removed from your repo alongside
+  `archetypes/` and `build/templates/`.
+. **Automatic** — `{{PROJECT_NAME}}`, `{{OWNER}}`, `{{AUTHOR}}`,
+  `{{AUTHOR_EMAIL}}` and `{{CURRENT_YEAR}}` are rendered by the same
+  substitution pass as the rest of the tree.
+. **Yours to do** — delete any section that genuinely does not apply. Do not
+  leave empty scaffolding: the 2026-05-26 doc-debt audit counted 61 estate
+  repos with empty `docs/` dirs as its own category of debt.
+. **Yours to do** — add repo-specific sections.
 
 == What's in here
 
@@ -34,7 +44,7 @@ carve-out).
 |===
 | File | Purpose
 
-| `README.adoc`                  | This file. Delete after copying.
+| `README.adoc`                  | This file. NOT copied into your repo — it documents the seed itself.
 | `architecture.adoc`            | System overview, component diagram, data flow.
 | `usage.adoc`                   | End-user / consumer perspective. How to invoke / consume / depend on this repo.
 | `contributing.adoc`            | Developer perspective. Local-dev setup, test running, PR conventions.

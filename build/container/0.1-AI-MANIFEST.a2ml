@@ -24,21 +24,21 @@ purpose: |
 
 canonical_locations:
   # Tier A — OCI standard
-  containerfile: "container/Containerfile"
-  containerignore: "container/.containerignore"
-  entrypoint: "container/entrypoint.sh"
+  containerfile: "build/container/Containerfile"
+  containerignore: "build/container/.containerignore"
+  entrypoint: "build/container/entrypoint.sh"
   # Tier B — portable engine (podman/nerdctl/docker)
-  compose_portable: "container/compose.yaml"
-  compose_portable_example: "container/compose.example.yaml"
+  compose_portable: "build/container/compose.yaml"
+  compose_portable_example: "build/container/compose.example.yaml"
   # Tier C — stapeln sovereign
-  compose: "container/stapeln/compose.toml"
-  compose_example: "container/stapeln/compose.example.toml"
-  manifest: "container/stapeln/manifest.toml"
-  gatekeeper: "container/stapeln/.gatekeeper.yaml"
-  secrets_gate: "container/stapeln/rokur.toml"
-  build_pipeline: "container/stapeln/ct-build.sh"
-  monitoring: "container/stapeln/vordr.toml"
-  deployment: "container/stapeln/deploy.k9.ncl"
+  compose: "build/container/stapeln/compose.toml"
+  compose_example: "build/container/stapeln/compose.example.toml"
+  manifest: "build/container/stapeln/manifest.toml"
+  gatekeeper: "build/container/stapeln/.gatekeeper.yaml"
+  secrets_gate: "build/container/stapeln/rokur.toml"
+  build_pipeline: "build/container/stapeln/ct-build.sh"
+  monitoring: "build/container/stapeln/vordr.toml"
+  deployment: "build/container/stapeln/deploy.k9.ncl"
   # Just module + opt-out
   just_module: "build/just/container.just"
 

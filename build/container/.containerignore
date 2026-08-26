@@ -38,17 +38,17 @@ result/
 
 # Docs, tests, examples (not needed in the runtime image)
 docs/
-docs-template/
+build/docs-seed/
 benches/
 examples/
 tests/
 
 # The container tooling itself (don't recurse the build files into the image)
-container/stapeln/
-container/compose*.yaml
-container/compose*.toml
-container/.containerignore
-container/README.adoc
+build/container/stapeln/
+build/container/compose*.yaml
+build/container/compose*.toml
+build/container/.containerignore
+build/container/README.adoc
 
 # Secrets and environment files — never ship these
 *.env

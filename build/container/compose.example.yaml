@@ -6,18 +6,18 @@
 # rokur secrets gate and the svalinn edge gateway. Copy to compose.yaml and
 # customise. Works with podman / nerdctl / docker compose unchanged.
 #
-#   cp container/compose.example.yaml container/compose.yaml
+#   cp build/container/compose.example.yaml build/container/compose.yaml
 #   # edit service names, ports, images
-#   just container-up          # or: podman compose -f container/compose.yaml up -d
+#   just container-up          # or: podman compose -f build/container/compose.yaml up -d
 #
-# For the sovereign selur path see container/stapeln/compose.example.toml.
+# For the sovereign selur path see build/container/stapeln/compose.example.toml.
 
 services:
   # Rust API — primary HTTP/gRPC backend.
   rust-api:
     build:
       context: ..
-      dockerfile: container/Containerfile
+      dockerfile: build/container/Containerfile
     image: ghcr.io/hyperpolymath/myproject-api:latest
     ports:
       - "8080:8080"

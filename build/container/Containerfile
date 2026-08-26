@@ -8,10 +8,10 @@
 # This is the Tier-A artifact: a plain OCI image, buildable by ANY
 # OCI-compliant engine — podman (recommended), nerdctl, or docker.
 # It carries no hard dependency on the stapeln tier; the cerro-torre /
-# svalinn files under container/stapeln/ are referenced only as labels.
+# svalinn files under build/container/stapeln/ are referenced only as labels.
 #
 # Build (engine-agnostic — substitute podman | nerdctl | docker):
-#   podman build -t {{SERVICE_NAME}}:latest -f container/Containerfile .
+#   podman build -t {{SERVICE_NAME}}:latest -f build/container/Containerfile .
 #
 # Run:
 #   podman run -p {{PORT}}:{{PORT}} {{SERVICE_NAME}}:latest
@@ -60,7 +60,7 @@
 # Wolfi daily). For PRODUCTION builds, pin by digest for reproducibility/supply-
 # chain integrity, e.g.:
 #   FROM cgr.dev/chainguard/wolfi-base:latest@sha256:<digest> AS builder
-# (cerro-torre's .ctp signing in container/stapeln/ records the resolved digest.)
+# (cerro-torre's .ctp signing in build/container/stapeln/ records the resolved digest.)
 FROM cgr.dev/chainguard/wolfi-base:latest AS builder
 
 # TODO: Install your language toolchain
@@ -89,9 +89,9 @@ LABEL org.opencontainers.image.title="{{PROJECT_NAME}}" \
       org.opencontainers.image.vendor="{{OWNER}}" \
       org.opencontainers.image.licenses="{{LICENSE}}" \
       org.opencontainers.image.authors="{{AUTHOR}} <{{AUTHOR_EMAIL}}>" \
-      dev.cerrotorre.manifest="container/stapeln/manifest.toml" \
-      dev.cerrotorre.gatekeeper="container/stapeln/.gatekeeper.yaml" \
-      dev.stapeln.compose="container/stapeln/compose.toml"
+      dev.cerrotorre.manifest="build/container/stapeln/manifest.toml" \
+      dev.cerrotorre.gatekeeper="build/container/stapeln/.gatekeeper.yaml" \
+      dev.stapeln.compose="build/container/stapeln/compose.toml"
 
 # Install minimal runtime dependencies.
 # Adjust this list for your application:
@@ -114,15 +114,15 @@ WORKDIR /app
 #   COPY --from=builder /build/zig-out/bin/{{SERVICE_NAME}} /app/{{SERVICE_NAME}}
 
 # Copy entrypoint script
-COPY container/entrypoint.sh /app/entrypoint.sh
+COPY build/container/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # OPTIONAL (Tier C — stapeln). A pure OCI image does NOT need these baked in:
 # svalinn reads .gatekeeper.yaml from a mounted volume (see stapeln/compose.toml),
 # and cerro-torre reads manifest.toml at pack time. Uncomment only if you want
 # the policy/manifest embedded in the image itself.
-# COPY container/stapeln/.gatekeeper.yaml /etc/svalinn/gatekeeper.yaml
-# COPY container/stapeln/manifest.toml /app/manifest.toml
+# COPY build/container/stapeln/.gatekeeper.yaml /etc/svalinn/gatekeeper.yaml
+# COPY build/container/stapeln/manifest.toml /app/manifest.toml
 
 # Create data directory for persistent storage (mountable volume)
 RUN mkdir -p /data && chown appuser:appuser /data

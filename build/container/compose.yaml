@@ -3,13 +3,13 @@
 # {{PROJECT_NAME}} — portable compose stack (Tier B)
 #
 # This is the runtime-agnostic, OCI compose-spec file. It works unchanged with:
-#   podman compose  -f container/compose.yaml up -d
-#   nerdctl compose -f container/compose.yaml up -d
-#   docker  compose -f container/compose.yaml up -d
+#   podman compose  -f build/container/compose.yaml up -d
+#   nerdctl compose -f build/container/compose.yaml up -d
+#   docker  compose -f build/container/compose.yaml up -d
 #
 # It has NO dependency on the stapeln tier. For the sovereign path
 # (selur zero-copy IPC, signed .ctp bundles, svalinn trust policy) use
-# container/stapeln/compose.toml with `selur-compose` instead.
+# build/container/stapeln/compose.toml with `selur-compose` instead.
 #
 # The Justfile picks the right one automatically:
 #   just container-up        # selur-compose if installed, else this file
@@ -23,7 +23,7 @@ services:
   "{{SERVICE_NAME}}":
     build:
       context: ..
-      dockerfile: container/Containerfile
+      dockerfile: build/container/Containerfile
     image: "{{REGISTRY}}/{{SERVICE_NAME}}:latest"
     ports:
       - "{{PORT}}:{{PORT}}"
@@ -71,7 +71,7 @@ services:
 
   # ──────────────────────────────────────────────────────────────────────
   # svalinn — edge gateway (stapeln). TLS termination, auth, rate limiting.
-  # Reads the gatekeeper policy from container/stapeln/.gatekeeper.yaml.
+  # Reads the gatekeeper policy from build/container/stapeln/.gatekeeper.yaml.
   # Remove this service for a bare app with no gateway.
   # ──────────────────────────────────────────────────────────────────────
   svalinn:

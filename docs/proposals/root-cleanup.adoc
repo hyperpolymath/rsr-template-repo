@@ -44,7 +44,7 @@ The full enumeration lives in `machine-readable/root-allow.txt`. Summary:
 * *Directories (root):* `.git/`, `.github/`, `machine-readable/`,
   `.well-known/`, `build/`, `ci/`, `docs/`, `session/`, plus the conventional
   source/test trees (`src/`, `tests/`, `benches/`, `examples/`, `features/`,
-  `scripts/`, `verification/`, `container/`).
+  `scripts/`, `verification/`, `build/container/`).
 
 == Relocation plan
 
@@ -110,7 +110,7 @@ git mv contractile.just build/
 git mv setup.sh         build/
 git mv guix.scm         build/
 git mv .guix-channel    build/
-# Containerfile may already live in container/ — keep whichever the project uses.
+# Containerfile may already live in build/container/ — keep whichever the project uses.
 [ -f Containerfile ] && git mv Containerfile  build/
 ----
 
@@ -122,7 +122,7 @@ References to update in `Justfile`:
 + import? "build/contractile.just"
 ----
 
-The current Justfile already supports `container/Containerfile` *or* root
+The current Justfile already supports `build/container/Containerfile` *or* root
 `Containerfile` — extend that to also accept `build/Containerfile`.
 
 The 62 KB monolithic `Justfile` is a separate smell. A follow-up should split

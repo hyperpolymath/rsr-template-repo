@@ -101,8 +101,8 @@ repo-init archetype="":
 
     read -rp "OpenSSF Best Practices project ID (blank if not yet registered) []: " OPENSSF_BP_ID
 
-    # --- Container values (optional — only relevant if container/ exists) ---
-    if [ -d "container" ]; then
+    # --- Container values (optional — only relevant if build/container/ exists) ---
+    if [ -d "build/container" ]; then
         echo ""
         echo "── Container configuration (optional) ─────────"
         read -rp "Service name [${REPO}]: " _SERVICE_NAME
@@ -169,6 +169,26 @@ repo-init archetype="":
     if [ -n "$ARCHETYPE" ] && [ -d "archetypes/${ARCHETYPE}/overlay" ]; then
         cp -a "archetypes/${ARCHETYPE}/overlay/." .
         echo "  applied overlay: archetypes/${ARCHETYPE}/overlay/"
+    fi
+
+    # Seed docs/ from the documentation seed, BEFORE substitution so the seed's
+    # own placeholder tokens are rendered along with everything else.
+    #
+    # This is an OVERLAY, not a replacement. The seed's four perspective docs
+    # and its ADR template win on collision, because they are the
+    # downstream-facing shape; everything else the spine ships under docs/
+    # survives -- notably docs/governance/ and docs/legal/, which
+    # build/just/validate.just hard-requires, so a wholesale replace would
+    # break the minted repo's own validate gate.
+    #
+    # The seed's own README.adoc is instructions-for-use ("copy this, replace
+    # the placeholders, delete this README"), not content, so it is not copied.
+    # tar is used rather than cp so that existing docs/ subdirectories MERGE
+    # instead of nesting (cp -a decisions docs/ would yield docs/decisions/decisions).
+    if [ -d "build/docs-seed" ]; then
+        mkdir -p docs
+        ( cd build/docs-seed && tar cf - --exclude=README.adoc . ) | ( cd docs && tar xf - )
+        echo "  seeded docs/ from build/docs-seed/ (its own README omitted)"
     fi
 
     # Brace tokens as variables (hex avoids just interpolation)
@@ -518,6 +538,7 @@ repo-init archetype="":
     # archetypes/ is template-only overlay data, not part of your repo
     # (same reason build/templates is removed above).
     rm -rf archetypes
+    rm -rf build/docs-seed          # template-only; its content now lives in docs/
 
     echo ""
     echo "── Validation ───────────────────────────────────"

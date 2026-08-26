@@ -7,7 +7,7 @@
 # provides runtime observability without requiring in-process agents.
 #
 # Usage:
-#   vordr watch --config container/vordr.toml
+#   vordr watch --config build/container/vordr.toml
 #   vordr status
 #   vordr report
 

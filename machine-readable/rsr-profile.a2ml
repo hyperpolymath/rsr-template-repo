@@ -36,7 +36,7 @@ capabilities = [
   "abi",                # formally specified ABI: abi.ipkg + src/interface/Abi/ proofs
   "formal-proofs",      # verification/proofs/ (in-tree mechanised proofs)
   "docs-site",          # .github/workflows/pages.yml (casket/Pages)
-  "container",          # container/ + .devcontainer/Containerfile
+  "container",          # build/container/ + .devcontainer/Containerfile
   "reproducible-build", # guix.scm
   "benchmarks",         # benches/
   "governance-tier",    # full AUDIT/AFFIRMATION/GOVERNANCE/MAINTAINERS trio
