@@ -258,7 +258,7 @@ container-keep +tiers:
         $keep_stap || rm -rf build/container/stapeln
         $keep_port || rm -f build/container/compose.yaml build/container/compose.example.yaml
     else
-        rm -rf container
+        rm -rf build/container
         rm -f machine-readable/configs/selur-compose.toml
         rm -f .github/workflows/container-build.yml
         rm -f build/just/container.just
