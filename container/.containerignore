@@ -14,8 +14,7 @@
 
 # CI / forge metadata
 .github/
-.gitlab-ci.yml
-.pre-commit-config.yaml
+ci/
 
 # Editor / agent / local state
 .claude/
