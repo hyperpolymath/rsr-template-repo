@@ -11,4 +11,4 @@
 SECURITY.md @{{OWNER}}
 .github/workflows/ @{{OWNER}}
 Trustfile.a2ml @{{OWNER}}
-.machine_readable/ @{{OWNER}}
+machine-readable/ @{{OWNER}}

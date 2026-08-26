@@ -10,7 +10,7 @@ Repository: `/var/mnt/eclipse/repos/rsr-template-repo`
 
 * *Dangerous Patterns*: *CLEAN*.
 * *Standards Check*:
-** `.machine_readable/*.a2ml`: `0-AI-MANIFEST.a2ml` present.
+** `machine-readable/*.a2ml`: `0-AI-MANIFEST.a2ml` present.
 ** `Justfile`: *PRESENT*.
 ** `K9.k9` / `coordination.k9`: *PRESENT* (`coordination.k9`).
 * *CI/CD Status*: `.github/workflows` and `.gitlab-ci.yml` *PRESENT*.

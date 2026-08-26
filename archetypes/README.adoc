@@ -19,7 +19,7 @@ Single-line values, grep-parseable (same discipline as the canon's
 
 - `[metadata]` — `archetype`, `schema_version`.
 - `[capability] preset = "<name>"` — MUST name a preset in standards
-  `.machine_readable/template-capability-gates.toml [presets]`. The archetype
+  `machine-readable/template-capability-gates.toml [presets]`. The archetype
   directory name and the preset name are the same string by convention.
 - `[tokens]` — `TOKEN = "value"` lines. Only tokens the archetype can
   honestly determine (`PROJECT_KIND`, `PROJECT_DOMAIN`, `LANG_STACK`,
@@ -32,7 +32,7 @@ Single-line values, grep-parseable (same discipline as the canon's
 
 `just repo-init <name>` applies the overlay directory (if present), adds the
 token substitutions, and writes the preset into the minted repo's
-`.machine_readable/rsr-profile.a2ml`. This whole `archetypes/` directory is
+`machine-readable/rsr-profile.a2ml`. This whole `archetypes/` directory is
 template-only and is removed from the minted tree, exactly like
 `build/templates/`.
 

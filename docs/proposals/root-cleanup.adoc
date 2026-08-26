@@ -26,7 +26,7 @@ template root. The tracked root violates that map by roughly 5x:
 Downstream repositories (e.g. `the-nash-equilibrium`) inherit the violation
 verbatim. This proposal describes the relocations that bring the template back
 into compliance with its own map, and adds an automated guard
-(`scripts/check-root-shape.sh` against `.machine_readable/root-allow.txt`) so
+(`scripts/check-root-shape.sh` against `machine-readable/root-allow.txt`) so
 the violation cannot silently return.
 
 NOTE: This is a template-side change. Downstream repos pick it up via a
@@ -34,17 +34,17 @@ one-shot relocation PR per project once the template lands.
 
 == Allowlist (canonical root)
 
-The full enumeration lives in `.machine_readable/root-allow.txt`. Summary:
+The full enumeration lives in `machine-readable/root-allow.txt`. Summary:
 
 * *Authority files (root):* `README.adoc`, `AUDIT.adoc`, `EXPLAINME.adoc`,
   `0-AI-MANIFEST.a2ml` (thin pointer), `LICENSE`, `CHANGELOG.md`.
 * *Build entry points (root):* `Justfile`, `coordination.k9`.
 * *Tool-required dotfiles (root):* `.editorconfig`, `.envrc`, `.gitattributes`,
   `.gitignore`, `.tool-versions`.
-* *Directories (root):* `.git/`, `.github/`, `.machine_readable/`,
+* *Directories (root):* `.git/`, `.github/`, `machine-readable/`,
   `.well-known/`, `build/`, `ci/`, `docs/`, `session/`, plus the conventional
   source/test trees (`src/`, `tests/`, `benches/`, `examples/`, `features/`,
-  `scripts/`, `verification/`, `container/`).
+  `scripts/`, `verification/`, `build/container/`).
 
 == Relocation plan
 
@@ -110,7 +110,7 @@ git mv contractile.just build/
 git mv setup.sh         build/
 git mv guix.scm         build/
 git mv .guix-channel    build/
-# Containerfile may already live in container/ — keep whichever the project uses.
+# Containerfile may already live in build/container/ — keep whichever the project uses.
 [ -f Containerfile ] && git mv Containerfile  build/
 ----
 
@@ -122,7 +122,7 @@ References to update in `Justfile`:
 + import? "build/contractile.just"
 ----
 
-The current Justfile already supports `container/Containerfile` *or* root
+The current Justfile already supports `build/container/Containerfile` *or* root
 `Containerfile` — extend that to also accept `build/Containerfile`.
 
 The 62 KB monolithic `Justfile` is a separate smell. A follow-up should split
@@ -147,28 +147,28 @@ Updates required:
 * pre-commit: invoke as `pre-commit run --config ci/.pre-commit-config.yaml`,
   or leave a one-line root shim.
 
-=== Custom-format configs → `.machine_readable/configs/`
+=== Custom-format configs → `machine-readable/configs/`
 
 [source,bash]
 ----
-git mv eclexiaiser.toml   .machine_readable/configs/
-git mv selur-compose.toml .machine_readable/configs/
-git mv stapeln.toml       .machine_readable/configs/
+git mv eclexiaiser.toml   machine-readable/configs/
+git mv selur-compose.toml machine-readable/configs/
+git mv stapeln.toml       machine-readable/configs/
 ----
 
 References to update wherever any tool reads them (grep for the filenames
-across `Justfile`, `scripts/`, `.machine_readable/`).
+across `Justfile`, `scripts/`, `machine-readable/`).
 
 === AI manifest deduplication
 
-`.machine_readable/0.1-AI-MANIFEST.a2ml` is the canonical AI manifest in both
+`machine-readable/0.1-AI-MANIFEST.a2ml` is the canonical AI manifest in both
 the template and downstream repos (e.g. `the-nash-equilibrium` README line
 244). The root `0-AI-MANIFEST.a2ml` becomes a thin pointer:
 
 [source,a2ml]
 ----
 # 0-AI-MANIFEST.a2ml — pointer file
-authority = ".machine_readable/0.1-AI-MANIFEST.a2ml"
+authority = "machine-readable/0.1-AI-MANIFEST.a2ml"
 note = "AI agents MUST read the canonical manifest at the path above."
 ----
 
@@ -219,7 +219,7 @@ A pre-commit hook (in `ci/.pre-commit-config.yaml`) and a CI job
 For each downstream repo (start with `the-nash-equilibrium`):
 
 1. Apply the same `git mv` set (skip moves whose source doesn't exist locally).
-2. Copy the new `.machine_readable/root-allow.txt` and adapt comments/extras.
+2. Copy the new `machine-readable/root-allow.txt` and adapt comments/extras.
 3. Update internal links (README, docs, Justfile recipes).
 4. Run `just check-root-shape` and `scripts/validate-template.sh` to confirm
    shape parity with the template.

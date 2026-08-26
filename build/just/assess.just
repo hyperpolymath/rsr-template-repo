@@ -29,7 +29,7 @@ self-assess:
     HAS_IDRIS=false; ls *.ipkg >/dev/null 2>&1 && HAS_IDRIS=true
     HAS_ZIG=false; [ -f "build.zig" ] || [ -d "ffi/zig" ] && HAS_ZIG=true
     HAS_GLEAM=false; [ -f "gleam.toml" ] && HAS_GLEAM=true
-    HAS_CONTAINER=false; [ -f "Containerfile" ] || [ -f "container/Containerfile" ] && HAS_CONTAINER=true
+    HAS_CONTAINER=false; [ -f "Containerfile" ] || [ -f "build/container/Containerfile" ] && HAS_CONTAINER=true
     HAS_TESTS=false; [ -d "test" ] || [ -d "tests" ] || [ -d "__tests__" ] && HAS_TESTS=true
     HAS_API=false; grep -rq 'port\|listen\|endpoint' --include="*.exs" --include="*.rs" --include="*.toml" . 2>/dev/null && HAS_API=true
     IS_LIBRARY=false; [ -f "Cargo.toml" ] && grep -q '\[lib\]' Cargo.toml 2>/dev/null && IS_LIBRARY=true
@@ -52,7 +52,7 @@ self-assess:
     done
 
     # Community health files live at root OR .github/ (.github/ is the estate's
-    # canonical location — see .machine_readable/root-allow.txt). Checking root
+    # canonical location — see machine-readable/root-allow.txt). Checking root
     # alone reported the template's own .github/ copies as "MISSING (RSR
     # violation!)", which is a false negative.
     for f in SECURITY CODE_OF_CONDUCT CONTRIBUTING; do
@@ -67,10 +67,10 @@ self-assess:
         fi
     done
 
-    if [ -d ".machine_readable/descriptiles" ]; then
-        echo "  ✓ .machine_readable/descriptiles/ — KEEP (SCM checkpoint files)"
+    if [ -d "machine-readable/descriptiles" ]; then
+        echo "  ✓ machine-readable/descriptiles/ — KEEP (SCM checkpoint files)"
     else
-        echo "  ✗ .machine_readable/descriptiles/ — MISSING (RSR violation!)"
+        echo "  ✗ machine-readable/descriptiles/ — MISSING (RSR violation!)"
     fi
 
     if [ -d ".github/workflows" ]; then
@@ -101,8 +101,8 @@ self-assess:
         echo "    ⚠ Consequence: no C-compatible FFI bridge."
     fi
 
-    if $HAS_API && [ -f ".machine_readable/integrations/groove.a2ml" ]; then
-        PORT=$(grep '(port ' .machine_readable/integrations/groove.a2ml 2>/dev/null | sed 's/.*(port \([0-9]*\)).*/\1/')
+    if $HAS_API && [ -f "machine-readable/integrations/groove.a2ml" ]; then
+        PORT=$(grep '(port ' machine-readable/integrations/groove.a2ml 2>/dev/null | sed 's/.*(port \([0-9]*\)).*/\1/')
         if [ "$PORT" = "0" ]; then
             echo "  ⚠ groove.a2ml — Port not assigned. Run 'just groove-setup'."
         else
@@ -113,10 +113,10 @@ self-assess:
         echo "    → Run 'just groove-setup' to enable snap-on/snap-off discovery."
     fi
 
-    if $HAS_CONTAINER && [ -d "container" ]; then
-        echo "  ✓ container/ — KEEP (Containerfile + compose)"
-    elif ! $HAS_CONTAINER && [ -d "container" ]; then
-        echo "  ? container/ — No Containerfile detected in use."
+    if $HAS_CONTAINER && [ -d "build/container" ]; then
+        echo "  ✓ build/container/ — KEEP (Containerfile + compose)"
+    elif ! $HAS_CONTAINER && [ -d "build/container" ]; then
+        echo "  ? build/container/ — No Containerfile detected in use."
         echo "    → KEEP if you plan to containerise later."
         echo "    → SAFE TO REMOVE for libraries and CLI tools (run: just no-container)."
     fi
@@ -131,8 +131,8 @@ self-assess:
         echo "  ○ examples/*.res — Template ReScript examples. Not your code."
     fi
 
-    if [ -f ".machine_readable/ai/PLACEHOLDERS.adoc" ]; then
-        echo "  ○ .machine_readable/ai/PLACEHOLDERS.adoc — Template doc. Remove after init."
+    if [ -f "machine-readable/ai/PLACEHOLDERS.adoc" ]; then
+        echo "  ○ machine-readable/ai/PLACEHOLDERS.adoc — Template doc. Remove after init."
     fi
 
     if { [ -f "build/flake.nix" ] || [ -f "flake.nix" ]; } && ! command -v nix >/dev/null 2>&1; then
@@ -140,7 +140,7 @@ self-assess:
         echo "    → KEEP if others might build with Nix."
     fi
 
-    if { [ -f "build/guix.scm" ] || [ -f "guix.scm" ]; } && ! command -v guix >/dev/null 2>&1; then
+    if [ -f "guix.scm" ] && ! command -v guix >/dev/null 2>&1; then
         echo "  ○ guix.scm — Guix package. Safe to remove if you don't use Guix."
         echo "    → KEEP if others might build with Guix."
     fi
@@ -151,19 +151,19 @@ self-assess:
     echo "── KEEP FOR FUTURE (not active, but valuable later) ──────"
     echo ""
 
-    if [ -d ".machine_readable/contractiles" ]; then
+    if [ -d "machine-readable/contractiles" ]; then
         echo "  ◆ contractiles/ — Must/Trust/Dust/Lust contracts."
         echo "    Not enforced until you configure them, but ready when you need"
         echo "    automated compliance checking. Zero cost to keep."
     fi
 
-    if [ -d ".machine_readable/bot_directives" ]; then
+    if [ -d "machine-readable/bot_directives" ]; then
         echo "  ◆ bot_directives/ — Gitbot fleet configuration."
         echo "    Not active until gitbot-fleet is connected. Keeps your repo"
         echo "    ready for automated maintenance when the fleet arrives."
     fi
 
-    if [ -d ".machine_readable/bot_directives" ]; then
+    if [ -d "machine-readable/bot_directives" ]; then
         echo "  ◆ bot_directives/ — AI agent methodology config."
         echo "    Guides Claude/Gemini/etc on how to work in this repo."
         echo "    No cost to keep. Improves AI assistance quality."
@@ -218,7 +218,7 @@ verify:
     # Community health files: accept root OR .github/, .md OR .adoc.
     #
     # .github/ is the canonical estate location for these — see
-    # .machine_readable/root-allow.txt, which says of CONTRIBUTING.md:
+    # machine-readable/root-allow.txt, which says of CONTRIBUTING.md:
     #   "Accepted at root OR .github/ — CI (openssf/quality/rhodibot) now
     #    checks both; .github/ is the canonical estate location
     #    (org-inherited). Allow-listed if present at root."
@@ -248,9 +248,9 @@ verify:
     check_file "LICENSE"
     check_community_file "CONTRIBUTING"
     check_either "README.adoc" "README.md"
-    check_file ".machine_readable/descriptiles/STATE.a2ml"
-    check_file ".machine_readable/descriptiles/META.a2ml"
-    check_file ".machine_readable/descriptiles/ECOSYSTEM.a2ml"
+    check_file "machine-readable/descriptiles/STATE.a2ml"
+    check_file "machine-readable/descriptiles/META.a2ml"
+    check_file "machine-readable/descriptiles/ECOSYSTEM.a2ml"
     check_either "CHANGELOG.md" "CHANGELOG.adoc"
 
     # Check at least 1 workflow exists

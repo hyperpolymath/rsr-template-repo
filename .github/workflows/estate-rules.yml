@@ -27,9 +27,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
+      # Prove the instrument works before trusting its reading. This gate was
+      # one-directional for months, which is indistinguishable from a working
+      # gate until you try to make it fail.
+      - name: Root-shape gate self-test (must fail on drift)
+        run: bash tests/shape/check_root_shape_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
+      # The map is generated. Five hand-written predecessors all rotted because
+      # nothing diffed them.
+      # The freshness check below is only meaningful if the generator is
+      # environment-independent. It wasn't: sort is locale-dependent, so the
+      # map generated differently in CI than locally. Vary the locale first.
+      - name: Repository map generates identically across locales
+        run: bash tests/shape/repo_map_determinism_test.sh
+      - name: Repository map is not stale
+        run: |
+          cp docs/architecture/REPOSITORY-MAP.adoc /tmp/map.before
+          bash scripts/gen-repo-map.sh .
+          diff -u /tmp/map.before docs/architecture/REPOSITORY-MAP.adoc \
+            || { echo "::error::REPOSITORY-MAP.adoc is stale - run 'just repo-map'"; exit 1; }
       - name: AsciiDoc by default (no .md under docs/)
         run: bash scripts/check-no-md-in-docs.sh .
       - name: No V-language references
         run: bash scripts/check-no-vlang.sh .
+      # Was written but wired to nothing, so it had never run in CI.
+      - name: V-language gate self-test
+        run: bash tests/workflows/check_no_vlang_test.sh

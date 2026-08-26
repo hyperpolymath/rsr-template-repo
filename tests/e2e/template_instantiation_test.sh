@@ -176,7 +176,7 @@ INIT_ANSWERS=(
     ""                          # Website URL       -> default
     ""                          # OpenSSF BP ID
 )
-# init only asks the container questions when container/ exists.
+# init only asks the container questions when build/container/ exists.
 if [ -d "$TEST_REPO_PATH/container" ]; then
     INIT_ANSWERS+=("" "" "")    # service name, port, registry -> defaults
 fi
@@ -196,7 +196,7 @@ log_pass "just repo-init completed"
 
 log_step "Checking rendered Guix package identity"
 
-for guix_file in guix.scm build/guix.scm; do
+for guix_file in guix.scm; do
     if [ ! -f "$TEST_REPO_PATH/$guix_file" ]; then
         log_error "$guix_file is missing after instantiation"
         exit 1
@@ -337,8 +337,8 @@ done
 log_step "Verifying machine-readable metadata"
 
 METADATA_FILES=(
-    ".machine_readable/descriptiles/STATE.a2ml"
-    ".machine_readable/descriptiles/META.a2ml"
+    "machine-readable/descriptiles/STATE.a2ml"
+    "machine-readable/descriptiles/META.a2ml"
 )
 
 for file in "${METADATA_FILES[@]}"; do

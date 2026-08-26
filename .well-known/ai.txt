@@ -14,4 +14,4 @@ Disallow-Generation: yes
 # For AI agent integration instructions, see:
 #   0-AI-MANIFEST.a2ml (universal AI entry point)
 #   AI.a2ml (Claude-specific instructions)
-#   .machine_readable/ (structured project state)
+#   machine-readable/ (structured project state)

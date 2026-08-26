@@ -136,7 +136,7 @@ check_file_exists "Justfile" "Task runner"
 check_file_either "AUDIT.adoc" "docs/AUDIT.adoc" "Release audit gate"
 
 # Directories
-check_dir_exists ".machine_readable" "Machine-readable metadata"
+check_dir_exists "machine-readable" "Machine-readable metadata"
 check_dir_exists ".github" "GitHub community metadata"
 check_abi_dir_exists "Idris2 ABI definitions"
 check_dir_exists "src/interface/ffi" "Zig FFI implementation"
@@ -148,14 +148,14 @@ check_dir_exists "docs" "Documentation"
 #==============================================================================
 
 echo ""
-log_info "Phase 2: Machine-readable metadata (.machine_readable/)"
+log_info "Phase 2: Machine-readable metadata (machine-readable/)"
 echo ""
 
-check_file_exists ".machine_readable/descriptiles/STATE.a2ml" "Project state"
-check_file_exists ".machine_readable/descriptiles/META.a2ml" "Architecture decisions"
-check_file_exists ".machine_readable/descriptiles/ECOSYSTEM.a2ml" "Ecosystem position"
-check_file_exists ".machine_readable/descriptiles/anchors/ANCHOR.a2ml" "Semantic boundary anchor"
-check_file_exists ".machine_readable/policies/MAINTENANCE-AXES.a2ml" "Maintenance axes"
+check_file_exists "machine-readable/descriptiles/STATE.a2ml" "Project state"
+check_file_exists "machine-readable/descriptiles/META.a2ml" "Architecture decisions"
+check_file_exists "machine-readable/descriptiles/ECOSYSTEM.a2ml" "Ecosystem position"
+check_file_exists "machine-readable/descriptiles/anchors/ANCHOR.a2ml" "Semantic boundary anchor"
+check_file_exists "machine-readable/policies/MAINTENANCE-AXES.a2ml" "Maintenance axes"
 
 #==============================================================================
 # VALIDATION PHASE 3: REQUIRED WORKFLOWS (17 minimum)
@@ -256,7 +256,7 @@ if [ "$(basename "$REPO_ROOT")" = "rsr-template-repo" ]; then
     log_pass "Skipping placeholder check for template repo"
 else
     # Check that key files don't have unresolved placeholders
-    for file in "$REPO_ROOT/README.adoc" "$REPO_ROOT/Justfile" "$REPO_ROOT/.machine_readable/descriptiles/STATE.a2ml"; do
+    for file in "$REPO_ROOT/README.adoc" "$REPO_ROOT/Justfile" "$REPO_ROOT/machine-readable/descriptiles/STATE.a2ml"; do
         if [ -f "$file" ]; then
             if has_placeholder "$file"; then
                 log_warning "File contains unresolved placeholders: $(basename "$file")"

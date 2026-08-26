@@ -8,7 +8,7 @@ Use this as a repeatable maintenance runbook for any repo.
 Companion policy:
 
 - `docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc` (human-readable)
-- `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` (machine-readable)
+- `machine-readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` (machine-readable)
 
 ## Canonical Repo Baseline (Final)
 
@@ -90,7 +90,7 @@ Run this pass at the end of a corrective/adaptive/perfective cycle:
 - [ ] Keep ownership/governance files present:
   - `MAINTAINER` in root
   - `.github/CODEOWNERS`
-- [ ] Keep machine-readable canonical structure under `.machine_readable/`:
+- [ ] Keep machine-readable canonical structure under `machine-readable/`:
   - state/meta/ecosystem files (`*.a2ml` or repo standard)
   - `anchors/ANCHOR.a2ml`
   - `contractiles/` (`must`, `trust`, `intend`, and related)
@@ -556,7 +556,7 @@ cd ${REPOS_ROOT:-~/Documents/hyperpolymath-repos}/gitbot-fleet
 just enroll-repos
 ```
 
-Optional directive write-back to repos that already have `.machine_readable/`:
+Optional directive write-back to repos that already have `machine-readable/`:
 
 ```bash
 cd ${REPOS_ROOT:-~/Documents/hyperpolymath-repos}/gitbot-fleet

@@ -5,7 +5,7 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 # Security Policy
 
 <!--
-The token vocabulary lives in .machine_readable/ai/PLACEHOLDERS.adoc, not here.
+The token vocabulary lives in machine-readable/ai/PLACEHOLDERS.adoc, not here.
 This file used to restate it in a "delete before publishing" block, but `just
 init` substitutes tokens inside comments too — so the block's own instructions
 were rewritten into nonsense and then shipped, because nothing deleted it.

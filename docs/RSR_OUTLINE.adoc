@@ -11,6 +11,19 @@ image:https://img.shields.io/badge/RSR-Infrastructure-cd7f32[RSR Infrastructure]
 image:https://img.shields.io/badge/Phase-Maintenance-brightgreen[Phase]
 image:https://img.shields.io/badge/Guix-Primary-purple?logo=gnu[Guix]
 
+[IMPORTANT]
+====
+*Superseded as an overview.* The root `README.adoc` is the entry point, and the
+authoritative directory map is generated at
+link:architecture/REPOSITORY-MAP.adoc[architecture/REPOSITORY-MAP.adoc].
+
+This document is kept for its longer-form rationale, not as a second README.
+Its hand-written directory tree was removed in 2026-08 after being found stale
+in six places at once (a2ml files listed outside `descriptiles/`, `Trustfile.hs`
+for `Trustfile.a2ml`, `docs/CITATIONS.adoc` and `docs/TOPOLOGY-GUIDE.adoc` which
+do not exist, and `src/interface/Abi/` which was renamed to lowercase).
+====
+
 == Overview
 
 **The canonical template for RSR (Rhodium Standard Repository) projects.**
@@ -64,7 +77,7 @@ just validate-rsr
 |`.well-known/`
 |RFC-compliant metadata (security.txt, ai.txt, humans.txt)
 
-|`.machine_readable/`
+|`machine-readable/`
 |All machine-readable content: state files (6 a2ml), `bot_directives/`, `contractiles/`
 
 |`docs/`
@@ -150,57 +163,10 @@ just container-build # Build container
 == Directory Structure
 
 [source]
-----
-project/
-├── .editorconfig              # Editor settings
-├── .gitignore                 # Git ignore
-├── .gitattributes             # Line endings, diff drivers
-├── .guix-channel              # Guix channel
-├── .well-known/               # RFC metadata
-│   ├── ai.txt
-│   ├── humans.txt
-│   └── security.txt
-├── .machine_readable/         # ALL machine-readable content
-│   ├── STATE.a2ml             # Project state, progress, blockers
-│   ├── META.a2ml              # Architecture decisions, governance
-│   ├── ECOSYSTEM.a2ml         # Ecosystem position, relationships
-│   ├── AGENTIC.a2ml           # AI agent interaction patterns
-│   ├── NEUROSYM.a2ml          # Neurosymbolic integration config
-│   ├── PLAYBOOK.a2ml          # Operational runbook
-│   ├── bot_directives/        # Per-bot rules and constraints
-│   └── contractiles/          # Policy enforcement contracts
-│       ├── k9/                # Security levels (Kennel/Yard/Hunt)
-│       ├── dust/Dustfile      # Recovery and rollback
-│       ├── intend/Intentfile    # Future intent declarations
-│       ├── must/Mustfile      # Invariant checks
-│       └── trust/Trustfile.hs # Cryptographic verification
-├── docs/                      # Documentation
-│   ├── CITATIONS.adoc
-│   ├── TOPOLOGY-GUIDE.adoc
-│   ├── generated/
-│   └── man/
-├── src/interface/Abi/                   # Idris2 ABI definitions
-│   ├── Types.idr
-│   ├── Layout.idr
-│   └── Foreign.idr
-├── ffi/zig/                   # Zig FFI implementation
-│   ├── build.zig
-│   ├── src/main.zig
-│   └── test/integration_test.zig
-├── generated/abi/             # Auto-generated C headers
-├── examples/                  # Example code
-├── guix.scm                   # Guix package
-├── Justfile                   # Task runner
-├── Containerfile              # Container build
-├── LICENSE                    # MPL-2.0
-├── EXHIBIT-A-ETHICAL-USE.txt  # MPL-2.0 source-code-form license notice
-├── EXHIBIT-B-QUANTUM-SAFE.txt # Quantum-safe provenance
-├── README.adoc                # Overview
-├── TOPOLOGY.md                # Architecture + completion
-├── PLACEHOLDERS.md            # Template variable guide
-├── 0-AI-MANIFEST.a2ml         # Universal AI entry point
-└── AI.a2ml                    # Claude-specific instructions
-----
+See link:architecture/REPOSITORY-MAP.adoc[REPOSITORY-MAP.adoc] for the
+directory map. It is generated from the tree and diffed in CI, so unlike the
+hand-written tree that used to sit here it cannot go stale.
+
 
 == RSR Compliance
 
@@ -217,7 +183,7 @@ project/
 * `Justfile`
 * `README.adoc`
 * `LICENSE` (MPL-2.0)
-* `.machine_readable/descriptiles/STATE.a2ml`
+* `machine-readable/descriptiles/STATE.a2ml`
 * `.well-known/security.txt`
 * `.well-known/ai.txt`
 * `.well-known/humans.txt`

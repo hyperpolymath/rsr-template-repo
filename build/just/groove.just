@@ -5,7 +5,7 @@
 #
 # Imported by ../../Justfile via `import? "build/just/groove.just"`.
 # Recipes here configure and validate the Groove protocol manifest at
-# .machine_readable/integrations/groove.a2ml — port assignment, API surface
+# machine-readable/integrations/groove.a2ml — port assignment, API surface
 # flags (REST/gRPC/GraphQL/WebSocket/SSE), and template-placeholder hygiene.
 # The manifest itself is consumed by the Groove bridge / zig-unified-api-adapter.
 
@@ -13,7 +13,7 @@
 groove-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    MANIFEST=".machine_readable/integrations/groove.a2ml"
+    MANIFEST="machine-readable/integrations/groove.a2ml"
     if [ ! -f "$MANIFEST" ]; then
         echo "Error: $MANIFEST not found. Run 'just repo-init' first."
         exit 1
@@ -76,13 +76,13 @@ verify-template:
     fi
 
     # Check for port 0 in Groove manifest
-    if grep -q '(port 0)' .machine_readable/integrations/groove.a2ml 2>/dev/null; then
+    if grep -q '(port 0)' machine-readable/integrations/groove.a2ml 2>/dev/null; then
         echo "⚠ Groove manifest has port 0 — run 'just groove-setup' to assign a port"
         FOUND=1
     fi
 
     # Check for empty SCM files
-    for f in .machine_readable/descriptiles/STATE.a2ml .machine_readable/descriptiles/META.a2ml .machine_readable/descriptiles/ECOSYSTEM.a2ml; do
+    for f in machine-readable/descriptiles/STATE.a2ml machine-readable/descriptiles/META.a2ml machine-readable/descriptiles/ECOSYSTEM.a2ml; do
         if [ -f "$f" ] && grep -q '{{'{{'}}' "$f" 2>/dev/null; then
             echo "⚠ $f still has template placeholders"
             FOUND=1

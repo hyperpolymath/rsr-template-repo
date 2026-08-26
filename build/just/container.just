@@ -6,9 +6,9 @@
 # Imported by ../../Justfile via `import? "build/just/container.just"`.
 # Variables (project, OWNER, ...) and `set shell` are inherited from the root.
 #
-# Tier A — OCI standard:   container/Containerfile, container/.containerignore
-# Tier B — portable engine: container/compose.yaml      (podman | nerdctl | docker)
-# Tier C — stapeln sovereign: container/stapeln/         (cerro-torre, svalinn,
+# Tier A — OCI standard:   build/container/Containerfile, build/container/.containerignore
+# Tier B — portable engine: build/container/compose.yaml      (podman | nerdctl | docker)
+# Tier C — stapeln sovereign: build/container/stapeln/         (cerro-torre, svalinn,
 #                                                         vordr, selur, rokur, k9)
 #
 # Engine is auto-selected: $CONTAINER_ENGINE, else the first of podman /
@@ -39,8 +39,8 @@ container-init:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if [ ! -d "container" ]; then
-        echo "Error: container/ directory not found."
+    if [ ! -d "build/container" ]; then
+        echo "Error: build/container/ directory not found."
         echo "This repo may not have been created from rsr-template-repo,"
         echo "or containerisation was removed with 'just no-container'."
         exit 1
@@ -89,8 +89,8 @@ container-init:
         -e "s|${LB}REGISTRY${RB}|${REGISTRY}|g"
     )
 
-    # Recurses into container/stapeln/ as well.
-    find container/ -type f | while read -r file; do
+    # Recurses into build/container/stapeln/ as well.
+    find build/container/ -type f | while read -r file; do
         if file --brief "$file" | grep -qi 'text\|ascii\|utf'; then
             sed -i "${SED_ARGS[@]}" "$file"
         fi
@@ -99,10 +99,10 @@ container-init:
     echo "Container templates initialised."
     echo ""
     echo "Next steps:"
-    echo "  1. Edit container/Containerfile          — add your build commands (Tier A)"
-    echo "  2. Edit container/entrypoint.sh          — set your application binary"
-    echo "  3. Review container/compose.yaml         — portable stack (Tier B)"
-    echo "  4. Review container/stapeln/             — sovereign stack (Tier C)"
+    echo "  1. Edit build/container/Containerfile          — add your build commands (Tier A)"
+    echo "  2. Edit build/container/entrypoint.sh          — set your application binary"
+    echo "  3. Review build/container/compose.yaml         — portable stack (Tier B)"
+    echo "  4. Review build/container/stapeln/             — sovereign stack (Tier C)"
     echo "  5. Build: just container-build"
 
 # Build container image (cerro-torre pipeline if present, else plain OCI build)
@@ -110,14 +110,14 @@ container-build *args:
     #!/usr/bin/env bash
     set -euo pipefail
     {{_engine}}
-    if [ -f "container/stapeln/ct-build.sh" ]; then
-        cd container/stapeln && CONTAINER_ENGINE="$ENGINE" ./ct-build.sh {{args}}
-    elif [ -f "container/Containerfile" ]; then
-        "$ENGINE" build -t {{project}}:latest -f container/Containerfile .
+    if [ -f "build/container/stapeln/ct-build.sh" ]; then
+        cd build/container/stapeln && CONTAINER_ENGINE="$ENGINE" ./ct-build.sh {{args}}
+    elif [ -f "build/container/Containerfile" ]; then
+        "$ENGINE" build -t {{project}}:latest -f build/container/Containerfile .
     elif [ -f "Containerfile" ]; then
         "$ENGINE" build -t {{project}}:latest -f Containerfile .
     else
-        echo "No Containerfile found in container/ or project root"
+        echo "No Containerfile found in build/container/ or project root"
         exit 1
     fi
 
@@ -126,12 +126,12 @@ _compose action *args:
     #!/usr/bin/env bash
     set -euo pipefail
     {{_engine}}
-    if command -v selur-compose >/dev/null 2>&1 && [ -f "container/stapeln/compose.toml" ]; then
-        ( cd container/stapeln && selur-compose {{action}} {{args}} )
-    elif [ -f "container/compose.yaml" ]; then
-        "$ENGINE" compose -f container/compose.yaml {{action}} {{args}}
+    if command -v selur-compose >/dev/null 2>&1 && [ -f "build/container/stapeln/compose.toml" ]; then
+        ( cd build/container/stapeln && selur-compose {{action}} {{args}} )
+    elif [ -f "build/container/compose.yaml" ]; then
+        "$ENGINE" compose -f build/container/compose.yaml {{action}} {{args}}
     else
-        echo "No compose file found (container/stapeln/compose.toml or container/compose.yaml)"
+        echo "No compose file found (build/container/stapeln/compose.toml or build/container/compose.yaml)"
         exit 1
     fi
 
@@ -140,12 +140,12 @@ container-verify:
     #!/usr/bin/env bash
     set -euo pipefail
     {{_engine}}
-    if command -v selur-compose >/dev/null 2>&1 && [ -f "container/stapeln/compose.toml" ]; then
-        ( cd container/stapeln && selur-compose verify )
-    elif [ -f "container/compose.yaml" ]; then
-        "$ENGINE" compose -f container/compose.yaml config
+    if command -v selur-compose >/dev/null 2>&1 && [ -f "build/container/stapeln/compose.toml" ]; then
+        ( cd build/container/stapeln && selur-compose verify )
+    elif [ -f "build/container/compose.yaml" ]; then
+        "$ENGINE" compose -f build/container/compose.yaml config
     else
-        echo "No compose file found (container/stapeln/compose.toml or container/compose.yaml)"
+        echo "No compose file found (build/container/stapeln/compose.toml or build/container/compose.yaml)"
         exit 1
     fi
 
@@ -161,10 +161,10 @@ container-down *args:
 container-sign:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -f "container/stapeln/ct-build.sh" ]; then
-        cd container/stapeln && ./ct-build.sh
+    if [ -f "build/container/stapeln/ct-build.sh" ]; then
+        cd build/container/stapeln && ./ct-build.sh
     else
-        echo "No container/stapeln/ct-build.sh found"
+        echo "No build/container/stapeln/ct-build.sh found"
         exit 1
     fi
 
@@ -173,10 +173,10 @@ container-push:
     #!/usr/bin/env bash
     set -euo pipefail
     {{_engine}}
-    if [ -f "container/stapeln/ct-build.sh" ]; then
-        cd container/stapeln && CONTAINER_ENGINE="$ENGINE" ./ct-build.sh --push
+    if [ -f "build/container/stapeln/ct-build.sh" ]; then
+        cd build/container/stapeln && CONTAINER_ENGINE="$ENGINE" ./ct-build.sh --push
     else
-        echo "No container/stapeln/ct-build.sh found — falling back to $ENGINE push"
+        echo "No build/container/stapeln/ct-build.sh found — falling back to $ENGINE push"
         "$ENGINE" push {{project}}:latest
     fi
 
@@ -235,10 +235,10 @@ container-keep +tiers:
     plan=()
     $keep_dev  || plan+=(".devcontainer/  (dev container)")
     if $keep_oci; then
-        $keep_stap || plan+=("container/stapeln/  (cerro-torre, svalinn, vordr, selur, rokur, k9)")
-        $keep_port || plan+=("container/compose.yaml + compose.example.yaml  (portable stack)")
+        $keep_stap || plan+=("build/container/stapeln/  (cerro-torre, svalinn, vordr, selur, rokur, k9)")
+        $keep_port || plan+=("build/container/compose.yaml + compose.example.yaml  (portable stack)")
     else
-        plan+=("container/  (entire image + compose + stapeln)")
+        plan+=("build/container/  (entire image + compose + stapeln)")
         plan+=("build/just/container.just  (this module) + its Justfile import")
         [ -f .github/workflows/container-build.yml ] && plan+=(".github/workflows/container-build.yml")
     fi
@@ -255,15 +255,15 @@ container-keep +tiers:
     # Apply.
     $keep_dev || rm -rf .devcontainer
     if $keep_oci; then
-        $keep_stap || rm -rf container/stapeln
-        $keep_port || rm -f container/compose.yaml container/compose.example.yaml
+        $keep_stap || rm -rf build/container/stapeln
+        $keep_port || rm -f build/container/compose.yaml build/container/compose.example.yaml
     else
-        rm -rf container
-        rm -f .machine_readable/configs/selur-compose.toml
+        rm -rf build/container
+        rm -f machine-readable/configs/selur-compose.toml
         rm -f .github/workflows/container-build.yml
         rm -f build/just/container.just
         [ -f Justfile ] && sed -i '/# >>> container-module/,/# <<< container-module/d' Justfile
-        for jf in Justfile .machine_readable/contractiles/Justfile; do
+        for jf in Justfile machine-readable/contractiles/Justfile; do
             [ -f "$jf" ] && sed -i '\|import? "build/just/container.just"|d' "$jf"
         done
     fi

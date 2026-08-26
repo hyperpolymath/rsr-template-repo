@@ -121,7 +121,7 @@ esac
 
 # Files that legitimately contain tokens after instantiation.
 ALLOWED=(
-    ".machine_readable/ai/PLACEHOLDERS.adoc"   # the token vocabulary itself
+    "machine-readable/ai/PLACEHOLDERS.adoc"   # the token vocabulary itself
     "EXPLAINME.adoc"                           # prose explaining that tokens exist
     "scripts/check-no-placeholders.sh"         # this file (the pattern above)
     "tests/e2e/template_instantiation_test.sh" # names tokens in its answer list
