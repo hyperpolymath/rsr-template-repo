@@ -657,5 +657,13 @@ repo-init archetype="":
     echo "     Visibility is fail-closed private; flip deliberately if wanted:"
     echo "       gh repo edit ${OWNER}/${REPO} --visibility public --accept-visibility-change-consequences"
     echo "     Register in gv-clade-index; required contexts must equal emitted job ids."
+    if [ -f ci/.gitlab-ci.yml ]; then
+        echo ""
+        echo "     GitLab mirror only: this repo keeps its GitLab CI config at"
+        echo "     ci/.gitlab-ci.yml, which GitLab does NOT look for by default."
+        echo "     Settings > CI/CD > General pipelines > CI/CD configuration file"
+        echo "     must be set to ci/.gitlab-ci.yml, or GitLab CI silently never"
+        echo "     runs - no pipeline and no error. See ci/README.adoc."
+    fi
     echo "  8. HARNESS — arm the drift gate against your recorded parent-pin:"
     echo "       scripts/check-variant-drift.sh <parent-checkout-dir>"
