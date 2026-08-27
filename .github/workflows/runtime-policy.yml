@@ -15,7 +15,7 @@
 #   MIXED TOOLCHAINS -- two different package managers' lockfiles in one repo.
 #   That is real, actionable drift: two dependency graphs that can disagree.
 # What it does NOT fail on:
-#   Using bun, deno, pnpm or npm. npm is LAST but PERMITTED; the check reports
+#   Using bun, pnpm or npm. Deno is RETIRED (2026-08-26). npm is LAST but PERMITTED; the check reports
 #   the tier in use so drift is visible without blocking legitimate work.
 name: Runtime Policy
 on:
@@ -59,7 +59,7 @@ jobs:
 
           # Report the tier actually in use (LANGUAGE-POLICY.adoc §1).
           [ "$bun"  -eq 1 ] && echo "Bun   — tier 1 (preferred)"
-          [ "$deno" -eq 1 ] && echo "Deno  — tier 2 (accepted; existing projects are grandfathered)"
+          [ "$deno" -eq 1 ] && echo "::warning::Deno lockfile/config present. Deno is BEING REMOVED, not grandfathered (owner ruling 2026-08-26, canon standards#655). Migrate to Bun — package.json + bun.lock. This is a warning rather than an error only while the estate migration is in flight; it escalates to an error when that completes."
           [ "$pnpm" -eq 1 ] && echo "pnpm  — tier 3"
           [ "$npm"  -eq 1 ] && echo "::warning::npm lockfile present. npm is tier 4, the last resort — permitted, never preferred. See LANGUAGE-POLICY.adoc §1."
 
