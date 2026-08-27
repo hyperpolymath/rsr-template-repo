@@ -36,9 +36,12 @@ jobs:
           # Vendored/upstream trees are excluded: patching a third party's test
           # fixtures creates permanent divergence and conflicts on every sync.
           fail=0
-            case "$f" in
-              node_modules/*|*/node_modules/*|vendor/*|*/vendor/*|third_party/*|*/third_party/*|rescript-ecosystem/*|*/rescript-ecosystem/*) continue ;;
+          while IFS= read -r f; do
+            case "/$f" in
+              */node_modules/*|*/vendor/*|*/third_party/*|*/rescript-ecosystem/*) continue ;;
             esac
+            shellcheck -S error "$f" || fail=1
+          done < <(git ls-files '*.sh' '*.bash')
           if [ "$fail" -ne 0 ]; then
             echo "::error::shellcheck reported error-severity findings (see above)"
             exit 1
