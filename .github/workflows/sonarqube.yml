@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
+# This workflow is managed by gh actions-lock.
 # SonarQube Cloud (SonarCloud) static analysis. Analysis scope + exclusions live
 # in sonar-project.properties. Requires the SONAR_TOKEN repository secret
 # (Settings -> Secrets and variables -> Actions) and a SonarCloud project:
