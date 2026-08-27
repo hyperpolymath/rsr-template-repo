@@ -36,22 +36,35 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 
 ## JavaScript / TypeScript runtimes
 
-Ordered preference (`standards/LANGUAGE-POLICY.adoc` §1, ruled 2026-07-29) —
-reach for the first that can do the job:
+Ordered preference (`standards/LANGUAGE-POLICY.adoc` §1) — reach for the first
+that can do the job:
 
-1. **Bun** — default for all new work. Executes `.ts` directly, no build step.
-2. **Deno** — existing Deno projects are grandfathered; prefer over pnpm/npm.
-3. **pnpm** — only where an upstream toolchain requires `node_modules`.
-4. **npm** — last resort. Permitted, never preferred; a deliberate, noted choice.
+1. **Bun** — default for all new work. Runs compiled ESM/JS directly, no bundler
+   step. Uses an npm-compatible `package.json` plus `bun.lock`; both are
+   expected, not anti-patterns.
+2. **pnpm** — only where an upstream toolchain requires `node_modules`.
+3. **npm** — last resort. Permitted, never preferred; a deliberate, noted choice.
 
-TypeScript **is permitted** under Bun. The former "use ReScript instead" rule is
-**retired** — ReScript is no longer used in this estate, so that rule pointed at
-a dead alternative. Do **not** migrate Bun to Deno; that inverts the ruling.
+**Deno is being removed**, not grandfathered. Owner ruling 2026-08-26: *"deno is
+to go and bun is the way we are going, put it first everywhere unless not
+possible and explain why if not."* Existing Deno projects migrate to Bun; where
+Bun genuinely cannot be used, document the reason in the repo.
+
+**TypeScript is not the language for new application code — AffineScript is.**
+`LANGUAGE-POLICY.adoc` §1.2, ruled 2026-08-25, separates two questions the older
+text ran together: *runtime* is Bun (where `.ts` runs at all, Bun runs it), while
+the *language* target is AffineScript. TypeScript is permitted only where
+AffineScript cannot reach — the same narrow, transitional carve-out JavaScript
+holds for MCP protocol glue and runtime APIs. ReScript remains banned; its
+migration destination is AffineScript.
 
 ## Banned Languages
 
 - No Go (use Rust)
 - No Python (use Julia or Rust)
+- No Nix (use Guix)
+- No Deno for new work — being removed estate-wide; use Bun (owner ruling 2026-08-26)
+- No ReScript (`LANGUAGE-POLICY.adoc` §3) — migrate to AffineScript
 
 ## Containers
 
