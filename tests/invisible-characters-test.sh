@@ -17,7 +17,7 @@ results="$fixture_root/results.bin"
 fixtures="$fixture_root/fixtures"
 mkdir -p "$fixtures"
 
-printf 'tab\tline\ncarriage\rreturn\n' > "$fixtures/safe.txt"
+printf 'tab\tline\ncarriage\rreturn\n' > "$fixtures/safe.md"
 printf 'nbsp:\302\240\n' > "$fixtures/nbsp.md"
 printf 'soft-hyphen:\302\255\n' > "$fixtures/soft-hyphen.adoc"
 printf 'zero-width:\342\200\213\n' > "$fixtures/zero-width.json"
@@ -36,7 +36,7 @@ safe_seen=false
 newline_seen=false
 while IFS= read -r -d '' filepath; do
   count=$((count + 1))
-  [[ "$filepath" == "$fixtures/safe.txt" ]] && safe_seen=true
+  [[ "$filepath" == "$fixtures/safe.md" ]] && safe_seen=true
   [[ "$filepath" == "$fixtures/with"$'\n'"newline.md" ]] && newline_seen=true
 done < "$results"
 
@@ -63,6 +63,14 @@ printf '#!/usr/bin/env sh\nexit 2\n' > "$failing_grep"
 chmod +x "$failing_grep"
 if INVISIBLE_GREP_BIN="$failing_grep" "$scanner" "$fixtures" "$results"; then
   echo "grep execution errors did not fail closed" >&2
+  exit 1
+fi
+
+failing_find="$fixture_root/failing-find"
+printf '#!/usr/bin/env sh\nexit 2\n' > "$failing_find"
+chmod +x "$failing_find"
+if INVISIBLE_FIND_BIN="$failing_find" "$scanner" "$fixtures" "$results"; then
+  echo "find execution errors did not fail closed" >&2
   exit 1
 fi
 

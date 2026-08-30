@@ -6,6 +6,7 @@ set -u
 scan_root="${1:-}"
 results_file="${2:-}"
 grep_bin="${INVISIBLE_GREP_BIN:-grep}"
+find_bin="${INVISIBLE_FIND_BIN:-find}"
 
 if [[ -z "$scan_root" || ! -d "$scan_root" || -z "$results_file" ]]; then
   echo "usage: $0 SCAN_ROOT RESULTS_FILE" >&2
@@ -17,17 +18,15 @@ fi
 pattern='[\x00-\x08\x0B\x0C\x0E-\x1F]|\xC2(?:\xA0|\xAD)|\xE2\x80[\x8B-\x8F\xAA-\xAF]|\xE2\x81(?:\xA0|[\xA6-\xA9])|\xEF\xBB\xBF'
 : > "$results_file" || exit 2
 scan_error=0
+enumeration_file="$(mktemp /tmp/rsr-invisible-files.XXXXXX)" || exit 2
+# Invoked indirectly by the EXIT trap.
+# shellcheck disable=SC2329
+cleanup() {
+  rm -f -- "$enumeration_file"
+}
+trap cleanup EXIT
 
-while IFS= read -r -d '' filepath; do
-  LC_ALL=C "$grep_bin" -aPq "$pattern" "$filepath"
-  status=$?
-  case "$status" in
-    0) printf '%s\0' "$filepath" >> "$results_file" || scan_error=1 ;;
-    1) ;;
-    *) echo "scanner error ($status): $filepath" >&2; scan_error=1 ;;
-  esac
-done < <(
-  find "$scan_root" \
+if ! "$find_bin" "$scan_root" \
     -not -path '*/.git/*' -not -path '*/node_modules/*' \
     -not -path '*/.deno/*' -not -path '*/target/*' \
     -not -path '*/_build/*' -not -path '*/deps/*' \
@@ -37,7 +36,19 @@ done < <(
       -o -name '*.yml' -o -name '*.yaml' -o -name '*.md' -o -name '*.adoc' \
       -o -name '*.idr' -o -name '*.zig' -o -name '*.v' -o -name '*.jl' \
       -o -name '*.gleam' -o -name '*.hs' -o -name '*.ml' -o -name '*.sh' \) \
-    -print0
-)
+    -print0 > "$enumeration_file"; then
+  echo "file enumeration failed: $scan_root" >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' filepath; do
+  LC_ALL=C "$grep_bin" -aPq "$pattern" "$filepath"
+  status=$?
+  case "$status" in
+    0) printf '%s\0' "$filepath" >> "$results_file" || scan_error=1 ;;
+    1) ;;
+    *) echo "scanner error ($status): $filepath" >&2; scan_error=1 ;;
+  esac
+done < "$enumeration_file"
 
 exit "$scan_error"
