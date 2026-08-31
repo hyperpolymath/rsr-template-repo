@@ -11,7 +11,9 @@
 # byte-reproducible, and SHA-256-pinned inside the action itself.
 name: Push email notification
 on:
-  push: {}
+  push:
+    # Branch pushes only: tag and deletion payloads mislabel Branch:/head_commit.
+    branches: ['**']
 permissions:
   contents: read
 jobs:
@@ -19,6 +21,7 @@ jobs:
     name: Email on push
     if: ${{ vars.PUSH_EMAIL_ENABLED == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Send push notification email
         uses: hyperpolymath/smtp-notify-action@v0.1.0 # NOSONAR — pin authority is actions.lock (sha1-1b3b752d39a4fe4c0f28f10905e4608789d3e050)
