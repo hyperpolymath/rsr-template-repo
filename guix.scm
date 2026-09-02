@@ -17,4 +17,4 @@
   (synopsis "rsr-template-repo")
   (description "rsr-template-repo — part of the hyperpolymath ecosystem.")
   (home-page "https://github.com/hyperpolymath/rsr-template-repo")
-  (license ((@@ (guix licenses) license) "MPL-2.0" "https://github.com/hyperpolymath/palimpsest-license")))
+  (license (@ (guix licenses) mpl2.0)))
