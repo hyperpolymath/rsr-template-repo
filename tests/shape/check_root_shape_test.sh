@@ -61,4 +61,61 @@ printf 'x\n' > "$FIXTURE/build-output.tmp"
 sed -i 's|^README.adoc$|README.adoc\n.gitignore|' "$FIXTURE/machine-readable/root-allow.txt"
 bash "$CHECKER" "$FIXTURE" | grep -q '^PASS:' || fail "git-ignored root entry was wrongly treated as drift"
 
-echo "PASS: check-root-shape.sh fails in both directions and honours '?'"
+
+# ---------------------------------------------------------------------------
+# Both-path resolution. The estate contract admits two spellings of the
+# machine-readable directory, and the great majority of repos use the dotted
+# one. A gate that reads only the hyphenated path exits 2 on those repos --
+# indistinguishable, to a caller, from a broken setup.
+# ---------------------------------------------------------------------------
+
+DOTTED=$(mktemp -d)
+trap 'rm -rf "$FIXTURE" "$DOTTED"' EXIT
+git -C "$DOTTED" init -q
+git -C "$DOTTED" config user.name "RSR fixture"
+git -C "$DOTTED" config user.email "fixture@example.invalid"
+mkdir -p "$DOTTED/.machine_readable"
+cat > "$DOTTED/.machine_readable/root-allow.txt" <<'ALLOW'
+# fixture allowlist, dotted spelling
+.git/
+.machine_readable/
+README.adoc
+ALLOW
+printf 'fixture\n' > "$DOTTED/README.adoc"
+
+# 6. The dotted spelling resolves and a conforming root passes.
+bash "$CHECKER" "$DOTTED" | grep -q '^PASS:' || fail "dotted .machine_readable/ allowlist was not resolved"
+
+# 7. The dotted spelling still FAILS on drift. Resolving the file is not the
+#    same as enforcing against it; without this case, case 6 would also pass
+#    for a gate that found the allowlist and then ignored it.
+printf 'stray\n' > "$DOTTED/STRAY.adoc"
+if out=$(bash "$CHECKER" "$DOTTED" 2>&1); then
+    fail "dotted-spelling repo did not fail on a stray root entry"
+fi
+grep -q 'STRAY.adoc' <<<"$out" || fail "dotted-spelling failure did not name the stray entry"
+rm "$DOTTED/STRAY.adoc"
+
+# 8. BOTH spellings present is refused as setup error (2), not silently
+#    resolved: two allowlists cannot both be canonical.
+mkdir -p "$DOTTED/machine-readable"
+cp "$DOTTED/.machine_readable/root-allow.txt" "$DOTTED/machine-readable/root-allow.txt"
+set +e
+bash "$CHECKER" "$DOTTED" >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" -eq 2 ] || fail "two competing allowlists returned $rc, expected 2"
+rm -rf "$DOTTED/machine-readable"
+
+# 9. NEITHER spelling present is a setup error (2), and the message names both
+#    paths so the operator knows which two were tried.
+rm -rf "$DOTTED/.machine_readable"
+set +e
+out=$(bash "$CHECKER" "$DOTTED" 2>&1)
+rc=$?
+set -e
+[ "$rc" -eq 2 ] || fail "absent allowlist returned $rc, expected 2"
+grep -q '.machine_readable/root-allow.txt' <<<"$out" || fail "error did not name the dotted path"
+grep -q 'machine-readable/root-allow.txt'  <<<"$out" || fail "error did not name the hyphenated path"
+
+echo "PASS: check-root-shape.sh fails in both directions, honours '?', and resolves both spellings"
