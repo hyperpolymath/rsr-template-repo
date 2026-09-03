@@ -2,16 +2,16 @@
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 = Architecture Decision Record: 0002-variant-contract
 
-# 2. Variant templates declare a machine-readable contract with their parent
+== 2. Variant templates declare a machine-readable contract with their parent
 
 Date: 2026-07-07
 
-## Status
+=== Status
 
 Accepted (ratified by owner 2026-07-07; first instance live in
 rsr-julia-library-template-repo)
 
-## Context
+=== Context
 
 The RSR template family grows variants where the spine genuinely diverges —
 build system, test/docs toolchain, ABI story (first: the Julia library
@@ -26,7 +26,7 @@ enforceable*, and the long-term plan (Scaffoldia as composer; template repos
 becoming generated artifacts with a maintenance sync loop until cut-off)
 needs variant deltas to exist as data, not tribal knowledge.
 
-## Decision
+=== Decision
 
 Every variant template carries a **variant contract** at
 `machine-readable/descriptiles/VARIANT.a2ml` declaring:
@@ -59,7 +59,7 @@ the variant a hand-maintained specialisation (`direction =
 describe how to regenerate the variant from core + variant pack
 (`direction = "generated-from-core"`).
 
-## Consequences
+=== Consequences
 
 - Variant drift becomes a red check instead of an archaeology project.
 - The `diverged-pending-upstream` list is a standing, exact worklist for

@@ -60,14 +60,14 @@ available verbs rather than hard-coding the list. See
 
 | `intend`
 | `intend/Intentfile.a2ml`
-| North-star: committed next-actions ([[intents]] with probes) AND horizon
-  aspirations ([[wishes]] grouped near/mid/far). Non-gating (report only).
+| North-star: committed next-actions (\[[intents]] with probes) AND horizon
+  aspirations (\[[wishes]] grouped near/mid/far). Non-gating (report only).
   Absorbed the deprecated `lust` verb 2026-04-18.
 |===
 
 NOTE: The `lust/` verb was deprecated 2026-04-18 (name had unwanted
-associations). Its [[wishes]] semantics live inside `intend/Intentfile.a2ml`
-as a second section alongside [[intents]]. Any `lust/` dir encountered in
+associations). Its \[[wishes]] semantics live inside `intend/Intentfile.a2ml`
+as a second section alongside \[[intents]]. Any `lust/` dir encountered in
 an estate repo is drift and should be removed.
 
 == k9 — Service-Automation Layer (EXCEPTION to the one-verbfile rule)
@@ -136,21 +136,21 @@ When copying this set into a new repo:
    behaviour while preserving the audit trail.
 6. `Bustfile` — declare real breakage / expiry / hard-stop conditions.
 7. `Intentfile` — list tracked next-actions with observable probes
-   ([[intents]] section) AND horizon aspirations ([[wishes]] section).
+   (\[[intents]] section) AND horizon aspirations (\[[wishes]] section).
 8. Pair any `k9/*.k9.ncl` with a specific contractile via `paired_xfile`.
 
 == Intentfile: Commitments vs Aspirations — Two Sections, One File
 
 Since 2026-04-18 both axes live inside `intend/Intentfile.a2ml`:
 
-* `[[intents]]` is the **commitment axis**. Items here are tracked
+* `\[[intents]]` is the **commitment axis**. Items here are tracked
   next-actions with probes. Status progresses
   declared → in_progress → done/deferred/retired.
-* `[[wishes]]` is the **aspiration axis**. Items here are horizon goals
+* `\[[wishes]]` is the **aspiration axis**. Items here are horizon goals
   grouped near/mid/far. Status progresses
   declared → in_progress → achieved/abandoned.
 
-If something is concrete enough to have a probe, it belongs in `[[intents]]`.
+If something is concrete enough to have a probe, it belongs in `\[[intents]]`.
 If it is a horizon-level desire that might never be acted on, it belongs
-in `[[wishes]]`. A wish can graduate to an intent when a concrete plan
+in `\[[wishes]]`. A wish can graduate to an intent when a concrete plan
 materialises.

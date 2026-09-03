@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 = AI Conventions
-<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}> -->
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
-# AI Conventions (Authoritative Source)
+== AI Conventions (Authoritative Source)
 
 All AI coding agents working in this repository MUST follow these rules.
 Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 
-## Session Startup
+=== Session Startup
 
 1. Read `0-AI-MANIFEST.a2ml` FIRST (mandatory gatekeeper).
 2. Read `machine-readable/descriptiles/STATE.a2ml` for current status and blockers.
@@ -19,7 +19,7 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 6. Read `machine-readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` for execution order.
 7. Read `machine-readable/descriptiles/AGENTIC.a2ml` for agent constraints.
 
-## License
+=== License
 
 Per estate policy (hyperpolymath/standards `LICENCE-POLICY.adoc` Rule 1 + Addendum A8):
 
@@ -36,56 +36,62 @@ Per estate policy (hyperpolymath/standards `LICENCE-POLICY.adoc` Rule 1 + Addend
   automated/bulk SPDX edits (Addendum A2). New files may carry the correct
   SPDX from birth.
 
-## Author Attribution
+=== Author Attribution
 
 - Name: **{{AUTHOR}}**
 - Email: **{{AUTHOR_EMAIL}}**
 - Copyright: `Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>`
 
-## State Files
+=== State Files
 
 State/metadata files, anchors, and policies (.a2ml) belong in `machine-readable/` ONLY.
 NEVER create STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml,
 NEUROSYM.a2ml, PLAYBOOK.a2ml, ANCHOR.a2ml, MAINTENANCE-AXES.a2ml,
 MAINTENANCE-CHECKLIST.a2ml, or SOFTWARE-DEVELOPMENT-APPROACH.a2ml in the repository root.
 
-## Banned Patterns
+=== Banned Patterns
 
-| Language | Banned                              | Reason                    |
-|----------|-------------------------------------|---------------------------|
-| Idris2   | `believe_me`, `assert_total`        | Unsound escape hatches    |
-| Haskell  | `unsafeCoerce`, `unsafePerformIO`   | Breaks type safety        |
-| OCaml    | `Obj.magic`, `Obj.repr`, `Obj.obj`  | Unsafe casting            |
-| Coq      | `Admitted`                          | Unproven assumption       |
-| Lean     | `sorry`                             | Unproven assumption       |
-| Rust     | `transmute` (unless FFI + SAFETY:)  | Unsound reinterpret       |
+|===
+| Language | Banned | Reason
 
-## Banned Languages
+| Idris2 | `believe_me`, `assert_total` | Unsound escape hatches
+| Haskell | `unsafeCoerce`, `unsafePerformIO` | Breaks type safety
+| OCaml | `Obj.magic`, `Obj.repr`, `Obj.obj` | Unsafe casting
+| Coq | `Admitted` | Unproven assumption
+| Lean | `sorry` | Unproven assumption
+| Rust | `transmute` (unless FFI + SAFETY:) | Unsound reinterpret
+|===
 
-| Banned              | Use Instead        |
-|---------------------|--------------------|
-|           |            |
-| Node.js / npm / bun |                |
-| Go                  | Rust               |
-| Python              | Julia / Rust       |
 
-## Container Standard
+=== Banned Languages
+
+|===
+| Banned | Use Instead
+
+|  |
+| Node.js / npm / bun |
+| Go | Rust
+| Python | Julia / Rust
+|===
+
+
+=== Container Standard
 
 - Runtime: **Podman** (never Docker).
 - File: **Containerfile** (never Dockerfile).
 - Base images: `cgr.dev/chainguard/wolfi-base:latest` or `cgr.dev/chainguard/static:latest`.
 
-## ABI/FFI Standard
+=== ABI/FFI Standard
 
 - ABI definitions: **Idris2** with dependent types (`src/interface/Abi/`).
 - FFI implementation: **Zig** with C ABI compatibility (`ffi/zig/`).
 - Generated C headers: `generated/abi/`.
 
-## Build System
+=== Build System
 
 Use `just` (Justfile) for all build, test, lint, and format tasks.
 
-## References
+=== References
 
 - `0-AI-MANIFEST.a2ml` -- universal AI entry point
 - `machine-readable/descriptiles/AGENTIC.a2ml` -- agent permissions and constraints

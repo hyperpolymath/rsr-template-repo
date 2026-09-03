@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 = Architecture Decision Record: 0001-adopt-rsr-standard
-<!-- SPDX-License-Identifier: CC-BY-SA-4.0 -->
-<!-- Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}> -->
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
-# 1. Adopt Rhodium Standard Repository (RSR) Template
+== 1. Adopt Rhodium Standard Repository (RSR) Template
 
 Date: 2026-02-14
 
-## Status
+=== Status
 
 Accepted
 
-## Context
+=== Context
 
 Managing multiple repositories with an ad-hoc approach led to significant
 inconsistencies across the ecosystem. Common problems included:
@@ -29,7 +29,7 @@ inconsistencies across the ecosystem. Common problems included:
 Without a single source of truth for repository structure, each new repo
 required manual setup and inevitably drifted from best practices over time.
 
-## Decision
+=== Decision
 
 Adopt the Rhodium Standard Repository (RSR) template (`rsr-template-repo`) as
 the canonical starting point for all new repositories. Existing repositories
@@ -52,15 +52,16 @@ The RSR template provides:
 
 New repositories are created by cloning the template:
 
-```bash
+[source,bash]
+----
 git clone https://github.com/{{OWNER}}/rsr-template-repo new-repo-name
 cd new-repo-name
 rm -rf .git && git init
-```
+----
 
-## Consequences
+=== Consequences
 
-### Positive
+==== Positive
 
 - Consistency across all repositories, enforced from creation
 - Automated compliance checking via `rsr-antipattern.yml` workflow
@@ -71,7 +72,7 @@ rm -rf .git && git init
 - Reduced maintenance burden: fix once in template, propagate to all repos
 - Machine-readable state enables tooling and automation pipelines
 
-### Negative
+==== Negative
 
 - Migration effort for existing repos requires time and attention
 - Learning curve for contributors unfamiliar with RSR conventions
@@ -79,7 +80,7 @@ rm -rf .git && git init
 - Some repos may have unique needs that do not fit the standard template
   without customization
 
-### Neutral
+==== Neutral
 
 - Existing CI/CD pipelines continue to work; RSR workflows are additive
 - Third-party dependencies retain their original licenses regardless of
