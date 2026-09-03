@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
 # Dormant push-email notification. ARMED by setting the repo variable
@@ -14,6 +15,18 @@ on:
   push:
     # Branch pushes only: tag and deletion payloads mislabel Branch:/head_commit.
     branches: ['**']
+concurrency:
+  # Deliberately per-RUN, so no run is ever queued behind another and none is ever
+  # cancelled. Do NOT "tidy" this into a shared group such as
+  # ${{ github.workflow }}-${{ github.ref }}: GitHub keeps at most ONE pending run
+  # per concurrency group and cancels the previously pending one, even when
+  # cancel-in-progress is false. On this workflow that silently loses a
+  # notification email, with no error anywhere. Every run here reports a DISTINCT
+  # commit, so there is no redundant work for a concurrency limit to remove; the
+  # setting exists only to satisfy zizmor's concurrency-limits check explicitly
+  # rather than by omission.
+  group: push-email-${{ github.run_id }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
@@ -24,7 +37,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Send push notification email
-        uses: hyperpolymath/smtp-notify-action@v0.1.0 # NOSONAR — pin authority is actions.lock (sha1-1b3b752d39a4fe4c0f28f10905e4608789d3e050)
+        uses: hyperpolymath/smtp-notify-action@v0.2.0 # NOSONAR — pin authority is actions.lock (sha1-ede1191ef6ff3ac02c4f4d9efdf837ee517e11d7)
         with:
           server_address: ${{ secrets.SMTP_HOST }}
           server_port: ${{ secrets.SMTP_PORT }}
