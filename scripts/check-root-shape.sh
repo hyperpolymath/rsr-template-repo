@@ -3,7 +3,9 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # check-root-shape.sh — enforce the canonical root shape, in BOTH directions,
-# against machine-readable/root-allow.txt.
+# against the repository root allowlist, under EITHER canonical spelling:
+#   .machine_readable/root-allow.txt  (dotted, the estate majority)
+#   machine-readable/root-allow.txt   (hyphenated, what this template emits)
 #
 #   * an entry at root that is not listed          -> drift (extra)
 #   * a listed entry WITHOUT '?' that is missing   -> drift (missing)
@@ -28,10 +30,21 @@
 set -euo pipefail
 
 REPO_ROOT="${1:-.}"
-ALLOW_FILE="${REPO_ROOT}/machine-readable/root-allow.txt"
+REPO_ROOT_DOTTED="${REPO_ROOT}/.machine_readable/root-allow.txt"
+REPO_ROOT_HYPHEN="${REPO_ROOT}/machine-readable/root-allow.txt"
 
-if [ ! -f "$ALLOW_FILE" ]; then
-    echo "ERROR: allowlist not found at $ALLOW_FILE" >&2
+# Both spellings are estate contract. Resolve whichever exists; if BOTH exist
+# that is itself drift (two sources of truth) and is refused.
+if [ -f "$REPO_ROOT_DOTTED" ] && [ -f "$REPO_ROOT_HYPHEN" ]; then
+    echo "ERROR: both .machine_readable/ and machine-readable/ carry a root-allow.txt;" >&2
+    echo "       pick one spelling — two allowlists cannot both be canonical." >&2
+    exit 2
+elif [ -f "$REPO_ROOT_DOTTED" ]; then
+    ALLOW_FILE="$REPO_ROOT_DOTTED"
+elif [ -f "$REPO_ROOT_HYPHEN" ]; then
+    ALLOW_FILE="$REPO_ROOT_HYPHEN"
+else
+    echo "ERROR: allowlist not found at either $REPO_ROOT_DOTTED or $REPO_ROOT_HYPHEN" >&2
     exit 2
 fi
 

@@ -44,6 +44,22 @@ else
         -printf '%P\n' 2>/dev/null || true)
 fi
 
+# Drop self-references. A line whose only match is this checker's own file name
+# is an INVOCATION, not a V-language artefact. The :(exclude) list above can
+# only name call sites that already exist, so without this filter the gate
+# false-positives the moment a repo invokes it from a new place -- a Justfile, a
+# pre-push hook, a different workflow. Proven 2026-09-02: a Justfile line
+# `bash scripts/check-no-vlang.sh .` was reported as a V-language reference.
+SELF_REF='check[-_]no[-_]vlang(_test)?[.]sh'
+if [ -n "$HITS" ]; then
+    HITS=$(printf '%s\n' "$HITS" | awk -v self="$SELF_REF" -v pat="$PATTERN" '
+        {
+            line = tolower($0)
+            gsub(self, "", line)
+            if (line ~ tolower(pat)) { print }
+        }')
+fi
+
 if [ -z "$HITS" ] && [ -z "$V_MODS" ]; then
     echo "PASS: no V-language references in the inspected repository"
     exit 0
