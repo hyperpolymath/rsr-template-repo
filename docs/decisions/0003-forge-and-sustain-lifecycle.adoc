@@ -2,18 +2,18 @@
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 = Architecture Decision Record: 0003-forge-and-sustain-lifecycle
 
-# 3. One lifecycle, one contract: Forge (mint → provision → configure → harness) and Sustain (corrective / adaptive / perfective / preventive)
+== 3. One lifecycle, one contract: Forge (mint → provision → configure → harness) and Sustain (corrective / adaptive / perfective / preventive)
 
 Date: 2026-07-21
 
-## Status
+=== Status
 
 Proposed (drafted 2026-07-21; awaiting owner ratification). The normative
 statement lives in `hyperpolymath/standards`
 `rhodium-standard-repositories/spec/SCAFFOLD-LIFECYCLE.adoc`; this ADR records
 the decision and its mechanics in the spine.
 
-## Context
+=== Context
 
 The scaffolding machinery exists but is disconnected, and each disconnection
 has produced a measured incident:
@@ -39,7 +39,7 @@ has produced a measured incident:
   rsr-julia-library-template-repo) but apply only to variant *templates*,
   not to the ~200 minted repos that need the same mechanism.
 
-## Decision
+=== Decision
 
 **One lifecycle.** A repository is *forged* in four ordered stages — exit
 criteria in SCAFFOLD-LIFECYCLE.adoc:
@@ -99,7 +99,7 @@ GitLab-lineage implementation's registry is harvested as input data; the
 engine stays dormant until the composer ADR (scaffoldia Phase 1) chooses
 its implementation.
 
-## Consequences
+=== Consequences
 
 - Every newly minted repo is born sustainable: scorable by the oracle
   (profile), re-templatable (provenance), and drift-checkable (gate) — the
