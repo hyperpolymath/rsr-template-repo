@@ -129,7 +129,7 @@ predecessors did.
 | yes
 | .gitlab-ci.yml + .pre-commit-config.yaml; ci/README.adoc records the out-of-band GitLab project setting these require
 
-| `coordination.k9`
+| `coordination.k9.ncl`
 | yes
 | repo-local session binding (template-mandated)
 
@@ -163,7 +163,7 @@ predecessors did.
 
 | `session/`
 | yes
-| dispatch.sh, custom-checks.k9, local-hooks.sh
+| dispatch.sh, custom-checks.k9.ncl, local-hooks.sh
 
 | `sonar-project.properties`
 | optional
