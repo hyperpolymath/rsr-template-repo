@@ -60,6 +60,6 @@ These files may be generated from `.scm` sources by transpilation. Source
 
 == See also
 
-* https://github.com/hyperpolymath/standards/blob/main/A2ML-REPO-TEMPLATE.adoc[Repository template]
-* https://github.com/hyperpolymath/standards#a2ml-format-family-7-formats[Format family overview]
+* https://github.com/hyperpolymath/standards/blob/main/A2ML-REPO-TEMPLATE.adoc[Historical A2ML repository template (non-normative)]
+* https://github.com/hyperpolymath/standards#a2ml-format-family-7-formats[Historical A2ML format family overview (non-normative)]
 * `../contractiles/README.adoc` — the normative counterpart family
