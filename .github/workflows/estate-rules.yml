@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
 # This workflow is managed by gh actions-lock.
@@ -78,3 +79,5 @@ jobs:
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
       - name: Evaluate session contracts
         run: bash scripts/validate-session-contracts.sh
+      - name: Verify mint cleanup controls
+        run: bash tests/workflows/mint_cleanup_test.sh

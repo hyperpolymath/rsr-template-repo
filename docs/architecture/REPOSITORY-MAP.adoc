@@ -93,6 +93,10 @@ predecessors did.
 | yes
 | generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 
+| `CONTRIBUTING.adoc`
+| yes
+| -
+
 | `Justfile`
 | yes
 | thin; delegates phases to build/just/*.just
