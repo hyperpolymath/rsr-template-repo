@@ -22,13 +22,13 @@ if [[ "${1:-}" == --typecheck ]]; then
 fi
 [[ $# -eq 0 ]] || { echo 'Usage: validate-session-contracts.sh [--typecheck FILE...]' >&2; exit 2; }
 for file in coordination.k9.ncl session/custom-checks.k9.ncl; do
-    IFS= read -r magic < "$file"
-    if [[ "$magic" != 'K9!' ]]; then
+    envelope_line=$(awk '/[^ ]/ { if ($0 == "K9!") print NR; exit }' "$file")
+    if [[ -z "$envelope_line" ]]; then
         echo "$file: missing K9! envelope" >&2
         exit 1
     fi
     # K9! is a transport envelope, not a Nickel expression. These standalone
     # records have no imports; evaluation also exercises their field contracts.
-    tail -n +2 "$file" | nickel export --format json >/dev/null
+    sed "${envelope_line}d" "$file" | nickel export --format json >/dev/null
     echo "$file: Nickel evaluation passed"
 done

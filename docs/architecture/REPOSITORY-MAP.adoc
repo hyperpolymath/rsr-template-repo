@@ -95,7 +95,7 @@ predecessors did.
 
 | `CONTRIBUTING.adoc`
 | optional
-| AsciiDoc contribution guide; emitted by the template
+| AsciiDoc entry point to the canonical .github/ contribution guide
 
 | `Justfile`
 | yes

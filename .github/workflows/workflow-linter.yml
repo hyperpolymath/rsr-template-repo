@@ -38,15 +38,15 @@ jobs:
           failed=0
           for file in .github/workflows/*.yml .github/workflows/*.yaml; do
             [ -f "$file" ] || continue
-            # Native actions.lock tooling prepends its managed-workflow marker.
-            # The licence must remain in the opening comment block.
-            if ! awk '/^#/ { if ($0 ~ /^# SPDX-License-Identifier: /) found=1; next } { exit } END { exit !found }' "$file"; then
+            # actions-lock may prepend its own comment. Require the licence
+            # in the leading comment block, before the workflow body.
+            if ! awk '/^# SPDX-License-Identifier:/ { found=1 } /^[^#[:space:]]/ { exit } END { exit !found }' "$file"; then
               echo "ERROR: $file missing SPDX header"
               failed=1
             fi
           done
           if [ $failed -eq 1 ]; then
-            echo "Add '# SPDX-License-Identifier: MPL-2.0' to the opening comment block"
+            echo "Add '# SPDX-License-Identifier: MPL-2.0' to the leading comment block"
             exit 1
           fi
           echo "All workflows have SPDX headers"
