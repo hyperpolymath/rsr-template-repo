@@ -10,6 +10,21 @@ structure; copy `machine-readable/contractiles/` into a new repo to
 establish a consistent operational, validation, trust, recovery,
 aspiration, and service-automation framework.
 
+[IMPORTANT]
+====
+The normative grammar for the record family used throughout this directory
+is `deed/spec/DEED-GRAMMAR-SPEC.adoc` in
+https://github.com/hyperpolymath/standards[hyperpolymath/standards]. The
+format formerly called A2ML is now *DEED* (`.deed`); files here still carry
+`.a2ml` pending a single atomic estate-wide rename, so do not hand-convert
+them. Verb-file naming is tracked separately.
+
+Two in-tree citations below are known to be unresolved and are left as
+written rather than silently repaired: `docs/CONTRACTILE-SPEC.adoc` does not
+exist in this repository, and the "contractile CLI" has never been built --
+enforcement currently rides on the CI gates, not on that tool.
+====
+
 Each verb directory holds a *trident* of files:
 
 * `<Verb>file.a2ml` — the project-specific declaration (data)

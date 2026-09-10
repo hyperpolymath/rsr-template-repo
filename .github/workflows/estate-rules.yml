@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
 # This workflow is managed by gh actions-lock.
@@ -67,3 +68,18 @@ jobs:
       # Was written but wired to nothing, so it had never run in CI.
       - name: V-language gate self-test
         run: bash tests/workflows/check_no_vlang_test.sh
+      - name: Install verified Nickel 1.17.0
+        run: |
+          mkdir -p "$RUNNER_TEMP/nickel-bin"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
+            https://github.com/nickel-lang/nickel/releases/download/1.17.0/nickel-x86_64-linux \
+            --output "$RUNNER_TEMP/nickel-bin/nickel"
+          echo "afcdfa6e0fff31760cf229e85997456c02c00b8b3b84ff38f897ac7b3f39ae34  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
+          echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
+      - name: Evaluate session contracts
+        run: bash scripts/validate-session-contracts.sh
+      - name: Verify session envelope controls
+        run: bash tests/workflows/session_contracts_test.sh
+      - name: Verify mint cleanup controls
+        run: bash tests/workflows/mint_cleanup_test.sh
