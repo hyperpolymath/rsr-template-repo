@@ -34,7 +34,7 @@ bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 # check <label> <expected-substring> <actual>
 check() {
     local name="$1" expected="$2" actual="$3"
-    if echo "$actual" | grep -q "$expected"; then
+    if printf '%s\n' "$actual" | grep -Fq -- "$expected"; then
         green "  PASS: $name"
         PASS=$((PASS + 1))
     else
