@@ -76,5 +76,6 @@ tests/
 ?features/                 # optional feature packs
 ?verification/             # proofs; only where formal-proofs is declared
 ?CONTRIBUTING.md           # accepted at root OR .github/; .github/ is the canonical estate location
+?CONTRIBUTING.adoc         # AsciiDoc entry point to the canonical .github/ contribution guide
 ?SECURITY.md               # accepted at root OR .github/; likewise
 ?REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just repo-init` runs

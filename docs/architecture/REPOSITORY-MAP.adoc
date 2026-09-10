@@ -94,8 +94,8 @@ predecessors did.
 | generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 
 | `CONTRIBUTING.adoc`
-| yes
-| -
+| optional
+| AsciiDoc entry point to the canonical .github/ contribution guide
 
 | `Justfile`
 | yes

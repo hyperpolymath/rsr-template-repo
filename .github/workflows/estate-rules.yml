@@ -79,5 +79,7 @@ jobs:
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
       - name: Evaluate session contracts
         run: bash scripts/validate-session-contracts.sh
+      - name: Verify session envelope controls
+        run: bash tests/workflows/session_contracts_test.sh
       - name: Verify mint cleanup controls
         run: bash tests/workflows/mint_cleanup_test.sh
