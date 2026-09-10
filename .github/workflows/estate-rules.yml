@@ -77,6 +77,8 @@ jobs:
           echo "afcdfa6e0fff31760cf229e85997456c02c00b8b3b84ff38f897ac7b3f39ae34  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
+      - name: Check Nickel envelope regression controls
+        run: bash tests/workflows/k9_typecheck_test.sh
       - name: Evaluate session contracts
         run: bash scripts/validate-session-contracts.sh
       - name: Verify mint cleanup controls
