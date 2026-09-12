@@ -34,6 +34,7 @@ CHANGELOG.adoc             # AsciiDoc is the estate-standard documentation forma
 CITATION.cff               # citation metadata; GitHub reads it from the root of the default branch only
 0-AI-MANIFEST.a2ml         # universal AI entry point
 CLAUDE.md                  # generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
+?GEMINI.md                # pointer to CLAUDE.md for repos without AGENTS.md yet
 Justfile                   # thin; delegates phases to build/just/*.just
 coordination.k9.ncl        # repo-local session binding (template-mandated)
 
@@ -50,6 +51,7 @@ mise.toml                  # pinned toolchains
 .clinerules                # AI editor rules. Cline/Cursor/Windsurf read these from the project
 .cursorrules               # ROOT, so the copies formerly under machine-readable/ai/ were inert.
 .windsurfrules
+?.claude/                  # Claude Code project state (checkpoints, history) — created by the tool itself
 
 # ─── Directories ─────────────────────────────────────────────────────────────
 .git/
