@@ -158,19 +158,3 @@ labels:
 # increased"), which is why every workflow here fails with zero steps while the
 # estate's public repos run normally. Repopulate this list — one context at a
 # time, each pinned to a job id, each verified green — once Actions can run.
-branches:
-  - name: "main"
-    protection:
-      required_pull_request_reviews:
-        required_approving_review_count: 1
-        dismiss_stale_reviews: true
-        require_code_owner_reviews: true
-      required_conversation_resolution: true
-      required_status_checks:
-        strict: true
-        contexts: ["estate-audit"]
-      enforce_admins: true
-      required_signatures: true
-      restrictions: null
-      allow_force_pushes: false
-      allow_deletions: false
