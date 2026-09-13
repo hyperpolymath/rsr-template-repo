@@ -11,8 +11,13 @@ Authoritative protocols live in:
 This repo keeps only thin bindings:
 
 * `+dispatch.sh+` maps canonical commands to central protocol paths.
-* `+custom-checks.k9+` defines repo-local policy checks.
+* `+custom-checks.k9.ncl+` defines repo-local policy checks as a Nickel record.
 * `+local-hooks.sh+` provides optional repo-specific hook behavior.
+
+Run `bash scripts/validate-session-contracts.sh` from the repository root
+with Nickel installed to evaluate both session records. The script removes
+the `K9!` transport envelope before invoking the actual Nickel evaluator;
+a missing evaluator or invalid expression fails validation.
 
 === Canonical Commands
 
