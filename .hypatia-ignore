@@ -24,3 +24,31 @@
 # and third_party/ carve-outs. Scaffolded repos inherit this file, so the
 # exemption travels with the template.
 structural_drift/SD022:build/docs-seed/
+
+# ─── workflow research-extension findings ─────────────────────────────────────
+#
+# RE001 currently reports `warn`, while the standards workflow pinned by this
+# repository accepts only critical/high/medium/low/info severities. These jobs
+# deliberately use credentials for their outbound GitHub, SMTP, or analysis
+# operations; exempt the affected files until that scanner/consumer contract
+# converges rather than treating valid scanner output as corrupt JSON.
+research_extensions/RE001:.github/workflows/boj-build.yml
+research_extensions/RE001:.github/workflows/dependabot-automerge.yml
+research_extensions/RE001:.github/workflows/label-triage.yml
+research_extensions/RE001:.github/workflows/labels.yml
+research_extensions/RE001:.github/workflows/push-email-notify.yml
+research_extensions/RE001:.github/workflows/release.yml
+research_extensions/RE001:.github/workflows/sonarqube.yml
+
+# RE005's matches are intentional best-effort probes and annotation renderers,
+# not test or gate commands. Their callers consume optional output or preserve
+# the authoritative failure decision in a separate step.
+research_extensions/RE005:.github/workflows/quality.yml
+research_extensions/RE005:.github/workflows/security-policy.yml
+research_extensions/RE005:.github/workflows/static-analysis-gate.yml
+research_extensions/RE005:.github/workflows/wellknown-enforcement.yml
+
+# This workflow uses the `pull_request` event and requires both the triggering
+# actor and the immutable PR author to be Dependabot. RE008's spoofable-actor
+# case applies to actor-only trust gates on `pull_request_target`, not this job.
+research_extensions/RE008:.github/workflows/dependabot-automerge.yml
