@@ -42,6 +42,7 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .envrc
 .gitattributes
 .gitignore
+.gitleaksignore            # exact fingerprints for reviewed historical false positives
 .gitmessage
 .mailmap                   # git reads .mailmap from the worktree root only
 .tool-versions
