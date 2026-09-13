@@ -3,8 +3,16 @@
 #
 # rsr-profile.a2ml — this repo's declared RSR v2.0 capabilities.
 #
-# Authored in the A2ML record dialect (hyperpolymath/standards
-# a2ml/RECORD-DIALECT-SPEC.adoc). It declares which capabilities this repo has,
+# Authored in the A2ML record dialect (hyperpolymath/a2ml,
+# RECORD-DIALECT-SPEC.adoc -- note: NOT hyperpolymath/standards; the a2ml/
+# subtree was evicted from standards by 24a12d6f on 2026-08-28).
+#
+# SUPERSEDED. The normative grammar for this family is now
+# deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards, and the file
+# extension is .deed. This file keeps its record surface until the estate-wide
+# conversion lands (task #64) -- do not hand-convert it.
+#
+# It declares which capabilities this repo has,
 # per TEMPLATE-APPLICABILITY-POLICY.adoc; the RSR v2.0 conformance oracle
 # (hypatia Hypatia.Rules.RsrConformance) uses `capabilities` to compute the
 # APPLICABLE criteria set — a gated criterion is scored only when its gating

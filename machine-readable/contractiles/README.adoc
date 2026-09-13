@@ -10,6 +10,19 @@ structure; copy `machine-readable/contractiles/` into a new repo to
 establish a consistent operational, validation, trust, recovery,
 aspiration, and service-automation framework.
 
+[IMPORTANT]
+====
+The normative grammar for the record family used throughout this directory
+is `deed/spec/DEED-GRAMMAR-SPEC.adoc` in
+https://github.com/hyperpolymath/standards[hyperpolymath/standards]. The
+format formerly called A2ML is now *DEED* (`.deed`); files here still carry
+`.a2ml` pending a single atomic estate-wide rename, so do not hand-convert
+them. Verb-file naming is tracked separately.
+
+The "contractile CLI" has never been built -- enforcement currently rides on
+the CI gates, not on that tool.
+====
+
 Each verb directory holds a *trident* of files:
 
 * `<Verb>file.a2ml` — the project-specific declaration (data)
@@ -29,7 +42,7 @@ All verb runners import `_base.ncl` (shared pedigree + run-defaults +
 probe-schema). The `INDEX.a2ml` registry catalogues every verb; consumers
 (CI scripts, the contractile CLI, Hypatia rules) SHOULD read it to discover
 available verbs rather than hard-coding the list. See
-`docs/CONTRACTILE-SPEC.adoc` for the normative specification.
+https://github.com/hyperpolymath/standards/blob/main/docs/CONTRACTILE-SPEC.adoc[the normative specification].
 
 == Verbs (6 + k9 exception)
 
@@ -120,7 +133,7 @@ declare a `paired_xfile` pointing to a specific contractile xfile (e.g.
 `../must/Mustfile.a2ml`). Floating k9 components with no paired xfile are
 non-conformant.
 
-See `docs/CONTRACTILE-SPEC.adoc §k9-exception` for the normative statement.
+See https://github.com/hyperpolymath/standards/blob/main/docs/CONTRACTILE-SPEC.adoc#k9-exception[the normative statement].
 
 == Fill-In Instructions
 
