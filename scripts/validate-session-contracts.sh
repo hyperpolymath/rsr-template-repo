@@ -10,9 +10,9 @@ if [[ "${1:-}" == --typecheck ]]; then
     shift
     [[ $# -gt 0 ]] || { echo 'Supply the instantiated Nickel or K9 files to typecheck' >&2; exit 2; }
     for file in "$@"; do
-        IFS= read -r magic < "$file"
-        if [[ "$magic" == 'K9!' ]]; then
-            tail -n +2 "$file" | (cd -- "$(dirname -- "$file")" && nickel typecheck)
+        envelope_line=$(awk '/[^ ]/ { if ($0 == "K9!") print NR; exit }' "$file")
+        if [[ -n "$envelope_line" ]]; then
+            sed "${envelope_line}d" "$file" | (cd -- "$(dirname -- "$file")" && nickel typecheck)
         else
             nickel typecheck "$file"
         fi
