@@ -9,6 +9,11 @@ on:
     branches: [ "main" ]
   workflow_call:
 
+# The called reusable declares `permissions: contents: read`; a caller must grant
+# at least what the reusable declares, and this grants exactly that — no more.
+permissions:
+  contents: read
+
 jobs:
   call-estate-audit:
     uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@feat/cicd-workflow-call
