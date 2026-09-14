@@ -119,8 +119,19 @@ fi
 # and forwards them in K9_PUSH_RANGES. Scanning only the commits actually being
 # pushed is both the correct population for this gate and far faster than the
 # whole history (which CI already covers).
+# ── Findings and scanner errors BOTH block, but are NOT the same thing ───────
+# TruffleHog returns 183 for "secrets found" and other non-zero codes for "I
+# could not scan" (a broken ref, an unreadable repo, a bad flag). Both must fail
+# closed — an unscanned push is exactly as unvetted as an unchecked one — but
+# they must be REPORTED apart. Measured here: a stale remote ref pointing at
+# 0000…0 made every scan exit 1 with "upload-pack: not our ref", and a handler
+# that said "Secrets detected" for any non-zero told the developer to go hunting
+# for a credential that did not exist. A gate that misnames its own failure
+# sends people looking in the wrong place, which is how gates get switched off.
 status=0
 scanned=0
+found=0
+errored=0
 out="$(mktemp)"
 trap 'rm -f "$out"' EXIT
 
@@ -131,9 +142,16 @@ scan() {
   "$TH" git "file://$REPO_ROOT" "$@" "${VERIFY_ARGS[@]}" "${DETECTOR_ARGS[@]}" \
       --fail --no-update >"$out" 2>&1 || rc=$?
   scanned=$((scanned + 1))
-  if [ "$rc" -ne 0 ]; then          # 183 = findings; anything else = error
-    echo "[scan-secrets] FINDINGS or ERROR (exit $rc) while scanning $label:" >&2
+  if [ "$rc" -eq 183 ]; then
+    echo "[scan-secrets] FINDINGS while scanning $label:" >&2
     cat "$out" >&2
+    found=1
+    status=1
+  elif [ "$rc" -ne 0 ]; then
+    echo "[scan-secrets] SCANNER ERROR (exit $rc) while scanning $label —" >&2
+    echo "[scan-secrets] this is a failure to scan, NOT a detected secret:" >&2
+    cat "$out" >&2
+    errored=1
     status=1
   fi
 }
@@ -159,10 +177,21 @@ if [ "$scanned" -eq 0 ]; then
   scan "HEAD (no push ranges; last $MAX_DEPTH commits)" --max-depth "$MAX_DEPTH"
 fi
 
-if [ "$status" -ne 0 ]; then
+if [ "$found" -ne 0 ]; then
   echo "[scan-secrets] Secrets detected in the commits being pushed." >&2
   echo "[scan-secrets] Remove them and rewrite the offending commits." >&2
   echo "[scan-secrets] Override (only if these are false positives): git push --no-verify" >&2
+fi
+
+if [ "$errored" -ne 0 ]; then
+  echo "[scan-secrets] TruffleHog could not complete the scan (see above)." >&2
+  echo "[scan-secrets] BLOCKED because an unscanned push is an unvetted push." >&2
+  echo "[scan-secrets] Common cause: a broken local ref. Check with:  git fsck" >&2
+  echo "[scan-secrets] Override (you are asserting this push carries no secrets):" >&2
+  echo "[scan-secrets]     git push --no-verify" >&2
+fi
+
+if [ "$status" -ne 0 ]; then
   exit 1
 fi
 
