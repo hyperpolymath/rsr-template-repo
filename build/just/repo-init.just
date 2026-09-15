@@ -368,6 +368,7 @@ repo-init archetype="":
             -not -path './machine-readable/descriptiles/VARIANT.a2ml' \
             -not -name 'CHANGELOG.md' \
             -not -name 'TEMPLATE-STANDARDS-AUDIT.adoc' \
+            -not -name 'TEMPLATE-LINEAGE-AUDIT.adoc' \
             -not -name '*.png' -not -name '*.jpg' -not -name '*.gif' \
             -not -name '*.woff' -not -name '*.woff2' \
             | while read -r file; do
