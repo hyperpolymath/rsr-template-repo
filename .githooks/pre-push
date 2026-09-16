@@ -16,13 +16,24 @@
 #
 # Override for an emergency push:  git push --no-verify
 #
-# The hook is skipped gracefully if bash-only tooling is unavailable.
+# The A2ML/K9 validators are skipped gracefully if their tooling is absent.
+# The SECRET gate is not: see .githooks/scan-secrets.sh for why it fails closed.
 
 set -euo pipefail
 
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 status=0
+
+# git feeds pre-push one "<local ref> <local sha> <remote ref> <remote sha>"
+# line per ref on stdin. Capture it HERE, before any validator runs, and hand it
+# to the scanners in K9_PUSH_RANGES so they can scan exactly the commits being
+# pushed rather than the whole history. Guarded on `! -t 0`: when the hook is
+# run by hand from a terminal there are no ref lines, and an unguarded `cat`
+# would block forever on the tty.
+K9_PUSH_RANGES=""
+if [ ! -t 0 ]; then K9_PUSH_RANGES="$(cat)"; fi
+export K9_PUSH_RANGES
 
 run() {
   local label="$1" script="$2"
@@ -36,12 +47,32 @@ run() {
   fi
 }
 
+# Same as run(), but a MISSING script is a failure rather than a skip. Used for
+# the secret gate only: "validator absent" and "no secrets found" produce the
+# same silence, so a skip here is a gate that reports success having examined
+# nothing. The A2ML/K9 validators keep the lenient behaviour — a missing
+# formatter costs a red CI run, a missing secret scanner costs a leaked key.
+run_required() {
+  local label="$1" script="$2"
+  if [ ! -f "$HOOK_DIR/$script" ]; then
+    echo "[pre-push] ($label) BLOCKED: required validator missing: $script" >&2
+    echo "[pre-push] Restore it from the template, or override: git push --no-verify" >&2
+    status=1
+    return 0
+  fi
+  echo "[pre-push] $label…"
+  if ! INPUT_PATH="$REPO_ROOT" INPUT_STRICT=false bash "$HOOK_DIR/$script"; then
+    status=1
+  fi
+}
+
 run "A2ML manifests" "validate-a2ml.sh"
 run "K9 contracts"    "validate-k9.sh"
+run_required "Secrets" "scan-secrets.sh"
 
 if [ "$status" -ne 0 ]; then
   echo "" >&2
-  echo "[pre-push] BLOCKED: A2ML/K9 validation failed (see errors above)." >&2
+  echo "[pre-push] BLOCKED: validation failed (see errors above)." >&2
   echo "[pre-push] Fix the files, or override with:  git push --no-verify" >&2
   exit 1
 fi
