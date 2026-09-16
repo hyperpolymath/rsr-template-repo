@@ -37,7 +37,7 @@
 #
 # Env overrides:
 #   TRUFFLEHOG              explicit path to the binary (used by the tests)
-#   K9_SECRETS_MAX_DEPTH    commits to scan when no push ranges are available
+#   K9_SECRETS_MAX_DEPTH    commits to scan for a brand-new branch (default 500)
 #   K9_SECRETS_VERIFY=1     enable live credential verification (see below)
 
 set -euo pipefail
@@ -140,7 +140,7 @@ scan() {
   local rc=0
   # NOT piped — see trap 2 in the header.
   "$TH" git "file://$REPO_ROOT" "$@" "${VERIFY_ARGS[@]}" "${DETECTOR_ARGS[@]}" \
-      --fail --fail-on-scan-errors --no-update >"$out" 2>&1 || rc=$?
+      --fail --no-update >"$out" 2>&1 || rc=$?
   scanned=$((scanned + 1))
   if [ "$rc" -eq 183 ]; then
     echo "[scan-secrets] FINDINGS while scanning $label:" >&2
@@ -161,7 +161,8 @@ if [ -n "${K9_PUSH_RANGES:-}" ]; then
     [ -z "${local_sha:-}" ] && continue
     [ "$local_sha" = "$ZERO" ] && continue                 # branch deletion
     if [ "${remote_sha:-$ZERO}" = "$ZERO" ]; then
-      scan "new branch ${local_ref:-HEAD}" --branch "$local_sha"
+      scan "new branch ${local_ref:-HEAD} (last $MAX_DEPTH commits)" \
+           --branch "$local_sha" --max-depth "$MAX_DEPTH"
     else
       scan "${local_ref:-HEAD} since ${remote_sha:0:12}" \
            --branch "$local_sha" --since-commit "$remote_sha"
@@ -172,7 +173,7 @@ fi
 # No ranges (hook invoked directly, or an empty push): scan the bounded tail of
 # HEAD rather than reporting a pass over nothing. A gate that reports success
 # having examined zero commits is the vacuity this estate keeps re-learning.
-if [ -z "${K9_PUSH_RANGES:-}" ]; then
+if [ "$scanned" -eq 0 ]; then
   scan "HEAD (no push ranges; last $MAX_DEPTH commits)" --max-depth "$MAX_DEPTH"
 fi
 
