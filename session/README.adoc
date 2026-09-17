@@ -5,7 +5,7 @@ standards.
 
 Authoritative protocols live in:
 
-* `+../standards/session-management-standards/+` (or
+* `+../standards/3-practice/session-management-standards/+` (or
 `+$SESSION_STANDARDS_DIR+`)
 
 This repo keeps only thin bindings:

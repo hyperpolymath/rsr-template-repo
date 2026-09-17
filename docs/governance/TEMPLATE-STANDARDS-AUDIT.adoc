@@ -77,7 +77,7 @@ Inventory snapshot at audit time:
 
 | Central protocols are authoritative
 | `README.adoc`, `0-AI-MANIFEST.a2ml`, `AUDIT.adoc`
-| `standards/session-management-standards/`
+| `standards/3-practice/session-management-standards/`
 | exists
 | Local docs now explicitly defer protocol authority to standards repo.
 | Keep.
@@ -101,7 +101,7 @@ Inventory snapshot at audit time:
 
 === Authoritative Shared Standard
 
-* External to this repo: `standards/session-management-standards/*`
+* External to this repo: `standards/3-practice/session-management-standards/*`
 
 === Repo-Local Binding/Integration
 
@@ -128,7 +128,7 @@ Inventory snapshot at audit time:
 === Move Into `standards`
 
 * Any future full protocol text drafts should move to
-  `standards/session-management-standards/`.
+  `standards/3-practice/session-management-standards/`.
 
 === Stay In `rsr-template-repo`
 
@@ -172,7 +172,7 @@ rsr-template-repo/
 
 == Maintenance Model Note
 
-* Protocols central: maintained in `standards/session-management-standards/`.
+* Protocols central: maintained in `standards/3-practice/session-management-standards/`.
 * Policy local: maintained in template/downstream repos (`session/*.k9`, hooks,
   coordination bindings).
 * State per-repo: generated during execution (`.session/*`) in the active
