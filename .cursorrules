@@ -6,13 +6,11 @@
 
 # LICENSE
 # All original code: MPL-2.0 (SPDX header required on every file).
-# Never use AGPL-3.0. Fallback to MPL-2.0 only when platform requires it.
 # Copyright: {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
 # STATE FILES
-# .a2ml metadata files go in .machine_readable/ ONLY.
-# Never create STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml,
-# NEUROSYM.a2ml, or PLAYBOOK.a2ml in the repository root.
+# .deed metadata files go in .machine_readable/ ONLY.
+# Never create STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml, NEUROSYM.a2ml, or PLAYBOOK.a2ml.
 
 # BANNED PATTERNS
 # Idris2: believe_me, assert_total, assert_smaller, unsafePerformIO
@@ -22,7 +20,7 @@
 # Lean: sorry
 # Rust: transmute (unless FFI with // SAFETY: comment)
 
-# JS/TS RUNTIMES — ordered preference, reach for the first that can do the job
+# JS RUNTIMES — ordered preference, reach for the first that can do the job
 # (standards/3-practice/LANGUAGE-POLICY.adoc section 1, ruled 2026-07-29)
 # 1. Bun    default for all new work; runs .ts directly, no build step
 # 2. Deno   existing Deno projects are grandfathered; prefer over pnpm/npm
@@ -47,9 +45,9 @@
 # Generated C headers: src/interface/generated/
 
 # BUILD SYSTEM
-# Use just (justfile) for all build, test, lint, and format tasks.
+# Use just (Justfile) for all build, test, lint, and format tasks.
 
 # CODE STYLE
 # Use descriptive variable names.
 # Annotate and document all files.
-# Add SPDX-License-Identifier header to every source file.
+# Add SPDX-License-Identifier headers to every source file.
