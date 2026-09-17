@@ -52,7 +52,7 @@ info:
     @echo "Version: {{version}}"
     @echo "RSR Tier: {{tier}}"
     @echo "Recipes: $(just --summary | wc -w)"
-    @[ -f "machine-readable/descriptiles/STATE.a2ml" ] && grep -oP 'phase\s*=\s*"\K[^"]+' machine-readable/descriptiles/STATE.a2ml | head -1 | xargs -I{} echo "Phase: {}" || true
+    @[ -f ".machine_readable/descriptiles/STATE.a2ml" ] && grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/descriptiles/STATE.a2ml | head -1 | xargs -I{} echo "Phase: {}" || true
 
 # Run Invariant Path overlay tools for this repository
 invariant-path *ARGS:
@@ -316,7 +316,7 @@ deps-audit:
 
 # Compile CLAUDE.md (the agent arrival pack) from this repo's a2ml
 claude-md:
-    @bash machine-readable/arrival-pack/generate.sh
+    @bash .machine_readable/arrival-pack/generate.sh
 
 # Regenerate the single authoritative repository map
 repo-map:
@@ -340,7 +340,7 @@ validate-repo-map:
 
 # Fail if CLAUDE.md's generated region drifted from a2ml or was hand-edited
 validate-claude-md:
-    @bash machine-readable/arrival-pack/verify.sh
+    @bash .machine_readable/arrival-pack/verify.sh
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COAPTATION — typed descriptile↔contractile face-off (homeostasis reading)
@@ -348,15 +348,15 @@ validate-claude-md:
 
 # Emit the coaptation receipt: how the descriptiles coapt with the contractiles (SITREP)
 coapt:
-    @bash machine-readable/coaptation/coapt.sh --report
+    @bash .machine_readable/coaptation/coapt.sh --report
 
 # Assemble a re-anchor basis IF the band is red (the drop itself is a human act)
 coapt-reanchor:
-    @bash machine-readable/coaptation/coapt.sh --reanchor
+    @bash .machine_readable/coaptation/coapt.sh --reanchor
 
 # Fail if the committed coaptation receipt drifted from the contractiles/descriptiles
 validate-coapt:
-    @bash machine-readable/coaptation/verify.sh
+    @bash .machine_readable/coaptation/verify.sh
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DOCUMENTATION
@@ -463,14 +463,14 @@ import? "build/just/validate.just"
 
 # Update STATE.a2ml timestamp
 state-touch:
-    @if [ -f "machine-readable/descriptiles/STATE.a2ml" ]; then \
-        sed -i 's/last-updated = "[^"]*"/last-updated = "'"$(date +%Y-%m-%d)"'"/' machine-readable/descriptiles/STATE.a2ml && \
+    @if [ -f ".machine_readable/descriptiles/STATE.a2ml" ]; then \
+        sed -i 's/last-updated = "[^"]*"/last-updated = "'"$(date +%Y-%m-%d)"'"/' .machine_readable/descriptiles/STATE.a2ml && \
         echo "STATE.a2ml timestamp updated"; \
     fi
 
 # Show current phase from STATE.a2ml
 state-phase:
-    @sed -n 's/^[[:space:]]*phase[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' machine-readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
+    @sed -n 's/^[[:space:]]*phase[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .machine_readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GUIX
@@ -541,13 +541,13 @@ changelog:
     # AsciiDoc, not .md: CHANGELOG.adoc is what root-allow.txt permits, so a
     # .md here would fail check-root-shape AND the estate's no-.md rule the
     # moment anyone ran this recipe.
-    git cliff --config machine-readable/configs/git-cliff/cliff.toml --output CHANGELOG.adoc
+    git cliff --config .machine_readable/configs/git-cliff/cliff.toml --output CHANGELOG.adoc
     @echo "Generated CHANGELOG.adoc"
 
 # Preview changelog for unreleased commits (does not write)
 changelog-preview:
     @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
-    git cliff --config machine-readable/configs/git-cliff/cliff.toml --unreleased --strip header
+    git cliff --config .machine_readable/configs/git-cliff/cliff.toml --unreleased --strip header
 
 # Tag a new release (usage: just release-tag 1.2.3)
 release-tag version:
@@ -581,7 +581,7 @@ edit:
 
 # Run high-rigor security assault using panic-attacker
 maint-assault:
-    @./machine-readable/scripts/maintenance/maint-assault.sh
+    @./.machine_readable/scripts/maintenance/maint-assault.sh
 
 # Run panic-attacker pre-commit scan (foundational floor-raise requirement)
 assail:

@@ -77,7 +77,7 @@ just validate-rsr
 |`.well-known/`
 |RFC-compliant metadata (security.txt, ai.txt, humans.txt)
 
-|`machine-readable/`
+|`.machine_readable/`
 |All machine-readable content: state files (6 a2ml), `bot_directives/`, `contractiles/`
 
 |`docs/`
@@ -183,7 +183,7 @@ hand-written tree that used to sit here it cannot go stale.
 * `Justfile`
 * `README.adoc`
 * `LICENSE` (MPL-2.0)
-* `machine-readable/descriptiles/STATE.a2ml`
+* `.machine_readable/descriptiles/STATE.a2ml`
 * `.well-known/security.txt`
 * `.well-known/ai.txt`
 * `.well-known/humans.txt`

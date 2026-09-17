@@ -4,8 +4,13 @@
 #
 # check-root-shape.sh — enforce the canonical root shape, in BOTH directions,
 # against the repository root allowlist, under EITHER canonical spelling:
-#   .machine_readable/root-allow.txt  (dotted, the estate majority)
-#   machine-readable/root-allow.txt   (hyphenated, what this template emits)
+#   .machine_readable/root-allow.txt  (dotted, CANONICAL ESTATE-WIDE)
+#   machine-readable/root-allow.txt   (hyphenated, accepted legacy)
+#
+# The dotted form is the standard (owner ruling 2026-09-17; estate census 48
+# repos dotted vs 9 hyphenated). The hyphenated form is still RESOLVED, not
+# rejected, because the checker is shared with repos that have not migrated.
+# Removing this branch would turn 9 working gates into exit-2 setup errors.
 #
 #   * an entry at root that is not listed          -> drift (extra)
 #   * a listed entry WITHOUT '?' that is missing   -> drift (missing)
@@ -135,7 +140,7 @@ if [ ${#EXTRAS[@]} -gt 0 ]; then
     done
     echo "" >&2
     echo "Either move them into the appropriate subdirectory, or add a justified" >&2
-    echo "entry to machine-readable/root-allow.txt." >&2
+    echo "entry to ${ALLOW_FILE#"$REPO_ROOT"/}." >&2
 fi
 
 if [ ${#MISSING[@]} -gt 0 ]; then

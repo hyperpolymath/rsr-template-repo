@@ -65,7 +65,7 @@ literal to the child's name across the tree, with two protections:
 
 * Paths that are *about* the template are skipped wholesale — `.git`,
   `build/just/repo-init.just` itself, `docs/decisions/*`,
-  `machine-readable/descriptiles/{CLADE,VARIANT}.a2ml`, `CHANGELOG.md`,
+  `.machine_readable/descriptiles/{CLADE,VARIANT}.a2ml`, `CHANGELOG.md`,
   `TEMPLATE-STANDARDS-AUDIT.adoc`, and binary extensions.
 * Within every other file, any line naming the parent *as a parent* survives
   byte-for-byte, matched by
@@ -196,15 +196,20 @@ mistakes, not because anything currently misbehaves.
 
 === Layout migration lag, not divergence
 
-This template uses `machine-readable/`; `rsr-julia-library-template-repo` and
-much of the estate use `.machine_readable/`. That is *lag, not disagreement*:
-commit `a983c00` ("chore(shape): remake the repository layout for human
-legibility", #43, 2026-08-26, 219 files) renamed `.machine_readable/` →
-`machine-readable/` here. The parent moved; descendants have not followed.
+This template used `machine-readable/`; `rsr-julia-library-template-repo` and
+much of the estate use `.machine_readable/`. Commit `a983c00` ("chore(shape):
+remake the repository layout for human legibility", #43, 2026-08-26, 219 files)
+renamed `.machine_readable/` to `machine-readable/` here, on a legibility
+argument. That rename was **reversed on 2026-09-17 by owner ruling**: dotted is
+the standard everywhere. The direction of "lag" therefore inverted — the
+repositories still on the hyphenated spelling are now the ones that have not
+followed, and `scripts/check-root-shape.sh` continues to resolve both spellings
+so those repositories keep working rather than exiting 2.
 
-Current floors, from code search and therefore subject to <<method>>:
-48 repositories on the pre-migration `.machine_readable/`, 9 on
-`machine-readable/`.
+Estate floors at the time of the 2026-08 rename, from code search and therefore
+subject to <<method>>: 48 repositories on `.machine_readable/`, 9 on
+`machine-readable/`. The majority was already dotted when this template
+diverged from it.
 
 == What this document deliberately does not do
 
