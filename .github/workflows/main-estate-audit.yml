@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@98f405a8c50b60f372065c200a5583d3ae664903  # cicd-suite main, lockfile-compliant (cicd-suite#14); reusable calls are not lock-coverable (gh actions-lock writes no entry), so SHA-pin per scripts/check-action-pinning.js
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@ecd0240d80881c9b85b6f1aff0d056dd5a076a54  # cicd-suite main: cross-repo-compatible callee (./actions/* resolves against the callee checkout at this ref; de-onboarded from actions.lock — local-path actions are a gh-actions-lock short-term gap; manifest-check internals SHA-pinned per sha_pinning_required). Repin on callee updates.
