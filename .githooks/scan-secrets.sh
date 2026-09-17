@@ -135,6 +135,11 @@ errored=0
 out="$(mktemp)"
 trap 'rm -f "$out"' EXIT
 
+# Run TruffleHog against a git ref/range with the configured verify/detector args.
+# Takes a human-readable label ($1) and any extra trufflehog arguments, captures
+# output to a file (not piped, to preserve the exit code), and sets the shared
+# found/errored/status variables based on the result: 0 = clean, 183 = secrets
+# found, anything else = scanner error.
 scan() {
   local label="$1"; shift
   local rc=0
