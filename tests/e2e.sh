@@ -93,10 +93,11 @@ echo ""
 # OUTPUT=$($BINARY --help 2>&1)
 # check "help flag works" "Usage:" "$OUTPUT"
 #
-# OUTPUT=$($BINARY process input.txt --output /tmp/e2e-output.json 2>&1)
+# WORKDIR=$(mktemp -d)
+# OUTPUT=$($BINARY process input.txt --output "$WORKDIR/e2e-output.json" 2>&1)
 # check "process command succeeds" "complete" "$OUTPUT"
 #
-# OUTPUT=$(cat /tmp/e2e-output.json)
+# OUTPUT=$(cat "$WORKDIR/e2e-output.json")
 # check "output is valid JSON" '"status"' "$OUTPUT"
 
 # ─── Example: Server E2E ────────────────────────────────────────────
