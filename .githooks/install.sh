@@ -5,5 +5,5 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 git config core.hooksPath .githooks
-chmod +x .githooks/pre-push .githooks/validate-a2ml.sh .githooks/validate-k9.sh 2>/dev/null || true
-echo "Installed: core.hooksPath -> .githooks (pre-push A2ML+K9 gate active)."
+chmod +x .githooks/pre-push .githooks/validate-deed.sh .githooks/validate-k9.sh 2>/dev/null || true
+echo "Installed: core.hooksPath -> .githooks (pre-push DEED+K9 gate active)."

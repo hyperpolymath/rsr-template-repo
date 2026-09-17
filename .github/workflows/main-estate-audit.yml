@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@b15202ab0a4c2ab60071ca50f3c2e613e8f0129c  # cicd-suite PR#18 head (witness): remote-form callee at FULL SHA + de-onboarded — the only form with both cross-repo components proven. Repin to merged main after #18 lands.
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@f9e173a1133a0ad859a024b775a2599c8ecccc8b  # cicd-suite PR#17 head (witness): remote-form callee — resolves by API regardless of caller context; lock-pinned via repo-level key. Repin to merged main after #17 lands.

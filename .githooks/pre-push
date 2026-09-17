@@ -4,7 +4,7 @@
 #
 # pre-push — local Dogfood Gate.
 #
-# Runs the SAME A2ML + K9 validators the CI Dogfood Gate runs, but here on
+# Runs the SAME DEED + K9 validators the CI Dogfood Gate runs, but here on
 # your machine before the push leaves, so format drift is caught in seconds
 # instead of surfacing as red CI minutes later. The vendored validators in
 # this directory are byte-identical to the pinned CI action scripts and are
@@ -16,7 +16,7 @@
 #
 # Override for an emergency push:  git push --no-verify
 #
-# The A2ML/K9 validators are skipped gracefully if their tooling is absent.
+# The DEED/K9 validators are skipped gracefully if their tooling is absent.
 # The SECRET gate is not: see .githooks/scan-secrets.sh for why it fails closed.
 
 set -euo pipefail
@@ -50,7 +50,7 @@ run() {
 # Same as run(), but a MISSING script is a failure rather than a skip. Used for
 # the secret gate only: "validator absent" and "no secrets found" produce the
 # same silence, so a skip here is a gate that reports success having examined
-# nothing. The A2ML/K9 validators keep the lenient behaviour — a missing
+# nothing. The DEED/K9 validators keep the lenient behaviour — a missing
 # formatter costs a red CI run, a missing secret scanner costs a leaked key.
 run_required() {
   local label="$1" script="$2"
@@ -66,7 +66,7 @@ run_required() {
   fi
 }
 
-run "A2ML manifests" "validate-a2ml.sh"
+run "DEED manifests" "validate-deed.sh"
 run "K9 contracts"    "validate-k9.sh"
 run_required "Secrets" "scan-secrets.sh"
 

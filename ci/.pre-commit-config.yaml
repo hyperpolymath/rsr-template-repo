@@ -18,9 +18,15 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=1024']
 
-  # --- A2ML manifest validation ---
+  # --- Manifest validation (DEED grammar) ---
+  # NOTE: the a2ml project is officially retired (standards #836 owner ruling;
+  # CICD-WORKFLOW-CATALOG line 123) and DEED carries the grammar
+  # (standards 1-formats/deed/). The provider repo below is an A2ML-era
+  # artifact: its hook id 'validate-a2ml' is defined IN THAT REPO, so the
+  # consumer id must match until the owner renames/moves the provider to a
+  # deed-pre-commit. Flagged, not silently broken.
   - repo: https://github.com/hyperpolymath/a2ml-pre-commit
-    rev: 40adffc73f2d4be1e8dfda8a7de93e4fc11730dc  # a2ml-pre-commit @ main 2026-06-23
+    rev: 40adffc73f2d4be1e8dfda8a7de93e4fc11730dc  # a2ml-pre-commit @ main 2026-06-23 (A2ML-era provider — see note)
     hooks:
       - id: validate-a2ml
         name: Validate A2ML manifests
