@@ -41,7 +41,7 @@ hooks fail if any check fails.
 
 ### machine-readable-dir
 - description: .machine_readable/ directory must exist
-- run: test -d machine-readable
+- run: test -d .machine_readable
 - severity: critical
 
 ## Directory Structure
