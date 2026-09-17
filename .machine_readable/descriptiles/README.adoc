@@ -11,7 +11,7 @@ They pair with the contractiles in `../contractiles/`, which record what it
 [IMPORTANT]
 ====
 *The normative grammar for this family is the DEED grammar specification,*
-`deed/spec/DEED-GRAMMAR-SPEC.adoc` in
+`1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc` in
 https://github.com/hyperpolymath/standards[hyperpolymath/standards].
 
 The format formerly called A2ML has been renamed *DEED*, with the file
