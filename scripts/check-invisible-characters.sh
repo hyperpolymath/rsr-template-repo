@@ -23,7 +23,7 @@ if [[ -n "$blocking_results_file" ]]; then
   : > "$blocking_results_file" || exit 2
 fi
 scan_error=0
-enumeration_file="$(mktemp /tmp/rsr-invisible-files.XXXXXX)" || exit 2
+enumeration_file="$(mktemp)" || exit 2   # TMPDIR-respecting; Hypatia hardcoded_tmp (alert #122)
 # Invoked indirectly by the EXIT trap.
 # shellcheck disable=SC2329
 cleanup() {
