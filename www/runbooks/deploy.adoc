@@ -24,7 +24,7 @@ done
 +
 Minted repositories already have their `{{TOKEN}}` placeholders substituted;
 if deploying from an unminted template, substitute them first
-(`machine-readable/ai/PLACEHOLDERS.adoc`).
+(`.machine_readable/ai/PLACEHOLDERS.adoc`).
 
 . *Validate the boundary* (must exit 0):
 +

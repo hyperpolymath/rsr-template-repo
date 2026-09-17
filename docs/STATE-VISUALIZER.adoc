@@ -56,7 +56,7 @@
 
                         ┌─────────────────────────────────────────┐
                         │          REPO INFRASTRUCTURE            │
-                        │  Justfile / Mustfile  machine-readable/  │
+                        │  Justfile / Mustfile  .machine_readable/  │
                         │  Codeowners / Reuse   0-AI-MANIFEST.a2ml  │
                         └─────────────────────────────────────────┘
 ```
@@ -89,7 +89,7 @@ CONTAINER ECOSYSTEM (Phase 2)
   Trustfile CONTAINER_SUPPLY_CHAIN  ██████████ 100%    Supply chain section added
 
 REPO INFRASTRUCTURE
-  machine-readable/                ██████████ 100%    STATE/META/ECOSYSTEM active
+  .machine_readable/                ██████████ 100%    STATE/META/ECOSYSTEM active
   Governance & License              ██████████ 100%    MPL-2.0 & Ethical use verified
   Development Shells (Guix)         ██████████ 100%    Reproducible env stable
 

@@ -7,7 +7,7 @@
 :toc:
 
 The single authoritative map of this repository. It is generated from the
-tree and from the annotations in `machine-readable/root-allow.txt`, and CI
+tree and from the annotations in `.machine_readable/root-allow.txt`, and CI
 fails if it drifts, so it cannot rot the way its five hand-written
 predecessors did.
 
@@ -23,7 +23,7 @@ predecessors did.
 
 | `.cursorrules`
 | yes
-| ROOT, so the copies formerly under machine-readable/ai/ were inert.
+| ROOT, so the copies formerly under .machine_readable/ai/ were inert.
 
 | `.devcontainer/`
 | optional
@@ -53,6 +53,10 @@ predecessors did.
 | yes
 | -
 
+| `.gitleaksignore`
+| yes
+| exact fingerprints for reviewed historical false positives
+
 | `.gitmessage`
 | yes
 | -
@@ -60,6 +64,10 @@ predecessors did.
 | `.hypatia-ignore`
 | yes
 | the Hypatia scanner reads it from the repo root
+
+| `.machine_readable/`
+| yes
+| manifests, contractiles, policies. Renamed back from machine-readable/ 2026-09-17 by owner ruling, for one canonical spelling estate-wide (census at the 2026-08 divergence: 48 dotted vs 9 hyphenated — the majority was already dotted). See docs/governance/TEMPLATE-LINEAGE-AUDIT.adoc
 
 | `.mailmap`
 | yes
@@ -96,6 +104,10 @@ predecessors did.
 | `CONTRIBUTING.adoc`
 | optional
 | AsciiDoc entry point to the canonical .github/ contribution guide
+
+| `GEMINI.md`
+| optional
+| pointer to CLAUDE.md for repos without AGENTS.md yet
 
 | `Justfile`
 | yes
@@ -153,10 +165,6 @@ predecessors did.
 | optional
 | `guix build -f guix.scm` requires it at root; only where reproducible-build is declared
 
-| `machine-readable/`
-| yes
-| manifests, contractiles, policies. Formerly .machine_readable/ — un-hidden 2026-08, because a quarter of the repo should not be invisible
-
 | `mise.toml`
 | yes
 | pinned toolchains
@@ -197,6 +205,7 @@ your own repo - but do not read their emptiness as neglect here.
 
 [cols="1"]
 |===
+| `.machine_readable/scripts/verification/`
 | `docs/governance/audit/`
 | `docs/governance/audit/compliance/`
 | `docs/governance/audit/effects/`
@@ -230,7 +239,6 @@ your own repo - but do not read their emptiness as neglect here.
 | `examples/`
 | `features/boj-server/`
 | `features/panic-attacker/`
-| `machine-readable/scripts/verification/`
 | `src/aspects/`
 | `src/aspects/integrity/`
 | `src/aspects/observability/`
@@ -255,7 +263,7 @@ your own repo - but do not read their emptiness as neglect here.
 == Where things are enforced
 
 * Root shape - `scripts/check-root-shape.sh` against
-  `machine-readable/root-allow.txt`, run by `.github/workflows/estate-rules.yml`.
+  `.machine_readable/root-allow.txt`, run by `.github/workflows/estate-rules.yml`.
   The check is bidirectional: unlisted entries fail, and required entries
   that are absent also fail.
 * This map - `just repo-map` must produce no diff.

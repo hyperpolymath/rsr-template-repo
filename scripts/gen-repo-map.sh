@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # gen-repo-map.sh — generate docs/architecture/REPOSITORY-MAP.adoc from the
-# tree plus the annotations in machine-readable/root-allow.txt.
+# tree plus the annotations in .machine_readable/root-allow.txt.
 #
 # WHY THIS IS GENERATED. Before this existed the repo carried FIVE hand-written
 # maps and not one was accurate: README's table omitted 12 directories,
@@ -27,7 +27,7 @@ export LC_ALL=C
 
 REPO_ROOT="${1:-.}"
 cd "$REPO_ROOT"
-ALLOW="machine-readable/root-allow.txt"
+ALLOW=".machine_readable/root-allow.txt"
 OUT="docs/architecture/REPOSITORY-MAP.adoc"
 
 [ -f "$ALLOW" ] || { echo "ERROR: $ALLOW not found" >&2; exit 2; }
@@ -74,7 +74,7 @@ declared_only() {
   echo ":toc:"
   echo
   echo "The single authoritative map of this repository. It is generated from the"
-  echo "tree and from the annotations in \`machine-readable/root-allow.txt\`, and CI"
+  echo "tree and from the annotations in \`.machine_readable/root-allow.txt\`, and CI"
   echo "fails if it drifts, so it cannot rot the way its five hand-written"
   echo "predecessors did."
   echo
@@ -116,7 +116,7 @@ declared_only() {
   echo "== Where things are enforced"
   echo
   echo "* Root shape - \`scripts/check-root-shape.sh\` against"
-  echo "  \`machine-readable/root-allow.txt\`, run by \`.github/workflows/estate-rules.yml\`."
+  echo "  \`.machine_readable/root-allow.txt\`, run by \`.github/workflows/estate-rules.yml\`."
   echo "  The check is bidirectional: unlisted entries fail, and required entries"
   echo "  that are absent also fail."
   echo "* This map - \`just repo-map\` must produce no diff."

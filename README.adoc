@@ -57,7 +57,7 @@ just validate            # structure + metadata checks
 ----
 
 `just repo-init` prompts for the project name, owner, author, licence contact, and the
-other values listed in `machine-readable/ai/PLACEHOLDERS.adoc`, substitutes them
+other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them
 across the tree, validates the result, and (if available) runs the `k9-svc` checks.
 
 == AI-Assisted Installation
@@ -73,7 +73,7 @@ stdin instead.
 
 == What you get
 
-* *Machine-readable metadata* (`machine-readable/descriptiles/`) — `STATE`, `META`,
+* *Machine-readable metadata* (`.machine_readable/descriptiles/`) — `STATE`, `META`,
   `ECOSYSTEM`, `PLAYBOOK`, `AGENTIC`, `NEUROSYM`, `CLADE`, and `anchors/ANCHOR`,
   in a2ml, so tools and agents can read the project's state and boundaries.
 * *AI gatekeeper protocol* — `0-AI-MANIFEST.a2ml` is the universal entry point that
@@ -102,7 +102,7 @@ The short version:
 | `README.adoc`, `CLAUDE.md` | Start here - humans and AI agents respectively.
 | `src/`, `tests/`           | The code and its tests.
 | `docs/`                    | Human documentation, including the full map above.
-| `machine-readable/`        | Manifests, contractiles and policies that tools read.
+| `.machine_readable/`        | Manifests, contractiles and policies that tools read.
 | `build/`, `Justfile`       | Every task runs through `just`; phases live in `build/just/`.
 | `ci/`, `.github/`          | CI configuration; GitHub reads `.github/` and no other path.
 |===
@@ -114,7 +114,7 @@ The short version:
 * link:docs/AFFIRMATION.adoc[AFFIRMATION] — the dated, signed honesty snapshot of the repo's true state.
 * link:docs/AUDIT.adoc[AUDIT] — the release audit gate.
 * link:docs/AI_INSTALLATION_GUIDE.adoc[AI installation guide] — for agents instantiating this template.
-* link:machine-readable/ai/PLACEHOLDERS.adoc[PLACEHOLDERS] — the full placeholder reference.
+* link:.machine_readable/ai/PLACEHOLDERS.adoc[PLACEHOLDERS] — the full placeholder reference.
 
 == Licence
 
