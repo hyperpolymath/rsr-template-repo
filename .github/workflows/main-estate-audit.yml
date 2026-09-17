@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@7689b046fe7c85365657193edf937307960fd4ec  # repinned 2026-09-17 (2/2): dbe2b2a content still carried 26 @main action refs that sha_pinning_required rejects at startup (0-job runs); 7689b04 = cicd-suite#11, all refs SHA-pinned
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@53fd9e0e7b02bdd1c9bcaa12638fa28748363933  # repinned 2026-09-17 (3/3, final): 7689b04 graph still carried manifest-check's two @main validate-action refs — rejected at startup by sha_pinning_required (0-job runs since Sep 13); 53fd9e0 = cicd-suite#12, transitive graph fully pinned
