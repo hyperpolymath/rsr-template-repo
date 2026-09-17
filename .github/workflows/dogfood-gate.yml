@@ -1,6 +1,4 @@
-# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
-# This workflow is managed by gh actions-lock.
 # This workflow is managed by gh actions-lock.
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
@@ -308,13 +306,121 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Job 6: Dogfooding summary
+  # Job 6: Canon lockstep — does this template still implement the canon?
+  #
+  # The canon<->spine binding. hyperpolymath/standards publishes canon.lock: the
+  # released identity of the law, with a sha256 per law artefact. This repo
+  # declares the SAME hashes in machine-readable/rsr-profile.a2ml [canon].
+  #
+  # Before this job, the declaration was two free-text strings
+  # (`spec = "rsr-criteria-v2"`, `declares-against = "2.0.0-draft"`) and nothing
+  # failed when the canon changed. This makes it a comparison.
+  #
+  # Deliberately a bare `run:` step with NO `uses:`. Adding an action reference
+  # would have required an actions.lock row, and this repo's lock records
+  # FLOATING refs ('actions/checkout@v7.0.1') where the canon's records SHAs -
+  # so a pinned `uses:` here would mismatch the lock and fail at LOAD time with
+  # `jobs=0` and no annotation. Read-only over the public internet needs no auth.
+  # ---------------------------------------------------------------------------
+  canon-lockstep:
+    name: Canon lockstep
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Fetch the canon's released identity
+        id: canon
+        run: |
+          set -euo pipefail
+          LOCK="$RUNNER_TEMP/canon.lock"
+          URL="https://raw.githubusercontent.com/hyperpolymath/standards/main/canon.lock"
+          if ! curl -fsSL --retry 3 --max-time 30 "$URL" -o "$LOCK"; then
+            echo "::error::could not fetch canon.lock from $URL"
+            echo "The canon does not publish a released identity, so this repo"
+            echo "cannot be shown to implement it. Fix at source: add canon.lock."
+            exit 1
+          fi
+          # Read (not compute) the criteria hash canon.lock asserts.
+          #
+          # awk only JOINS the record — the artefact entries are inline tables
+          # that span lines — then grep -oE extracts the hash. Deliberately the
+          # same two-step the canon's own check-canon-lockstep.sh uses, so
+          # there is one technique across both repos.
+          #
+          # Two traps this avoids, both found by running it rather than reading
+          # it. (1) An earlier version used `gsub(/.*"|"/,"",s)` to strip the
+          # quotes; the `.*"` is GREEDY, so it ate the entire string and the
+          # hash came out EMPTY. (2) awk interval expressions are not portable
+          # across mawk/gawk builds; grep -oE is.
+          rec="$(awk '
+            /^[[:space:]]*#/ { next }
+            /^criteria[[:space:]]*=/ { on=1 }
+            on {
+              line=$0; sub(/#.*/,"",line); rec = rec " " line
+              if (line ~ /}/) { on=0 }
+            }
+            END { print rec }' "$LOCK")"
+          want="$(printf '%s\n' "$rec" \
+            | grep -oE 'sha256[[:space:]]*=[[:space:]]*"[0-9a-f]{64}"' \
+            | grep -oE '[0-9a-f]{64}' | head -1)"
+          if [ -z "$want" ]; then
+            echo "::error::canon.lock carries no criteria sha256 — malformed, or"
+            echo "the criteria record no longer starts a line with 'criteria ='."
+            exit 1
+          fi
+          echo "want=$want" >> "$GITHUB_OUTPUT"
+
+      - name: Compare this repo's declared pin
+        env:
+          WANT: ${{ steps.canon.outputs.want }}
+        run: |
+          set -euo pipefail
+          PROFILE="machine-readable/rsr-profile.a2ml"
+          [ -f "$PROFILE" ] || PROFILE=".machine_readable/rsr-profile.a2ml"
+          if [ ! -f "$PROFILE" ]; then
+            echo "::error::no rsr-profile.a2ml — this repo cannot declare a canon pin"
+            exit 1
+          fi
+          got="$(awk '
+            /^[[:space:]]*#/ { next }
+            substr($0,1,1)=="[" { f = ($0=="[canon]") ? 1 : 0; next }
+            f && /^[[:space:]]*criteria_sha256[[:space:]]*=/ {
+              sub(/^[^=]*=[[:space:]]*/, ""); gsub(/^["[:space:]]+|["[:space:]]+$/, ""); print; exit
+            }' "$PROFILE")"
+          {
+            echo "## Canon lockstep"
+            echo ""
+            echo "| | sha256 (first 16) |"
+            echo "|---|---|"
+            echo "| canon.lock asserts | \`${WANT:0:16}\` |"
+            echo "| this repo declares | \`${got:0:16}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$got" = "$WANT" ]; then
+            echo ":white_check_mark: This template implements the canon at HEAD."
+            exit 0
+          fi
+          echo "::error::canon lockstep broken — the template does not implement the canon at HEAD"
+          {
+            echo ""
+            echo ":x: **Lockstep broken.**"
+            echo ""
+            echo "The canon's law changed and this template has not adopted it."
+            echo "Order matters (\`canon.lock [canon.lockstep].order\` is"
+            echo "\`spine-adopts-then-canon-releases\`): re-pin \`[canon]\` in"
+            echo "\`machine-readable/rsr-profile.a2ml\` to the new hashes and fix any"
+            echo "criteria this repo now fails, BEFORE the canon release lands."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+  # ---------------------------------------------------------------------------
+  # Job 7: Dogfooding summary
   # ---------------------------------------------------------------------------
   dogfood-summary:
     name: Dogfooding compliance summary
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [a2ml-validate, k9-validate, empty-lint, groove-check, eclexiaiser-validate]
+    needs: [a2ml-validate, k9-validate, empty-lint, groove-check, eclexiaiser-validate, canon-lockstep]
     if: always()
 
     steps:

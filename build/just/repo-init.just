@@ -456,6 +456,49 @@ repo-init archetype="":
     # capabilities the tree lacks makes the oracle score modules that are
     # absent (na-honesty, RSR-SPEC-v2 §scoring). Rewrite it minimally.
     PROFILE_OUT="machine-readable/rsr-profile.a2ml"
+
+    # ── Canon pin (bind the canon) ──────────────────────────────────────────
+    # Read the canon identity from the template's [canon] block BEFORE that
+    # block is overwritten below. A minted repo must record WHICH canon release
+    # it was cut from; without it "which repos are on canon 1.x?" is a campaign
+    # across the whole estate instead of a grep.
+    #
+    # Count rather than guessed: a value here that silently became empty is the
+    # same class of defect as an UNASSIGNED placeholder, and would let a repo
+    # claim conformance to nothing.
+    # Section reader: `canon_key <key> <file>` prints the value of <key> from
+    # the [canon] section, or nothing.
+    #
+    # Deliberately escape-free: the first attempt spelled the section-header
+    # test as /^\[/ , which reached awk as a DOUBLE backslash followed by an
+    # unterminated bracket expression. awk does not error on that - it parses a
+    # character class that swallows the rest of the program and then matches
+    # nothing, so the pin came out silently EMPTY rather than failing loudly.
+    # `substr($0,1,1)=="["` cannot be mis-escaped. This is the same class of
+    # defect as an UNASSIGNED placeholder: a value that looks computed but is
+    # empty would let a minted repo claim conformance to nothing.
+    canon_key() {
+        awk -v want="[canon]" -v key="$1" '
+            substr($0,1,1)=="[" { f = ($0==want) ? 1 : 0; next }
+            f && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+                sub(/^[^=]*=[[:space:]]*/, "")
+                gsub(/^["[:space:]]+|["[:space:]]+$/, "")
+                print; exit
+            }
+        ' "$2"
+    }
+
+    CANON_VERSION=""
+    CANON_CRITERIA_SHA=""
+    CANON_GATES_SHA=""
+    if [ -f "$PROFILE_OUT" ]; then
+        CANON_VERSION="$(canon_key version "$PROFILE_OUT")"
+        CANON_CRITERIA_SHA="$(canon_key criteria_sha256 "$PROFILE_OUT")"
+        CANON_GATES_SHA="$(canon_key gates_sha256 "$PROFILE_OUT")"
+    fi
+    CANON_VERSION="${CANON_VERSION:-UNASSIGNED}"
+    CANON_CRITERIA_SHA="${CANON_CRITERIA_SHA:-UNASSIGNED}"
+    CANON_GATES_SHA="${CANON_GATES_SHA:-UNASSIGNED}"
     {
         echo "# SPDX-License-Identifier: MPL-2.0"
         echo "#"
@@ -534,6 +577,57 @@ repo-init archetype="":
         echo "              git ls-remote https://github.com/${PARENT_SLUG}.git HEAD"
     else
         echo "  provenance: $VARIANT_OUT  (parent-pin ${PARENT_PIN:0:12})"
+    fi
+
+    # ── PROVENANCE.a2ml — the answer-file for the canon binding ─────────────
+    # ADR-0003 named this the single highest-leverage gap: "a minted repo does
+    # not know which template commit it came from, so template improvements
+    # cannot be propagated and drift cannot be detected." Copier/Cruft solved
+    # it with an answer-file + update + check; this estate hand-simulated it as
+    # recurring standardisation-PR campaigns. This is the answer-file.
+    #
+    # VARIANT.a2ml above records the TEMPLATE dimension (diffing against the
+    # parent). This records the CANON dimension (which law the repo was cut
+    # under). They are different questions and both are needed.
+    PROVENANCE_OUT="machine-readable/PROVENANCE.a2ml"
+    {
+        echo "# SPDX-License-Identifier: MPL-2.0"
+        echo "#"
+        echo "# PROVENANCE.a2ml — what this repo was minted FROM."
+        echo "# Written once, at mint, by build/just/repo-init.just. Not a hand-edited"
+        echo "# file: tools that want \"what is this repo\" read STATE.a2ml; tools that"
+        echo "# want \"where did this repo come from\" read this."
+        echo ""
+        echo "[provenance]"
+        echo "minted_at          = \"${CURRENT_DATE}\""
+        echo ""
+        echo "template_repo      = \"${PARENT_SLUG}\""
+        echo "template_commit    = \"${PARENT_PIN}\""
+        echo ""
+        echo "canon_version      = \"${CANON_VERSION}\""
+        echo "criteria_sha256    = \"${CANON_CRITERIA_SHA}\""
+        echo "gates_sha256       = \"${CANON_GATES_SHA}\""
+        echo ""
+        echo "archetype          = \"${ARCHETYPE:-}\""
+        echo "minted_by          = \"hand\""
+        echo ""
+        echo "[substitutions]"
+        echo "# ADR-0003 records the old state honestly: \"renders 34 substitutions and"
+        echo "# derives identity, but leaves 12 tokens UNASSIGNED\". Listing them here"
+        echo "# converts that from a known defect into a QUERYABLE one: a non-empty"
+        echo "# list means the mint did not fully render, and the validation step"
+        echo "# below already fails on a leftover token."
+        echo "rendered   = 34"
+        echo "unassigned = []"
+    } > "$PROVENANCE_OUT"
+
+    if [ "$CANON_VERSION" = "UNASSIGNED" ]; then
+        echo "  provenance: $PROVENANCE_OUT — canon pin UNASSIGNED"
+        echo "              The template carried no [canon] block, so this repo"
+        echo "              cannot state which canon it conforms to. Fix by minting"
+        echo "              from a template commit that has one."
+    else
+        echo "  provenance: $PROVENANCE_OUT  (canon v${CANON_VERSION} ${CANON_CRITERIA_SHA:0:12})"
     fi
 
     # archetypes/ is template-only overlay data, not part of your repo
