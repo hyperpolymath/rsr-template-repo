@@ -203,10 +203,38 @@ REQUIRED_WORKFLOWS=(
     "secret-scanner.yml"
 )
 
+# A workflow renamed upstream must not read as a missing workflow here. #106
+# moved wellknown-enforcement.yml to dot-wellknown-enforcement.yml to match the
+# .well-known/ URL convention and left this list requiring the old name, so this
+# gate failed on main — the same way it failed when the two retired files above
+# stayed listed. Resolve EITHER spelling and let the alias be dropped once the
+# rename has propagated, exactly as check-root-shape.sh resolves both root
+# spellings instead of assuming the migration is finished everywhere.
+WORKFLOW_ALIASES=(
+    "wellknown-enforcement.yml:dot-wellknown-enforcement.yml"
+)
+
+resolve_required_workflow() {
+    local want="$1" pair alt
+    if [ -f "$REPO_ROOT/.github/workflows/$want" ]; then
+        printf '%s\n' "$want"
+        return 0
+    fi
+    for pair in "${WORKFLOW_ALIASES[@]}"; do
+        [ "${pair%%:*}" = "$want" ] || continue
+        alt="${pair#*:}"
+        if [ -f "$REPO_ROOT/.github/workflows/$alt" ]; then
+            printf '%s\n' "$alt"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Check required workflows
 for workflow in "${REQUIRED_WORKFLOWS[@]}"; do
-    if [ -f "$REPO_ROOT/.github/workflows/$workflow" ]; then
-        [ "$VERBOSE" = "1" ] && log_pass "Workflow found: $workflow"
+    if found="$(resolve_required_workflow "$workflow")"; then
+        [ "$VERBOSE" = "1" ] && log_pass "Workflow found: $found"
     else
         log_error "Required workflow missing: $workflow"
     fi
