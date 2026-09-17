@@ -13,7 +13,7 @@ aspiration, and service-automation framework.
 [IMPORTANT]
 ====
 The normative grammar for the record family used throughout this directory
-is `deed/spec/DEED-GRAMMAR-SPEC.adoc` in
+is `1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc` in
 https://github.com/hyperpolymath/standards[hyperpolymath/standards]. The
 format formerly called A2ML is now *DEED* (`.deed`); files here still carry
 `.a2ml` pending a single atomic estate-wide rename, so do not hand-convert
