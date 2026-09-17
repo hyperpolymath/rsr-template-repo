@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@main  # cross-repo reusable calls aren't lockfile-pinnable (gh actions-lock: no entry, 'All 1 workflow valid'); enforcement lives in the callee's own actions.lock, and cicd-suite main is audit-gated green on every push
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@98f405a8c50b60f372065c200a5583d3ae664903  # cicd-suite main, lockfile-compliant (cicd-suite#14); reusable calls are not lock-coverable (gh actions-lock writes no entry), so SHA-pin per scripts/check-action-pinning.js
