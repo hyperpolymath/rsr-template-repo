@@ -11,7 +11,7 @@
 ---
 id = "contractiles-registry"
 version = "2.0.0"   # 2.0.0 (2026-04-18): all 6 verbs on trident shape; verb set complete.
-spec = "docs/CONTRACTILE-SPEC.adoc"
+spec = "https://github.com/hyperpolymath/standards/blob/main/docs/CONTRACTILE-SPEC.adoc"
 last_updated = "2026-04-18"
 base_schema = "machine-readable/contractiles/_base.ncl"
 meta_schema_status = "pending — see CONTRACTILE-SPEC §validator-meta-schema"

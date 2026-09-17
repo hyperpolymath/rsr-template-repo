@@ -1,6 +1,10 @@
+# SPDX-License-Identifier: MPL-2.0
 # This workflow is managed by gh actions-lock.
 
 name: Central Estate CI/CD Audit
+
+permissions:
+  contents: read
 
 on:
   push:
