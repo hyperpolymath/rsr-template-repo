@@ -56,10 +56,27 @@ esac
 echo "═══════════════════════════════════════════════════"
 echo "  SCAFFOLDING SECURITY & RESOURCE DIRECTORIES"
 echo "═══════════════════════════════════════════════════"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+WWW="$REPO_ROOT/www"
+
 mkdir -p "$DEST/security_headers"
 mkdir -p "$DEST/.well-known"
 mkdir -p "$DEST/resource_records"
 
+# Canonical sources live in www/ (issue #53). Copy from there when present;
+# the inline defaults below remain for repositories without the bundle.
+if [ -d "$WWW/.well-known" ]; then
+    cp -r "$WWW/.well-known/." "$DEST/.well-known/"
+    echo "  .well-known: copied from canonical www/.well-known/"
+fi
+if [ -d "$WWW/dns/records" ]; then
+    cp -r "$WWW/dns/records/." "$DEST/resource_records/"
+    echo "  resource records: copied from www/dns/records/"
+fi
+if [ -f "$WWW/security_headers/csp.conf" ]; then
+    cp "$WWW/security_headers/csp.conf" "$DEST/security_headers/csp.conf"
+    echo "  security headers: copied from www/security_headers/csp.conf"
+else
 cat << 'EOF' > "$DEST/security_headers/csp.conf"
 Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests;
 X-Content-Type-Options: nosniff
@@ -68,5 +85,6 @@ X-XSS-Protection: 1; mode=block
 Referrer-Policy: strict-origin-when-cross-origin
 Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 EOF
+fi
 
 echo "Scaffolding complete. Please ensure these directories are copied to your site's output root."

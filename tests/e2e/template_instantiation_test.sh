@@ -255,7 +255,7 @@ log_step "Checking for un-deleted template instruction blocks"
 # 2026-08-04. Catch it by name instead.
 LEFTOVER=$(grep -rl 'TEMPLATE INSTRUCTIONS' "$TEST_REPO_PATH" \
     --exclude-dir=.git 2>/dev/null \
-    | grep -vE '/(scripts/strip-instruction-blocks\.py|build/just/repo-init\.just|tests/e2e/template_instantiation_test\.sh)$' || true)
+    | grep -vE '/(scripts/strip-instruction-blocks\.rb|build/just/repo-init\.just|tests/e2e/template_instantiation_test\.sh)$' || true)
 if [ -n "$LEFTOVER" ]; then
     log_error "just repo-init left a TEMPLATE INSTRUCTIONS block in:"
     echo "$LEFTOVER" | sed 's/^/    /' >&2
@@ -349,6 +349,40 @@ for file in "${METADATA_FILES[@]}"; do
         exit 1
     fi
 done
+
+#==============================================================================
+# WWW SITE-OPERATIONS BUNDLE (issue #53)
+#==============================================================================
+
+# The mint must carry the bundle, and the legacy root location must be gone.
+if [ -d "$TEST_REPO_PATH/.well-known" ]; then
+    log_error "minted repo still has root .well-known/ — canonical location is www/.well-known/"
+    exit 1
+fi
+WWW_FILES=(
+    "README.adoc"
+    ".well-known/security.txt"
+    ".well-known/ai.txt"
+    ".well-known/humans.txt"
+    "schemas/publishable-paths.txt"
+    "tests/run-all.sh"
+)
+for file in "${WWW_FILES[@]}"; do
+    if [ -f "$TEST_REPO_PATH/www/$file" ]; then
+        log_pass "www bundle file exists: www/$file"
+    else
+        log_error "www bundle file missing: www/$file"
+        exit 1
+    fi
+done
+
+# The minted bundle must pass its own planted-control tests.
+if (cd "$TEST_REPO_PATH" && bash www/tests/run-all.sh); then
+    log_pass "www bundle self-test passed in the minted repo"
+else
+    log_error "www/tests/run-all.sh failed in the minted repo"
+    exit 1
+fi
 
 #==============================================================================
 # SUMMARY

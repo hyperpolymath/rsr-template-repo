@@ -115,7 +115,7 @@ contractiles_required = [
 ]
 
 security_required = [
-  ".well-known/security.txt",
+  "www/.well-known/security.txt",
   "ci-security-scan",
 ]
 

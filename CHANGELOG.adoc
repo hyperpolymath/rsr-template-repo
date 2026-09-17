@@ -8,6 +8,27 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Added
+
+* `www/` site-operations bundle (issue #53): canonical `.well-known/`
+  metadata, publishable content, policy sources, error bodies,
+  security-header templates, Caddy/nginx/Apache integration examples, an
+  authoritative-only BIND 9 starting hand with record templates,
+  encrypted-DNS/privacy and TLS guidance, explicit opt-in profiles,
+  schemas, planted-control tests and operational runbooks.
+* `scripts/migrate-wellknown-to-www.sh` — conflict-safe migration of a
+  repository-root `.well-known/` into `www/.well-known/` (identical copies
+  de-duplicated, root-only content moved, divergent content preserved on
+  both sides and reported).
+
+==== Changed
+
+* Canonical `.well-known/` location moved from the repository root to
+  `www/.well-known/`. Well-known enforcement, Groove checks, the root-shape
+  allowlist, the SSG bootstrap and the documentation now prefer the `www/`
+  location and accept the legacy root location with a warning during the
+  migration window.
+
 ==== Fixed
 
 * Restore the modular `just` recipes removed by the root-layout refactor, so

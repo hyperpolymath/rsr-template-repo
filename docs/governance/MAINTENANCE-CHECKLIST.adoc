@@ -100,7 +100,7 @@ Run this pass at the end of a corrective/adaptive/perfective cycle:
   - root `Mustfile` (or equivalent) with enforceable checks
   - `Trustfile` and `Intentfile` present
 - [ ] Keep security metadata present:
-  - `.well-known/security.txt` and relevant policy metadata
+  - `www/.well-known/security.txt` and relevant policy metadata
   - CI security scanning configured and runnable
 - [ ] Keep docs and navigation coherent:
   - single navigation entry point in root (`NAVIGATION.adoc` or equivalent)
@@ -117,7 +117,7 @@ Run this pass at the end of a corrective/adaptive/perfective cycle:
   - `docs/` (theory/practice/whitepapers/proofs/reports)
   - `tests/` (fixtures/outputs)
   - `docs/legal/` (while retaining root `LICENSE` when forge detection needs it)
-- [ ] Maintain `.well-known/` for public metadata where applicable (`security.txt`, `humans.txt`, `ads.txt` mirrors if used).
+- [ ] Maintain `www/.well-known/` for public metadata where applicable (`security.txt`, `humans.txt`, `ads.txt` mirrors if used); a root `.well-known/` is legacy (issue #53).
 - [ ] Keep CI policy checks for doc-format conventions and canonical file placement.
 - [ ] Keep roadmap/status docs honest with dated evidence.
 

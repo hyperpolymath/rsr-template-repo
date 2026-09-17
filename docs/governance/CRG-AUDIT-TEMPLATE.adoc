@@ -80,9 +80,9 @@ Do *not* mark PRESENT without citing the path.
 | PRESENT (primary + fallback) / PARTIAL / ABSENT
 | Root
 
-| `.well-known/` (security.txt, ai.txt, humans.txt)
+| `www/.well-known/` (security.txt, ai.txt, humans.txt)
 | PRESENT / ABSENT
-| Per RSR_OUTLINE.adoc
+| Per RSR_OUTLINE.adoc; a root `.well-known/` is the legacy location (migration window, issue #53)
 
 | SPDX headers on source
 | PRESENT on sampled files (N/N) / PARTIAL / ABSENT
