@@ -19,4 +19,4 @@ permissions:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@feat/cicd-workflow-call
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@dbe2b2a94218d901538fe876a4a59b6a111c06bb  # repinned 2026-09-17: was @feat/cicd-workflow-call, a deleted branch = dead ref (0-jobs class); SHA is cicd-suite main head
