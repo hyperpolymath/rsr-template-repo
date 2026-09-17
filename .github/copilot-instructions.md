@@ -36,7 +36,7 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 
 ## JavaScript / TypeScript runtimes
 
-Ordered preference (`standards/LANGUAGE-POLICY.adoc` §1) — reach for the first
+Ordered preference (`standards/3-practice/LANGUAGE-POLICY.adoc` §1) — reach for the first
 that can do the job:
 
 1. **Bun** — default for all new work. Runs compiled ESM/JS directly, no bundler

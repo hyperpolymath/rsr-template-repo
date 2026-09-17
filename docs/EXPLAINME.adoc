@@ -16,7 +16,7 @@ Session protocols are centrally maintained and not duplicated in this template.
 How this is implemented:
 
 * The local dispatcher (`session/dispatch.sh`) maps canonical commands to central
-  protocol paths in `standards/session-management-standards`.
+  protocol paths in `standards/3-practice/session-management-standards`.
 * Local files (`session/custom-checks.k9`, `session/local-hooks.sh`,
   `coordination.k9`) are integration-only.
 

@@ -39,10 +39,10 @@ repo_root="$(cd "$script_dir/.." && pwd)"
 
 standards_dir="${SESSION_STANDARDS_DIR:-}"
 if [ -z "$standards_dir" ]; then
-  if [ -d "$repo_root/../standards/session-management-standards" ]; then
-    standards_dir="$repo_root/../standards/session-management-standards"
-  elif [ -d "$repo_root/standards/session-management-standards" ]; then
-    standards_dir="$repo_root/standards/session-management-standards"
+  if [ -d "$repo_root/../standards/3-practice/session-management-standards" ]; then
+    standards_dir="$repo_root/../standards/3-practice/session-management-standards"
+  elif [ -d "$repo_root/standards/3-practice/session-management-standards" ]; then
+    standards_dir="$repo_root/standards/3-practice/session-management-standards"
   fi
 fi
 
@@ -126,7 +126,7 @@ if [ -n "$standards_dir" ] && [ -d "$standards_dir/$protocol_rel" ]; then
   echo "state template: $standards_dir/$protocol_rel/STATE-template.a2ml"
 else
   echo "warning: could not resolve central standards directory."
-  echo "Set SESSION_STANDARDS_DIR to standards/session-management-standards." >&2
+  echo "Set SESSION_STANDARDS_DIR to standards/3-practice/session-management-standards." >&2
   echo "canonical: $cmd_pair $repo_path"
   echo "mapped protocol: $protocol_rel"
 fi
