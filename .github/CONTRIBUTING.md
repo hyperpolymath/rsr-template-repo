@@ -8,7 +8,7 @@ git clone https://{{FORGE}}/{{OWNER}}/{{REPO}}.git
 cd {{REPO}}
 
 # Using Guix (recommended for reproducibility)
-guix shell -D -f guix.scm
+guix shell -D -f build/guix.scm
 
 # Or using toolbox/distrobox
 toolbox create {{REPO}}-dev

@@ -76,9 +76,9 @@ Do *not* mark PRESENT without citing the path.
 | PRESENT / PARTIAL / ABSENT
 | `docs/`
 
-| `guix.scm`
+| `build/guix.scm`
 | PRESENT (primary + fallback) / PARTIAL / ABSENT
-| Root
+| build/
 
 | `www/.well-known/` (security.txt, ai.txt, humans.txt)
 | PRESENT / ABSENT

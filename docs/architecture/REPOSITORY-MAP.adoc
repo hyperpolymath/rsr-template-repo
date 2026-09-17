@@ -135,7 +135,7 @@ predecessors did.
 
 | `build/`
 | yes
-| build orchestration: just/ phase modules, container/, docs-seed/, templates/
+| build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = build/)
 
 | `ci/`
 | yes
@@ -156,10 +156,6 @@ predecessors did.
 | `features/`
 | optional
 | optional feature packs
-
-| `guix.scm`
-| optional
-| `guix build -f guix.scm` requires it at root; only where reproducible-build is declared
 
 | `mise.toml`
 | yes

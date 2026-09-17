@@ -62,7 +62,7 @@ www/                       # site-operations bundle; canonical .well-known/ live
 ?.well-known/              # legacy location, migration window only — scripts/migrate-wellknown-to-www.sh moves it into www/.well-known/
 .machine_readable/          # manifests, contractiles, policies. Renamed back from machine-readable/ 2026-09-17 by owner ruling, for one canonical spelling estate-wide (census at the 2026-08 divergence: 48 dotted vs 9 hyphenated — the majority was already dotted). See docs/governance/TEMPLATE-LINEAGE-AUDIT.adoc
 docs/                      # human documentation
-build/                     # build orchestration: just/ phase modules, container/, docs-seed/, templates/
+build/                     # build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = "build/")
 ci/                        # .gitlab-ci.yml + .pre-commit-config.yaml; ci/README.adoc records the out-of-band GitLab project setting these require
 scripts/                   # repo helper scripts
 session/                   # dispatch.sh, custom-checks.k9.ncl, local-hooks.sh
@@ -73,7 +73,6 @@ tests/
 ?archetypes/               # template-only variation seam (ADR-0003); `just repo-init` removes it from minted repos
 ?.devcontainer/            # VS Code dev container spec; present only where the container capability is declared
 ?abi.ipkg                  # Idris2 package for the ABI seam; only where the abi capability is declared
-?guix.scm                  # `guix build -f guix.scm` requires it at root; only where reproducible-build is declared
 ?sonar-project.properties  # only where the repo is analysed by SonarCloud
 ?benches/                  # Cargo-conventional at package root
 ?examples/                 # Cargo-conventional at package root
