@@ -88,7 +88,17 @@ gitlab = ""       # populated if/when mirrored
 bitbucket = ""    # populated if/when mirrored
 
 [lineage]
-type = "standalone"           # standalone | monorepo | monorepo-child | inflated | deflated
+# type: standalone | monorepo | monorepo-child | inflated | deflated | hub | satellite
+#   hub       — this repo COORDINATES an ecosystem family (its members carry
+#               type="satellite"). WHICH repos it coordinates is not recorded
+#               here: that lives in ECOSYSTEM.a2ml [pipeline] coordination.
+#   satellite — this repo is COORDINATED BY a hub. Its `parent` STAYS "":
+#               parent is a monorepo parent — never a description, and never
+#               the name of the coordinating hub.
+# "hub"/"satellite" were added after the first hub ecosystem had to mint eight
+# repos with the nearest-wrong value "standalone" (standards#726): lineage is
+# the pointer, ECOSYSTEM.a2ml is the detail. Do not encode membership twice.
+type = "standalone"
 parent = ""                   # a monorepo PARENT — never a description of this repo
 born = "{{CURRENT_DATE}}"
 previous-names = []
