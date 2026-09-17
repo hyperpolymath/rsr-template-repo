@@ -7,10 +7,14 @@
 # RECORD-DIALECT-SPEC.adoc -- note: NOT hyperpolymath/standards; the a2ml/
 # subtree was evicted from standards by 24a12d6f on 2026-08-28).
 #
-# SUPERSEDED. The normative grammar for this family is now
-# deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards, and the file
-# extension is .deed. This file keeps its record surface until the estate-wide
-# conversion lands (task #64) -- do not hand-convert it.
+# GRAMMAR: still superseded -- the normative grammar for this family is
+# deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards and the extension
+# is becoming .deed. This file keeps its record surface until the estate-wide
+# conversion lands (estate task #64) -- do not hand-convert it.
+#
+# BINDING: NOT superseded. The [canon] block at the end of this file is
+# normative and hash-pinned; it is what makes this template accountable to the
+# canon rather than merely describing it.
 #
 # It declares which capabilities this repo has,
 # per TEMPLATE-APPLICABILITY-POLICY.adoc; the RSR v2.0 conformance oracle
@@ -54,6 +58,45 @@ capabilities = [
   "benchmarks",         # benches/
   "governance-tier",    # full AUDIT/AFFIRMATION/GOVERNANCE/MAINTAINERS trio
 ]
+
+[canon]
+# ---------------------------------------------------------------------------
+# THE BINDING. This is the half that turns "the template reflects the
+# standards" from a claim into a check.
+#
+# Before this block, this repo declared its conformance with two free-text
+# strings in [rsr-profile] above:
+#
+#     spec             = "rsr-criteria-v2"
+#     declares-against = "2.0.0-draft"
+#
+# Nothing failed when the canon's criteria changed, when its gate table
+# changed, or when its applicability policy changed. A grep for any version
+# identifier across BOTH repos returned exactly one hit — that string.
+#
+# These values are hashes. Gate A (scripts/check-canon-lockstep.sh in
+# hyperpolymath/standards, run by .github/workflows/canon-spine-lockstep.yml)
+# asserts they equal canon.lock [canon.artifacts] at the canon's head. A
+# mismatch is a FAILURE, not a warning.
+#
+# The reverse direction is machine-readable/PROVENANCE.a2ml, written at mint by
+# build/just/repo-init.just: every minted repo records the canon it was cut
+# from, so "which repos are on canon 1.x?" becomes a grep instead of a campaign.
+# ---------------------------------------------------------------------------
+version         = "2.0.0"
+# MUST equal canon.lock [canon.artifacts].criteria.sha256
+criteria_sha256 = "efd024ad9cbdf0d36d4dbce7e491531dd4ccccbfc747a04223ce4149f4b9a53d"
+# MUST equal canon.lock [canon.artifacts].gates.sha256
+# NB this hash is the gate table WITH the role = "canon" section (canon PR
+# "feat(gates): add role=canon"). Before that section existed the canon could
+# not be scored by the checker it ships, so a spine pinning the older table
+# would be pinning a canon whose law was not subject to itself.
+gates_sha256    = "4c57d515bd3fa9d149cf54a8f4c8a44e2409cb24c3df72ec874656e4f5a98534"
+lockstep_since  = "2026-09-17"
+# The order matters and is enforced server-side: a canon change that this repo
+# cannot satisfy is a change made in the WRONG ORDER, not a rejected change.
+# Land the spine's adoption first, then the canon change is a one-line bump.
+order           = "spine-adopts-then-canon-releases"
 
 [notes]
 # Capabilities intentionally NOT declared (no corresponding code in tree):
