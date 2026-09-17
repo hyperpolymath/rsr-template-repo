@@ -15,7 +15,7 @@ K9!
   },
 
   session_management = {
-    source_of_truth = "standards/session-management-standards",
+    source_of_truth = "standards/3-practice/session-management-standards",
     canonical_commands = [
       "intake repo <path>",
       "checkpoint change <path>",

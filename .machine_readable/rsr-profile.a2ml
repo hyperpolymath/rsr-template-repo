@@ -8,7 +8,7 @@
 # subtree was evicted from standards by 24a12d6f on 2026-08-28).
 #
 # GRAMMAR: still superseded -- the normative grammar for this family is
-# deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards and the extension
+# 1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards and the extension
 # is becoming .deed. This file keeps its record surface until the estate-wide
 # conversion lands (estate task #64) -- do not hand-convert it.
 #
@@ -96,7 +96,7 @@ capabilities = [
 # build/just/repo-init.just: every minted repo records the canon it was cut
 # from, so "which repos are on canon 1.x?" becomes a grep instead of a campaign.
 # ---------------------------------------------------------------------------
-version         = "2.0.3"
+version         = "2.0.4"
 # MUST equal canon.lock [canon.artifacts].criteria.sha256
 criteria_sha256 = "37cb5f679b414f6ee99c6bb62c460fd5349ff7d50cc1dab25b1e1a8e8d3c7bb9"
 # MUST equal canon.lock [canon.artifacts].gates.sha256
@@ -104,7 +104,7 @@ criteria_sha256 = "37cb5f679b414f6ee99c6bb62c460fd5349ff7d50cc1dab25b1e1a8e8d3c7
 # "feat(gates): add role=canon"). Before that section existed the canon could
 # not be scored by the checker it ships, so a spine pinning the older table
 # would be pinning a canon whose law was not subject to itself.
-gates_sha256    = "b927ab0e54a0f75b20ca182afe4e48d26765ac486eef603bfc4a5e3d00281220"
+gates_sha256    = "b65ce75438c42d01bedf0325b9a97f1a575064866158b4340d7427fca911dd1b"
 lockstep_since  = "2026-09-17"
 # The order matters and is enforced server-side: a canon change that this repo
 # cannot satisfy is a change made in the WRONG ORDER, not a rejected change.

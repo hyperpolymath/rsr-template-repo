@@ -11,7 +11,14 @@
 project = "rsr-template-repo"
 version = "0.2.0"
 last-updated = "2026-02-28"
-status = "active"  # active | paused | archived
+# status: active | paused | archived | planned
+#   planned — the repo is RESERVED but has not started (minted as a placeholder;
+#             equivalent to CLADE [status] phase = "reserved"). It is NOT
+#             "paused": paused reads as "was active, stopped".
+# AUTHORITY: when this and CLADE [status] phase disagree, CLADE phase is the
+# authoritative SCM checkpoint and STATE must be re-derived from it — never
+# hand-edit both into agreement (standards#726).
+status = "active"
 
 [project-context]
 name = "rsr-template-repo"
