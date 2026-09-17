@@ -351,6 +351,40 @@ for file in "${METADATA_FILES[@]}"; do
 done
 
 #==============================================================================
+# WWW SITE-OPERATIONS BUNDLE (issue #53)
+#==============================================================================
+
+# The mint must carry the bundle, and the legacy root location must be gone.
+if [ -d "$TEST_REPO_PATH/.well-known" ]; then
+    log_error "minted repo still has root .well-known/ — canonical location is www/.well-known/"
+    exit 1
+fi
+WWW_FILES=(
+    "README.adoc"
+    ".well-known/security.txt"
+    ".well-known/ai.txt"
+    ".well-known/humans.txt"
+    "schemas/publishable-paths.txt"
+    "tests/run-all.sh"
+)
+for file in "${WWW_FILES[@]}"; do
+    if [ -f "$TEST_REPO_PATH/www/$file" ]; then
+        log_pass "www bundle file exists: www/$file"
+    else
+        log_error "www bundle file missing: www/$file"
+        exit 1
+    fi
+done
+
+# The minted bundle must pass its own planted-control tests.
+if (cd "$TEST_REPO_PATH" && bash www/tests/run-all.sh); then
+    log_pass "www bundle self-test passed in the minted repo"
+else
+    log_error "www/tests/run-all.sh failed in the minted repo"
+    exit 1
+fi
+
+#==============================================================================
 # SUMMARY
 #==============================================================================
 

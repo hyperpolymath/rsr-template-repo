@@ -33,4 +33,4 @@ RSR (Rhodium Standard Repository) template provides the canonical scaffold for a
 
 * Container: Stapeln Six ecosystem
 * CI/CD: GitHub Actions → Hypatia scan → eclexiaiser-validate (6 scorecard dimensions) → Mirror
-* Service Discovery: Groove protocol (.well-known/groove/manifest.json)
+* Service Discovery: Groove protocol (www/.well-known/groove/manifest.json)

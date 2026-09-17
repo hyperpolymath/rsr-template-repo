@@ -74,8 +74,8 @@ just validate-rsr
 |`.guix-channel`
 |Guix channel definition
 
-|`.well-known/`
-|RFC-compliant metadata (security.txt, ai.txt, humans.txt)
+|`www/`
+|Site-operations bundle; RFC-compliant metadata at `www/.well-known/` (security.txt, ai.txt, humans.txt)
 
 |`machine-readable/`
 |All machine-readable content: state files (6 a2ml), `bot_directives/`, `contractiles/`
@@ -184,9 +184,9 @@ hand-written tree that used to sit here it cannot go stale.
 * `README.adoc`
 * `LICENSE` (MPL-2.0)
 * `machine-readable/descriptiles/STATE.a2ml`
-* `.well-known/security.txt`
-* `.well-known/ai.txt`
-* `.well-known/humans.txt`
+* `www/.well-known/security.txt`
+* `www/.well-known/ai.txt`
+* `www/.well-known/humans.txt`
 * `guix.scm`
 
 === Prohibited

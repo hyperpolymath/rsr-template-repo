@@ -100,6 +100,6 @@ Current trust level: maximal
 - severity: warning
 
 #### site-resource-records
-- description: Any website directory must contain a resource_records directory
-- run: "for d in www site docs/site; do if [ -d \"$d\" ]; then test -d \"$d/resource_records\" || exit 1; fi; done"
+- description: Any website directory must contain resource-record templates (resource_records/, or dns/records/ in the issue-53 canonical layout)
+- run: "for d in www site docs/site; do if [ -d \"$d\" ]; then { test -d \"$d/resource_records\" || test -d \"$d/dns/records\"; } || exit 1; fi; done"
 - severity: warning
