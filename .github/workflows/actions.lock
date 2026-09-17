@@ -3,7 +3,7 @@
 # Docs: https://gh.io/actions-lockfile
 version: 'v0.0.2'
 workflows:
-    '.github/workflows/a2ml-validate.yml':
+    '.github/workflows/deed-validate.yml':
         - 'actions/checkout@v7.0.1'
         - 'hyperpolymath/deed-ecosystem@main'
     '.github/workflows/build-notification.yml':
