@@ -17,7 +17,6 @@
 *.ads   text eol=lf diff=ada
 *.gpr   text eol=lf diff=ada
 *.go    text eol=lf diff=golang
-*.py    text eol=lf diff=python
 *.scm   text eol=lf diff=scheme linguist-language=Scheme
 *.rkt   text eol=lf
 *.jl    text eol=lf
@@ -34,9 +33,8 @@
 *.v     text eol=lf linguist-language=Coq
 *.ncl   text eol=lf
 *.k9    text eol=lf linguist-language=Nickel
-*.a2ml  text eol=lf linguist-language=TOML
+*.deed  text eol=lf linguist-language=SCM
 *.ebnf  text eol=lf
-*.ts    text eol=lf
 *.js    text eol=lf
 *.sh    text eol=lf diff=bash
 *.bash  text eol=lf diff=bash
@@ -70,10 +68,8 @@
 .editorconfig  text eol=lf
 .tool-versions text eol=lf
 Justfile       text eol=lf
-justfile       text eol=lf
 *.just         text eol=lf
 Mustfile       text eol=lf
-Makefile       text eol=lf
 Containerfile  text eol=lf
 
 # --- Binary ----------------------------------------------------------------
