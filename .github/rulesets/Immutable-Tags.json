@@ -4,16 +4,25 @@
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": ["~ALL"],
+      "include": [
+        "~ALL"
+      ],
       "exclude": []
     }
   },
   "bypass_actors": [],
   "rules": [
-    {"type": "creation"},
-    {"type": "deletion"},
-    {"type": "non_fast_forward"},
-    {"type": "update"},
-    {"type": "required_signatures"}
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "update"
+    },
+    {
+      "type": "required_signatures"
+    }
   ]
 }
