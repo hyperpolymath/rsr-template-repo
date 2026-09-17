@@ -96,15 +96,15 @@ capabilities = [
 # build/just/repo-init.just: every minted repo records the canon it was cut
 # from, so "which repos are on canon 1.x?" becomes a grep instead of a campaign.
 # ---------------------------------------------------------------------------
-version         = "2.0.1"
+version         = "2.0.2"
 # MUST equal canon.lock [canon.artifacts].criteria.sha256
-criteria_sha256 = "efd024ad9cbdf0d36d4dbce7e491531dd4ccccbfc747a04223ce4149f4b9a53d"
+criteria_sha256 = "7804d77127001ed50263f0783d8a11f7211e72cb5e9f6443f2acde4b08d9ab1e"
 # MUST equal canon.lock [canon.artifacts].gates.sha256
 # NB this hash is the gate table WITH the role = "canon" section (canon PR
 # "feat(gates): add role=canon"). Before that section existed the canon could
 # not be scored by the checker it ships, so a spine pinning the older table
 # would be pinning a canon whose law was not subject to itself.
-gates_sha256    = "8b1a77669c9ab78e9081669dbb2ab141d8af29700affc327f3dcde99f3dcd243"
+gates_sha256    = "6a8b9b420519dccdd2c586da06a9a302bdbbb3dc917f49e4a7b308882471d68a"
 lockstep_since  = "2026-09-17"
 # The order matters and is enforced server-side: a canon change that this repo
 # cannot satisfy is a change made in the WRONG ORDER, not a rejected change.
