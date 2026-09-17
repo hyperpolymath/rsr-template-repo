@@ -69,9 +69,9 @@ predecessors did.
 | yes
 | -
 
-| `.well-known/`
+| `www/`
 | yes
-| RFC 9116 security.txt, ai.txt, humans.txt
+| Site-operations bundle — canonical `www/.well-known/` (RFC 9116 security.txt, ai.txt, humans.txt), publishable content, DNS/TLS/header sources, profiles, tests, runbooks
 
 | `.windsurfrules`
 | yes

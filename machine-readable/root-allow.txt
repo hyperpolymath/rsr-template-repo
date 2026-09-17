@@ -58,7 +58,8 @@ mise.toml                  # pinned toolchains
 .git/
 .github/                   # community health + workflows; GitHub reads this path and no other
 .githooks/                 # core.hooksPath resolves relative to the worktree root
-.well-known/               # RFC 9116 security.txt, ai.txt, humans.txt
+www/                       # site-operations bundle; canonical .well-known/ lives at www/.well-known/ (issue #53)
+?.well-known/              # legacy location, migration window only — scripts/migrate-wellknown-to-www.sh moves it into www/.well-known/
 machine-readable/          # manifests, contractiles, policies. Formerly .machine_readable/ — un-hidden 2026-08, because a quarter of the repo should not be invisible
 docs/                      # human documentation
 build/                     # build orchestration: just/ phase modules, container/, docs-seed/, templates/

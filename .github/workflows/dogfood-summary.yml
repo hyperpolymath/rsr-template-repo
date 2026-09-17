@@ -56,7 +56,7 @@ jobs:
           fi
 
           # Groove manifest or code?
-          if [ -f ".well-known/groove/manifest.json" ] || grep -rl 'well-known/groove' --include='*.rs' --include='*.ex' --include='*.zig' . 2>/dev/null | head -1 | grep -q .; then
+          if [ -f "www/.well-known/groove/manifest.json" ] || [ -f ".well-known/groove/manifest.json" ] || grep -rl 'well-known/groove' --include='*.rs' --include='*.ex' --include='*.zig' . 2>/dev/null | head -1 | grep -q .; then
             SCORE=$((SCORE + 1))
             GROOVE_STATUS=":white_check_mark:"
           else

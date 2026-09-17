@@ -76,7 +76,7 @@ Rhodium Standard Repository (RSR) — Exhibit B
 
    5.1. Contributors should publish quantum-safe public keys via:
         - OpenPGP keyservers (with PQ algorithm support)
-        - Repository .well-known/keys/ directory
+        - Repository www/.well-known/keys/ directory (served at /.well-known/keys/)
         - Contributor's personal website
 
    5.2. Key rotation should occur:
