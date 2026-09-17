@@ -16,11 +16,11 @@ the terse machine-facing summary; this file is the reasoning behind it. Where th
 two differ, the canon (`hyperpolymath/standards`) and the owner's `manifesto`
 prevail.
 
-== The load-bearing three
+== The load-bearing four
 
-These three are named together because they describe the *order* and *manner* in
-which work is undertaken, and because each is a standing trap that fluent,
-plausible work falls into.
+These four are named together because they describe the *order*, *manner*, *locus*
+and *standard* of the work undertaken, and because each is a standing trap that
+fluent, plausible work falls into.
 
 === Holes before goals
 
@@ -63,9 +63,43 @@ own, a fix gated on owner ratification — remediate the downstream *and* record
 source fix as the real work still owed. Patching the symptom silently, as if it
 were the cure, is itself a hole (see _always fail loudly_).
 
+=== Elegance by default
+
+Treat the most elegant and correct long-term solution as the default choice — and
+say which option that is, every time you put a choice to the owner. This is not a
+preference for tidiness; it is a refusal to let the judgment be made silently.
+
+A set of options offered as merely _different_ is not neutral. Whichever one is
+listed first, or described most fluently, becomes the recommendation whether you
+intended it or not — and the option that reads most fluently is usually the one you
+found quickest to write. So an unlabelled list quietly substitutes your convenience
+for the standard this estate is held to, which is the same error as patching a
+symptom in place of a source: a choice backed by authority rather than justified by
+the construction that produced it.
+
+Three obligations follow, and they are not optional:
+
+* *Label it.* Exactly one option is marked as the most elegant and correct in the
+  long run. Judge that on long-run grounds alone — correctness, no deferred
+  breakage, no special cases, a fix at the generator rather than at the instance —
+  and never on effort, speed, or convenience. If two options genuinely tie, say so;
+  silence is not a tie.
+* *Justify any departure.* If your recommendation is not the elegant arm, name both
+  arms and state, in the offer itself, why you are departing on this occasion — an
+  irreversible step already taken, a live outage, a precondition still gated. An
+  unexplained departure is a defect in the question, not a matter of style. Never
+  merge the two labels to avoid having to write the explanation.
+* *It binds unasked decisions too.* This is a methodology, not a formatting rule
+  for questions. Where you take the non-elegant arm without asking, report it
+  rather than absorb it.
+
+The default is a *starting point, not a prediction*. The owner may take the other
+arm with full information, and often will; what may not happen is an expedient
+choice made in ignorance that it was the expedient one.
+
 == The full Doctrine
 
-The three above are the principles most often abused, but they sit inside the
+The four above are the principles most often abused, but they sit inside the
 estate's full operating Doctrine. The canonical, always-current list is projected
 into the top of every repository's `CLAUDE.md` from
 `machine-readable/arrival-pack/`. In summary it also holds: ground-truth by
