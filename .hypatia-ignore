@@ -25,31 +25,30 @@
 # exemption travels with the template.
 structural_drift/SD022:build/docs-seed/
 
-# ─── Research-extension workflow findings ───────────────────────────────────────
+# ─── workflow research-extension findings ─────────────────────────────────────
 #
-# RE001 is an advisory recommendation to add harden-runner whenever a workflow
-# references a secret. These workflows deliberately use repository-locked
-# actions and least-privilege permissions while retaining the outbound access
-# needed for GitHub, SMTP, BoJ and SonarQube. Keep the exemptions file-scoped so
-# the advisory still applies to every new workflow.
-research_extensions/RE001:.github/workflows/push-email-notify.yml
-research_extensions/RE001:.github/workflows/release.yml
+# RE001 currently reports `warn`, while the standards workflow pinned by this
+# repository accepts only critical/high/medium/low/info severities. These jobs
+# deliberately use credentials for their outbound GitHub, SMTP, or analysis
+# operations; exempt the affected files until that scanner/consumer contract
+# converges rather than treating valid scanner output as corrupt JSON.
 research_extensions/RE001:.github/workflows/boj-build.yml
 research_extensions/RE001:.github/workflows/dependabot-automerge.yml
 research_extensions/RE001:.github/workflows/label-triage.yml
 research_extensions/RE001:.github/workflows/labels.yml
+research_extensions/RE001:.github/workflows/push-email-notify.yml
+research_extensions/RE001:.github/workflows/release.yml
 research_extensions/RE001:.github/workflows/sonarqube.yml
 
-# RE005's matches are non-masking uses: empty grep/find results and annotation
-# rendering are allowed to be non-fatal, while each workflow retains a separate
-# explicit failure path for the condition it gates. Scope each exemption to the
-# reviewed workflow rather than disabling RE005 repository-wide.
-research_extensions/RE005:.github/workflows/security-policy.yml
+# RE005's matches are intentional best-effort probes and annotation renderers,
+# not test or gate commands. Their callers consume optional output or preserve
+# the authoritative failure decision in a separate step.
 research_extensions/RE005:.github/workflows/quality.yml
-research_extensions/RE005:.github/workflows/wellknown-enforcement.yml
+research_extensions/RE005:.github/workflows/security-policy.yml
 research_extensions/RE005:.github/workflows/static-analysis-gate.yml
+research_extensions/RE005:.github/workflows/wellknown-enforcement.yml
 
-# RE008 assumes the actor-name comparison is used with pull_request_target. The
-# Dependabot workflow uses the unprivileged pull_request event and also verifies
-# github.event.pull_request.user.login, so that threat model does not apply.
+# This workflow uses the `pull_request` event and requires both the triggering
+# actor and the immutable PR author to be Dependabot. RE008's spoofable-actor
+# case applies to actor-only trust gates on `pull_request_target`, not this job.
 research_extensions/RE008:.github/workflows/dependabot-automerge.yml
