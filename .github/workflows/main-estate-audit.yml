@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@98f405a8c50b60f372065c200a5583d3ae664903  # cicd-suite main, lockfile-compliant (cicd-suite#14); reusable calls are not lock-coverable (gh actions-lock writes no entry), so SHA-pin per scripts/check-action-pinning.js
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@f9e173a1133a0ad859a024b775a2599c8ecccc8b  # cicd-suite PR#17 head (witness): remote-form callee — resolves by API regardless of caller context; lock-pinned via repo-level key. Repin to merged main after #17 lands.
