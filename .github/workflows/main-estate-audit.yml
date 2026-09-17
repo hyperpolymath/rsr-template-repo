@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@dbe2b2a94218d901538fe876a4a59b6a111c06bb  # repinned 2026-09-17: @feat/cicd-workflow-call is a deleted branch = dead ref (0-job runs); SHA is cicd-suite main head
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@7689b046fe7c85365657193edf937307960fd4ec  # repinned 2026-09-17 (2/2): dbe2b2a content still carried 26 @main action refs that sha_pinning_required rejects at startup (0-job runs); 7689b04 = cicd-suite#11, all refs SHA-pinned
