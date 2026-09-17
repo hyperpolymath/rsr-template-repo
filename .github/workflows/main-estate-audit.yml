@@ -2,6 +2,8 @@
 # This workflow is managed by gh actions-lock.
 name: Central Estate CI/CD Audit
 
+# The called reusable declares `permissions: contents: read`; a caller must grant
+# at least what the reusable declares, and this grants exactly that — no more.
 permissions:
   contents: read
 
@@ -11,11 +13,6 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_call:
-
-# The called reusable declares `permissions: contents: read`; a caller must grant
-# at least what the reusable declares, and this grants exactly that — no more.
-permissions:
-  contents: read
 
 jobs:
   call-estate-audit:
