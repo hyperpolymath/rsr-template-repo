@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
-# validate-a2ml.sh — A2ML manifest validation script
+# validate-deed.sh — DEED manifest validation script
 #
 # Scans for .a2ml files and validates:
 #   1. Required fields: agent-id or pedigree name, version
@@ -91,7 +91,7 @@ report_issue() {
 # ---------------------------------------------------------------------------
 # Validator: check a single .a2ml file
 # ---------------------------------------------------------------------------
-validate_a2ml() {
+validate_deed() {
     local file="$1"
     FILES_SCANNED=$((FILES_SCANNED + 1))
 
@@ -116,7 +116,7 @@ validate_a2ml() {
     fi
 
     # --- Check 2: Required identity fields ---
-    # A2ML files must contain either:
+    # DEED files must contain either:
     #   - agent-id = "..." or agent_id = "..."
     #   - pedigree block with name field
     #   - name = "..." at top level (for AI manifests)
@@ -128,7 +128,7 @@ validate_a2ml() {
     while IFS= read -r line; do
         line_num=$((line_num + 1))
 
-        # Check for identity fields (various A2ML patterns)
+        # Check for identity fields (various DEED patterns)
         # TOML/kv form: `name = "..."`, `project = "..."`, `agent-id = "..."`.
         #
         # `archetype` is the identity key of the ARCHETYPE.a2ml shape — the
@@ -147,7 +147,7 @@ validate_a2ml() {
             has_identity=true
         fi
         # S-expression form: `(name "...")`, `(project "...")`,
-        # `(agent-id "...")`. Some A2ML dialects (audit registries,
+        # `(agent-id "...")`. Some DEED dialects (audit registries,
         # classification stores) use Lisp-style s-expressions for the
         # metadata block instead of TOML. Identity carries the same
         # semantics; only the syntax differs. Match at any indent so it
@@ -156,7 +156,7 @@ validate_a2ml() {
             has_identity=true
         fi
         # Colon / brace-block form: `name: "..."`, `id: "..."`, `project: "..."`.
-        # YAML-ish and brace-block A2ML dialects (e.g. `Trust { name: "..." }`,
+        # YAML-ish and brace-block DEED dialects (e.g. `Trust { name: "..." }`,
         # `id: "tsdm-standard"`) carry the same identity semantics; only the
         # delimiter (`:` vs `=`) differs. `id` is the brace-block spelling of an
         # identity key.
@@ -197,26 +197,26 @@ validate_a2ml() {
             is_manifest=true
             ;;
         # Dockerfile-style top-level typed manifests (Intentfile, Trustfile, …)
-        # use markdown-flavoured A2ML; identity is carried by the parent repo.
+        # use markdown-flavoured DEED; identity is carried by the parent repo.
         *file.a2ml)
             is_manifest=true
             ;;
     esac
 
-    # Contractile-shape A2ML files use `@directive:` syntax instead of
+    # Contractile-shape DEED files use `@directive:` syntax instead of
     # TOML `key = value`. Trustfile.a2ml, Intentfile.a2ml, Mustfile.a2ml,
     # Adjustfile.a2ml etc. are policy / trust / intent / abstract files
     # whose identity is implicit in their @-prefixed directives
     # (`@trust-level`, `@intent`, ...) rather than a TOML name/version
     # pair. Treating them as manifest-shape produces 100% false positives —
-    # they're a different A2ML doc type. Detected by the presence of any
+    # they're a different DEED doc type. Detected by the presence of any
     # contractile directive in the file body.
     local is_contractile_shape=false
     if grep -qE '^@(abstract|trust-level|trust-boundary|trust-actions|trust-deny|intent|must|adjust|end)([[:space:]]*:|$)' "$file"; then
         is_contractile_shape=true
     fi
 
-    # Canonical structured A2ML tree. Everything under a `.machine_readable/`
+    # Canonical structured DEED tree. Everything under a `.machine_readable/`
     # directory is a typed agent-readable doc (CLADE, ANCHOR, STATE,
     # ECOSYSTEM, bot_directives/{debt,coverage,methodology}, ai/AI,
     # policies/*, integrations/*, …). Per the RSR convention these carry
@@ -297,29 +297,29 @@ validate_a2ml() {
 # Main: discover and validate .a2ml files
 # ---------------------------------------------------------------------------
 
-echo "::group::A2ML Manifest Validation"
+echo "::group::DEED Manifest Validation"
 echo "Scanning ${SCAN_PATH} for .a2ml files..."
 echo ""
 
 # Find all .a2ml files, excluding .git directory
-mapfile -t a2ml_candidates < <(find "$SCAN_PATH" -name '*.a2ml' -not -path '*/.git/*' -type f | sort)
+mapfile -t deed_candidates < <(find "$SCAN_PATH" -name '*.a2ml' -not -path '*/.git/*' -type f | sort)
 
 # Apply paths-ignore filter
-a2ml_files=()
+deed_files=()
 SKIPPED=0
-for _f in "${a2ml_candidates[@]}"; do
+for _f in "${deed_candidates[@]}"; do
     if path_ignored "$_f"; then
         SKIPPED=$((SKIPPED + 1))
         continue
     fi
-    a2ml_files+=("$_f")
+    deed_files+=("$_f")
 done
 
 if [[ $SKIPPED -gt 0 ]]; then
     echo "::notice::Skipped ${SKIPPED} file(s) matching paths-ignore"
 fi
 
-if [[ ${#a2ml_files[@]} -eq 0 ]]; then
+if [[ ${#deed_files[@]} -eq 0 ]]; then
     echo "::notice::No .a2ml files found in ${SCAN_PATH}"
     echo "files_scanned=0" >> "$GITHUB_OUTPUT_FILE" 2>/dev/null || true
     echo "errors=0" >> "$GITHUB_OUTPUT_FILE" 2>/dev/null || true
@@ -328,12 +328,12 @@ if [[ ${#a2ml_files[@]} -eq 0 ]]; then
     exit 0
 fi
 
-echo "Found ${#a2ml_files[@]} .a2ml file(s)"
+echo "Found ${#deed_files[@]} .a2ml file(s)"
 echo ""
 
-for file in "${a2ml_files[@]}"; do
+for file in "${deed_files[@]}"; do
     echo "  Validating: ${file}"
-    validate_a2ml "$file"
+    validate_deed "$file"
 done
 
 echo ""
@@ -355,9 +355,9 @@ echo "::endgroup::"
 
 # Exit with failure if errors were found
 if [[ $ERRORS -gt 0 ]]; then
-    echo "::error::A2ML validation failed with ${ERRORS} error(s)"
+    echo "::error::DEED validation failed with ${ERRORS} error(s)"
     exit 1
 fi
 
-echo "A2ML validation passed."
+echo "DEED validation passed."
 exit 0
