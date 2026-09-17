@@ -79,6 +79,24 @@ check_dir_exists() {
     fi
 }
 
+# The machine tree has two estate spellings: `.machine_readable/` is canonical,
+# `machine-readable/` is the minority form ~9 repositories still carry. This
+# file already had check_file_either for exactly this reason; directories had no
+# such helper, and the gap let the matrix check below name the hyphenated form
+# while its own message said `.machine_readable/`. Naming only one spelling
+# fails whichever half of the estate has not migrated.
+check_dir_either() {
+    local first="$1"
+    local second="$2"
+    local description="${3:-}"
+    if [ -d "$REPO_ROOT/$first" ] || [ -d "$REPO_ROOT/$second" ]; then
+        [ "$VERBOSE" = "1" ] && log_pass "Directory exists: $first or $second"
+        return 0
+    fi
+    log_error "Required directory missing: $first or $second ${description:+(${description})}"
+    return 1
+}
+
 # Case-tolerant ABI seam checks: accept the canonical case-consistent
 # src/interface/Abi/ (matches `module Abi.*`) OR a lowercase src/interface/abi/
 # that some downstream repos ship. Never require BOTH (that would be a case-fold
@@ -136,7 +154,7 @@ check_file_exists "Justfile" "Task runner"
 check_file_either "AUDIT.adoc" "docs/AUDIT.adoc" "Release audit gate"
 
 # Directories
-check_dir_exists ".machine_readable" "Machine-readable metadata"
+check_dir_either ".machine_readable" "machine-readable" "Machine-readable metadata"
 check_dir_exists ".github" "GitHub community metadata"
 check_abi_dir_exists "Idris2 ABI definitions"
 check_dir_exists "src/interface/ffi" "Zig FFI implementation"

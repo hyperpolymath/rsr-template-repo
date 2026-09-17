@@ -389,7 +389,7 @@ jobs:
           # have to be pinned in actions.lock, and `uses ⊆ actions.lock` is already
           # failing on main, so this job must not make it worse. That means no
           # actions/checkout — and therefore NO WORKING TREE. Which is what
-          # broke this job: it read ".machine_readable/rsr-profile.a2ml" from a
+          # broke this job: it read "machine-readable/rsr-profile.a2ml" from a
           # directory that was never populated, so it failed 100% of the time
           # with "no rsr-profile.a2ml", and would have whatever the pin said.
           #

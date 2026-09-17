@@ -77,10 +77,6 @@ predecessors did.
 | yes
 | -
 
-| `www/`
-| yes
-| Site-operations bundle — canonical `www/.well-known/` (RFC 9116 security.txt, ai.txt, humans.txt), publishable content, DNS/TLS/header sources, profiles, tests, runbooks
-
 | `.windsurfrules`
 | yes
 | -
@@ -192,6 +188,10 @@ predecessors did.
 | `verification/`
 | optional
 | proofs; only where formal-proofs is declared
+
+| `www/`
+| yes
+| site-operations bundle; canonical .well-known/ lives at www/.well-known/ (issue #53)
 
 |===
 
