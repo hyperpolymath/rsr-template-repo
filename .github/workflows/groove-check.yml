@@ -1,3 +1,4 @@
+# This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 name: "🟡 CHECK: Groove Protocol Compliance"
 
@@ -36,6 +37,7 @@ jobs:
             # Validate the manifest JSON
             if ! jq empty .well-known/groove/manifest.json 2>/dev/null; then
               echo "::error file=.well-known/groove/manifest.json::Invalid JSON in Groove manifest"
+              exit 1
             else
               SVC_ID=$(jq -r '.service_id // "unknown"' .well-known/groove/manifest.json)
               echo "service_id=$SVC_ID" >> "$GITHUB_OUTPUT"
