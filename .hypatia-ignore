@@ -34,7 +34,7 @@ structural_drift/SD022:build/docs-seed/
 # the advisory still applies to every new workflow.
 research_extensions/RE001:.github/workflows/push-email-notify.yml
 research_extensions/RE001:.github/workflows/release.yml
-research_extensions/RE001:.github/workflows/boj-build.yml
+research_extensions/RE001:.github/workflows/build-notification.yml
 research_extensions/RE001:.github/workflows/dependabot-automerge.yml
 research_extensions/RE001:.github/workflows/label-triage.yml
 research_extensions/RE001:.github/workflows/labels.yml
@@ -46,7 +46,7 @@ research_extensions/RE001:.github/workflows/sonarqube.yml
 # reviewed workflow rather than disabling RE005 repository-wide.
 research_extensions/RE005:.github/workflows/security-policy.yml
 research_extensions/RE005:.github/workflows/quality.yml
-research_extensions/RE005:.github/workflows/wellknown-enforcement.yml
+research_extensions/RE005:.github/workflows/dot-wellknown-enforcement.yml
 research_extensions/RE005:.github/workflows/static-analysis-gate.yml
 
 # RE008 assumes the actor-name comparison is used with pull_request_target. The
