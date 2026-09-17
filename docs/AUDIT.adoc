@@ -36,10 +36,10 @@ repo-local audit gate summary for template users and automated agents.
 Read these as the authoritative source:
 
 * `standards/component-readiness-grades/COMPONENT-READINESS-GRADES.md`
-* `standards/release-pre-flight/V1-GATE.adoc`
-* `standards/publication-pre-flight/PREFLIGHT.adoc`
-* `standards/publication-pre-flight/ESTATE-AUDIT-BASELINE-2026-03-30.adoc`
-* `standards/session-management-standards/README.adoc`
+* `standards/3-practice/release-pre-flight/V1-GATE.adoc`
+* `standards/3-practice/publication-pre-flight/PREFLIGHT.adoc`
+* `standards/3-practice/publication-pre-flight/ESTATE-AUDIT-BASELINE-2026-03-30.adoc`
+* `standards/3-practice/session-management-standards/README.adoc`
 
 == Bot Requirement
 
