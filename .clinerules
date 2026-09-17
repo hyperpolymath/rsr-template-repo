@@ -38,7 +38,7 @@
 # Python -> Julia or Rust
 
 # CONTAINERS
-# Runtime: Podman (never Docker).
+# Runtime: Podman first.
 # File: Containerfile (never Dockerfile).
 # Base: cgr.dev/chainguard/wolfi-base:latest or cgr.dev/chainguard/static:latest.
 
@@ -47,5 +47,5 @@
 # FFI: Zig with C ABI (src/interface/ffi/).
 # Headers: src/interface/generated/.
 
-# BUILD: Use just (justfile) for all tasks.
+# BUILD: Use just (Justfile) for all tasks.
 # STYLE: Descriptive names. Document all files. SPDX headers everywhere.
