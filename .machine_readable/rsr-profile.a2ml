@@ -8,7 +8,7 @@
 # subtree was evicted from standards by 24a12d6f on 2026-08-28).
 #
 # GRAMMAR: still superseded -- the normative grammar for this family is
-# deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards and the extension
+# 1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc in hyperpolymath/standards and the extension
 # is becoming .deed. This file keeps its record surface until the estate-wide
 # conversion lands (estate task #64) -- do not hand-convert it.
 #

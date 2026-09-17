@@ -10,7 +10,7 @@ obligations without parsing prose.
 [IMPORTANT]
 ====
 *Single normative source.* The grammar for the record family in this pillar
-is `deed/spec/DEED-GRAMMAR-SPEC.adoc` in
+is `1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc` in
 https://github.com/hyperpolymath/standards[hyperpolymath/standards]. That
 document is the only place the syntax, semantics and typechecking rules are
 defined. Every other mention of the format across the estate — including
