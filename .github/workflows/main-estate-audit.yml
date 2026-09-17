@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@ecd0240d80881c9b85b6f1aff0d056dd5a076a54  # cicd-suite main: cross-repo-compatible callee (./actions/* resolves against the callee checkout at this ref; de-onboarded from actions.lock — local-path actions are a gh-actions-lock short-term gap; manifest-check internals SHA-pinned per sha_pinning_required). Repin on callee updates.
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@af7062381f7ae5f731c12051a671a373c72d7541  # cicd-suite main: REMOTE-FORM callee (hyperpolymath/cicd-suite/actions/*@main resolved by API + repo-level lock key, tool-written with transitive deed/k9 SHA keys — works locally AND cross-repo; ./ resolves against the CALLER repo, $/ against the CALLER commit — both proven dead cross-repo). The callee's bare checkout fetches THIS repo, so the 26 gates audit this estate. Repin on callee updates.
