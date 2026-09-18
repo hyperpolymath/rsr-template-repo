@@ -16,4 +16,4 @@ on:
 
 jobs:
   call-estate-audit:
-    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@222b1d950f7161022ed968868422fe0ac934f74a  # cicd-suite MAIN (merged #18 = the remote-form FULL-SHA + de-onboarded callee). Pin MUST be a commit reachable from a branch: the b15202a pin worked while #18's branch lived (run 35282081912 spawned) but went 0-job once the merge deleted it (run 35282493679) — PR-head commits are only pull-ref reachable. Bare callee checkout fetches THIS repo: the 26 gates audit this estate. Repin on callee updates.
+    uses: hyperpolymath/cicd-suite/.github/workflows/main-estate-audit.yml@f9e173a1133a0ad859a024b775a2599c8ecccc8b  # cicd-suite PR#17 head (witness): remote-form callee — resolves by API regardless of caller context; lock-pinned via repo-level key. Repin to merged main after #17 lands.

@@ -31,9 +31,6 @@ indent_size = 4
 [*.jl]
 indent_size = 4
 
-[*.py]
-indent_size = 4
-
 [*.c]
 indent_size = 4
 
@@ -84,9 +81,6 @@ indent_size = 2
 [*.k9]
 indent_size = 2
 
-[*.a2ml]
-indent_size = 2
-
 [*.agda]
 indent_size = 2
 
@@ -97,18 +91,9 @@ indent_size = 2
 indent_size = 2
 
 # --- Tab-mandatory formats -------------------------------------------------
-[Makefile]
-indent_style = tab
-
-[*.go]
-indent_style = tab
 
 # --- Task runners ----------------------------------------------------------
 [Justfile]
-indent_style = space
-indent_size = 4
-
-[justfile]
 indent_style = space
 indent_size = 4
 
@@ -135,11 +120,21 @@ end_of_line = crlf
 # ReScript (LANGUAGE-POLICY 1.2) and Nix (retired 2026-06-01) are no longer
 # adopted for new work. These sections are inert where the files are absent and
 # keep surviving files from drifting. Removal is a per-repo judgement.
+
+[*.a2ml]
+indent_size = 2
+
+[*.go]
+indent_style = tab
+
+[*.nix]
+indent_size = 2
+
 [*.res]
 indent_size = 2
 
 [*.resi]
 indent_size = 2
 
-[*.nix]
-indent_size = 2
+[Makefile]
+indent_style = tab

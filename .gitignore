@@ -44,11 +44,6 @@ erl_crash.dump
 /lib/bs/
 /.bsb.lock
 
-# Python (SaltStack only)
-__pycache__/
-*.py[cod]
-.venv/
-
 # Ada/SPARK
 *.ali
 /obj/
@@ -121,7 +116,7 @@ dist/
 # writes compiled .ttc/.ttm under build/ttc/; these are generated artifacts.
 /build/ttc/
 
-# Arrival-pack build artifact (regenerated from a2ml)
+# Arrival-pack build artifact (regenerated from deed)
 .machine_readable/arrival-pack/claude-md-data.json
 
 # Coaptation atomiser artifacts (regenerated from contractiles + descriptiles);
