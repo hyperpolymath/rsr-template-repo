@@ -72,7 +72,6 @@ tests/
 # ─── Optional: capability-gated or template-only ─────────────────────────────
 ?archetypes/               # template-only variation seam (ADR-0003); `just repo-init` removes it from minted repos
 ?.devcontainer/            # VS Code dev container spec; present only where the container capability is declared
-?abi.ipkg                  # Idris2 package for the ABI seam; only where the abi capability is declared
 ?sonar-project.properties  # only where the repo is analysed by SonarCloud
 ?benches/                  # Cargo-conventional at package root
 ?examples/                 # Cargo-conventional at package root

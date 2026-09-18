@@ -155,7 +155,7 @@ themselves is not.
 |===
 | Claim | Status | Evidence (command, and what it printed)
 | _e.g. The library builds clean_ | affirmed | `just build` at the anchor SHA — exit 0
-| _e.g. The ABI seam typechecks_ | affirmed | `idris2 --typecheck abi.ipkg` — 0 errors
+| _e.g. The ABI seam typechecks_ | affirmed | `idris2 --typecheck src/interface/abi.ipkg` — 0 errors
 | _e.g. Feature X is complete_ | aspiration | README §… — *not checked*, do not read as affirmed
 |===
 
