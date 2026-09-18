@@ -30,7 +30,7 @@ If you are unsure what something is, **read the canon; do not guess** (guessing 
 15. **Elegance by default** — treat the most elegant and correct long-term option as the default arm; when you put a choice to the owner, LABEL which option that is, and if you recommend another, name both arms and say why you depart. Binds unasked design calls too: report the departure, never absorb it.
 
 ## The machine-readable substrate (read in this order on arrival)
-**CLADE** → **ANCHOR** → **AGENTIC** → **ECOSYSTEM** → **STATE**
+**CHORA** → **ANCHOR** → **AGENTIC** → **ECOSYSTEM** → **STATE** -> **NEUROSYM** -> **PLAYBOOK**
 
 The descriptive family (working name *descriptiles*) describes what-is; the **contractiles** are the normative set-point.
 
