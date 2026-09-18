@@ -31,7 +31,8 @@
 #                    Not swept without --include-review.
 #
 # Requirements: bash, git, curl, jq. A token with `repo` scope (public repos
-# need only `public_repo`) in GITHUB_TOKEN, or a signed-in `gh`.
+# need only `public_repo`) in GITHUB_TOKEN, or a signed-in `gh` — or pass
+# --no-auth with --trees-dir to do everything except push, unauthenticated.
 #
 # Exit codes:
 #   0 — every selected repository ended clean or already-clean
@@ -51,6 +52,8 @@ PUSH=0
 INCLUDE_REVIEW=0
 ALLOW_CONFLICTS=0
 CLASSIFY_ONLY=0
+NO_AUTH=0
+TREES_DIR=""
 WORK=""
 BRANCH="chore/well-known-to-www"
 MIGRATOR=""
@@ -77,6 +80,13 @@ What to do:
   --branch NAME       branch to commit on (default: chore/well-known-to-www)
   --allow-conflicts   exit 0 even where content was quarantined
   --work-dir DIR      where to put clones and reports (default: mktemp -d)
+  --no-auth           run without a token: clone read-only over https and
+                      classify from --trees-dir. Classify, migrate, test and
+                      commit all work; only --push needs a credential.
+  --trees-dir DIR     classify from cached `git/trees` listings, one file per
+                      repository, one path per line, as written by a previous
+                      run's <work>/trees/. Required by --no-auth: the
+                      unauthenticated API is capped at 60 requests/hour.
 
 Environment:
   GITHUB_TOKEN / GH_TOKEN   required; falls back to `gh auth token`
@@ -97,6 +107,8 @@ while [ $# -gt 0 ]; do
         --limit)        [ $# -ge 2 ] || die "--limit requires a number"; LIMIT="$2"; shift 2 ;;
         --classify-only) CLASSIFY_ONLY=1; shift ;;
         --include-review) INCLUDE_REVIEW=1; shift ;;
+        --no-auth)      NO_AUTH=1; shift ;;
+        --trees-dir)    [ $# -ge 2 ] || die "--trees-dir requires a path"; TREES_DIR="$2"; shift 2 ;;
         --dry-run)      DRY_RUN=1; shift ;;
         --push)         PUSH=1; shift ;;
         --allow-conflicts) ALLOW_CONFLICTS=1; shift ;;
@@ -130,7 +142,17 @@ TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
 if [ -z "$TOKEN" ] && command -v gh >/dev/null 2>&1; then
     TOKEN="$(gh auth token 2>/dev/null || true)"
 fi
-[ -n "$TOKEN" ] || die "no token: set GITHUB_TOKEN (repo scope), or sign in with gh"
+if [ -z "$TOKEN" ]; then
+    if [ "$NO_AUTH" -eq 0 ]; then
+        die "no token: set GITHUB_TOKEN (repo scope), sign in with gh, or pass --no-auth to run read-only"
+    fi
+    note "no token available; running unauthenticated (--no-auth) — push unavailable"
+    [ -n "$TREES_DIR" ] || die "--no-auth requires --trees-dir (unauthenticated API is 60 req/hour)"
+    [ -d "$TREES_DIR" ] || die "trees dir not found: $TREES_DIR"
+fi
+if [ "$PUSH" -eq 1 ] && [ -z "$TOKEN" ]; then
+    die "--push requires a token; re-run with GITHUB_TOKEN set"
+fi
 
 # ── paths ───────────────────────────────────────────────────────────────────
 # The migrator is located rather than assumed: this script is run from a
@@ -202,18 +224,28 @@ gh_api() { # path...
 
 classify_repo() { # repo -> "class|root_wk|www_wk|notes"; paths cached in $WORK/trees/<repo>
     local repo="$1"
-    local json paths
+    local json paths=""
     mkdir -p "$WORK/trees"
-    if ! json="$(gh_api "https://api.github.com/repos/$OWNER/$repo/git/trees/HEAD?recursive=1" 2>/dev/null)"; then
-        printf 'unknown|?|?|API error (missing/empty/private, or rate limited)\n'
-        return 0
+
+    # A cached tree listing is the same data the API would return, so prefer
+    # it: unauthenticated classification is capped at 60 requests/hour.
+    if [ -n "$TREES_DIR" ] && [ -f "$TREES_DIR/$repo" ]; then
+        paths="$(cat "$TREES_DIR/$repo")"
     fi
-    if [ "$(printf '%s' "$json" | jq -r '.truncated // false')" = "true" ]; then
-        printf 'review-other|?|?|tree truncated by API — classify by hand\n'
-        return 0
+    if [ -n "$paths" ]; then
+        printf '%s\n' "$paths" > "$WORK/trees/$repo"
+    else
+        if ! json="$(gh_api "https://api.github.com/repos/$OWNER/$repo/git/trees/HEAD?recursive=1" 2>/dev/null)"; then
+            printf 'unknown|?|?|API error (missing/empty/private, or rate limited)\n'
+            return 0
+        fi
+        if [ "$(printf '%s' "$json" | jq -r '.truncated // false')" = "true" ]; then
+            printf 'review-other|?|?|tree truncated by API — classify by hand\n'
+            return 0
+        fi
+        paths="$(printf '%s' "$json" | jq -r '.tree[]?.path // empty')"
+        printf '%s\n' "$paths" > "$WORK/trees/$repo"
     fi
-    paths="$(printf '%s' "$json" | jq -r '.tree[]?.path // empty')"
-    printf '%s\n' "$paths" > "$WORK/trees/$repo"
 
     has() { grep -qxF "$1" <<<"$paths"; }
 
@@ -278,7 +310,11 @@ sweep_repo() { # repo class -> appends to RESULT_CSV
     fi
 
     export GIT_TERMINAL_PROMPT=0
-    if ! git clone --depth 1 -q "https://x-access-token:${TOKEN}@github.com/${OWNER}/${repo}.git" "$dir" 2>"$WORK/reports/$repo.clone.log"; then
+    # Public repositories clone fine over plain https; the token only buys
+    # push access (and a higher rate limit), so do not require it to read.
+    local clone_url="https://github.com/${OWNER}/${repo}.git"
+    [ -n "$TOKEN" ] && clone_url="https://x-access-token:${TOKEN}@github.com/${OWNER}/${repo}.git"
+    if ! git clone --depth 1 -q "$clone_url" "$dir" 2>"$WORK/reports/$repo.clone.log"; then
         printf '%s,%s,failed,clone failed (see %s)\n' "$repo" "$class" "$WORK/reports/$repo.clone.log" >> "$RESULT_CSV"
         return 0
     fi
