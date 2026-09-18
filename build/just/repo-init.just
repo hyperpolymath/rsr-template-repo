@@ -313,7 +313,7 @@ repo-init archetype="":
     # token, so the sed pass above has nothing to match, yet every placeholder
     # gate greps exactly that shape — a repo with every real token correctly
     # substituted still trips its own gate. Rationale and measurements in
-    # scripts/strip-instruction-blocks.rb.
+    # scripts/strip-instruction-blocks.rs.
     #
     # Runs AFTER substitution, so real tokens are already filled; only the
     # instructions go. Deliberately skipped for *-template-repo itself: the
@@ -322,7 +322,7 @@ repo-init archetype="":
     if [ "$REPO" != "${REPO%-template-repo}" ]; then
         echo "  instruction blocks: skipped (this IS a template repo)"
     else
-        ruby scripts/strip-instruction-blocks.rb .
+        bash scripts/rust-tool.sh strip-instruction-blocks .
     fi
 
     # --- Dependabot ecosystem pass -----------------------------------------
@@ -331,13 +331,13 @@ repo-init archetype="":
     # declaring `pip` have no Python manifest, and each such entry fails on
     # every scheduled run. Prune on the ARCHETYPE rather than on file presence —
     # a freshly minted tree has no manifests yet, so presence would delete
-    # everything. Rationale in scripts/prune-dependabot-ecosystems.rb.
+    # everything. Rationale in scripts/prune-dependabot-ecosystems.rs.
     keep_eco="github-actions"
     case "${ARCH_PRESET:-}" in *rust*|*cargo*) keep_eco="$keep_eco cargo" ;; esac
     case "${ARCH_PRESET:-}" in *node*|*js*|*ts*|*deno*|*bun*|*web*) keep_eco="$keep_eco npm" ;; esac
     case "${ARCH_PRESET:-}" in *elixir*|*mix*) keep_eco="$keep_eco mix" ;; esac
     case "${ARCH_PRESET:-}" in *python*|*py*) keep_eco="$keep_eco pip" ;; esac
-    ruby scripts/prune-dependabot-ecosystems.rb .github/dependabot.yml $keep_eco
+    bash scripts/rust-tool.sh prune-dependabot-ecosystems .github/dependabot.yml $keep_eco
 
     # --- Self-name pass (ADR-0003) -----------------------------------------
     # The template's own name is written as a LITERAL, not as a placeholder
@@ -715,16 +715,50 @@ repo-init archetype="":
     # The strip pass, this recipe and the e2e test are excluded because they
     # necessarily NAME the marker in order to describe or assert on it — the fix
     # for the defect would otherwise be flagged by the check for the defect, and
-    # so would the test that guards the fix. All three are tooling, not
+    # so would the test that guards the fix, and the cleanup test whose
+        # fixture prose must keep the phrase to prove prose is not collateral.
+        # All four are tooling, not
     # community-health documents, so a mention in them cannot mislead a reader
     # about what this project's Code of Conduct says.
-    LEFTOVER_BLOCKS=$(grep -rl 'TEMPLATE INSTRUCTIONS' . --exclude-dir=.git 2>/dev/null | grep -vE '^\./(scripts/strip-instruction-blocks\.rb|build/just/repo-init\.just|tests/e2e/template_instantiation_test\.sh)$' || true)
+    LEFTOVER_BLOCKS=$(grep -rl 'TEMPLATE INSTRUCTIONS' . --exclude-dir=.git 2>/dev/null | grep -vE '^\./(scripts/strip-instruction-blocks\.rs|build/just/repo-init\.just|tests/e2e/template_instantiation_test\.sh|tests/workflows/mint_cleanup_test\.sh)$' || true)
     if [ -n "$LEFTOVER_BLOCKS" ]; then
         echo ""
         echo "Un-deleted TEMPLATE INSTRUCTIONS block in:"
         echo "$LEFTOVER_BLOCKS" | sed 's/^/  /'
         echo "ERROR: the instruction-block pass should have removed these."
         exit 1
+    fi
+
+    # ── www/ site-operations bundle (issue #53, stage 5) ──────────────────
+    #
+    # A repository minted from this template already carries www/.well-known/
+    # as the canonical location and has no root .well-known/, so in the
+    # ordinary case both steps below do nothing at all. They exist for the
+    # case that is not ordinary: repo-init run over a tree that predates #53
+    # and still has a root .well-known/. The migrator moves it — quarantining
+    # anything divergent rather than overwriting it — and the bundle's own
+    # suite then proves the result.
+    #
+    # #106 described this wiring as already present. It was not: nothing
+    # invoked the migrator or the suite at mint, which is why the estate
+    # still carries root .well-known/ directories years into the convention.
+    if [ -d .well-known ] && [ -f scripts/migrate-wellknown-to-www.sh ]; then
+        echo ""
+        echo "Migrating legacy root .well-known/ into www/.well-known/..."
+        bash scripts/migrate-wellknown-to-www.sh
+    fi
+
+    # Fail-closed, like `just verify` below: the suite tolerates unminted
+    # double-brace placeholder tokens by design (it runs in the template
+    # itself), no archetype overlay touches www/, and the substituted Expires
+    # value is a parseable end-of-mint-year timestamp — so a failure here is
+    # real. (Spelled out in words because just interpolates double braces
+    # anywhere in a recipe, comments included, and an undefined variable here
+    # takes the whole Justfile down, not just this recipe.)
+    if [ -f www/tests/run-all.sh ]; then
+        echo ""
+        echo "Running www/ site-operations suite..."
+        bash www/tests/run-all.sh
     fi
 
     # K9-SVC validation (if available)
