@@ -11,8 +11,8 @@
 # Copyright: {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
 # STATE FILES (.machine_readable/ ONLY)
-# Never create in repo root: STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml,
-# AGENTIC.a2ml, NEUROSYM.a2ml, PLAYBOOK.a2ml.
+# Never create in repo root: STATE.deed, META.deed, ECOSYSTEM.deed,
+# AGENTIC.deed, NEUROSYM.deed, PLAYBOOK.deed.
 # The .machine_readable/ directory is the single source of truth.
 
 # BANNED PATTERNS
