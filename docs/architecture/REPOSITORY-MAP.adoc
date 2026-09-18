@@ -97,10 +97,6 @@ predecessors did.
 | yes
 | generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 
-| `CONTRIBUTING.adoc`
-| optional
-| AsciiDoc entry point to the canonical .github/ contribution guide
-
 | `GEMINI.md`
 | optional
 | pointer to CLAUDE.md for repos without AGENTS.md yet
