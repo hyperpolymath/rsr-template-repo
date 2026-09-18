@@ -119,7 +119,12 @@ build-watch:
 clean:
     @echo "Cleaning..."
     # TODO: Customize for your build system
-    rm -rf target/ _build/ build/ dist/ out/ obj/ bin/
+    #
+    # `build/` is DELIBERATELY ABSENT from this list. It is not an artifact
+    # directory in an RSR repo: it holds 11 tracked files, including
+    # build/just/repo-init.just, which the root Justfile imports at line 65.
+    # Deleting it destroys `just repo-init`, `just verify` and the proof gates.
+    rm -rf target/ _build/ dist/ out/ obj/ bin/
 
 # Deep clean including caches [reversible: rebuild]
 clean-all: clean
@@ -131,14 +136,19 @@ clean-all: clean
 
 # Run all tests
 test *args:
-    @echo "Running tests..."
-    # TODO: Replace with your test command
-    # Examples:
-    #   cargo test {{args}}
+    #!/usr/bin/env bash
+    # A check that cannot fail is not a check. This recipe MUST be replaced at
+    # mint with the project's real test command; until then it fails loudly
+    # rather than printing "Tests passed!" over an empty run.
+    #
+    # Replace this whole body with one of:
+    #   cargo test --workspace {{args}}
     #   mix test {{args}}
     #   zig build test {{args}}
     #   deno test {{args}}
-    @echo "Tests passed!"
+    echo "FAIL: \`just test\` has not been wired to a real test command yet." >&2
+    echo "      Edit the 'test' recipe in the Justfile before relying on this gate." >&2
+    exit 1
 
 # Run tests with verbose output
 test-verbose:
@@ -333,6 +343,22 @@ validate-claude-md:
     @bash .machine_readable/arrival-pack/verify.sh
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# COAPTATION — typed descriptile↔contractile face-off (homeostasis reading)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Emit the coaptation receipt: how the descriptiles coapt with the contractiles (SITREP)
+coapt:
+    @bash .machine_readable/coaptation/coapt.sh --report
+
+# Assemble a re-anchor basis IF the band is red (the drop itself is a human act)
+coapt-reanchor:
+    @bash .machine_readable/coaptation/coapt.sh --reanchor
+
+# Fail if the committed coaptation receipt drifted from the contractiles/descriptiles
+validate-coapt:
+    @bash .machine_readable/coaptation/verify.sh
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # DOCUMENTATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -393,7 +419,9 @@ man:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Run full CI pipeline locally
-ci: deps quality
+# proof-check-all is FATAL if any prover toolchain is absent (idris2/lean/agda/coqc):
+# the full CI gate must not pass on a machine that cannot verify the proofs.
+ci: deps quality proof-check-all
     @echo "CI pipeline complete!"
 
 # Install git hooks
@@ -442,10 +470,10 @@ state-touch:
 
 # Show current phase from STATE.a2ml
 state-phase:
-    @grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
+    @sed -n 's/^[[:space:]]*phase[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .machine_readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GUIX & NIX
+# GUIX
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Enter Guix development shell (primary)
@@ -455,10 +483,6 @@ guix-shell:
 # Build with Guix
 guix-build:
     guix build -f build/guix.scm
-
-# Enter Nix development shell (fallback)
-nix-shell:
-    @if [ -f "flake.nix" ]; then nix develop; else echo "No flake.nix"; fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HYBRID AUTOMATION
@@ -511,11 +535,14 @@ status:
 log count="20":
     @git log --oneline -{{count}}
 
-# Generate CHANGELOG.md with git-cliff
+# Generate CHANGELOG.adoc with git-cliff
 changelog:
     @command -v git-cliff >/dev/null || { echo "git-cliff not found — install: cargo install git-cliff"; exit 1; }
-    git cliff --config .machine_readable/configs/git-cliff/cliff.toml --output CHANGELOG.md
-    @echo "Generated CHANGELOG.md"
+    # AsciiDoc, not .md: CHANGELOG.adoc is what root-allow.txt permits, so a
+    # .md here would fail check-root-shape AND the estate's no-.md rule the
+    # moment anyone ran this recipe.
+    git cliff --config .machine_readable/configs/git-cliff/cliff.toml --output CHANGELOG.adoc
+    @echo "Generated CHANGELOG.adoc"
 
 # Preview changelog for unreleased commits (does not write)
 changelog-preview:
@@ -664,3 +691,30 @@ handover-human path=".":
 
 secret-scan-trufflehog:
     @command -v trufflehog >/dev/null && trufflehog filesystem . --only-verified || true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WINDOWS RGONOMICS (CLOAKING)
+# ═══════════════════════════════════════════════════════════════════════════════╓
+# Hide all dotfiles and dot-folders from Windows Explorer. On POSIX systems,
+# leading-dot names are already hidden by convention, so these recipes are
+# intentionally harmless no-ops.
+cloak:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v powershell.exe >/dev/null 2>&1; then
+        powershell.exe -NoProfile -Command "Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { \$_.Name -match '^\\.' } | ForEach-Object { \$_.Attributes = \$_.Attributes -bor [System.IO.FileAttributes]::Hidden }"
+        echo "Cloak engaged."
+    else
+        echo "Dotfiles are natively cloaked on this OS. No action required."
+    fi
+
+# Reveal dotfiles in Windows Explorer; on POSIX, explain the native mechanism.
+uncloak:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if command -v powershell.exe >/dev/null 2>&1; then
+        powershell.exe -NoProfile -Command "Get-ChildItem -Path . -Force -Filter '.*' | Where-Object { \$_.Name -match '^\\.' } | ForEach-Object { \$_.Attributes = \$_.Attributes -band -bnot [System.IO.FileAttributes]::Hidden }"
+        echo "Cloak lifted."
+    else
+        echo "Use 'ls -a' to view dotfiles on this OS."
+    fi
