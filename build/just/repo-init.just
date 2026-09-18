@@ -727,6 +727,38 @@ repo-init archetype="":
         exit 1
     fi
 
+    # ── www/ site-operations bundle (issue #53, stage 5) ──────────────────
+    #
+    # A repository minted from this template already carries www/.well-known/
+    # as the canonical location and has no root .well-known/, so in the
+    # ordinary case both steps below do nothing at all. They exist for the
+    # case that is not ordinary: repo-init run over a tree that predates #53
+    # and still has a root .well-known/. The migrator moves it — quarantining
+    # anything divergent rather than overwriting it — and the bundle's own
+    # suite then proves the result.
+    #
+    # #106 described this wiring as already present. It was not: nothing
+    # invoked the migrator or the suite at mint, which is why the estate
+    # still carries root .well-known/ directories years into the convention.
+    if [ -d .well-known ] && [ -f scripts/migrate-wellknown-to-www.sh ]; then
+        echo ""
+        echo "Migrating legacy root .well-known/ into www/.well-known/..."
+        bash scripts/migrate-wellknown-to-www.sh
+    fi
+
+    # Fail-closed, like `just verify` below: the suite tolerates unminted
+    # double-brace placeholder tokens by design (it runs in the template
+    # itself), no archetype overlay touches www/, and the substituted Expires
+    # value is a parseable end-of-mint-year timestamp — so a failure here is
+    # real. (Spelled out in words because just interpolates double braces
+    # anywhere in a recipe, comments included, and an undefined variable here
+    # takes the whole Justfile down, not just this recipe.)
+    if [ -f www/tests/run-all.sh ]; then
+        echo ""
+        echo "Running www/ site-operations suite..."
+        bash www/tests/run-all.sh
+    fi
+
     # K9-SVC validation (if available)
     if command -v k9-svc >/dev/null 2>&1; then
         echo ""

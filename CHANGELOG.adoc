@@ -18,8 +18,21 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   schemas, planted-control tests and operational runbooks.
 * `scripts/migrate-wellknown-to-www.sh` — conflict-safe migration of a
   repository-root `.well-known/` into `www/.well-known/` (identical copies
-  de-duplicated, root-only content moved, divergent content preserved on
-  both sides and reported).
+  de-duplicated, root-only content moved, divergent content quarantined —
+  see Changed).
+* `scripts/sweep-wellknown.sh` — stage 5 (#119) batch driver: classify,
+  migrate, test and commit across the estate in batches of 25, holding
+  Pages-served and non-RSR repositories for a human decision instead of
+  sweeping them blind.
+* `www/runbooks/stage5-wellknown-sweep.adoc` — how to run the sweep, and
+  how to recover from a quarantine.
+* Mint wiring for the `www/` bundle: `repo-init` now invokes
+  `scripts/migrate-wellknown-to-www.sh` when the tree being minted still
+  carries a legacy root `.well-known/`, and runs `www/tests/run-all.sh`
+  afterwards. Both are no-ops for a repository minted from the current
+  template; they exist for running `repo-init` over a tree that predates
+  #53. #106 described both as already present — neither was, which is a
+  fair part of why the estate still carries root `.well-known/` directories.
 
 ==== Changed
 
@@ -29,7 +42,37 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   location and accept the legacy root location with a warning during the
   migration window.
 
+==== Changed
+
+* Divergent root/`www/` `.well-known/` content is now quarantined to
+  `www/.legacy-well-known-<YYYYMMDD>/` instead of being left in place: the
+  estate-wide sweep (#119) is unattended, so a conflict must not halt it, and
+  must not be silent either. The `www/` copy is untouched, both hashes are
+  printed, and the run exits non-zero. `--in-place` keeps the previous
+  contract (preserve both, exit 1) for hand resolution. The quarantine lives
+  under `www/` rather than at the root because the root allowlist is matched
+  literally and bidirectionally, so a dated root directory would report as
+  drift in every repository swept.
+
 ==== Fixed
+
+* `dot-wellknown-enforcement.yml` now drives the migrator that #106 described
+  but never wired up: previously the workflow only printed advice to run it,
+  so nothing verified that a repository would survive the migration. It now
+  runs the migrator in `--dry-run` and turns every conflict into a
+  `::warning` annotation — a warning, not an error, for the migration window.
+* The migrator's acceptance test had encoded the in-place contract as the
+  required behaviour, contradicting #106's stated design; it now proves the
+  quarantine contract across nine scenarios, including the collision case
+  where a quarantine name is already taken.
+* `tests/e2e/template_instantiation_test.sh` fed the three container answers
+  only when `container/` existed, but `build/just/repo-init.just` asks those
+  questions when `build/container/` does. On any complete checkout — which is
+  what CI clones — the recipe asked three questions the test had no answers
+  for, `read` hit EOF, and the recipe exited 1, so the instantiation e2e was
+  red at the container prompt. The guard now matches the recipe's own path.
+  (The test still needs `ruby`, which is why this surfaced as a prompt
+  mismatch rather than a clean pass.)
 
 * Restore the modular `just` recipes removed by the root-layout refactor, so
   `just repo-init`, validation, assessment, container, Groove, and proof tasks

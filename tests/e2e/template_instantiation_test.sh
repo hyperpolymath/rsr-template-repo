@@ -177,7 +177,14 @@ INIT_ANSWERS=(
     ""                          # OpenSSF BP ID
 )
 # init only asks the container questions when build/container/ exists.
-if [ -d "$TEST_REPO_PATH/container" ]; then
+#
+# The path here must match the recipe's own guard in build/just/repo-init.just
+# exactly. It did not: the recipe tests `build/container`, this test tested
+# `container`. On a full checkout — which is what CI clones — the recipe
+# therefore asked three questions this test had no answers for, `read` hit
+# EOF, and the recipe exited 1. The clone is complete here, so the mismatch
+# is invisible on a tree missing build/ and unavoidable on one that has it.
+if [ -d "$TEST_REPO_PATH/build/container" ]; then
     INIT_ANSWERS+=("" "" "")    # service name, port, registry -> defaults
 fi
 INIT_ANSWERS+=("Y")             # Proceed?
