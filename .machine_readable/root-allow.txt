@@ -44,7 +44,7 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .gitattributes
 .gitignore
 .gitleaksignore            # exact fingerprints for reviewed historical false positives
-.gitmessage             # git commit template; wired by .githooks/install.sh (git config commit.template)
+.gitmessage             # git commit template; wired by .github/hooks/install.sh (git config commit.template)
 .mailmap                   # git reads .mailmap from the worktree root only
 .tool-versions
 mise.toml                  # pinned toolchains
@@ -56,8 +56,7 @@ mise.toml                  # pinned toolchains
 
 # ─── Directories ─────────────────────────────────────────────────────────────
 .git/
-.github/                   # community health + workflows; GitHub reads this path and no other
-.githooks/                 # core.hooksPath resolves relative to the worktree root
+.github/                 # community health + workflows (GitHub reads this path and no other) + versioned git hooks (.github/hooks/, wired via core.hooksPath)
 www/                       # site-operations bundle; canonical .well-known/ lives at www/.well-known/ (issue #53)
 ?.well-known/              # legacy location, migration window only — scripts/migrate-wellknown-to-www.sh moves it into www/.well-known/
 .machine_readable/          # manifests, contractiles, policies. Renamed back from machine-readable/ 2026-09-17 by owner ruling, for one canonical spelling estate-wide (census at the 2026-08 divergence: 48 dotted vs 9 hyphenated — the majority was already dotted). See docs/governance/TEMPLATE-LINEAGE-AUDIT.adoc

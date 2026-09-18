@@ -41,13 +41,9 @@ predecessors did.
 | yes
 | -
 
-| `.githooks/`
-| yes
-| core.hooksPath resolves relative to the worktree root
-
 | `.github/`
 | yes
-| community health + workflows; GitHub reads this path and no other
+| community health + workflows (GitHub reads this path and no other) + versioned git hooks (.github/hooks/, wired via core.hooksPath)
 
 | `.gitignore`
 | yes
@@ -59,7 +55,7 @@ predecessors did.
 
 | `.gitmessage`
 | yes
-| git commit template; wired by .githooks/install.sh (git config commit.template)
+| git commit template; wired by .github/hooks/install.sh (git config commit.template)
 
 | `.hypatia-ignore`
 | yes

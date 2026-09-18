@@ -11,13 +11,13 @@
 # refreshed by the estate `refresh-githooks` sweep.
 #
 # Enable once per clone:
-#     git config core.hooksPath .githooks
-#   (or run: .githooks/install.sh)
+#     git config core.hooksPath .github/hooks
+#   (or run: .github/hooks/install.sh)
 #
 # Override for an emergency push:  git push --no-verify
 #
 # The DEED/K9 validators are skipped gracefully if their tooling is absent.
-# The SECRET gate is not: see .githooks/scan-secrets.sh for why it fails closed.
+# The SECRET gate is not: see .github/hooks/scan-secrets.sh for why it fails closed.
 
 set -euo pipefail
 

@@ -38,6 +38,6 @@ pre-commit run --all-files --config ci/.pre-commit-config.yaml
 [NOTE]
 ====
 This repository's own push-time gate does not use the `pre-commit` framework.
-It is `.githooks/pre-push`, activated by `bash .githooks/install.sh`, which sets
-`core.hooksPath` to `.githooks`.
+It is `.github/hooks/pre-push`, activated by `bash .github/hooks/install.sh`, which sets
+`core.hooksPath` to `.github/hooks`.
 ====
