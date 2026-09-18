@@ -16,7 +16,17 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
     || REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATOR="$REPO_ROOT/scripts/migrate-wellknown-to-www.sh"
-[ -f "$MIGRATOR" ] || { echo "migrator not found at $MIGRATOR" >&2; exit 1; }
+# This check tests the MIGRATOR, not the repository. The migrator performs the
+# one-time root .well-known/ -> www/.well-known/ move (issue #119) and is
+# template-side tooling: a repository that has already been migrated has
+# nothing for it to do and no business carrying it. A repository without it has
+# nothing to test, so this is a SKIP, not a failure. Shipping a check that
+# fails in every repository it reaches is how a suite stops being read.
+if [ ! -f "$MIGRATOR" ]; then
+    echo "SKIP: scripts/migrate-wellknown-to-www.sh absent here — this check tests"
+    echo "SKIP:   the template-side migrator, which this repository does not carry"
+    exit 77
+fi
 
 fail=0
 ok()   { echo "ok: $1"; }

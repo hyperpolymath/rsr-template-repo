@@ -66,8 +66,20 @@ consistency_with_ai_txt() { # declaration must not contradict ai.txt
 }
 
 MAIN="$WWW/.well-known/aibdp.json"
+AI_FILE="$WWW/.well-known/ai.txt"
+# The AIBDP declaration is OPTIONAL (issue #53). A repository that does not
+# make it has no AIBDP claims to validate, and demanding the file regardless is
+# what made this check fail in every repository the .well-known/ stage-5
+# migration reached: the migration moves ai.txt and security.txt, and aibdp.json
+# was never part of it. Silence is not a violation — but ai.txt REFERRING to
+# aibdp while the file is absent is a real contradiction, and still fails below.
+if [ ! -f "$MAIN" ] && ! grep -qi 'aibdp' "$AI_FILE" 2>/dev/null; then
+    echo "SKIP: no AIBDP declaration here (www/.well-known/aibdp.json absent and"
+    echo "SKIP:   ai.txt makes no aibdp claim) — there is nothing to validate"
+    exit 77
+fi
 if [ ! -f "$MAIN" ]; then
-    bad "www/.well-known/aibdp.json missing"
+    bad "ai.txt references aibdp but www/.well-known/aibdp.json is missing"
 elif validate_aibdp "$MAIN" 2>/dev/null; then
     ok "aibdp.json valid, experimental + declaration-only labelled"
 else
