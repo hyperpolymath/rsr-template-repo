@@ -44,7 +44,7 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .gitattributes
 .gitignore
 .gitleaksignore            # exact fingerprints for reviewed historical false positives
-.gitmessage
+.gitmessage             # git commit template; wired by .githooks/install.sh (git config commit.template)
 .mailmap                   # git reads .mailmap from the worktree root only
 .tool-versions
 mise.toml                  # pinned toolchains

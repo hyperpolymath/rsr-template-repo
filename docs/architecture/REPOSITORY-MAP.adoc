@@ -59,7 +59,7 @@ predecessors did.
 
 | `.gitmessage`
 | yes
-| -
+| git commit template; wired by .githooks/install.sh (git config commit.template)
 
 | `.hypatia-ignore`
 | yes
