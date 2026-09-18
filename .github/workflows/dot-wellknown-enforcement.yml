@@ -96,6 +96,38 @@ jobs:
           else
             echo "✅ RSR well-known compliant"
           fi
+      # Stage 5 (#119) sweeps ~270 repositories. #106 claimed CI "drives the
+      # migrator"; until now it only printed advice, so nothing verified that a
+      # repo would actually survive the migration. This step runs the real
+      # migrator and turns every conflict into an annotation.
+      #
+      # --dry-run because this job holds contents: read and cannot push: the
+      # point is to surface divergence early in the migration window, not to
+      # mutate a checkout that will be thrown away. The sweep driver
+      # (scripts/sweep-wellknown.sh) is what performs the real migration.
+      - name: Legacy root .well-known/ migration report
+        run: |
+          if [ ! -d .well-known ]; then
+            echo "No root .well-known/ — nothing to migrate."
+            exit 0
+          fi
+          if [ ! -f scripts/migrate-wellknown-to-www.sh ]; then
+            echo "::warning::root .well-known/ present but no migrator — template is behind #53 stage 5."
+            exit 0
+          fi
+          bash scripts/migrate-wellknown-to-www.sh --dry-run --report wellknown-migration.tsv
+          echo "--- planned migration ---"
+          cat wellknown-migration.tsv
+          # Conflicts are warnings, not errors, for the duration of the
+          # migration window (#106): a repo must not go red for a condition
+          # the sweep exists to fix. It must not be silent either.
+          while IFS=$'\t' read -r action path detail; do
+            case "$action" in
+              quarantined|conflict|left)
+                echo "::warning title=well-known migration::$action $path — $detail"
+                ;;
+            esac
+          done < <(tail -n +2 wellknown-migration.tsv)
       - name: www bundle self-test
         run: |
           if [ -d www/tests ]; then
