@@ -88,6 +88,21 @@ if [ "${1:-}" = "--stage" ]; then
     fi
 fi
 
+# The publication boundary only exists once a repository PUBLISHES something.
+# The bundle's schemas/, webservers/, dns/ and tls/ trees are what a site is
+# built from; a library that serves no document root has no boundary to police
+# and no shipped config to audit. Sections A, B and C all test that tree, so
+# the guard is one test for all three rather than a rewrite of each.
+#
+# This is the guard whose absence planted three failing checks into every
+# swept repository measured on 2026-09-18. `--stage <dir>` mode above is
+# unaffected: it is invoked by the deploy runbook against a real stage.
+if [ ! -f "$WWW/schemas/publishable-paths.txt" ] && [ ! -d "$WWW/webservers" ]; then
+    echo "SKIP: this repository publishes nothing (no www/schemas/ and no"
+    echo "SKIP:   www/webservers/) — the publication boundary does not apply"
+    exit 77
+fi
+
 # ── A. declaration ───────────────────────────────────────────────────────────
 DECL="$WWW/schemas/publishable-paths.txt"
 if [ ! -f "$DECL" ]; then
