@@ -14,11 +14,11 @@ updates:
   - package-ecosystem: cargo
     directory: /
 YAML
-ruby "$repo/scripts/prune-dependabot-ecosystems.rb" "$fixture/dependabot.yml" github-actions
+bash "$repo/scripts/rust-tool.sh" prune-dependabot-ecosystems "$fixture/dependabot.yml" github-actions
 grep -q 'github-actions' "$fixture/dependabot.yml"
 if grep -qE 'nix|cargo' "$fixture/dependabot.yml"; then exit 1; fi
 cp "$fixture/dependabot.yml" "$fixture/before"
-ruby "$repo/scripts/prune-dependabot-ecosystems.rb" "$fixture/dependabot.yml" nix
+bash "$repo/scripts/rust-tool.sh" prune-dependabot-ecosystems "$fixture/dependabot.yml" nix
 cmp "$fixture/dependabot.yml" "$fixture/before"
 cat > "$fixture/policy.md" <<'DOC'
 <!--
@@ -29,12 +29,12 @@ Prose mentions TEMPLATE INSTRUCTIONS and must survive.
 <!-- TEMPLATE INSTRUCTIONS: delete only this comment -->
 Actual policy.
 DOC
-ruby "$repo/scripts/strip-instruction-blocks.rb" "$fixture"
+bash "$repo/scripts/rust-tool.sh" strip-instruction-blocks "$fixture"
 grep -q SPDX "$fixture/policy.md"
 grep -q '^# Policy' "$fixture/policy.md"
 grep -q '^Prose mentions' "$fixture/policy.md"
 if grep -q 'delete only this' "$fixture/policy.md"; then exit 1; fi
 cp "$fixture/policy.md" "$fixture/before"
-ruby "$repo/scripts/strip-instruction-blocks.rb" "$fixture"
+bash "$repo/scripts/rust-tool.sh" strip-instruction-blocks "$fixture"
 cmp "$fixture/policy.md" "$fixture/before"
 echo 'PASS: selected ecosystems, nonempty updates, comment boundaries, and idempotence'

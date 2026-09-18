@@ -71,8 +71,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   what CI clones — the recipe asked three questions the test had no answers
   for, `read` hit EOF, and the recipe exited 1, so the instantiation e2e was
   red at the container prompt. The guard now matches the recipe's own path.
-  (The test still needs `ruby`, which is why this surfaced as a prompt
-  mismatch rather than a clean pass.)
+  (The test also needed `ruby` for the two mint tools. Those are Rust as
+    of 2026-09-18, so it no longer stops there.)
 
 * Restore the modular `just` recipes removed by the root-layout refactor, so
   `just repo-init`, validation, assessment, container, Groove, and proof tasks
