@@ -12,4 +12,4 @@ description: |
   This directory mirrors the content structure of the project wiki.
 
 invariants:
-  - "Primary wiki format MUST be AsciiDoc (.adoc)"
+  - "Primary wiki format MUST be Markdown (.md) — owner ruling 2026-09-19: wikis are the .md home (berrywiki); everything outside wikis stays .adoc"
