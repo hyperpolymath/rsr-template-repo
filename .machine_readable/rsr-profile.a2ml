@@ -36,7 +36,7 @@
 [rsr-profile]
 version = "1.0.0"
 spec = "rsr-criteria-v2"
-declares-against = "2.0.0-draft"
+declares-against = "2.1.0-draft"
 # Role in the estate pipeline: standards (canon) -> THIS (spine) -> scaffoldia
 # (composer) -> minted repos. A spine may carry capability-gated modules it
 # does not declare, for the repos minted from it; see [carrier] in the canon
@@ -96,16 +96,20 @@ capabilities = [
 # build/just/repo-init.just: every minted repo records the canon it was cut
 # from, so "which repos are on canon 1.x?" becomes a grep instead of a campaign.
 # ---------------------------------------------------------------------------
-version         = "2.0.4"
+version         = "2.1.0"
 # MUST equal canon.lock [canon.artifacts].criteria.sha256
-criteria_sha256 = "37cb5f679b414f6ee99c6bb62c460fd5349ff7d50cc1dab25b1e1a8e8d3c7bb9"
+criteria_sha256 = "6a5aa8857bd0d0d58ef48827938ca17c251b6b854dacf59d306388d61694d82a"
 # MUST equal canon.lock [canon.artifacts].gates.sha256
 # NB this hash is the gate table WITH the role = "canon" section (canon PR
 # "feat(gates): add role=canon"). Before that section existed the canon could
 # not be scored by the checker it ships, so a spine pinning the older table
 # would be pinning a canon whose law was not subject to itself.
-gates_sha256    = "b65ce75438c42d01bedf0325b9a97f1a575064866158b4340d7427fca911dd1b"
+gates_sha256    = "e70efd2f53c9445e30da4baf770366f04a4a84ffd844a01426e587e565b53e6a"
 lockstep_since  = "2026-09-17"
+# 2026-09-19: adopted canon-v2.1.0 (julia-gated criteria MINOR 5.2.3-5.2.6,
+# owner ruling 2026-09-19). Per [canon.lockstep].order this adoption lands
+# BEFORE the canon's release commit; the reverse-direction lockstep job is
+# red between the two landings by design.
 # The order matters and is enforced server-side: a canon change that this repo
 # cannot satisfy is a change made in the WRONG ORDER, not a rejected change.
 # Land the spine's adoption first, then the canon change is a one-line bump.
