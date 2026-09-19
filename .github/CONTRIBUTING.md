@@ -4,15 +4,15 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 -->
 ```
 # Clone the repository
-git clone https://{{FORGE}}/{{OWNER}}/{{REPO}}.git
-cd {{REPO}}
+git clone https://github.com/hyperpolymath/rsr-template-repo.git
+cd rsr-template-repo
 
 # Using Guix (recommended for reproducibility)
 guix shell -D -f build/guix.scm
 
 # Or using toolbox/distrobox
-toolbox create {{REPO}}-dev
-toolbox enter {{REPO}}-dev
+toolbox create rsr-template-repo-dev
+toolbox enter rsr-template-repo-dev
 # Install dependencies manually
 
 # Verify setup
@@ -72,10 +72,10 @@ Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md) an
 
 Look for issues labelled:
 
-- [`good first issue`](https://{{FORGE}}/{{OWNER}}/{{REPO}}/labels/good%20first%20issue) — Simple Perimeter 3 tasks
-- [`help wanted`](https://{{FORGE}}/{{OWNER}}/{{REPO}}/labels/help%20wanted) — Community help needed
-- [`documentation`](https://{{FORGE}}/{{OWNER}}/{{REPO}}/labels/documentation) — Docs improvements
-- [`perimeter-3`](https://{{FORGE}}/{{OWNER}}/{{REPO}}/labels/perimeter-3) — Community sandbox scope
+- [`good first issue`](https://github.com/hyperpolymath/rsr-template-repo/labels/good%20first%20issue) — Simple Perimeter 3 tasks
+- [`help wanted`](https://github.com/hyperpolymath/rsr-template-repo/labels/help%20wanted) — Community help needed
+- [`documentation`](https://github.com/hyperpolymath/rsr-template-repo/labels/documentation) — Docs improvements
+- [`perimeter-3`](https://github.com/hyperpolymath/rsr-template-repo/labels/perimeter-3) — Community sandbox scope
 
 ---
 
