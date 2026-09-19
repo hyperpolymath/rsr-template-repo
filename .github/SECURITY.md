@@ -33,7 +33,7 @@ We take security seriously. We appreciate your efforts to responsibly disclose v
 
 The preferred method for reporting security vulnerabilities is through GitHub's Security Advisory feature:
 
-1. Navigate to [Report a Vulnerability](https://github.com/{{OWNER}}/{{REPO}}/security/advisories/new)
+1. Navigate to [Report a Vulnerability](https://github.com/hyperpolymath/rsr-template-repo/security/advisories/new)
 2. Click **"Report a vulnerability"**
 3. Complete the form with as much detail as possible
 4. Submit — we'll receive a private notification
@@ -187,7 +187,7 @@ If we cannot reach agreement on disclosure timing, we default to 90 days from yo
 
 The following are within scope for security research:
 
-- This repository (`{{OWNER}}/{{REPO}}`) and all its code
+- This repository (`hyperpolymath/rsr-template-repo`) and all its code
 - Official releases and packages published from this repository
 - Documentation that could lead to security issues
 - Build and deployment configurations in this repository
@@ -306,7 +306,7 @@ Recognition includes:
 To stay informed about security updates:
 
 - **Watch this repository**: Click "Watch" → "Custom" → Select "Security alerts"
-- **GitHub Security Advisories**: Published at [Security Advisories](https://github.com/{{OWNER}}/{{REPO}}/security/advisories)
+- **GitHub Security Advisories**: Published at [Security Advisories](https://github.com/hyperpolymath/rsr-template-repo/security/advisories)
 - **Release notes**: Security fixes noted in [CHANGELOG](../CHANGELOG.md)
 
 ### Update Policy
@@ -332,7 +332,7 @@ To stay informed about security updates:
 
 ## Security Best Practices
 
-When using {{PROJECT_NAME}}, we recommend:
+When using rsr-template-repo, we recommend:
 
 ### General
 
@@ -354,7 +354,7 @@ When using {{PROJECT_NAME}}, we recommend:
 
 ## Additional Resources
 
-- [Security Advisories](https://github.com/{{OWNER}}/{{REPO}}/security/advisories)
+- [Security Advisories](https://github.com/hyperpolymath/rsr-template-repo/security/advisories)
 - [Changelog](../CHANGELOG.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [CVE Database](https://cve.mitre.org/)
@@ -366,8 +366,8 @@ When using {{PROJECT_NAME}}, we recommend:
 
 | Purpose | Contact |
 |---------|---------|
-| **Security issues** | [Report via GitHub](https://github.com/{{OWNER}}/{{REPO}}/security/advisories/new) or {{SECURITY_EMAIL}} |
-| **General questions** | [GitHub Discussions](https://github.com/{{OWNER}}/{{REPO}}/discussions) |
+| **Security issues** | [Report via GitHub](https://github.com/hyperpolymath/rsr-template-repo/security/advisories/new) or {{SECURITY_EMAIL}} |
+| **General questions** | [GitHub Discussions](https://github.com/hyperpolymath/rsr-template-repo/discussions) |
 | **Other enquiries** | See [README](../README.adoc) for contact information |
 
 ---
@@ -382,7 +382,7 @@ This security policy may be updated from time to time. Significant changes will 
 
 ---
 
-*Thank you for helping keep {{PROJECT_NAME}} and its users safe.* 🛡️
+*Thank you for helping keep rsr-template-repo and its users safe.* 🛡️
 
 ---
 
