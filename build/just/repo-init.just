@@ -321,9 +321,10 @@ repo-init archetype="":
         fi
     done
 
-    # Also replace [YOUR-REPO-NAME] and [YOUR-NAME/ORG] in AI manifest
-    sed -i "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
-    sed -i "s|\[YOUR-NAME/ORG\]|${OWNER}|g" 0-AI-MANIFEST.a2ml 2>/dev/null || true
+    # Also replace [YOUR-REPO-NAME] and [YOUR-NAME/ORG] in the repo deed
+    # (the family-7 allocation manifest folded into it — standards#837 pilot).
+    sed -i "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" rsr-template-repo_chora.deed 2>/dev/null || true
+    sed -i "s|\[YOUR-NAME/ORG\]|${OWNER}|g" rsr-template-repo_chora.deed 2>/dev/null || true
 
     # --- Instruction-block pass --------------------------------------------
     # Delete the "TEMPLATE INSTRUCTIONS (delete this block before publishing)"
@@ -397,6 +398,17 @@ repo-init archetype="":
             sed -i -E "/${SELF_PROV}/!{s|hyperpolymath/rsr-template-repo|${OWNER}/${REPO}|g;s|rsr-template-repo|${REPO}|g;}" "$file"
         done
         echo "  self-name: rewrote template literal -> ${REPO} (provenance lines preserved)"
+
+        # The repo deed's FILENAME carries the repo slug (deed dispatch:
+        # <stem>_chora.deed — deed.abnf v1.0.0). The self-name pass rewrote
+        # the slug inside the file; the file itself is renamed here. Plain mv:
+        # mint runs before the new repo's first commit. Renames (not tokens)
+        # are how filenames change — a {{REPO}} token in a FILENAME is the
+        # brace-collapse hazard class repo-init has already been burnt by.
+        if [ -f rsr-template-repo_chora.deed ]; then
+            mv rsr-template-repo_chora.deed "${REPO}_chora.deed"
+            echo "  repo deed: renamed rsr-template-repo_chora.deed -> ${REPO}_chora.deed"
+        fi
 
         # ── self-OWNER pass ──────────────────────────────────────────────────
         #

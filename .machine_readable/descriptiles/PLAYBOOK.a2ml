@@ -53,7 +53,7 @@ enforcement-workflow = ".github/workflows/estate-rules.yml"
 # README.adoc          High-level pitch (project entry point)
 # AUDIT.adoc           Local gate summary (release-readiness)
 # EXPLAINME.adoc       Developer deep-dive (architecture & invariants)
-# 0-AI-MANIFEST.a2ml   AI agent work-allocation policy
+# <repo>_chora.deed    Repo deed: AI work-allocation policy + ply tree (deed grammar)
 # LICENSE              Repo license (root-bound by convention)
 # CHANGELOG.md         One of the recognised .md exceptions (see below)
 # Justfile             Task runner — thin, imports per-section files from build/just/
@@ -61,7 +61,7 @@ enforcement-workflow = ".github/workflows/estate-rules.yml"
 
 # === Required directories ===
 # .github/             CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, workflows/
-# .machine_readable/   AI manifests (0.1-AI-MANIFEST.a2ml), descriptiles/ checkpoints,
+# .machine_readable/   descriptiles/ checkpoints (ply tree folded into the repo deed),
 #                      contractiles/, configs/, anchors/, policies/, scripts/, self-validating/
 # build/               contractile.just, guix.scm, Containerfile,
 #                      just/*.just (Justfile section imports)

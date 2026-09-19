@@ -50,17 +50,18 @@ while IFS= read -r line; do
     NOTE["$key"]="$comment"
 done < "$ALLOW"
 
-# Directories whose own level holds nothing but a stub README and a manifest.
+# Directories whose own level holds nothing but a stub README (or .gitkeep).
 # The owner ruling (2026-08-26) is that these stay: they are DECLARED STRUCTURE,
 # a statement of intended shape for repos minted from this template, not
 # abandoned work. Saying so explicitly is the difference between the two.
 # Recursive: a directory counts as unfilled only when its WHOLE subtree holds
 # no substantive file. Checking just its own level would flag archetypes/, whose
-# julia-library/ child is real content.
+# julia-library/ child is real content. (The ply manifests that once padded
+# these counts were folded into the repo deed — standards#837 pilot.)
 declared_only() {
     local d="$1" n
     n=$(git ls-files "$d" | awk -F/ '{print $NF}' \
-        | grep -vxE 'README\.adoc|0\.[0-9]+-AI-MANIFEST\.a2ml|\.gitkeep' | wc -l)
+        | grep -vxE 'README\.adoc|\.gitkeep' | wc -l)
     [ "$n" -eq 0 ]
 }
 

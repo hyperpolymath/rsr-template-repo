@@ -123,6 +123,7 @@ validate_deed() {
     #   - project = "..." (for STATE.a2ml)
     local has_identity=false
     local has_version=false
+    local first_form_seen=false
     line_num=0
 
     while IFS= read -r line; do
@@ -163,6 +164,27 @@ validate_deed() {
         if [[ "$line" =~ ^[[:space:]]*(agent[-_]id|name|project|id)[[:space:]]*: ]]; then
             has_identity=true
         fi
+        # DEED s-expression head form: `(estate-deed`, `(repo-deed`,
+        # `(estate-atlas-deed`, `(praxis-deed`. Per DEED-GRAMMAR-SPEC
+        # <<identity>>, a file whose first form is one of the four declared
+        # heads is a deed of that kind, and the head satisfies the structural
+        # half of identity. Only the FIRST form is eligible — checking every
+        # line would let a malformed file open with some other form and append
+        # a deed head lower down to buy identity. Ported from
+        # hyperpolymath/deed-ecosystem validate-action/validate-a2ml.sh so the
+        # local hook and the CI action agree on what a deed is.
+        if [[ "$first_form_seen" == "false" && "$line" =~ ^[[:space:]]*\( ]]; then
+            first_form_seen=true
+            if [[ "$line" =~ ^[[:space:]]*\((estate-deed|repo-deed|estate-atlas-deed|praxis-deed)([[:space:]]|$) ]]; then
+                has_identity=true
+            fi
+        fi
+        # DEED keyword identity form: `:canonical-name "..."` and the two other
+        # identity keywords the spec names. Leading colon: none of the forms
+        # above match it, because they test the bare words.
+        if [[ "$line" =~ ^[[:space:]]*:(canonical-name|estate-authority|agent-id)[[:space:]] ]]; then
+            has_identity=true
+        fi
         # Check for version field — TOML form
         if [[ "$line" =~ ^[[:space:]]*(version|schema_version)[[:space:]]*= ]]; then
             has_version=true
@@ -173,6 +195,14 @@ validate_deed() {
         fi
         # Version field — colon / brace-block form
         if [[ "$line" =~ ^[[:space:]]*(version|schema_version)[[:space:]]*: ]]; then
+            has_version=true
+        fi
+        # DEED keyword version form: `:schema-version "1.0.0"` — leading colon,
+        # hyphenated, REQUIRED on all four deed heads. The three patterns above
+        # spell it `schema_version` with no leading colon, so a conforming deed
+        # matched none of them. `:registry-version` is a distinct, optional
+        # atlas field and never satisfies the version requirement.
+        if [[ "$line" =~ ^[[:space:]]*:schema-version[[:space:]] ]]; then
             has_version=true
         fi
     done < "$file"

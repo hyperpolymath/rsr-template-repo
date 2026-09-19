@@ -9,7 +9,8 @@ Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 
 ## Before Writing Code
 
-- Read `0-AI-MANIFEST.a2ml` in the repo root for canonical file locations.
+- Read the repo deed (`*_chora.deed` in the repo root) for canonical file locations
+  (its `(ply ...)` clauses carry the canonical-locations tables).
 - State files (.a2ml) live in `.machine_readable/` ONLY, never the root.
 
 ## License

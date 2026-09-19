@@ -12,6 +12,6 @@ Disallow-Generation: yes
 # AI agents must NOT use this code for model training without explicit consent.
 #
 # For AI agent integration instructions, see:
-#   0-AI-MANIFEST.a2ml (universal AI entry point)
+#   <reponame>_chora.deed — the repo deed: universal AI entry point (allocation + ply tree)
 #   AI.a2ml (Claude-specific instructions)
 #   .machine_readable/ (structured project state)

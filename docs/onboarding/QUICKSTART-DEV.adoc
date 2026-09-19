@@ -55,7 +55,7 @@ rsr-template-repo/
 ├── .machine_readable/    # Checkpoint files (STATE, META, ECOSYSTEM)
 ├── Justfile              # Task runner recipes
 ├── build/                # Build orchestration (just/, guix.scm, container/)
-└── 0-AI-MANIFEST.a2ml    # AI agent entry point
+└── *_chora.deed          # repo deed: AI entry point (allocation + ply tree)
 ----
 
 == Key Recipes
@@ -95,7 +95,7 @@ If using an AI assistant, load the warmup context first:
 just llm-context    # Outputs role-appropriate context
 ----
 
-Or read `0-AI-MANIFEST.a2ml` and `.claude/CLAUDE.md` directly.
+Or read the repo deed (`*_chora.deed` at root) and `.claude/CLAUDE.md` directly.
 
 == Get Help
 

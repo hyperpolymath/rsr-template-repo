@@ -86,7 +86,7 @@ jobs:
 
           | Tool/Format | Status | Notes |
           |-------------|--------|-------|
-          | DEED manifest (0-AI-MANIFEST.a2ml) | ${DEED_STATUS} | Required for all RSR repos |
+          | DEED manifest (repo deed `*_chora.deed`) | ${DEED_STATUS} | Required for all RSR repos |
           | K9 contracts | ${K9_STATUS} | Required for repos with config files |
           | .editorconfig | ${EC_STATUS} | Required for all repos |
           | Groove endpoint | ${GROOVE_STATUS} | Required for service repos |
