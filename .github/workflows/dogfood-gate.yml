@@ -38,7 +38,7 @@ jobs:
           COUNT=$(find . \( -name '*.a2ml' -o -name '*.deed' \) -not -path './.git/*' | wc -l)
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
           if [ "$COUNT" -eq 0 ]; then
-            echo "::warning::No .a2ml/.deed manifest files found. Every RSR repo should have 0-AI-MANIFEST.a2ml (estate mid-migration to .deed — standards #64)"
+            echo "::warning::No .a2ml/.deed manifest files found. Every RSR repo should have 0-AI-MANIFEST.a2ml (estate mid-migration to .deed — standards #837)"
           fi
 
       - name: Validate DEED manifests
@@ -57,7 +57,7 @@ jobs:
 
           :warning: **No .a2ml/.deed manifest files found.** Every RSR-compliant repo should have at least `0-AI-MANIFEST.a2ml`.
 
-          Copy it from [rsr-template-repo](https://github.com/hyperpolymath/rsr-template-repo). Manifests are validated against the DEED grammar (standards `1-formats/deed/`); the `.a2ml` → `.deed` extension migration is tracked in standards #64 — the deed validator scans both.
+          Copy it from [rsr-template-repo](https://github.com/hyperpolymath/rsr-template-repo). Manifests are validated against the DEED grammar (standards `1-formats/deed/`); the `.a2ml` → `.deed` extension migration is tracked in standards #837 — the deed validator scans both.
           EOF
           else
             echo "## DEED Manifest Validation" >> "$GITHUB_STEP_SUMMARY"
@@ -514,7 +514,7 @@ jobs:
           SCORE=0
           MAX=6
 
-          # DEED manifest present? (.a2ml legacy extension accepted during standards #64 migration)
+          # DEED manifest present? (.a2ml legacy extension accepted during standards #837 migration)
           if find . \( -name '*.a2ml' -o -name '*.deed' \) -not -path './.git/*' | head -1 | grep -q .; then
             SCORE=$((SCORE + 1))
             DEED_STATUS=":white_check_mark:"
