@@ -8,9 +8,9 @@ Date: 2026-07-21
 
 === Status
 
-Proposed (drafted 2026-07-21; awaiting owner ratification). The normative
+Accepted (drafted 2026-07-21; ratified by owner ruling 2026-09-19). The normative
 statement lives in `hyperpolymath/standards`
-`rhodium-standard-repositories/spec/SCAFFOLD-LIFECYCLE.adoc`; this ADR records
+`0-canon/rsr/SCAFFOLD-LIFECYCLE.adoc` (relocated from `rhodium-standard-repositories/spec/` in the September 2026 reorg); this ADR records
 the decision and its mechanics in the spine.
 
 === Context
