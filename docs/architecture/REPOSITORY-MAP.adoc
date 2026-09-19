@@ -41,13 +41,9 @@ predecessors did.
 | yes
 | -
 
-| `.githooks/`
-| yes
-| core.hooksPath resolves relative to the worktree root
-
 | `.github/`
 | yes
-| community health + workflows; GitHub reads this path and no other
+| community health + workflows (GitHub reads this path and no other) + versioned git hooks (.github/hooks/, wired via core.hooksPath)
 
 | `.gitignore`
 | yes
@@ -59,7 +55,7 @@ predecessors did.
 
 | `.gitmessage`
 | yes
-| -
+| git commit template; wired by .github/hooks/install.sh (git config commit.template)
 
 | `.hypatia-ignore`
 | yes
@@ -97,10 +93,6 @@ predecessors did.
 | yes
 | generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 
-| `CONTRIBUTING.adoc`
-| optional
-| AsciiDoc entry point to the canonical .github/ contribution guide
-
 | `GEMINI.md`
 | optional
 | pointer to CLAUDE.md for repos without AGENTS.md yet
@@ -121,10 +113,6 @@ predecessors did.
 | yes
 | -
 
-| `abi.ipkg`
-| optional
-| Idris2 package for the ABI seam; only where the abi capability is declared
-
 | `archetypes/`
 | optional
 | template-only variation seam (ADR-0003); `just repo-init` removes it from minted repos
@@ -135,7 +123,7 @@ predecessors did.
 
 | `build/`
 | yes
-| build orchestration: just/ phase modules, container/, docs-seed/, templates/
+| build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = build/)
 
 | `ci/`
 | yes
@@ -156,10 +144,6 @@ predecessors did.
 | `features/`
 | optional
 | optional feature packs
-
-| `guix.scm`
-| optional
-| `guix build -f guix.scm` requires it at root; only where reproducible-build is declared
 
 | `mise.toml`
 | yes

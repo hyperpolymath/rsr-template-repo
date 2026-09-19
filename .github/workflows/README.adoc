@@ -37,7 +37,7 @@ secret defence, and the second tier is not in this directory:
 
 | Local
 | TruffleHog
-| `.githooks/scan-secrets.sh`, called by `.githooks/pre-push`. Runs *before* the
+| `.github/hooks/scan-secrets.sh`, called by `.githooks/pre-push`. Runs *before* the
   push leaves the machine, on exactly the commits being pushed.
 |===
 
@@ -46,7 +46,7 @@ can stop a key before it exists on a server, where revocation, not deletion, is
 the only real remedy. Ratified by the owner, 2026-09-14: *"we [run] gitleaks on
 github regularly but [run] trufflehog prior to pushes using the hooks system."*
 
-*Do not delete `.githooks/scan-secrets.sh` as duplication of `secret-scanner.yml`.*
+*Do not delete `.github/hooks/scan-secrets.sh` as duplication of `secret-scanner.yml`.*
 It is the other half of this design, not a second copy of this half. The two
 tiers also cover for each other's blind spots: the hook excludes TruffleHog's
 SonarCloud detector (it matches any 40-hex string, so every SHA-pinned action

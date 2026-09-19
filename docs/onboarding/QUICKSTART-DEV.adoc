@@ -54,7 +54,7 @@ rsr-template-repo/
 ├── docs/                 # Documentation
 ├── .machine_readable/    # Checkpoint files (STATE, META, ECOSYSTEM)
 ├── Justfile              # Task runner recipes
-├── guix.scm              # Guix environment
+├── build/                # Build orchestration (just/, guix.scm, container/)
 └── 0-AI-MANIFEST.a2ml    # AI agent entry point
 ----
 
