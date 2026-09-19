@@ -41,6 +41,9 @@ let component_pedigree = {
   # ─────────────────────────────────────────────────────────────
   security = {
     trust_level = 'Hunt,
+    # Named field the k9 validators grep for (leash/security_level);
+    # value mirrors trust_level — this component is documented Hunt-level.
+    security_level = 'Hunt,
     allow_network = true,
     allow_filesystem_write = true,
     allow_subprocess = true,
