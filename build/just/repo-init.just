@@ -269,6 +269,25 @@ repo-init archetype="":
         SED_ARGS+=(-e "s|${LB}${tok}${RB}|UNASSIGNED|g")
     done
 
+    # julia-library archetype: derive the package uuid at mint (owner ruling
+    # 2026-09-19: generate at mint). Same DERIVABLE class as the REPO uuid
+    # above - computed, never guessed. Namespace = the repo's own derived
+    # uuid, name = julia:<repo>: stable across re-mints of the same repo,
+    # never collides with the repo uuid. No uuidgen AND no python3 on the
+    # operator machine -> UNASSIGNED (the honest fallback at :437); Pkg
+    # then refuses the package loudly until the owner assigns one.
+    if [ "$ARCHETYPE" = "julia-library" ]; then
+        if command -v uuidgen >/dev/null 2>&1; then
+            PACKAGE_UUID=$(uuidgen --sha1 --namespace "${REPO_UUID}" --name "julia:${REPO}")
+        elif command -v python3 >/dev/null 2>&1; then
+            PACKAGE_UUID=$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${REPO_UUID}'), 'julia:${REPO}'))")
+        else
+            PACKAGE_UUID=UNASSIGNED
+        fi
+        SED_ARGS+=(-e "s|${LB}PACKAGE_UUID${RB}|${PACKAGE_UUID}|g")
+        echo "  package uuid: ${PACKAGE_UUID} (derived from repo uuid ${REPO_UUID})"
+    fi
+
     # Optional values with no answer: drop the line that depends on them rather
     # than leaving the token in place. An unfilled token is not a neutral
     # reminder — the OpenSSF line renders a broken badge image and a dead link
@@ -634,6 +653,34 @@ repo-init archetype="":
     # (same reason build/templates is removed above).
     rm -rf archetypes
     rm -rf build/docs-seed          # template-only; its content now lives in docs/
+
+    # Overlay .in rule (julia-library archetype; the convention any future
+    # overlay can adopt): the overlay ships content templates as *.in so a
+    # substitution token never survives in a file with a final name. Rename
+    # the known set now that substitution has rendered them, before the
+    # placeholder gate below.
+    if [ "$ARCHETYPE" = "julia-library" ]; then
+        # the name is read from Project.toml.in until the loop below renames
+        # it - order matters.
+        TOML_FILE=Project.toml
+        [ -f "$TOML_FILE" ] || TOML_FILE=Project.toml.in
+        if [ -f src/PACKAGE.jl.in ] && [ -f "$TOML_FILE" ]; then
+            PKG_NAME=$(sed -n 's/^name = "\([^"]*\)".*/\1/p' "$TOML_FILE" | head -1)
+            if [ -n "$PKG_NAME" ] && [ "$PKG_NAME" != "UNASSIGNED" ]; then
+                mv "src/PACKAGE.jl.in" "src/${PKG_NAME}.jl"
+                echo "  entry point: src/${PKG_NAME}.jl (from src/PACKAGE.jl.in)"
+            else
+                echo "WARN: Project.toml name is UNASSIGNED - src/PACKAGE.jl.in left in place"
+                echo "      so the placeholder gate stays honest. Name the package, then run:"
+                echo "      mv src/PACKAGE.jl.in src/<PackageName>.jl"
+            fi
+        fi
+        for f in Project.toml.in \
+                 .github/workflows/julia-ci.yml.in \
+                 .github/workflows/julia-docs.yml.in; do
+            [ -f "$f" ] && { mv "$f" "${f%.in}"; echo "  overlay: ${f%.in}"; }
+        done
+    fi
 
     echo ""
     echo "── Validation ───────────────────────────────────"
