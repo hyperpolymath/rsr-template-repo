@@ -4,7 +4,7 @@
 #
 # validate-deed.sh — DEED manifest validation script
 #
-# Scans for .a2ml files and validates:
+# Scans for .a2ml and .deed files (dual-accept per owner ruling R-H2) and validates:
 #   1. Required fields: agent-id or pedigree name, version
 #   2. SPDX-License-Identifier header presence
 #   3. Attestation block structure (if present)
@@ -301,8 +301,8 @@ echo "::group::DEED Manifest Validation"
 echo "Scanning ${SCAN_PATH} for .a2ml files..."
 echo ""
 
-# Find all .a2ml files, excluding .git directory
-mapfile -t deed_candidates < <(find "$SCAN_PATH" -name '*.a2ml' -not -path '*/.git/*' -type f | sort)
+# Find all manifest files (.a2ml legacy + .deed — dual-accept; extension migration = standards #837, the DEED conversion campaign), excluding .git
+mapfile -t deed_candidates < <(find "$SCAN_PATH" \( -name '*.a2ml' -o -name '*.deed' \) -not -path '*/.git/*' -type f | sort)
 
 # Apply paths-ignore filter
 deed_files=()

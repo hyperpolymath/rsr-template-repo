@@ -19,17 +19,22 @@ repos:
         args: ['--maxkb=1024']
 
   # --- Manifest validation (DEED grammar) ---
-  # NOTE: the a2ml project is officially retired (standards #836 owner ruling;
-  # CICD-WORKFLOW-CATALOG line 123) and DEED carries the grammar
-  # (standards 1-formats/deed/). The provider repo below is an A2ML-era
-  # artifact: its hook id 'validate-a2ml' is defined IN THAT REPO, so the
-  # consumer id must match until the owner renames/moves the provider to a
-  # deed-pre-commit. Flagged, not silently broken.
-  - repo: https://github.com/hyperpolymath/a2ml-pre-commit
-    rev: 40adffc73f2d4be1e8dfda8a7de93e4fc11730dc  # a2ml-pre-commit @ main 2026-06-23 (A2ML-era provider — see note)
+  # The former provider repo (hyperpolymath/a2ml-pre-commit) was DELETED
+  # upstream in the A2ML retirement (standards #836 owner ruling; R-H3),
+  # leaving this pin as broken plumbing — pre-commit could not clone it.
+  # Replaced with a local hook calling .github/hooks/validate-deed.sh,
+  # verified exit-0 against all 123 manifests in this repo. Dual-accept:
+  # scans both .a2ml (legacy extension; migration = standards #837, the
+  # DEED conversion campaign) and .deed. When the grammar-faithful .deed
+  # validator is wired per owner ruling R-H2, this hook is its natural home.
+  - repo: local
     hooks:
-      - id: validate-a2ml
-        name: Validate A2ML manifests
+      - id: validate-deed
+        name: Validate DEED manifests (dual-accept .a2ml/.deed)
+        entry: .github/hooks/validate-deed.sh
+        language: system
+        files: '\.(a2ml|deed)$'
+        pass_filenames: false
 
   # --- K9 contract validation ---
   - repo: https://github.com/hyperpolymath/k9-pre-commit
