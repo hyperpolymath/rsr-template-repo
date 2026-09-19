@@ -77,5 +77,6 @@ tests/
 ?features/                 # optional feature packs
 ?verification/             # proofs; only where formal-proofs is declared
 ?CONTRIBUTING.md           # accepted at root OR .github/; .github/ is the canonical estate location
+?CONTRIBUTING.adoc          # estate docs gate (standards scripts/check-docs-presence.sh) requires CONTRIBUTING at the ROOT; this is the copy it verifies
 ?SECURITY.md               # accepted at root OR .github/; likewise
 ?REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just repo-init` runs
