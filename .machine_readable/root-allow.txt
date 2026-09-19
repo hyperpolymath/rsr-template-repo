@@ -44,6 +44,7 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .gitattributes
 .gitignore
 .gitleaksignore            # exact fingerprints for reviewed historical false positives
+.cicd-hygiene-allow        # code-hygiene gate allowlist; template scaffolds are seams, not debt
 .gitmessage             # git commit template; wired by .github/hooks/install.sh (git config commit.template)
 .mailmap                   # git reads .mailmap from the worktree root only
 .tool-versions
