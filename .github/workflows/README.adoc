@@ -37,7 +37,7 @@ secret defence, and the second tier is not in this directory:
 
 | Local
 | TruffleHog
-| `.github/hooks/scan-secrets.sh`, called by `.githooks/pre-push`. Runs *before* the
+| `.github/hooks/scan-secrets.sh`, called by `.github/hooks/pre-push`. Runs *before* the
   push leaves the machine, on exactly the commits being pushed.
 |===
 
