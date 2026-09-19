@@ -17,6 +17,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
     '.github/workflows/dogfood-gate.yml':
         - 'actions/checkout@v7.0.1'
+        - 'erlef/setup-beam@v1.24.1'
         - 'hyperpolymath/deed-ecosystem@main'
         - 'hyperpolymath/k9-ecosystem@main'
     '.github/workflows/dogfood-summary.yml':
