@@ -1,3 +1,4 @@
+; SPDX-License-Identifier: MPL-2.0
 (a2ml-document
   (version "1.0")
   (dialect "scm")
