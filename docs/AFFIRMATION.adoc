@@ -141,7 +141,7 @@ themselves is not.
 * `README.adoc` — the aspirational claims this file is measured against.
 * `docs/EXPLAINME.adoc` — the mechanism.
 * `docs/AUDIT.adoc` — the standing conformance audit.
-* `0-AI-MANIFEST.a2ml` — machine-readable repo metadata.
+* `*_chora.deed` (repo deed) — machine-readable repo metadata (AI allocation + ply tree).
 * `<any status document, dashboard or percentage that disagrees with the state
   below — name it and say which one wins>`
 

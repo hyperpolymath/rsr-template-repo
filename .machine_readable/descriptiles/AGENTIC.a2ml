@@ -51,6 +51,6 @@ instructions-dir = ".machine_readable/bot_directives/"
 default-mode = "hybrid"
 
 [automation-hooks]
-# on-enter: Read 0-AI-MANIFEST.a2ml, then STATE.a2ml, then bot_directives/
+# on-enter: Read the repo deed (*_chora.deed at root), then STATE.a2ml, then bot_directives/
 # on-exit: Update STATE.a2ml, coverage.a2ml, and debt.a2ml with session outcomes
 # on-commit: Run just validate-rsr

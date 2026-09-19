@@ -118,13 +118,15 @@ surfaces any left unfilled.
 | `{{PROJECT_DOMAIN}}` | Project domain | `formal-methods` | .machine_readable/descriptiles/anchors/ANCHOR.a2ml |
 | `{{OPENSSF_PROJECT_ID}}` | OpenSSF Best Practices project ID (same value as `{{OPENSSF_BP_ID}}`) | `1234` | docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc |
 
-### AI Manifest
+### Repo deed (folded family-7 allocation manifest)
 
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
-| `[YOUR-REPO-NAME]` | Repository name | `my-project` | 0-AI-MANIFEST.a2ml |
-| `[DATE]` | Creation date | `2026-02-14` | 0-AI-MANIFEST.a2ml |
-| `[YOUR-NAME/ORG]` | Maintainer name | `hyperpolymath` | 0-AI-MANIFEST.a2ml |
+| `[YOUR-REPO-NAME]` | Repository name | `my-project` | `*_chora.deed` (repo deed) |
+| `[YOUR-NAME/ORG]` | Maintainer name | `hyperpolymath` | `*_chora.deed` (repo deed) |
+
+(`[DATE]` was listed here for 0-AI-MANIFEST.a2ml but no file ever carried the
+literal token — row removed with the fold; standards#837 pilot.)
 
 ### AI Installation Guide
 

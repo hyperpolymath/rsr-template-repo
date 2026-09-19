@@ -55,6 +55,24 @@ check_file_exists() {
     fi
 }
 
+# The repo deed's FILENAME carries the repository name (filename dispatch:
+# <stem>_chora.deed, stem = repo slug — deed.abnf v1.0.0), so the check is a
+# glob, not a literal. Pre-deed era this slot was 0-AI-MANIFEST.a2ml; the
+# family-7 allocation manifest and the ply tree folded into the deed
+# (standards#837 pilot).
+check_deed_exists() {
+    local description="${1:-}"
+    local f
+    for f in "$REPO_ROOT"/*_chora.deed; do
+        if [ -f "$f" ]; then
+            [ "$VERBOSE" = "1" ] && log_pass "Repo deed exists: ${f#"$REPO_ROOT"/}"
+            return 0
+        fi
+    done
+    log_error "Required repo deed missing: no <reponame>_chora.deed at root ${description:+(${description})}"
+    return 1
+}
+
 check_file_either() {
     local first="$1"
     local second="$2"
@@ -146,7 +164,7 @@ log_info "Phase 1: Core repository structure"
 echo ""
 
 # Root files
-check_file_exists "0-AI-MANIFEST.a2ml" "AI manifest (universal entry point)"
+check_deed_exists "repo deed (universal AI entry point)"
 check_file_exists "README.adoc" "High-level pitch"
 check_file_either "EXPLAINME.adoc" "docs/EXPLAINME.adoc" "Developer deep-dive"
 check_file_exists "LICENSE" "License file"

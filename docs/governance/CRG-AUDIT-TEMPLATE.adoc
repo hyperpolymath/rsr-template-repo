@@ -68,7 +68,7 @@ Do *not* mark PRESENT without citing the path.
 | PRESENT (STATE, META, ECOSYSTEM, AGENTIC, NEUROSYM, PLAYBOOK) / ABSENT
 | Layout matches CLAUDE.md invariant
 
-| `0-AI-MANIFEST.a2ml`
+| `*_chora.deed` (repo deed)
 | PRESENT / ABSENT
 | Root
 

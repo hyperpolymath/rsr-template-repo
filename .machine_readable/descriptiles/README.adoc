@@ -50,8 +50,9 @@ and has its own specification.
 the current filename; the scheme it names is being replaced, since facets
 do not share common descent.
 
-`0-AI-MANIFEST.a2ml`:: The universal AI entry point. It is authored in the
-manifest dialect, whose status is a separate question from the DEED grammar.
+`*_chora.deed` (repo deed, at the repo root):: The universal AI entry point —
+a DEED-grammar file. The family-7 allocation manifest (0-AI-MANIFEST.a2ml) and
+the ply directory tree folded into it in the standards#837 pilot.
 
 == Generation
 

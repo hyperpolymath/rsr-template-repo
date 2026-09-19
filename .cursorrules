@@ -2,7 +2,8 @@
 # Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 # Authoritative source: docs/practice/AI-CONVENTIONS.adoc
 
-# Read 0-AI-MANIFEST.a2ml in the repo root FIRST for canonical file locations.
+# Read the repo deed (*_chora.deed in the repo root) FIRST: canonical file locations
+# live in its (ply ...) canonical-locations clauses.
 
 # LICENSE
 # All original code: MPL-2.0 (SPDX header required on every file).

@@ -17,6 +17,10 @@ predecessors did.
 |===
 | Path | Required | What it is, and who reads it
 
+| `.cicd-hygiene-allow`
+| yes
+| code-hygiene gate allowlist; template scaffolds are seams, not debt
+
 | `.clinerules`
 | yes
 | AI editor rules. Cline/Cursor/Windsurf read these from the project
@@ -76,10 +80,6 @@ predecessors did.
 | `.windsurfrules`
 | yes
 | -
-
-| `0-AI-MANIFEST.a2ml`
-| yes
-| universal AI entry point
 
 | `CHANGELOG.adoc`
 | yes
@@ -148,6 +148,10 @@ predecessors did.
 | `mise.toml`
 | yes
 | pinned toolchains
+
+| `rsr-template-repo_chora.deed`
+| yes
+| the repo deed: universal AI entry point; family-7 allocation manifest + ply tree folded in (standards#837 pilot). Filename carries the repo slug (deed dispatch <stem>_chora.deed), so repo-init renames it at mint
 
 | `scripts/`
 | yes
@@ -219,7 +223,6 @@ your own repo - but do not read their emptiness as neglect here.
 | `docs/whitepapers/academic/`
 | `docs/whitepapers/industry/`
 | `docs/whitepapers/outreach/`
-| `docs/wikis/`
 | `examples/`
 | `features/boj-server/`
 | `features/panic-attacker/`

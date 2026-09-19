@@ -29,9 +29,9 @@ hooks fail if any check fails.
 - run: test -f SECURITY.md || test -f .github/SECURITY.md
 - severity: critical
 
-### ai-manifest
-- description: 0-AI-MANIFEST.a2ml must exist
-- run: test -f 0-AI-MANIFEST.a2ml
+### repo-deed
+- description: the repo deed (<reponame>_chora.deed) must exist at root
+- run: ls *_chora.deed >/dev/null 2>&1
 - severity: critical
 
 ### governance-docs
@@ -84,10 +84,11 @@ hooks fail if any check fails.
 - severity: critical
 - notes: All placeholders must be substituted when copying this template
 
-### template-readonly
-- description: Template marker files are not modified
-- run: grep -q 'RSR_TEMPLATE_DO_NOT_EDIT' .machine_readable/0.1-AI-MANIFEST.a2ml
-- severity: warning
+# template-readonly RETIRED 2026-09-19 (standards#837 pilot): it grepped
+# RSR_TEMPLATE_DO_NOT_EDIT in .machine_readable/0.1-AI-MANIFEST.a2ml, but the
+# marker never existed outside this Mustfile and the file is now folded into
+# the repo deed — the check could only ever fail. A gate that cannot pass is
+# the fake-gate class this estate hunts; retiring it, not re-aiming it.
 
 ## Git State
 

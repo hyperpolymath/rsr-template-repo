@@ -110,7 +110,7 @@ just validate-rsr
 |`PLACEHOLDERS.md`
 |Template variable reference and replacement guide
 
-|`0-AI-MANIFEST.a2ml`
+|`*_chora.deed` (repo deed)
 |Universal AI agent entry point
 
 |`AI.a2ml`
