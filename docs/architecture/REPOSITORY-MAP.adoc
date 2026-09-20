@@ -93,6 +93,10 @@ predecessors did.
 | yes
 | generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 
+| `CONTRIBUTING.adoc`
+| optional
+| estate docs gate (standards scripts/check-docs-presence.sh) requires CONTRIBUTING at the ROOT; this is the copy it verifies
+
 | `GEMINI.md`
 | optional
 | pointer to CLAUDE.md for repos without AGENTS.md yet
@@ -121,7 +125,7 @@ predecessors did.
 | optional
 | Cargo-conventional at package root
 
-| `build/`
+| `build`
 | yes
 | build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = build/)
 
