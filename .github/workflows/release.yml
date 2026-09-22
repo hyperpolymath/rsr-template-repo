@@ -46,10 +46,10 @@ jobs:
             echo "::notice::Detected Zig project (build.zig)"
             echo "build_type=zig" >> "$GITHUB_OUTPUT"
             zig build -Doptimize=ReleaseSafe
-          elif [ -f "deno.json" ] || [ -f "deno.jsonc" ]; then
-            echo "::notice::Detected Deno project (deno.json)"
-            echo "build_type=deno" >> "$GITHUB_OUTPUT"
-            deno task build
+          elif [ -f "package.json" ]; then
+            echo "::notice::Detected Bun project (package.json)"
+            echo "build_type=bun" >> "$GITHUB_OUTPUT"
+            bun run build
           elif [ -f "gossamer.conf.json" ]; then
             echo "::notice::Detected Gossamer project (gossamer.conf.json)"
             echo "build_type=gossamer" >> "$GITHUB_OUTPUT"
@@ -68,7 +68,7 @@ jobs:
             just build
           else
             echo "::error::No recognised build system found."
-            echo "Expected one of: mix.exs, Cargo.toml, build.zig, deno.json, gossamer.conf.json, gleam.toml, rebar.config, Justfile"
+            echo "Expected one of: mix.exs, Cargo.toml, build.zig, package.json, gossamer.conf.json, gleam.toml, rebar.config, Justfile"
             exit 1
           fi
         # TODO: Upload build artifacts if needed (pin actions/upload-artifact

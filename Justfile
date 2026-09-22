@@ -93,7 +93,7 @@ build *args:
     #   cargo build {{args}}                    # Rust
     #   mix compile {{args}}                    # Elixir
     #   zig build {{args}}                      # Zig
-    #   deno task build {{args}}                # Deno/
+    #   bun run build {{args}}                  # Bun
     @echo "Build complete"
 
 # Build in release mode with optimizations
@@ -113,7 +113,7 @@ build-watch:
     # Examples:
     #   find src -name '*.rs' | entr -c just build
     #   mix compile --force --warnings-as-errors
-    #   deno task dev
+    #   bun run dev
 
 # Clean build artifacts [reversible: rebuild with `just build`]
 clean:
@@ -145,7 +145,7 @@ test *args:
     #   cargo test --workspace {{args}}
     #   mix test {{args}}
     #   zig build test {{args}}
-    #   deno test {{args}}
+    #   bun test {{args}}
     echo "FAIL: \`just test\` has not been wired to a real test command yet." >&2
     echo "      Edit the 'test' recipe in the Justfile before relying on this gate." >&2
     exit 1
@@ -190,7 +190,6 @@ bench:
     #   cargo bench                           # Rust criterion
     #   zig build bench                       # Zig benchmarks
     #   mix run bench/benchmarks.exs          # Elixir benchee
-    #   deno bench                            # Deno bench
     @echo "Benchmarks complete!"
 
 # Run readiness tests (Component Readiness Grade: D/C/B)
@@ -247,7 +246,6 @@ fmt:
     #   cargo fmt
     #   mix format
     #   gleam format
-    #   deno fmt
 
 # Check formatting without changes
 fmt-check:

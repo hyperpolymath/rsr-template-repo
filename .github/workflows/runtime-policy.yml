@@ -5,7 +5,7 @@
 # Runtime and package-manager policy check.
 #
 # Authority: hyperpolymath/standards LANGUAGE-POLICY.adoc §1.
-# Ordering:  Bun (1st) > Deno (2nd) > pnpm (3rd) > npm (last resort).
+# Ordering:  Bun (1st) > pnpm (2nd) > npm (last resort). Deno is BANNED.
 #
 # REPLACES npm-bun-blocker.yml, which failed any build carrying `bun.lockb` with
 # the message "npm/bun artifacts detected. Use Deno instead." That gate blocked

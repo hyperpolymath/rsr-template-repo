@@ -69,7 +69,7 @@ jobs:
           echo "All workflows have permissions declared"
 
       # Bun is the estate's first-choice runtime (LANGUAGE-POLICY.adoc §1:
-      # Bun > Deno > pnpm > npm) and executes .ts directly (§1.2). Tag form
+      # Bun > pnpm > npm) and executes .ts directly (§1.2). Tag form
       # matches every other ref in this repo and is resolved by actions.lock.
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2.2.0

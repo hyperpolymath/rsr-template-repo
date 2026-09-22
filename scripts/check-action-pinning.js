@@ -11,7 +11,7 @@
 // inherited both the tag-form workflows and the gate that rejects them.
 //
 // Runtime: Bun — the estate's first-choice runtime per LANGUAGE-POLICY.adoc §1
-// (Bun > Deno > pnpm > npm). Plain JavaScript, not TypeScript: TypeScript is
+// (Bun > pnpm > npm). Plain JavaScript, not TypeScript: TypeScript is
 // banned estate-wide (owner ruling; CLAUDE.md banned-languages table). Note
 // LANGUAGE-POLICY.adoc §1.2 currently claims TS is "permitted under Bun" — that
 // line is wrong and should be corrected; the ban stands.
