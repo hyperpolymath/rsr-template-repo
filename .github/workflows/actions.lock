@@ -43,6 +43,7 @@ workflows:
         - 'hyperpolymath/k9-ecosystem@main'
     '.github/workflows/label-triage.yml': []
     '.github/workflows/labels.yml': []
+    '.github/workflows/lock-sync-gate.yml': []
     '.github/workflows/main-estate-audit.yml':
         - 'hyperpolymath/cicd-suite@55556cf5ba71ba744695861503c13148d3915a5d'
     '.github/workflows/mirror.yml':
