@@ -120,7 +120,7 @@ jobs:
   # Job 3: Empty-linter — invisible character detection
   # ---------------------------------------------------------------------------
   empty-lint:
-    name: Empty-linter (invisible characters)
+    name: "🔴 GATE: Empty-linter (invisible characters)"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -195,7 +195,7 @@ jobs:
   # Job 4: Groove manifest check (for repos that should expose services)
   # ---------------------------------------------------------------------------
   groove-check:
-    name: Groove manifest check
+    name: "🟡 CHECK: Groove manifest check"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -225,7 +225,12 @@ jobs:
             HAS_MANIFEST="true"
             # Validate the manifest JSON
             if ! jq empty "$MANIFEST" 2>/dev/null; then
+              # Gate, don't annotate: an unparseable manifest is a real error,
+              # not a warning — same behaviour as the standalone
+              # groove-check.yml (this job had drifted to annotation-only,
+              # the class of "check that cannot fail" from nexia-list#49).
               echo "::error file=$MANIFEST::Invalid JSON in Groove manifest"
+              exit 1
             else
               SVC_ID=$(jq -r '.service_id // "unknown"' "$MANIFEST")
               echo "service_id=$SVC_ID" >> "$GITHUB_OUTPUT"
@@ -500,7 +505,7 @@ jobs:
   # Job 7: Dogfooding summary
   # ---------------------------------------------------------------------------
   dogfood-summary:
-    name: Dogfooding compliance summary
+    name: "ℹ️ ADVISORY: Dogfooding compliance summary (non-gating)"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [deed-validate, k9-validate, empty-lint, groove-check, eclexiaiser-validate, canon-lockstep]
