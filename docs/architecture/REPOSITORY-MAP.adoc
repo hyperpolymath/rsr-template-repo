@@ -125,7 +125,7 @@ predecessors did.
 | optional
 | Cargo-conventional at package root
 
-| `build`
+| `build/`
 | yes
 | build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = build/)
 
