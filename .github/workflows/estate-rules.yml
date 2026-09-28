@@ -83,3 +83,15 @@ jobs:
         run: bash tests/workflows/session_contracts_test.sh
       - name: Verify mint cleanup controls
         run: bash tests/workflows/mint_cleanup_test.sh
+      # The CHECK half of the template contract. repo-init has always written an
+      # answer-file (.machine_readable/PROVENANCE.a2ml); nothing ever read it.
+      # This is the missing reader, and it covers the #200/#201/#203 class:
+      # self-parenting identity, unresolved pins, and leaked template branches.
+      #
+      # The template itself self-skips (archetypes/ present), so the real check
+      # runs in minted children. What THIS proves is that the instrument can
+      # fail — the only property that matters for a gate, and the one that was
+      # missing in #49, #64 and the conformance gate that "reported them
+      # conforming" upstream.
+      - name: Template conformance gate self-test (must fail on drift)
+        run: bash tests/workflows/template_conformance_test.sh

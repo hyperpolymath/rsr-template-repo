@@ -120,6 +120,64 @@ then ok "package uuid is the derived v5"; else bad "package uuid derivation"; fi
 RE_MINT=$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${REPO_UUID}'), 'julia:${REPO}'))")
 [ "$RE_MINT" = "$MINTED_UUID" ] && ok "re-mint derives the same uuid (stable identity)" || bad "uuid not stable across re-mints"
 
+# ── 7. JET analysis — the SHIPPED invocation, actually executed ────────
+#
+# Issue #202: the overlay emitted `JET.test_package(path=".", julia_version="1")`
+# — the path/string form REMOVED in JET v0.12.0. It threw MethodError before
+# analysing anything, and nothing in this repository ever executed it, so it
+# shipped to every minted Julia repo. Syntax-checking the YAML could not catch
+# it; only running it can.
+#
+# Both controls are mandatory:
+#   positive — the clean minted package passes.
+#   negative — an injected inference error IS detected. If the negative control
+#              passes, this test is vacuous and its "PASS" means nothing.
+#
+# JET goes in its own environment so the package's Project.toml is untouched,
+# mirroring what the shipped workflow now does.
+JET_PKG=$(sed -n 's/^name = "\([^"]*\)".*/\1/p' Project.toml | head -1)
+JET_SRC="src/${JET_PKG}.jl"
+JET_ENV="$SCRATCH/.jet-env"
+
+run_jet() {
+    "$JULIA" -e "
+        using Pkg
+        Pkg.activate(\"$JET_ENV\")
+        Pkg.develop(path=\"$SCRATCH\")
+        Pkg.add(Pkg.PackageSpec(name=\"JET\", version=\"0.12\"))
+        using ${JET_PKG}, JET
+        if !hasmethod(JET.test_package, (Module,))
+            error(\"JET \", pkgversion(JET),
+                  \" has no test_package(::Module); the overlay pins an API that moved\")
+        end
+        JET.test_package(${JET_PKG})
+    "
+}
+
+if [ -n "$JET_PKG" ] && [ -f "$JET_SRC" ]; then
+    # positive control
+    if run_jet >/tmp/julia-mint-jet.log 2>&1; then
+        ok "JET: clean package passes (positive control)"
+    else
+        bad "JET: clean package failed — inspect; if this is an API/infra failure it is NOT a findings failure"
+        tail -12 /tmp/julia-mint-jet.log | sed 's/^/      /'
+    fi
+
+    # negative control — inject a concrete inference error INSIDE the module.
+    # Inside a function body, so the module still loads and JET can analyse it;
+    # a bare top-level call would throw at load time and prove nothing.
+    cp "$JET_SRC" "$JET_SRC.bak"
+    sed -i '/^end # module/i neg_control() = "string" + 1' "$JET_SRC"
+    if run_jet >/tmp/julia-mint-jet-neg.log 2>&1; then
+        bad "JET: injected inference error was NOT detected — this canary cannot fail, so its PASS is vacuous"
+    else
+        ok "JET: injected inference error detected (negative control)"
+    fi
+    mv "$JET_SRC.bak" "$JET_SRC"
+else
+    bad "JET: could not locate the minted package module (name=${JET_PKG:-<none>}, src=$JET_SRC)"
+fi
+
 echo
 echo "julia mint test: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
