@@ -552,12 +552,44 @@ repo-init archetype="":
     echo "  profile:    $PROFILE_OUT${ARCH_PRESET:+  (preset $ARCH_PRESET)}"
 
     # Provenance — the estate's answer-file (ADR-0002 contract shape, used
-    # per ADR-0003 with direction=generated-from-core). parent-pin resolves
-    # from the live template tip: correct for a fresh mint, UNASSIGNED when
-    # offline — honest, never guessed.
+    # per ADR-0003 with direction=generated-from-core).
+    #
+    # repo-init runs INSIDE the template checkout, so the LOCAL git state is
+    # the truth about what was actually copied. Prefer it. The previous
+    # implementation read the LIVE remote tip (`git ls-remote ... HEAD`),
+    # which records where the remote is *now* rather than the tree in hand:
+    # mint from a branch, or from a checkout with unpushed commits, and
+    # PROVENANCE named a commit the child never contained. That defeated the
+    # answer-file's whole purpose. Remote lookup remains only as a fallback,
+    # and the symref form also recovers the source BRANCH, which was never
+    # recorded at all (#203).
     PARENT_SLUG="hyperpolymath/rsr-template-repo"
-    PARENT_PIN=$(git ls-remote "https://github.com/${PARENT_SLUG}.git" HEAD 2>/dev/null | cut -f1 || true)
+    PARENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    PARENT_PIN=$(git rev-parse HEAD 2>/dev/null || true)
+    PARENT_TREE=$(git rev-parse 'HEAD^{tree}' 2>/dev/null || true)
+
+    if [ -z "$PARENT_PIN" ]; then
+        # Not a checkout (tarball, shallow copy, or offline): fall back to the
+        # remote, and recover the branch from the symref.
+        PARENT_BRANCH=$(git ls-remote --symref "https://github.com/${PARENT_SLUG}.git" HEAD 2>/dev/null \
+            | sed -n 's|^ref: refs/heads/\([^[:space:]]*\).*|\1|p' | head -1 || true)
+        PARENT_PIN=$(git ls-remote "https://github.com/${PARENT_SLUG}.git" HEAD 2>/dev/null | cut -f1 || true)
+    fi
+
+    PARENT_BRANCH="${PARENT_BRANCH:-UNASSIGNED}"
     PARENT_PIN="${PARENT_PIN:-UNASSIGNED}"
+    PARENT_TREE="${PARENT_TREE:-UNASSIGNED}"
+
+    # Recorded in PROVENANCE.a2ml. Non-interactive mints are the automated
+    # path (scaffoldia / CI); interactive ones are a human at a prompt. The
+    # distinction matters because #201 found a hand-minted instance whose
+    # generated identity was stale, and nothing recorded which path ran.
+    if [ -n "${RSR_NON_INTERACTIVE:-}" ]; then
+        MINT_MODE="non-interactive"
+    else
+        MINT_MODE="interactive"
+    fi
+
     VARIANT_OUT=".machine_readable/descriptiles/VARIANT.a2ml"
     mkdir -p "$(dirname "$VARIANT_OUT")"
     {
@@ -633,14 +665,27 @@ repo-init archetype="":
         echo "minted_at          = \"${CURRENT_DATE}\""
         echo ""
         echo "template_repo      = \"${PARENT_SLUG}\""
+        echo "template_branch    = \"${PARENT_BRANCH}\""
         echo "template_commit    = \"${PARENT_PIN}\""
+        echo "template_tree      = \"${PARENT_TREE}\""
+        echo "# Contract: branches this repo is EXPECTED to carry beyond the default."
+        echo "# Empty means default-only. A mint must never inherit template work"
+        echo "# branches (coderabbit/, chore/, bot-task or stale branches) — that is"
+        echo "# how knot-knot received a byte-identical copy of a template work branch"
+        echo "# with no common ancestor (#203). Enforced by"
+        echo "# scripts/check-template-conformance.sh."
+        echo "extra_branches     = []"
         echo ""
         echo "canon_version      = \"${CANON_VERSION}\""
         echo "criteria_sha256    = \"${CANON_CRITERIA_SHA}\""
         echo "gates_sha256       = \"${CANON_GATES_SHA}\""
         echo ""
         echo "archetype          = \"${ARCHETYPE:-}\""
-        echo "minted_by          = \"hand\""
+        echo "# Which minting path actually ran. Hardcoded as \"hand\" before this, so"
+        echo "# every scripted mint claimed to be hand-minted — which destroyed the"
+        echo "# one signal that would have told #201/#203 which path to trust."
+        echo "minted_by          = \"repo-init\""
+        echo "mint_mode          = \"${MINT_MODE}\""
         echo ""
         echo "[substitutions]"
         echo "# ADR-0003 records the old state honestly: \"renders 34 substitutions and"
