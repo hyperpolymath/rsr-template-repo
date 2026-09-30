@@ -44,6 +44,7 @@ repo-init archetype="":
     # --- Load defaults from config (if exists) ---
     # Create yours: ~/.config/rsr/defaults
     # Format: OWNER=myorg  AUTHOR="My Name"  AUTHOR_EMAIL=me@example.org ...
+    #         AUTHOR_ORCID=0000-0002-1825-0097 (optional)
     DEFAULTS="${XDG_CONFIG_HOME:-$HOME/.config}/rsr/defaults"
     if [ -f "$DEFAULTS" ]; then
         echo "Loading defaults from $DEFAULTS"
@@ -81,6 +82,35 @@ repo-init archetype="":
 
     read -rp "Previous/alt email [${AUTHOR_EMAIL_ALT:-none}]: " _AUTHOR_EMAIL_ALT
     AUTHOR_EMAIL_ALT="${_AUTHOR_EMAIL_ALT:-${AUTHOR_EMAIL_ALT:-}}"
+
+    # ORCID iD for CITATION.cff. Defaults from AUTHOR_ORCID in the defaults
+    # file, then `git config user.orcid`, so an author sets it once:
+    #     git config --global user.orcid 0000-0002-1825-0097
+    # Blank drops the orcid line below. An all-zeros placeholder is worse than
+    # no line: citation tools resolve it and attribute the work to nobody.
+    AUTHOR_ORCID="${AUTHOR_ORCID:-$(git config --get user.orcid 2>/dev/null || true)}"
+    read -rp "Author ORCID iD [${AUTHOR_ORCID:-none}]: " _AUTHOR_ORCID
+    AUTHOR_ORCID="${_AUTHOR_ORCID:-${AUTHOR_ORCID:-}}"
+    AUTHOR_ORCID="${AUTHOR_ORCID#http*://orcid.org/}"
+    if [ -n "$AUTHOR_ORCID" ]; then
+        if [[ ! "$AUTHOR_ORCID" =~ ^[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]$ ]]; then
+            echo "Error: ORCID iD must look like 0000-0002-1825-0097 (got '${AUTHOR_ORCID}')"
+            exit 1
+        fi
+        # ISO 7064 MOD 11-2 check digit, as ORCID specifies: a transposed
+        # digit is a valid-looking iD that belongs to someone else.
+        _orcid_digits="${AUTHOR_ORCID//-/}"
+        _orcid_total=0
+        for ((i = 0; i < 15; i++)); do
+            _orcid_total=$(( (_orcid_total + ${_orcid_digits:i:1}) * 2 ))
+        done
+        _orcid_check=$(( (12 - _orcid_total % 11) % 11 ))
+        [ "$_orcid_check" = 10 ] && _orcid_check=X
+        if [ "$_orcid_check" != "${_orcid_digits:15:1}" ]; then
+            echo "Error: ORCID iD ${AUTHOR_ORCID} fails its check digit (expected ${_orcid_check})"
+            exit 1
+        fi
+    fi
 
     read -rp "Project description []: " PROJECT_DESCRIPTION
 
@@ -154,6 +184,7 @@ repo-init archetype="":
     echo "  Owner:       $OWNER"
     echo "  Author:      $AUTHOR <$AUTHOR_EMAIL>"
     [ -n "$AUTHOR_ORG" ] && echo "  Organization: $AUTHOR_ORG"
+    [ -n "$AUTHOR_ORCID" ] && echo "  ORCID:       $AUTHOR_ORCID"
     echo "  Forge:       $FORGE"
     echo "  Year:        $CURRENT_YEAR"
     echo "────────────────────────────────────────────────"
@@ -234,6 +265,7 @@ repo-init archetype="":
         -e "s|${LB}DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
     )
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
+    [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|${AUTHOR_ORCID}|g")
     [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|${OPENSSF_BP_ID}|g")
     [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|${OPENSSF_BP_ID}|g")
 
@@ -297,6 +329,10 @@ repo-init archetype="":
     if [ -z "$OPENSSF_BP_ID" ]; then
         sed -i "/bestpractices\.dev\/projects\/${LB}OPENSSF_BP_ID${RB}/d" README.adoc 2>/dev/null || true
         sed -i "/${LB}OPENSSF_PROJECT_ID${RB}/d" docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc 2>/dev/null || true
+    fi
+    # Same rule for the ORCID iD: CFF makes `orcid` optional, a wrong one is not.
+    if [ -z "$AUTHOR_ORCID" ]; then
+        sed -i "/orcid\.org\/${LB}AUTHOR_ORCID${RB}/d" CITATION.cff 2>/dev/null || true
     fi
     # A .mailmap exists to map an alternate address onto the canonical one.
     # With no alternate address there is nothing to map, and the sole entry

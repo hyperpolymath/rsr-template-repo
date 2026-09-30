@@ -172,6 +172,7 @@ INIT_ANSWERS=(
     "$TEST_AUTHOR_EMAIL"        # Author email
     ""                          # Author organization
     ""                          # Previous/alt email
+    ""                          # Author ORCID iD   -> none (line dropped)
     "$TEST_DESCRIPTION"         # Project description
     ""                          # Forge domain      -> default
     ""                          # Security email    -> default
