@@ -210,7 +210,7 @@ fix: fmt
 fmt: provision::fmt
 
 # Check formatting without changes
-fmt-check: provision::lint
+fmt-check: provision::fmt-check
 
 # Run linter (`zig fmt --check` on src/interface/ffi; like `test`, it parses the
 # FFI sources only after `just repo-init` has filled the template tokens)
