@@ -123,6 +123,22 @@ validate-ai-install:
         fi
     fi
 
+    # The rest of the provisioning set's AI and manual-setup documents. Their
+    # locations come from the provisioning engine, so this check and `just doctor`
+    # agree on where the warm-ups live (root, docs/onboarding/ or docs/).
+    if [ -f build/just/provision-lib.sh ]; then
+        for d in $(bash build/just/provision-lib.sh set-files | grep -E '(^|/)(SETUP|llm-warmup-[a-z]+)\.adoc$'); do
+            if [ ! -f "$d" ]; then
+                echo "MISSING: $d"
+                ERRORS=$((ERRORS + 1))
+            fi
+        done
+        if ! grep -q '^\[\[ai-install\]\]' "$README" 2>/dev/null; then
+            echo "MISSING: [[ai-install]] anchor in $README (see build/just/provision.just ai-setup)"
+            ERRORS=$((ERRORS + 1))
+        fi
+    fi
+
     if [ "$ERRORS" -gt 0 ]; then
         echo ""
         echo "AI install guide: FAIL ($ERRORS issues)"

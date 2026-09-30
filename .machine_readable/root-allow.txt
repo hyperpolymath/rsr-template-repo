@@ -36,6 +36,7 @@ rsr-template-repo_chora.deed # the repo deed: universal AI entry point; family-7
 CLAUDE.md                  # generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 ?GEMINI.md                # pointer to CLAUDE.md for repos without AGENTS.md yet
 Justfile                   # thin; delegates phases to build/just/*.just
+launcher.sh                # --setup/--doctor/--heal/--ai-setup (launcher-standard 0.5.0); the one file a newcomer runs first
 coordination.k9.ncl        # repo-local session binding (template-mandated)
 
 # ─── Conventional dotfiles (tool-required at root) ───────────────────────────
@@ -47,8 +48,8 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .cicd-hygiene-allow        # code-hygiene gate allowlist; template scaffolds are seams, not debt
 .gitmessage             # git commit template; wired by .github/hooks/install.sh (git config commit.template)
 .mailmap                   # git reads .mailmap from the worktree root only
-.tool-versions
-mise.toml                  # pinned toolchains
+mise.toml                  # the toolchain: every tool at "latest" (PROVISIONING-STANDARD §4)
+mise.lock                  # makes "latest" concrete: version + per-platform checksum; mise reads it beside mise.toml
 .hypatia-ignore            # the Hypatia scanner reads it from the repo root
 .clinerules                # AI editor rules. Cline/Cursor/Windsurf read these from the project
 .cursorrules               # ROOT, so the copies formerly under .machine_readable/ai/ were inert.
