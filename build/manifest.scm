@@ -7,7 +7,7 @@
 ;;   guix time-machine -C channels.scm -- shell -m manifest.scm   # the pinned Guix
 ;;
 ;; Minted by provision-set from the languages detected here (idris2, zig).
-;; Tools Guix does not package — idris2 (via pack) — come from mise, which this
+;; Tools Guix does not package: idris2 (via pack). They come from mise, which this
 ;; shell provides:  guix shell -m manifest.scm -- mise install
 ;; Canon: hyperpolymath/standards 3-practice/provisioning/PROVISIONING-STANDARD.adoc
 (specifications->manifest

@@ -144,8 +144,8 @@ guix time-machine -C build/channels.scm -- shell -m build/manifest.scm   # the e
 guix build -f build/guix.scm   # the package
 ----
 
-Guix does not package idris2; the Guix shell includes mise, so inside it run
-`mise install` for those. `just dev-shell` picks Guix when it is present and mise
+Tools Guix does not package: idris2 (via pack). The Guix shell includes mise, so
+inside it run `mise install` for those. `just dev-shell` picks Guix when it is present and mise
 when it is not.
 
 [[opsm]]
