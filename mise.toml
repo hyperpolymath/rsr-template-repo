@@ -17,4 +17,5 @@ lockfile = true
 [tools]
 just = "latest"
 shellcheck = "latest"
+trivy = "latest"          # just deps-audit
 zig = "latest"

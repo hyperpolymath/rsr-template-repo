@@ -95,13 +95,12 @@ build: provision::build
 
 # Build in release mode with optimizations
 build-release *args:
-    @echo "Building {{project}} (release)..."
     # TODO: Replace with your release build command
     # Examples:
     #   cargo build --release {{args}}
     #   MIX_ENV=prod mix compile {{args}}
     #   zig build -Doptimize=ReleaseFast {{args}}
-    @echo "Release build complete"
+    @echo "FAIL: 'just build-release' is not wired yet — nothing was built. Edit the 'build-release' recipe." >&2; exit 1
 
 # Build and watch for changes (requires entr or similar)
 build-watch:
@@ -138,37 +137,25 @@ clean-all: clean
 test: provision::test
 
 # Run tests with verbose output
-test-verbose:
-    @echo "Running tests (verbose)..."
-    # TODO: Replace with verbose test command
+test-verbose: provision::test
 
 # Smoke test
 test-smoke:
-    @echo "Smoke test..."
     # TODO: Add basic sanity checks
+    @echo "FAIL: 'just test-smoke' is not wired yet — no smoke check ran. Edit the 'test-smoke' recipe." >&2; exit 1
 
 # Run end-to-end tests (full pipeline: build → run → verify)
 e2e:
-    @echo "Running E2E tests..."
-    # TODO: Replace with your E2E test command. Examples:
-    #   bash tests/e2e.sh                    # Shell-based E2E
-    #   npx playwright test                  # Browser E2E
-    #   mix test test/integration/e2e_test.exs  # Elixir E2E
-    #   cargo test --test end_to_end         # Rust E2E
-    @echo "E2E tests passed!"
+    bash tests/e2e.sh
 
 # Run aspect tests (cross-cutting concern validation)
 aspect:
-    @echo "Running aspect tests..."
-    # TODO: Replace with your aspect test command. Examples:
-    #   bash tests/aspect_tests.sh           # Shell-based aspect tests
-    #   cargo test --test aspects             # Rust aspect tests
     # Aspect tests validate architectural invariants:
     #   - Thread safety (mutex in FFI modules)
     #   - ABI/FFI contract (declarations match exports)
     #   - SPDX compliance (all files have license headers)
     #   - No dangerous patterns (believe_me, assert_total, etc.)
-    @echo "Aspect tests passed!"
+    bash tests/aspect_tests.sh
 
 # Run benchmarks (performance regression detection). Reports N/A until a language
 # declares some (e.g. a "bench" step in build.zig, [[bench]] in Cargo.toml).
@@ -176,10 +163,9 @@ bench: provision::bench
 
 # Run readiness tests (Component Readiness Grade: D/C/B)
 readiness:
-    @echo "Running readiness tests..."
     # TODO: Replace with your readiness test command. Examples:
     #   cargo test --test readiness -- --nocapture
-    @echo "Readiness tests complete!"
+    @echo "FAIL: 'just readiness' is not wired yet — no readiness test ran. Edit the 'readiness' recipe." >&2; exit 1
 
 # Print the current CRG grade (reads from READINESS.md '**Current Grade:** X' line)
 crg-grade:
@@ -238,9 +224,7 @@ lint: provision::lint
 run: provision::run
 
 # Run with verbose output
-run-verbose *args: build
-    # TODO: Replace with verbose run command
-    echo "Run not configured yet"
+run-verbose: run
 
 # Install to user path
 install: build-release
@@ -268,7 +252,8 @@ deps-audit:
     # Examples:
     #   cargo audit
     #   mix audit
-    @command -v trivy >/dev/null && trivy fs --severity HIGH,CRITICAL --quiet . || true
+    @command -v trivy >/dev/null || { echo "FAIL: trivy is not installed, so nothing was audited (mise install, or edit this recipe)." >&2; exit 1; }
+    trivy fs --severity HIGH,CRITICAL --exit-code 1 --quiet .
     @echo "Audit complete"
 
 # ═══════════════════════════════════════════════════════════════════════════════

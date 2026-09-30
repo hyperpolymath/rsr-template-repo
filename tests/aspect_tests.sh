@@ -54,7 +54,8 @@ while IFS= read -r -d '' f; do
         warn "Missing SPDX header: $f"
         MISSING_SPDX=$((MISSING_SPDX + 1))
     fi
-done < <(find src/ -type f \( -name "*.rs" -o -name "*.zig" -o -name "*.res" -o -name "*.ex" -o -name "*.exs" -o -name "*.gleam" -o -name "*.idr" -o -name "*.sh" \) -print0 2>/dev/null)
+# Tracked files only: build caches (.zig-cache, target/, _build/) are not source.
+done < <(git ls-files -z -- 'src/*.rs' 'src/*.zig' 'src/*.res' 'src/*.ex' 'src/*.exs' 'src/*.gleam' 'src/*.idr' 'src/*.sh' 2>/dev/null)
 
 if [ "$MISSING_SPDX" -eq 0 ]; then
     pass "All source files have SPDX headers"
@@ -76,8 +77,19 @@ else
     pass "No dangerous Idris2 patterns (believe_me, assert_total)"
 fi
 
-# Coq/Lean dangerous patterns
-DANGEROUS_PROOF=$(grep -rn '\bAdmitted\b\|\bsorry\b\|\bunsafeCoerce\b\|\bObj\.magic\b' src/ verification/ 2>/dev/null | grep -v "test" | grep -v "comment" || true)
+# Coq/Lean/Haskell/OCaml dangerous patterns, in proof sources only and with
+# comments stripped: prose that names a banned pattern ("NO Admitted allowed")
+# is not a use of it.
+# shellcheck disable=SC2016 # the single-quoted program is Perl, not shell
+DANGEROUS_PROOF=$(git ls-files -z -- 'src/*.v' 'verification/*.v' 'src/*.lean' 'verification/*.lean' \
+    'src/*.hs' 'verification/*.hs' 'src/*.ml' 'verification/*.ml' 2>/dev/null |
+  xargs -0 -r perl -0777 -ne '
+    my $f = $ARGV; my $s = $_;
+    if ($f =~ /\.(v|ml)$/)  { $s =~ s/\(\*.*?\*\)/ /gs }
+    if ($f =~ /\.lean$/)    { $s =~ s{/-.*?-/}{ }gs; $s =~ s/--[^\n]*//g }
+    if ($f =~ /\.hs$/)      { $s =~ s/\{-.*?-\}/ /gs; $s =~ s/--[^\n]*//g }
+    print "$f: $1\n" while $s =~ /\b(Admitted|sorry|unsafeCoerce|Obj\.magic)\b/g;
+  ' || true)
 if [ -n "$DANGEROUS_PROOF" ]; then
     fail "Dangerous proof patterns found:"
     echo "$DANGEROUS_PROOF" | head -5
