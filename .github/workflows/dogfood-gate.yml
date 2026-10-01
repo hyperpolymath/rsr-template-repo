@@ -327,7 +327,14 @@ jobs:
   #
   # The canon<->spine binding. hyperpolymath/standards publishes canon.lock: the
   # released identity of the law, with a sha256 per law artefact. This repo
-  # declares the SAME hashes in .machine_readable/rsr-profile.a2ml [canon].
+  # declares the SAME hashes in the `(canon …)` clause of its repo deed,
+  # rsr-template-repo_chora.deed.
+  #
+  # The pin used to live in .machine_readable/rsr-profile.a2ml [canon]. D43
+  # froze .a2ml writes (#837 steps 1-3), so the pin could not follow canon
+  # 2.1.2 and this job went red on every PR (#215). The deed is the
+  # one-deed-per-repo home (#837), so the pin moved there; the a2ml block is
+  # now a frozen echo, compared below only to WARN when it drifts.
   #
   # Before this job, the declaration was two free-text strings
   # (`spec = "rsr-criteria-v2"`, `declares-against = "2.0.0-draft"`) and nothing
@@ -392,47 +399,49 @@ jobs:
         env:
           WANT: ${{ steps.canon.outputs.want }}
           # This job has NO `uses:` steps, deliberately: any added action would
-          # have to be pinned in actions.lock, and `uses ⊆ actions.lock` is already
-          # failing on main, so this job must not make it worse. That means no
-          # actions/checkout — and therefore NO WORKING TREE. Which is what
-          # broke this job: it read "machine-readable/rsr-profile.a2ml" from a
-          # directory that was never populated, so it failed 100% of the time
-          # with "no rsr-profile.a2ml", and would have whatever the pin said.
+          # have to be pinned in actions.lock. That means no actions/checkout —
+          # and therefore NO WORKING TREE. An earlier version read a path from
+          # a directory that was never populated and failed 100% of the time.
           #
-          # Fetch the profile by SHA instead, exactly as canon.lock is fetched
+          # Fetch the deed by SHA instead, exactly as canon.lock is fetched
           # above. Deliberately NOT github.sha: on pull_request that is the
           # ephemeral MERGE commit, which is not on the remote and would 404.
           # The event's head sha is the commit that actually exists there.
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          PROFILE="$RUNNER_TEMP/rsr-profile.a2ml"
-          fetched=""
-          for p in ".machine_readable/rsr-profile.a2ml" "machine-readable/rsr-profile.a2ml"; do
-            URL="https://raw.githubusercontent.com/hyperpolymath/rsr-template-repo/${HEAD_SHA}/${p}"
-            if curl -fsSL --retry 3 --max-time 30 "$URL" -o "$PROFILE" 2>/dev/null; then
-              fetched="$p"; break
-            fi
-          done
-          if [ -z "$fetched" ]; then
-            echo "::error::no rsr-profile.a2ml at ${HEAD_SHA:0:7} — this repo cannot declare a canon pin"
-            echo "Looked for .machine_readable/rsr-profile.a2ml and machine-readable/rsr-profile.a2ml."
+          RAW="https://raw.githubusercontent.com/${REPO}/${HEAD_SHA}"
+          DEED_NAME="${REPO#*/}_chora.deed"
+          DEED="$RUNNER_TEMP/repo.deed"
+          if ! curl -fsSL --retry 3 --max-time 30 "$RAW/$DEED_NAME" -o "$DEED"; then
+            echo "::error::no $DEED_NAME at ${HEAD_SHA:0:7} — this repo cannot declare a canon pin"
             exit 1
           fi
-          echo "profile: $fetched @ ${HEAD_SHA:0:7}"
+          echo "deed: $DEED_NAME @ ${HEAD_SHA:0:7}"
 
-          # ALL THREE PINS, BOTH SIDES.
-          #
-          # This step used to compare only criteria_sha256, while this repo's own
-          # rsr-profile.a2ml stated that "these values ... equal canon.lock
-          # [canon.artifacts]" — plural. The claim was wider than the check, so
-          # `version` and `gates_sha256` could sit at stale values and nothing
-          # reported it. They did: canon 2.0.1 changed gates_sha256, and this repo
-          # kept asserting 2.0.0 and the superseded hash. A pin nothing verifies
-          # is not a binding. See hyperpolymath/standards docs/AUDIT.adoc F8.
-          #
-          # Both readers below are the technique the canon's own
-          # check-canon-lockstep.sh uses, so there is one idiom across both repos.
+          # ALL THREE PINS, BOTH SIDES. Comparing criteria alone once let
+          # `version` and `gates_sha256` sit stale while the pin claimed all
+          # three (standards docs/AUDIT.adoc F8). A pin nothing verifies is not
+          # a binding.
+
+          # deed_canon <key> <deed-file>: print the value of :<key> from the
+          # deed's one (canon …) clause, or nothing when the clause or key is
+          # absent or the clause is not unique. Backslash-free on purpose (see
+          # build/just/repo-init.just canon_key). The SAME function is in
+          # build/just/repo-init.just, this workflow, and standards
+          # scripts/check-canon-lockstep.sh; keep the three identical.
+          deed_canon() {
+              _clauses="$(grep -vE '^[[:space:]]*;' "$2" | awk '{ printf "%s ", $0 }' | grep -oE '[(]canon[[:space:]][^()]*[)]')" || true
+              _n="$(echo "$_clauses" | grep -c '(canon' || true)"
+              if [ "$_n" != "1" ]; then
+                  echo "deed_canon: $2 carries ${_n:-0} (canon …) clauses, need exactly 1" >&2
+                  return 0
+              fi
+              echo "$_clauses" | grep -oE ':'"$1"'[[:space:]]+"[^"]*"' | head -1 | sed -E 's/^[^"]*"//; s/"$//' || true
+          }
+          # canon_key <key> <toml-file>: print <key> from the [canon] section.
+          # Reads canon.lock, and the frozen a2ml echo for the drift warning.
           canon_key() {
             awk -v key="$1" '
               /^[[:space:]]*#/ { next }
@@ -441,9 +450,9 @@ jobs:
                 sub(/^[^=]*=[[:space:]]*/, ""); gsub(/^["[:space:]]+|["[:space:]]+$/, ""); print; exit
               }' "$2"
           }
-          # The artefact records are inline tables spanning lines, so awk JOINS the
-          # record and grep extracts the hash. Deliberately not anchored to the
-          # sha256 being on any particular line of the record.
+          # artefact_hash <name> <canon.lock>: the sha256 of one artefact
+          # record. The records are inline tables spanning lines, so awk JOINS
+          # the record and grep extracts the hash.
           artefact_hash() {
             awk -v key="$1" '
               $0 ~ "^" key "[[:space:]]*=" { f = 1 }
@@ -455,17 +464,23 @@ jobs:
           want_crit="$WANT"
           want_gates="$(artefact_hash gates "$RUNNER_TEMP/canon.lock")"
           want_ver="$(canon_key version "$RUNNER_TEMP/canon.lock")"
-          got_crit="$(canon_key criteria_sha256 "$PROFILE")"
-          got_gates="$(canon_key gates_sha256 "$PROFILE")"
-          got_ver="$(canon_key version "$PROFILE")"
+          got_crit="$(deed_canon criteria-sha256 "$DEED")"
+          got_gates="$(deed_canon gates-sha256 "$DEED")"
+          got_ver="$(deed_canon version "$DEED")"
 
-          # An unreadable pin must not pass. Hashing or parsing nothing yields an
-          # empty string, and `"" = ""` is a green build with nothing behind it —
-          # the same class of bug as this job reading a file that was never there.
-          for pair in "want_crit:$want_crit" "want_gates:$want_gates" "want_ver:$want_ver" \
-                      "got_crit:$got_crit" "got_gates:$got_gates" "got_ver:$got_ver"; do
-            if [ -z "${pair#*:}" ]; then
-              echo "::error::could not read ${pair%%:*} — refusing to compare an empty value"
+          # An unreadable pin must not pass: `"" = ""` is a green build with
+          # nothing behind it. Validate SHAPE, not mere presence — a reader
+          # that captured the wrong token would otherwise compare garbage.
+          for pair in "want_crit:$want_crit" "want_gates:$want_gates" \
+                      "got_crit:$got_crit" "got_gates:$got_gates"; do
+            if ! printf '%s' "${pair#*:}" | grep -qxE '[0-9a-f]{64}'; then
+              echo "::error::${pair%%:*} is not a sha256 (got '${pair#*:}') — refusing to compare"
+              exit 1
+            fi
+          done
+          for pair in "want_ver:$want_ver" "got_ver:$got_ver"; do
+            if ! printf '%s' "${pair#*:}" | grep -qxE '[0-9]+\.[0-9]+\.[0-9]+'; then
+              echo "::error::${pair%%:*} is not a semver (got '${pair#*:}') — refusing to compare"
               exit 1
             fi
           done
@@ -479,12 +494,24 @@ jobs:
           {
             echo "## Canon lockstep"
             echo ""
-            echo "| pin | canon.lock asserts | this repo declares | |"
+            echo "| pin | canon.lock asserts | \`$DEED_NAME\` declares | |"
             echo "|---|---|---|---|"
             row version         "$want_ver"   "$got_ver"
-            row criteria_sha256 "$want_crit"  "$got_crit"
-            row gates_sha256    "$want_gates" "$got_gates"
+            row criteria-sha256 "$want_crit"  "$got_crit"
+            row gates-sha256    "$want_gates" "$got_gates"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # The frozen a2ml echo. D43 forbids writing it, so it may lag the
+          # deed; that is reported, never failed. It disappears with #837's
+          # a2ml conversion, and so does this block.
+          A2ML="$RUNNER_TEMP/rsr-profile.a2ml"
+          if curl -fsSL --retry 3 --max-time 30 "$RAW/.machine_readable/rsr-profile.a2ml" -o "$A2ML" 2>/dev/null; then
+            a2ml_ver="$(canon_key version "$A2ML")"
+            if [ -n "$a2ml_ver" ] && [ "$a2ml_ver" != "$got_ver" ]; then
+              echo "::warning::rsr-profile.a2ml [canon] says ${a2ml_ver}, the deed says ${got_ver}. The deed is authoritative; the a2ml block is frozen by D43 and retires with standards#837."
+            fi
+          fi
+
           if [ "$ok" = "1" ]; then
             echo ":white_check_mark: This template implements the canon at HEAD."
             exit 0
@@ -496,9 +523,9 @@ jobs:
             echo ""
             echo "The canon's law changed and this template has not adopted it."
             echo "Order matters (\`canon.lock [canon.lockstep].order\` is"
-            echo "\`spine-adopts-then-canon-releases\`): re-pin \`[canon]\` in"
-            echo "\`.machine_readable/rsr-profile.a2ml\` to the new hashes and fix any"
-            echo "criteria this repo now fails, BEFORE the canon release lands."
+            echo "\`spine-adopts-then-canon-releases\`): re-pin the \`(canon …)\` clause"
+            echo "in \`$DEED_NAME\` to the new hashes and fix any criteria this repo"
+            echo "now fails, BEFORE the canon release lands."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
   # ---------------------------------------------------------------------------

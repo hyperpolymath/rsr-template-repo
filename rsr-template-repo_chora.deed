@@ -10,6 +10,20 @@
   :canonical-name "rsr-template-repo"
   :beholding-chora #u5"estate/chora"
   :repo-uuid #u5"github.com/hyperpolymath/rsr-template-repo"
+  ; The canon pin: which release of hyperpolymath/standards canon.lock this
+  ; repo implements. Moved here from .machine_readable/rsr-profile.a2ml
+  ; [canon], which D43 freezes (no .a2ml writes until #837 steps 1-3), so the
+  ; pin could not follow a canon release and lockstep went red (#215).
+  ; Read by: dogfood-gate.yml `Canon lockstep` (reverse direction),
+  ; standards scripts/check-canon-lockstep.sh assertion 3 (forward), and
+  ; build/just/repo-init.just (writes PROVENANCE at mint). Every hash MUST
+  ; equal canon.lock [canon.artifacts]; canon.lock [canon.lockstep].order is
+  ; spine-adopts-then-canon-releases, so this clause moves FIRST.
+  (canon
+    :version "2.1.2"
+    :criteria-sha256 "6a5aa8857bd0d0d58ef48827938ca17c251b6b854dacf59d306388d61694d82a"
+    :gates-sha256 "e70efd2f53c9445e30da4baf770366f04a4a84ffd844a01426e587e565b53e6a"
+    :lockstep-since "2026-09-17")
   (manifest
     :version "0.1.0"
     :last-updated "{{CURRENT_DATE}}"
