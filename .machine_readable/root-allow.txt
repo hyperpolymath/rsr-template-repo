@@ -36,7 +36,7 @@ rsr-template-repo_chora.deed # the repo deed: universal AI entry point; family-7
 CLAUDE.md                  # generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the a2ml source)
 ?GEMINI.md                # pointer to CLAUDE.md for repos without AGENTS.md yet
 Justfile                   # thin; delegates phases to build/just/*.just
-launcher.sh                # --setup/--doctor/--heal/--ai-setup (launcher-standard 0.5.0); the one file a newcomer runs first
+launcher.sh                # --setup/--doctor/--heal/--ai-setup (launcher-standard 0.6.0); the one file a newcomer runs first
 coordination.k9.ncl        # repo-local session binding (template-mandated)
 
 # ─── Conventional dotfiles (tool-required at root) ───────────────────────────
