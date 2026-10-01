@@ -81,7 +81,7 @@ gh api "/repos/{owner}/{repo}/rulesets" --jq '.[] | "\(.id)\t\(.name)\t\(.enforc
 |===
 | Live ruleset | Enforcement | Target | Covers
 
-| `Base` | active | branch | deletion, required signatures, code scanning (CodeQL/Hypatia/Scorecard), Copilot review, pull request
+| `Base` | active | branch | deletion, required signatures, code scanning (CodeQL/Hypatia), Copilot review, non-fast-forward
 | `Branch-Floor` | active | branch | deletion, non-fast-forward
 | `Immutable-Tags` | active | tag | creation, deletion, non-fast-forward, update, required signatures
 |===
@@ -94,18 +94,31 @@ divergence as of 2026-09-28, recorded rather than silently reconciled because
 
 *Live `Base` rule that no file describes* ::
 
-`code_scanning` (with CodeQL, Hypatia and Scorecard tools) and
-`copilot_code_review` are enforced live but appear in neither `base.json` nor any
-upstream file synced into this directory. Upstream's nearest equivalent,
+`code_scanning` (with CodeQL and Hypatia tools) and `copilot_code_review` are
+enforced live but appear in neither `base.json` nor any upstream file synced into
+this directory. Upstream's nearest equivalent,
 `config/rulesets/Optimus-Extras.json`, declares `code_scanning` with an *empty*
 `code_scanning_tools` list, so it does not describe what is live here either.
 
+*Removed from live `Base` on 2026-10-02 (owner decision)* ::
+
+`Scorecard` was dropped from `code_scanning_tools`, and the `code_coverage` rule
+(minimum 80%, max drop 5) was deleted. Neither could ever be satisfied by a pull
+request. `scorecard.yml` runs only on `schedule` and `workflow_dispatch`, and
+Scorecard scores repository posture rather than a diff, so with
+`alerts_threshold: all` any standing finding would have blocked every PR. Nothing
+in this template produces a coverage report: `rust-ci / llvm-cov` is skipped
+because the template has no Rust. The result was that every PR sat `BLOCKED` until
+an admin bypass (#219). CodeQL and Hypatia both upload results on pull requests,
+so they stay. Do not add either rule back without a producer that runs on
+`pull_request`.
+
 *`base.json` rules that are not in force* ::
 
-`required_linear_history` is in `base.json` but is not enforced by any live
-ruleset. `required_status_checks` (an empty list, so a no-op) and
-`non_fast_forward` are likewise absent from live `Base` — though
-`non_fast_forward` *is* covered, by `Branch-Floor`.
+`required_linear_history` is in `base.json` but not in live `Base`; it is
+enforced by the separate `Require-Linear-History` ruleset. `required_status_checks` (an empty list, so a no-op) and the
+`pull_request` rule are likewise absent from live `Base`. (`non_fast_forward` is
+live in `Base` as of 2026-10-02, and is also covered by `Branch-Floor`.)
 
 *`Immutable-Tags.json` lags the live ruleset* ::
 
