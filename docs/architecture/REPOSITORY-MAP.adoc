@@ -73,10 +73,6 @@ predecessors did.
 | yes
 | git reads .mailmap from the worktree root only
 
-| `.tool-versions`
-| yes
-| -
-
 | `.windsurfrules`
 | yes
 | -
@@ -149,9 +145,17 @@ predecessors did.
 | optional
 | optional feature packs
 
+| `launcher.sh`
+| yes
+| --setup/--doctor/--heal/--ai-setup (launcher-standard 0.6.0); the one file a newcomer runs first
+
+| `mise.lock`
+| yes
+| makes latest concrete: version + per-platform checksum; mise reads it beside mise.toml
+
 | `mise.toml`
 | yes
-| pinned toolchains
+| the toolchain: every tool at latest (PROVISIONING-STANDARD §4)
 
 | `rsr-template-repo_chora.deed`
 | yes

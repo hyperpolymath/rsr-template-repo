@@ -60,16 +60,59 @@ just validate            # structure + metadata checks
 other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them
 across the tree, validates the result, and (if available) runs the `k9-svc` checks.
 
-== AI-Assisted Installation
+[[ai-install]]
+== AI-Assisted Installation (Recommended)
 
-If you are an AI agent installing this project, read
-link:docs/AI_INSTALLATION_GUIDE.adoc[the AI installation guide] first — it gives
-the orientation order, the full prompt sequence, and the privacy notice.
+=== Just say it
 
-The one trap worth stating up front: **do not set `RSR_NON_INTERACTIVE=1`**. It
-stubs the shell builtin `read`, which also disables the loops that perform token
+Say this to any AI assistant that can read a URL and run commands (or give you
+commands to paste):
+
+[source,text]
+----
+Create a new repository from https://github.com/hyperpolymath/rsr-template-repo
+----
+
+The URL is the key: it leads the assistant to
+link:docs/AI_INSTALLATION_GUIDE.adoc[`docs/AI_INSTALLATION_GUIDE.adoc`], the
+complete step-by-step recipe. The assistant checks your system, installs the
+prerequisites, instantiates the template with `just repo-init`, and verifies the
+result with `just doctor`.
+
+* "Set up rsr-template-repo so I can work on the template itself — https://github.com/hyperpolymath/rsr-template-repo"
+* `./launcher.sh --ai-setup` (or `just ai-setup`) prints the line and the guide path.
+
+=== What you will be asked
+
+. Your operating system (Linux, macOS, or Windows via WSL2).
+. The new project's name, owner, author and licence contact (the values listed in
+  `.machine_readable/ai/PLACEHOLDERS.adoc`).
+. To confirm the privacy notice below.
+
+=== Privacy and security
+
+[IMPORTANT]
+====
+Setting up rsr-template-repo clones this repository and installs its developer
+tools per-user with mise (no administrator rights, nothing sent anywhere).
+`just repo-init` rewrites files only inside the new checkout; it creates no
+remote repository and pushes nothing until you do.
+====
+
+=== The one trap
+
+If you are an AI agent: **do not set `RSR_NON_INTERACTIVE=1`**. It stubs the
+shell builtin `read`, which also disables the loops that perform token
 substitution — the run never terminates and substitutes nothing. Pipe answers to
 stdin instead.
+
+=== Troubleshooting
+
+Run `just doctor`; each FAIL carries a code explained in
+link:docs/SETUP.adoc#troubleshooting[`docs/SETUP.adoc` §Troubleshooting], and
+`just heal` applies the automatic fixes. Prefer to do it yourself? The full
+manual route is link:docs/SETUP.adoc[`docs/SETUP.adoc`]; developers and
+maintainers can brief an AI with `just ai-warmup dev` / `just ai-warmup maintainer`.
 
 == What you get
 

@@ -18,6 +18,9 @@ set positional-arguments := true
 # Re-generate with: contractile gen-just
 import? "build/contractile.just"
 
+# Provisioning canon: setup, doctor, heal, dev-shell, eval, ai-setup, … (see PROVISIONING below)
+mod provision 'build/just/provision.just'
+
 # Project metadata — customize these
 project := "rsr-template-repo"
 OWNER := "hyperpolymath"
@@ -85,26 +88,19 @@ import? "build/just/assess.just"
 # BUILD & COMPILE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Build the project (debug mode)
-build *args:
-    @echo "Building {{project}} (debug)..."
-    # TODO: Replace with your build command
-    # Examples:
-    #   cargo build {{args}}                    # Rust
-    #   mix compile {{args}}                    # Elixir
-    #   zig build {{args}}                      # Zig
-    #   deno task build {{args}}                # Deno/
-    @echo "Build complete"
+# Build the project with every detected language's toolchain (here: pack/idris2 for
+# the ABI, then `zig build` in src/interface/ffi). Replace the delegation with a
+# body of your own when the project needs a different build.
+build: provision::build
 
 # Build in release mode with optimizations
 build-release *args:
-    @echo "Building {{project}} (release)..."
     # TODO: Replace with your release build command
     # Examples:
     #   cargo build --release {{args}}
     #   MIX_ENV=prod mix compile {{args}}
     #   zig build -Doptimize=ReleaseFast {{args}}
-    @echo "Release build complete"
+    @echo "FAIL: 'just build-release' is not wired yet — nothing was built. Edit the 'build-release' recipe." >&2; exit 1
 
 # Build and watch for changes (requires entr or similar)
 build-watch:
@@ -113,7 +109,7 @@ build-watch:
     # Examples:
     #   find src -name '*.rs' | entr -c just build
     #   mix compile --force --warnings-as-errors
-    #   deno task dev
+    #   bun run dev
 
 # Clean build artifacts [reversible: rebuild with `just build`]
 clean:
@@ -134,71 +130,42 @@ clean-all: clean
 # TEST & QUALITY
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Run all tests
-test *args:
-    #!/usr/bin/env bash
-    # A check that cannot fail is not a check. This recipe MUST be replaced at
-    # mint with the project's real test command; until then it fails loudly
-    # rather than printing "Tests passed!" over an empty run.
-    #
-    # Replace this whole body with one of:
-    #   cargo test --workspace {{args}}
-    #   mix test {{args}}
-    #   zig build test {{args}}
-    #   deno test {{args}}
-    echo "FAIL: \`just test\` has not been wired to a real test command yet." >&2
-    echo "      Edit the 'test' recipe in the Justfile before relying on this gate." >&2
-    exit 1
+# Run every detected language's tests: `zig build test` covers src/interface/ffi
+# (unit tests in src/main.zig, test/integration_test.zig). It compiles only after
+# `just repo-init` has filled the template tokens, so an un-initialised template
+# fails here loudly instead of reporting a pass over nothing.
+test: provision::test
 
 # Run tests with verbose output
-test-verbose:
-    @echo "Running tests (verbose)..."
-    # TODO: Replace with verbose test command
+test-verbose: provision::test
 
 # Smoke test
 test-smoke:
-    @echo "Smoke test..."
     # TODO: Add basic sanity checks
+    @echo "FAIL: 'just test-smoke' is not wired yet — no smoke check ran. Edit the 'test-smoke' recipe." >&2; exit 1
 
 # Run end-to-end tests (full pipeline: build → run → verify)
 e2e:
-    @echo "Running E2E tests..."
-    # TODO: Replace with your E2E test command. Examples:
-    #   bash tests/e2e.sh                    # Shell-based E2E
-    #   npx playwright test                  # Browser E2E
-    #   mix test test/integration/e2e_test.exs  # Elixir E2E
-    #   cargo test --test end_to_end         # Rust E2E
-    @echo "E2E tests passed!"
+    bash tests/e2e.sh
 
 # Run aspect tests (cross-cutting concern validation)
 aspect:
-    @echo "Running aspect tests..."
-    # TODO: Replace with your aspect test command. Examples:
-    #   bash tests/aspect_tests.sh           # Shell-based aspect tests
-    #   cargo test --test aspects             # Rust aspect tests
     # Aspect tests validate architectural invariants:
     #   - Thread safety (mutex in FFI modules)
     #   - ABI/FFI contract (declarations match exports)
     #   - SPDX compliance (all files have license headers)
     #   - No dangerous patterns (believe_me, assert_total, etc.)
-    @echo "Aspect tests passed!"
+    bash tests/aspect_tests.sh
 
-# Run benchmarks (performance regression detection)
-bench:
-    @echo "Running benchmarks..."
-    # TODO: Replace with your benchmark command. Examples:
-    #   cargo bench                           # Rust criterion
-    #   zig build bench                       # Zig benchmarks
-    #   mix run bench/benchmarks.exs          # Elixir benchee
-    #   deno bench                            # Deno bench
-    @echo "Benchmarks complete!"
+# Run benchmarks (performance regression detection). Reports N/A until a language
+# declares some (e.g. a "bench" step in build.zig, [[bench]] in Cargo.toml).
+bench: provision::bench
 
 # Run readiness tests (Component Readiness Grade: D/C/B)
 readiness:
-    @echo "Running readiness tests..."
     # TODO: Replace with your readiness test command. Examples:
     #   cargo test --test readiness -- --nocapture
-    @echo "Readiness tests complete!"
+    @echo "FAIL: 'just readiness' is not wired yet — no readiness test ran. Edit the 'readiness' recipe." >&2; exit 1
 
 # Print the current CRG grade (reads from READINESS.md '**Current Grade:** X' line)
 crg-grade:
@@ -240,46 +207,24 @@ fix: fmt
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Format all source files [reversible: git checkout]
-fmt:
-    @echo "Formatting source files..."
-    # TODO: Replace with your formatter
-    # Examples:
-    #   cargo fmt
-    #   mix format
-    #   gleam format
-    #   deno fmt
+fmt: provision::fmt
 
 # Check formatting without changes
-fmt-check:
-    @echo "Checking formatting..."
-    # TODO: Replace with your format check
-    # Examples:
-    #   cargo fmt --check
-    #   mix format --check-formatted
-    #   gleam format --check
+fmt-check: provision::fmt-check
 
-# Run linter
-lint:
-    @echo "Linting source files..."
-    # TODO: Replace with your linter
-    # Examples:
-    #   cargo clippy -- -D warnings
-    #   mix credo --strict
-    #   gleam check
+# Run linter (`zig fmt --check` on src/interface/ffi; like `test`, it parses the
+# FFI sources only after `just repo-init` has filled the template tokens)
+lint: provision::lint
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUN & EXECUTE
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Run the application
-run *args: build
-    # TODO: Replace with your run command
-    echo "Run not configured yet"
+# Run the application (N/A for a library; wire a "run" step or executable to enable)
+run: provision::run
 
 # Run with verbose output
-run-verbose *args: build
-    # TODO: Replace with verbose run command
-    echo "Run not configured yet"
+run-verbose: run
 
 # Install to user path
 install: build-release
@@ -307,7 +252,8 @@ deps-audit:
     # Examples:
     #   cargo audit
     #   mix audit
-    @command -v trivy >/dev/null && trivy fs --severity HIGH,CRITICAL --quiet . || true
+    @command -v trivy >/dev/null || { echo "FAIL: trivy is not installed, so nothing was audited (mise install, or edit this recipe)." >&2; exit 1; }
+    trivy fs --severity HIGH,CRITICAL --exit-code 1 --quiet .
     @echo "Audit complete"
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -588,15 +534,42 @@ assail:
     @command -v panic-attack >/dev/null 2>&1 && panic-attack assail . || echo "WARN: panic-attack not found — install from https://github.com/hyperpolymath/panic-attacker"
 
 
-# Self-diagnostic — checks dependencies, permissions, paths
-doctor:
-    @echo "Running diagnostics for rsr-template-repo..."
-    @echo "Checking required tools..."
-    @command -v just >/dev/null 2>&1 && echo "  [OK] just" || echo "  [FAIL] just not found"
-    @command -v git >/dev/null 2>&1 && echo "  [OK] git" || echo "  [FAIL] git not found"
-    @echo "Checking for hardcoded paths..."
-    @grep -rn '$HOME\|$ECLIPSE_DIR' --include='*.rs' --include='*.ex' --include='*.res' --include='*.gleam' --include='*.sh' . 2>/dev/null | head -5 || echo "  [OK] No hardcoded paths"
-    @echo "Diagnostics complete."
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROVISIONING (standards 3-practice/provisioning/PROVISIONING-STANDARD.adoc)
+# ═══════════════════════════════════════════════════════════════════════════════
+# The canon verbs live in the provision:: module; these delegations make
+# `just <verb>` and `just provision::<verb>` the same thing. Repository-specific
+# checks go in a `doctor-local` / `setup-local` / `heal-local` recipe.
+
+# Install everything this repository needs, then run doctor
+setup: provision::setup
+
+# Check the environment: PASS/WARN/FAIL with fix hints (exit 1 on any FAIL)
+doctor: provision::doctor
+
+# Apply the safe fixes doctor knows, then re-run doctor
+heal: provision::heal
+
+# Enter the Guix development shell (mise environment when Guix is absent)
+dev-shell: provision::dev-shell
+
+# Bump mise to latest, re-lock mise.lock, re-pin the Guix channel
+toolchain-refresh: provision::toolchain-refresh
+
+# Print the one sentence to give any AI assistant to set this repository up
+ai-setup: provision::ai-setup
+
+# Print a warm-up to paste into any AI: user, dev or maintainer
+ai-warmup who="user": (provision::ai-warmup who)
+
+# test + bench with timings, saved under .eval/
+eval: provision::eval
+
+# Where the toolchain and configuration are declared
+config-show: provision::config-show
+
+# How to fetch this repository with OPSM
+opsm: provision::opsm
 
 # Guided tour of key features
 tour:
