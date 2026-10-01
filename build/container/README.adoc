@@ -202,14 +202,14 @@ To enable it, set a repository (or organisation) variable:
 | `CONTAINER_RUNNER`
 | Optional JSON array of runner labels. Defaults to
   `["self-hosted","owned","container"]` — owned compute, so **no metered
-  GitHub Actions minutes**. Set e.g. `["ubuntu-latest"]` to use GitHub-hosted
+  GitHub Actions minutes**. Set e.g. `["ubuntu-24.04"]` to use GitHub-hosted
   runners instead.
 |===
 
 [source,bash]
 ----
 gh variable set CONTAINER_CI --body true
-# optional: gh variable set CONTAINER_RUNNER --body '["ubuntu-latest"]'
+# optional: gh variable set CONTAINER_RUNNER --body '["ubuntu-24.04"]'
 ----
 
 The owned runner is expected to have `just` and a container engine installed;

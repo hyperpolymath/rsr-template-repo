@@ -21,7 +21,7 @@ on:
 jobs:
   fmt:
     name: Format (JuliaFormatter)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: julia-actions/setup-julia@v3.0.2
@@ -48,7 +48,7 @@ jobs:
 
   jet:
     name: Static analysis (JET)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: julia-actions/setup-julia@v3.0.2
@@ -93,7 +93,7 @@ jobs:
 
   test:
     name: Test (Test + Aqua)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -101,7 +101,7 @@ jobs:
         # floor (measured estate gap: Axiology-class repos declare julia 1.9
         # but test 1.10/1.11 only).
         julia: ["1.9", "1"]
-        os: [ubuntu-latest]
+        os: [ubuntu-24.04]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: julia-actions/setup-julia@v3.0.2

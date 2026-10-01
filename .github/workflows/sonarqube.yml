@@ -36,7 +36,7 @@ permissions:
 jobs:
   sonarqube:
     name: SonarQube
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # Secrets cannot be referenced from a job-level `if:`, so the presence test
     # is carried through an env var set at job scope and read in a first step.

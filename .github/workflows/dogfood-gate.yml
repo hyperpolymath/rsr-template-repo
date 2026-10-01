@@ -26,7 +26,7 @@ jobs:
   # ---------------------------------------------------------------------------
   deed-validate:
     name: Validate DEED manifests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -71,7 +71,7 @@ jobs:
   # ---------------------------------------------------------------------------
   k9-validate:
     name: Validate K9 contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -121,7 +121,7 @@ jobs:
   # ---------------------------------------------------------------------------
   empty-lint:
     name: "🔴 GATE: Empty-linter (invisible characters)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -196,7 +196,7 @@ jobs:
   # ---------------------------------------------------------------------------
   groove-check:
     name: "🟡 CHECK: Groove manifest check"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -277,7 +277,7 @@ jobs:
   # ---------------------------------------------------------------------------
   eclexiaiser-validate:
     name: Validate eclexiaiser manifest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -341,7 +341,7 @@ jobs:
   # ---------------------------------------------------------------------------
   canon-lockstep:
     name: Canon lockstep
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -506,7 +506,7 @@ jobs:
   # ---------------------------------------------------------------------------
   dogfood-summary:
     name: "ℹ️ ADVISORY: Dogfooding compliance summary (non-gating)"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [deed-validate, k9-validate, empty-lint, groove-check, eclexiaiser-validate, canon-lockstep]
     if: always()
@@ -589,7 +589,7 @@ jobs:
 
   rsr-score-self:
     name: RSR oracle — dogfood this repo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
         with:
