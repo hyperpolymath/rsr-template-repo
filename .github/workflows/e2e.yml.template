@@ -58,7 +58,7 @@ jobs:
   # repos either extend tests/e2e.sh or uncomment a stack block below.
   e2e:
     name: E2E — template smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -77,7 +77,7 @@ jobs:
 ## === RUST E2E ===
 # e2e:
 #   name: E2E — Full Pipeline
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -90,7 +90,7 @@ jobs:
 ## === ZIG FFI E2E ===
 # e2e:
 #   name: E2E — FFI Pipeline
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -103,7 +103,7 @@ jobs:
 ## === ELIXIR E2E ===
 # e2e:
 #   name: E2E — Full Pipeline
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -117,7 +117,7 @@ jobs:
 ## === DENO/ E2E ===
 # e2e:
 #   name: E2E — Full Pipeline
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -131,7 +131,7 @@ jobs:
 ## === PLAYWRIGHT (Browser E2E) ===
 # e2e-playwright:
 #   name: Playwright — ${{ matrix.project }}
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 20
 #   strategy:
 #     fail-fast: false
@@ -155,7 +155,7 @@ jobs:
 ## === HASKELL E2E ===
 # e2e:
 #   name: E2E — Full Pipeline
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -172,7 +172,7 @@ jobs:
 
 # aspect-tests:
 #   name: Aspect — Architectural Invariants
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 10
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -184,7 +184,7 @@ jobs:
 ## === RUST BENCH ===
 # benchmarks:
 #   name: Bench — Performance Regression
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -201,7 +201,7 @@ jobs:
 ## === ZIG BENCH ===
 # benchmarks:
 #   name: Bench — Performance Regression
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 15
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
@@ -215,7 +215,7 @@ jobs:
 
 # readiness:
 #   name: Readiness — Grade D/C/B
-#   runs-on: ubuntu-latest
+#   runs-on: ubuntu-24.04
 #   timeout-minutes: 10
 #   steps:
 #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4

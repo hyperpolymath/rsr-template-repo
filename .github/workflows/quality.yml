@@ -17,7 +17,7 @@ permissions:
   contents: read
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -59,7 +59,7 @@ jobs:
         uses: editorconfig-checker/action-editorconfig-checker@v3.0.0
         continue-on-error: true
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
