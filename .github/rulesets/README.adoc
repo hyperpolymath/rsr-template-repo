@@ -48,6 +48,14 @@ non-fast-forward protection only, with no bypass actors. This is the ruleset tha
 branch recoverable when the richer `Base` ruleset is unavailable or has been removed.
 Sourced verbatim from `hyperpolymath/standards` `config/rulesets/branch-floor.json`.
 
+`require-signed-commits.json`:: Standalone, zero-bypass `required_signatures` on the default
+branch (D215). Every new repo is born with it. See `hyperpolymath/standards`
+`docs/SIGNING-POLICY.adoc`. Sourced verbatim from `config/rulesets/require-signed-commits.json`.
+
+`require-linear-history.json`:: Standalone, zero-bypass `required_linear_history` (D216).
+Pair it with squash-only merge settings. A new repo starts with no merge commits, so it is
+always linear-safe. Sourced verbatim from `config/rulesets/require-linear-history.json`.
+
 `Immutable-Tags.json`:: Makes release tags immutable — blocks tag deletion,
 non-fast-forward updates, and overwrites, and requires signed tags.
 

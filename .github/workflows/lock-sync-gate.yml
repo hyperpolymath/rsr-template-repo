@@ -35,7 +35,7 @@ concurrency:
 jobs:
   lock-sync:
     name: actions.lock is in sync with the workflow YAML
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check out without actions/checkout

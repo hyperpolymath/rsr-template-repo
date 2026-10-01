@@ -55,7 +55,7 @@ jobs:
     permissions:
       contents: write # needed to enable auto-merge (gh pr merge --auto)
       pull-requests: write # needed to approve
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Fetch Dependabot metadata
