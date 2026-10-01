@@ -45,6 +45,7 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 | `{{AUTHOR_LAST}}` | Author surname (for citations) | `Doe` | docs/CITATIONS.adoc |
 | `{{AUTHOR_FIRST}}` | Author first name (for citations) | `Jane` | docs/CITATIONS.adoc |
 | `{{AUTHOR_INITIALS}}` | Author initials (for citations) | `J.` | docs/CITATIONS.adoc |
+| `{{AUTHOR_ORCID}}` | Author ORCID iD, bare form; blank drops the line (default: `git config user.orcid`) | `0000-0002-1825-0097` | CITATION.cff |
 
 ### Project Identity
 
