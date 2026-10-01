@@ -525,43 +525,51 @@ repo-init archetype="":
     PROFILE_OUT=".machine_readable/rsr-profile.a2ml"
 
     # ── Canon pin (bind the canon) ──────────────────────────────────────────
-    # Read the canon identity from the template's [canon] block BEFORE that
-    # block is overwritten below. A minted repo must record WHICH canon release
-    # it was cut from; without it "which repos are on canon 1.x?" is a campaign
-    # across the whole estate instead of a grep.
+    # Read the canon identity from the template deed's `(canon …)` clause. A
+    # minted repo must record WHICH canon release it was cut from; without it
+    # "which repos are on canon 1.x?" is a campaign across the whole estate
+    # instead of a grep.
+    #
+    # The pin used to be read from .machine_readable/rsr-profile.a2ml [canon].
+    # D43 froze .a2ml writes, so that block could not follow canon 2.1.2 and
+    # the template's own lockstep went red (#215); the pin moved to the deed.
+    # The deed was renamed to ${REPO}_chora.deed by the self-name pass above,
+    # and its (canon …) clause is carried into the child unchanged, so the
+    # child's deed and its PROVENANCE agree at mint.
     #
     # Count rather than guessed: a value here that silently became empty is the
     # same class of defect as an UNASSIGNED placeholder, and would let a repo
     # claim conformance to nothing.
-    # Section reader: `canon_key <key> <file>` prints the value of <key> from
-    # the [canon] section, or nothing.
     #
-    # Deliberately escape-free: the first attempt spelled the section-header
-    # test as /^\[/ , which reached awk as a DOUBLE backslash followed by an
-    # unterminated bracket expression. awk does not error on that - it parses a
-    # character class that swallows the rest of the program and then matches
-    # nothing, so the pin came out silently EMPTY rather than failing loudly.
-    # `substr($0,1,1)=="["` cannot be mis-escaped. This is the same class of
-    # defect as an UNASSIGNED placeholder: a value that looks computed but is
-    # empty would let a minted repo claim conformance to nothing.
-    canon_key() {
-        awk -v want="[canon]" -v key="$1" '
-            substr($0,1,1)=="[" { f = ($0==want) ? 1 : 0; next }
-            f && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
-                sub(/^[^=]*=[[:space:]]*/, "")
-                gsub(/^["[:space:]]+|["[:space:]]+$/, "")
-                print; exit
-            }
-        ' "$2"
+    # Deliberately backslash-free. The previous TOML reader first spelled its
+    # section test as /^\[/ , which reached awk as a DOUBLE backslash followed
+    # by an unterminated bracket expression; awk parsed a character class that
+    # swallowed the rest of the program, matched nothing, and the pin came out
+    # silently EMPTY. Bracket classes such as [(] cannot be mis-escaped.
+    #
+    # deed_canon <key> <deed-file>: print the value of :<key> from the
+    # deed's one (canon …) clause, or nothing when the clause or key is
+    # absent or the clause is not unique. The SAME function is in
+    # .github/workflows/dogfood-gate.yml and standards
+    # scripts/check-canon-lockstep.sh; keep the three identical.
+    deed_canon() {
+        _clauses="$(grep -vE '^[[:space:]]*;' "$2" | awk '{ printf "%s ", $0 }' | grep -oE '[(]canon[[:space:]][^()]*[)]')" || true
+        _n="$(echo "$_clauses" | grep -c '(canon' || true)"
+        if [ "$_n" != "1" ]; then
+            echo "deed_canon: $2 carries ${_n:-0} (canon …) clauses, need exactly 1" >&2
+            return 0
+        fi
+        echo "$_clauses" | grep -oE ':'"$1"'[[:space:]]+"[^"]*"' | head -1 | sed -E 's/^[^"]*"//; s/"$//' || true
     }
 
+    DEED_OUT="${REPO}_chora.deed"
     CANON_VERSION=""
     CANON_CRITERIA_SHA=""
     CANON_GATES_SHA=""
-    if [ -f "$PROFILE_OUT" ]; then
-        CANON_VERSION="$(canon_key version "$PROFILE_OUT")"
-        CANON_CRITERIA_SHA="$(canon_key criteria_sha256 "$PROFILE_OUT")"
-        CANON_GATES_SHA="$(canon_key gates_sha256 "$PROFILE_OUT")"
+    if [ -f "$DEED_OUT" ]; then
+        CANON_VERSION="$(deed_canon version "$DEED_OUT")"
+        CANON_CRITERIA_SHA="$(deed_canon criteria-sha256 "$DEED_OUT")"
+        CANON_GATES_SHA="$(deed_canon gates-sha256 "$DEED_OUT")"
     fi
     CANON_VERSION="${CANON_VERSION:-UNASSIGNED}"
     CANON_CRITERIA_SHA="${CANON_CRITERIA_SHA:-UNASSIGNED}"
@@ -735,7 +743,7 @@ repo-init archetype="":
 
     if [ "$CANON_VERSION" = "UNASSIGNED" ]; then
         echo "  provenance: $PROVENANCE_OUT — canon pin UNASSIGNED"
-        echo "              The template carried no [canon] block, so this repo"
+        echo "              The template deed carried no (canon …) clause, so this repo"
         echo "              cannot state which canon it conforms to. Fix by minting"
         echo "              from a template commit that has one."
     else
