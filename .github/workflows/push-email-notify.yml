@@ -35,7 +35,7 @@ jobs:
   notify:
     name: Email on push
     if: ${{ vars.PUSH_EMAIL_ENABLED == 'true' && github.event.deleted != true }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Send push notification email

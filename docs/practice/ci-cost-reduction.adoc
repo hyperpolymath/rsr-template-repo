@@ -199,7 +199,7 @@ Cap every job so a hung runner doesn't burn the budget:
 ----
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20   # fail-fast instead of 360 default
 ----
 
