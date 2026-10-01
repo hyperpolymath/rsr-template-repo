@@ -5,13 +5,13 @@
 The canonical README section is now part of the estate provisioning set:
 `hyperpolymath/standards` →
 `3-practice/provisioning/templates/README-ai-install.adoc.tmpl`.
-It starts with the `[[ai-install]]` anchor and the heading
+It starts with the `\[[ai-install]]` anchor and the heading
 `== AI-Assisted Installation (Recommended)`, then a *Just say it* block whose first
 listing line is the one sentence to give any AI. `just ai-setup` and
 `./launcher.sh --ai-setup` print that same line, read from the README, so edit it
 there and nowhere else.
 
-`just validate-ai-install` checks for the heading text, the `[[ai-install]]`
+`just validate-ai-install` checks for the heading text, the `\[[ai-install]]`
 anchor, `docs/AI_INSTALLATION_GUIDE.adoc`, `docs/SETUP.adoc` and the three
 `llm-warmup-{user,dev,maintainer}.adoc` warm-ups.
 
