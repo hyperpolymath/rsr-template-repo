@@ -32,7 +32,7 @@ This repository provides the standardized structure, configuration, and tooling 
 
 * Bootstrap new projects with RSR compliance
 * Reference the standard directory structure
-* Copy configuration templates (Justfile, STATE.a2ml, etc.)
+* Copy configuration templates (Justfile, repo deed, `docs/status/ROADMAP.adoc`, etc.)
 
 == Quick Start
 
@@ -134,7 +134,7 @@ The template Justfile provides:
 * **Cookbook generation**: `just cookbook` -> `docs/just-cookbook.adoc`
 * **Man page generation**: `just man` -> `docs/man/project.1`
 * **RSR validation**: `just validate-rsr`
-* **STATE.a2ml management**: `just state-touch`, `just state-phase`
+* **Project state**: `just state-phase` (prints the deed's phase and maturity)
 * **Container support**: `just container-build`, `just container-push`
 * **CI matrix**: `just ci-matrix [stage] [depth]`
 
@@ -183,7 +183,8 @@ hand-written tree that used to sit here it cannot go stale.
 * `Justfile`
 * `README.adoc`
 * `LICENSE` (MPL-2.0)
-* `.machine_readable/descriptiles/STATE.a2ml`
+* `*_chora.deed` (repo deed)
+* `docs/status/ROADMAP.adoc`
 * `www/.well-known/security.txt`
 * `www/.well-known/ai.txt`
 * `www/.well-known/humans.txt`
@@ -198,37 +199,23 @@ hand-written tree that used to sit here it cannot go stale.
 * npm, Bun, pnpm, yarn (use )
 * Go (use Rust)
 
-== STATE.a2ml
+== Project State
 
-The STATE.a2ml file tracks project state:
+Project state is split between the repo deed and a journal:
 
-[source]
-----
-# STATE — Project State Checkpoint
-# Format: a2ml (AI-readable markup)
+* **Repo deed** (`*_chora.deed`): the `(status …)` clause carries the
+  lifecycle phase (`:phase`, `:since`, and its `(history …)`); the
+  `(maturity …)` clause carries `:level`. Read them with
+  `scripts/deed-field.sh <deed> status phase` and
+  `scripts/deed-field.sh <deed> maturity level`, or `just state-phase`.
+* **Journal** (`docs/status/ROADMAP.adoc`): milestones, blockers, next
+  actions and maintenance runs.
 
-project: v-graphql
-version: 0.1.0
-last-updated: 2026-02-14
-status: active
-
-phase: implementation
-maturity: beta
-
-ecosystem:
-  part-of: RSR Framework
-  depends-on: []
-
-milestones:
-  - name: Initial setup
-    completion: 100
-  - name: Core implementation
-    completion: 0
-----
+There is no completion percentage: it is derivable from the milestones.
 
 == Badge Schema
 
-Generate badges from STATE.a2ml:
+Generate badges from the repo deed's `(maturity)` and `(status)` clauses:
 
 [source,bash]
 ----
@@ -241,7 +228,6 @@ See `docs/BADGE_SCHEMA.adoc` for the full badge taxonomy.
 
 This template is part of:
 
-* **STATE.a2ml Ecosystem**: Conversation checkpoints
 * **RSR Framework**: Repository standards
 * **Consent-Aware-HTTP**: .well-known compliance
 * **Hypatia**: Neurosymbolic security scanning

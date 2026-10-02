@@ -27,14 +27,22 @@ is the documented cause of a family-wide divergence; the grammar has no
 grammar specification, never against a neighbouring file.
 ====
 
-== The six descriptiles
+== The descriptiles
 
-`AGENTIC.a2ml`:: AI agent operational gating and safety controls.
-`ECOSYSTEM.a2ml`:: Ecosystem position, relationships, explicit boundaries.
-`META.a2ml`:: Architecture decisions (ADRs), development practices, design rationale.
 `NEUROSYM.a2ml`:: Symbolic semantics, composition algebra.
 `PLAYBOOK.a2ml`:: Executable plans, operational runbooks.
-`STATE.a2ml`:: Project state, phase, milestones, session history.
+
+The retired STATE/META/ECOSYSTEM/AGENTIC/CLADE `.a2ml` files must not be
+recreated anywhere (rsr-template-repo#209). Their content now lives in:
+
+* the repo deed (`*_chora.deed`): `(status)` and `(maturity)` for project
+  phase and maturity; `(meta)` for architecture axes and development
+  practices (ADRs themselves are in `docs/decisions/`); `(ecosystem)` for
+  ecosystem position and boundaries; `(agentic)` for agent permissions and
+  gating; `(identity)`, `(clade)`, `(lineage)` and `(forges)` for the facet
+  classification record;
+* `docs/status/ROADMAP.adoc`: milestones, blockers, next actions and
+  maintenance runs.
 
 == Other files in this directory
 
@@ -45,10 +53,6 @@ and is deliberately not restated here:
 contractile — it states an observed drift (descriptive) and issues a
 mandated realignment (normative). It is the join between the two families
 and has its own specification.
-
-`CLADE.a2ml`:: The facet classification record. "Clade" is retained only as
-the current filename; the scheme it names is being replaced, since facets
-do not share common descent.
 
 `*_chora.deed` (repo deed, at the repo root):: The universal AI entry point —
 a DEED-grammar file. The family-7 allocation manifest (0-AI-MANIFEST.a2ml) and

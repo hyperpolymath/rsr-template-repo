@@ -53,9 +53,12 @@ let methodology_guard = {
     },
 
     state_not_template = {
-      description = "STATE.a2ml must not contain template placeholders",
+      description = "The ROADMAP journal must not contain template placeholders",
       severity = "warning",
-      file = ".machine_readable/descriptiles/STATE.a2ml",
+      # The journal, not the repo deed: a deed names rsr-template-repo in
+      # (lineage :instantiated-from) by design, so this pattern would always
+      # fire there. rsr-template-repo#209 retired STATE.a2ml.
+      file = "docs/status/ROADMAP.adoc",
       # NOTE: the PROJECT token below is written as a Nickel concat
       # ("{{" ++ "PROJECT}}") ON PURPOSE. `just repo-init` runs a sed substitution for
       # the brace-PROJECT-brace token over EVERY text file, which would otherwise

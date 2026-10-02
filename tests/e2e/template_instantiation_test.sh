@@ -112,7 +112,9 @@ rm -rf "$TEST_REPO_PATH/.claude"
 # The origin is set to the INSTANTIATED name deliberately, for the same reason
 # the check below clears GITHUB_REPOSITORY: we want the checker to judge this as
 # a real minted repo, not to exempt itself as a template.
-if [ -d "$TEST_REPO_PATH/.git" ]; then
+# -e, not -d: in a linked worktree .git is a FILE pointing at the source
+# repo, and leaving it would make the git init below act on the source.
+if [ -e "$TEST_REPO_PATH/.git" ]; then
     rm -rf "$TEST_REPO_PATH/.git"
     log_pass ".git directory removed (fresh clone)"
 fi
@@ -355,12 +357,10 @@ done
 
 log_step "Verifying machine-readable metadata"
 
-METADATA_FILES=(
-    ".machine_readable/descriptiles/STATE.a2ml"
-    ".machine_readable/descriptiles/META.a2ml"
-)
-
-for file in "${METADATA_FILES[@]}"; do
+# Identity, state, meta and ecosystem are clauses of the minted repo's own
+# deed (rsr-template-repo#209); the journal is docs/status/ROADMAP.adoc.
+CHILD_DEED="${TEST_REPO_NAME}_chora.deed"
+for file in "$CHILD_DEED" "docs/status/ROADMAP.adoc"; do
     if [ -f "$TEST_REPO_PATH/$file" ]; then
         log_pass "Metadata file exists: $file"
     else
@@ -368,6 +368,28 @@ for file in "${METADATA_FILES[@]}"; do
         exit 1
     fi
 done
+for retired in CLADE META ECOSYSTEM STATE AGENTIC; do
+    if [ -e "$TEST_REPO_PATH/.machine_readable/descriptiles/$retired.a2ml" ]; then
+        log_error "mint wrote retired descriptiles/$retired.a2ml (#209)"
+        exit 1
+    fi
+done
+# The template's identity must not survive into the mint: its clade, its
+# maturity, its uuid name, or an unfilled token.
+DEED_READ="$TEST_REPO_PATH/scripts/deed-field.sh"
+CHILD="$TEST_REPO_PATH/$CHILD_DEED"
+if [ "$(bash "$DEED_READ" "$CHILD" clade primary)" != "UNASSIGNED" ] \
+   || [ "$(bash "$DEED_READ" "$CHILD" maturity level)" != "experimental" ] \
+   || [ "$(bash "$DEED_READ" "$CHILD" status phase)" != "incubating" ] \
+   || [ "$(bash "$DEED_READ" "$CHILD" ecosystem project)" != "$TEST_REPO_NAME" ] \
+   || [ "$(bash "$DEED_READ" "$CHILD" "" repo-uuid)" != "github.com/${TEST_OWNER}/${TEST_REPO_NAME}" ]; then
+    log_error "child deed still carries the template's identity, or lacks its own"
+    exit 1
+fi
+# Unfilled tokens in the child deed are caught by check-no-placeholders.sh
+# above, which scans every file and exempts metasyntactic tokens such as
+# the {{PLACEHOLDER}} the deed's prose mentions.
+log_pass "Child deed carries the minted repo's identity"
 
 #==============================================================================
 # WWW SITE-OPERATIONS BUNDLE (issue #53)

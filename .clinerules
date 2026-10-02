@@ -2,7 +2,7 @@
 # Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 # Authoritative source: docs/practice/AI-CONVENTIONS.adoc
 
-# STARTUP: Read the repo deed (*_chora.deed at the repo root) first, then .machine_readable/descriptiles/STATE.a2ml.
+# STARTUP: Read the repo deed (*_chora.deed at the repo root) first, then docs/status/ROADMAP.adoc.
 
 # LICENSE
 # All original code: MPL-2.0.
@@ -11,9 +11,11 @@
 # Copyright: {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
 # STATE FILES (.machine_readable/ ONLY)
-# Never create in repo root: STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml,
-# AGENTIC.a2ml, NEUROSYM.a2ml, PLAYBOOK.a2ml.
-# The .machine_readable/ directory is the single source of truth.
+# The retired STATE/META/ECOSYSTEM/AGENTIC/CLADE .a2ml files must not be
+# recreated anywhere; their content is in the repo deed (*_chora.deed) and
+# docs/status/ROADMAP.adoc.
+# Never create NEUROSYM.a2ml or PLAYBOOK.a2ml in the repo root.
+# The repo deed and .machine_readable/ are the single source of truth.
 
 # BANNED PATTERNS
 # Idris2: believe_me, assert_total, assert_smaller, unsafePerformIO

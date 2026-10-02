@@ -62,8 +62,8 @@ hooks fail if any check fails.
 - severity: critical
 
 ### six-directory-present
-- description: descriptiles directory exists with required files
-- run: test -d .machine_readable/descriptiles && test -f .machine_readable/descriptiles/META.a2ml && test -f .machine_readable/descriptiles/ECOSYSTEM.a2ml && test -f .machine_readable/descriptiles/STATE.a2ml && test -f .machine_readable/descriptiles/PLAYBOOK.a2ml && test -f .machine_readable/descriptiles/AGENTIC.a2ml && test -f .machine_readable/descriptiles/NEUROSYM.a2ml
+- description: descriptiles directory exists with required files, and the repo has exactly one deed (*_chora.deed, which holds what CLADE/META/ECOSYSTEM/STATE/AGENTIC.a2ml did)
+- run: test -d .machine_readable/descriptiles && test -f .machine_readable/descriptiles/PLAYBOOK.a2ml && test -f .machine_readable/descriptiles/NEUROSYM.a2ml && bash scripts/deed-field.sh --find . >/dev/null
 - severity: critical
 
 ### anchors-directory

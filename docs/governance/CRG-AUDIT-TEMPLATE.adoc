@@ -24,7 +24,7 @@ Evaluates the `{{REPO}}` repository against
 - Standard: `standards/component-readiness-grades/COMPONENT-READINESS-GRADES.md`
 - Template (criteria boilerplate): `rsr-template-repo/docs/governance/CRG-CRITERIA.adoc`
 - Self-declared grade (prior art):
-  * `.machine_readable/descriptiles/STATE.a2ml` → `grade = "<declared>"`
+  * `docs/status/ROADMAP.adoc` → `Declared CRG grade: <declared>` line
   * `docs/READINESS.md` (if present) → per-component grades
   * Third-party badges (Glama, OpenSSF, etc.) if any — note date and scope
 - Audit date: {{CURRENT_DATE}}
@@ -64,8 +64,8 @@ Do *not* mark PRESENT without citing the path.
 | PRESENT / PARTIAL (count) / ABSENT
 | `.github/workflows/`
 
-| `.machine_readable/descriptiles/` canonical A2ML
-| PRESENT (STATE, META, ECOSYSTEM, AGENTIC, NEUROSYM, PLAYBOOK) / ABSENT
+| `.machine_readable/descriptiles/`
+| PRESENT (NEUROSYM, PLAYBOOK) / ABSENT
 | Layout matches CLAUDE.md invariant
 
 | `*_chora.deed` (repo deed)
@@ -140,10 +140,10 @@ RSR compliance verdict: *met* / *partial* / *not met* — Grade D floor satisfie
 
 === Test matrix
 
-Cite *from authoritative source* (STATE.a2ml or CI log). Do not re-count by
-filesystem grep — grade the evidence that already exists.
+Cite *from authoritative source* (`docs/status/ROADMAP.adoc` or CI log). Do not
+re-count by filesystem grep — grade the evidence that already exists.
 
-- `total-tests = N` (from `.machine_readable/descriptiles/STATE.a2ml` or CI).
+- Test count N (from `docs/status/ROADMAP.adoc` or CI).
 - Breakdown by suite: list each named suite and its count.
 - CI: `.github/workflows/<test-workflow>.yml` runs on push / tag / schedule.
 - Last green run: date + commit SHA.
@@ -166,7 +166,7 @@ v2.0 C requires **per-file and per-directory orientation**. Evidence checklist:
 
 === Dogfooding / home-stable evidence
 
-Cite STATE.a2ml `[dogfooding-status]`. For each line item:
+Cite the `== Dogfooding status` section of `docs/status/ROADMAP.adoc`. For each line item:
 - WHAT was dogfooded (capability),
 - HOW (concrete use-path),
 - WHEN (date completed),
@@ -180,15 +180,15 @@ Cite STATE.a2ml `[dogfooding-status]`. For each line item:
 === External validation (Grade B / A)
 
 Distinguish carefully — v2.0 B requires **real external users with feedback**,
-not catalogue listings. Populate the canonical STATE.a2ml sections named
-below; internal-capability items belong under `[grade-b-status]` (legacy) or
-a roadmap section, *not* under `[external-targets]`.
+not catalogue listings. Populate the `docs/status/ROADMAP.adoc` sections named
+below; internal-capability items belong in another roadmap section, *not*
+under `== External targets`.
 
-- STATE.a2ml `[external-targets]` — at least 6 diverse entries for B.
+- ROADMAP.adoc `== External targets` — at least 6 diverse entries for B.
   Target identity + date + outcome for each. If absent, grade is capped at C.
-- STATE.a2ml `[issues-fed-back]` — closed-issue trail with external-reporter
+- ROADMAP.adoc `== Issues fed back` — closed-issue trail with external-reporter
   label for B.
-- STATE.a2ml `[field-signal]` — multi-source external confirmation for A.
+- ROADMAP.adoc `== Field signal` — multi-source external confirmation for A.
 - Awesome-list PRs merged (N). *Catalogue listings, not dogfooders.*
 - Directory/registry listings (MCP directory, Glama, etc.) with automated
   assessment badges — *third-party automated assessment, not external usage*.
@@ -196,7 +196,8 @@ a roadmap section, *not* under `[external-targets]`.
 
 NOTE: Legacy `[grade-b-status]` sections (pre-2026-04-18) often mix internal
 capabilities with external targets. During audit, re-classify each entry
-and either move it to `[external-targets]` or drop it. See the boj-server
+and either move it to `== External targets` in `docs/status/ROADMAP.adoc`
+or drop it. See the boj-server
 audit for a worked example (six items all re-classified as internal).
 
 == Grade x Evidence Matrix
@@ -222,7 +223,7 @@ audit for a worked example (six items all re-classified as internal).
 
 | D
 | ✓/✗
-| All RSR structural requirements met; N tests; scope documented in STATE.a2ml, ROADMAP.adoc
+| All RSR structural requirements met; N tests; scope documented in the repo deed, ROADMAP.adoc
 | ...
 
 | C
@@ -280,7 +281,8 @@ them. Examples:
 == Related Files
 
 - `docs/READINESS.md` — per-component table. Note v1.0-vs-v2.0 schema alignment.
-- `.machine_readable/descriptiles/STATE.a2ml` — authoritative self-declared state.
+- `*_chora.deed` (repo deed) — authoritative phase and maturity (`(status)`, `(maturity)`).
+- `docs/status/ROADMAP.adoc` — milestones, evidence and the declared CRG grade.
 - `docs/governance/CRG-LIFT-PLAN-{{CURRENT_DATE}}.adoc` — companion plan for
   D→C (and medium-term C→B) lifts.
 - `docs/governance/CRG-CRITERIA.adoc` — boilerplate criteria doc.

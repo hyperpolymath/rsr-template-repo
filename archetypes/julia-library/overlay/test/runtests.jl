@@ -7,7 +7,7 @@
 #   2. Behaviour — every test/cases/*.jl is included. The shipped case
 #      (smoke.jl) is a LOAD check only; replace/extend it as real
 #      behaviour tests land. Until then, `Pkg.test()` passing is necessary
-#      but NOT sufficient — record that in STATE.a2ml (smoke-only suite).
+#      but NOT sufficient — record that in docs/status/ROADMAP.adoc (smoke-only suite).
 
 using Test
 using {{PROJECT_NAME}}

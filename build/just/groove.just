@@ -81,8 +81,8 @@ verify-template:
         FOUND=1
     fi
 
-    # Check for empty SCM files
-    for f in .machine_readable/descriptiles/STATE.a2ml .machine_readable/descriptiles/META.a2ml .machine_readable/descriptiles/ECOSYSTEM.a2ml; do
+    # Check the repo deed for unfilled template placeholders
+    for f in *_chora.deed; do
         if [ -f "$f" ] && grep -q '{{'{{'}}' "$f" 2>/dev/null; then
             echo "⚠ $f still has template placeholders"
             FOUND=1

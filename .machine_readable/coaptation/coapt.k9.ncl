@@ -43,16 +43,16 @@ K9!
       ".machine_readable/contractiles/bust/Bustfile.a2ml",
     ],
     descriptiles = [
-      ".machine_readable/descriptiles/CLADE.a2ml",
-      ".machine_readable/descriptiles/STATE.a2ml",
-      ".machine_readable/descriptiles/ECOSYSTEM.a2ml",
-      ".machine_readable/descriptiles/AGENTIC.a2ml",
+      # The repo deed at the root (<repo>_chora.deed), read through
+      # scripts/deed-field.sh; it replaced CLADE/STATE/ECOSYSTEM/AGENTIC.a2ml
+      # (rsr-template-repo#209).
+      "*_chora.deed",
       ".machine_readable/descriptiles/anchors/ANCHOR.a2ml",
     ],
     witness_map = ".machine_readable/coaptation/witness-map.ncl",
     grades = ".machine_readable/coaptation/grades.ncl",
     comparator = ".machine_readable/coaptation/coapt.ncl",
-    target = ".machine_readable/coaptation/receipts/latest.a2ml",
+    target = ".machine_readable/coaptation/receipts/latest.toml",
   },
 
   # Checks (all must hold).

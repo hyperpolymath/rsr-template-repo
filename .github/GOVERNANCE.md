@@ -46,7 +46,7 @@ release schedules, contributor access, and community standards.
 - ADR statuses: `proposed`, `accepted`, `deprecated`, `superseded`, `rejected`.
 - ADRs provide a historical record of why decisions were made and what alternatives
   were considered.
-- See `.machine_readable/descriptiles/META.a2ml` for the machine-readable ADR index.
+- The ADR index is `docs/decisions/` itself; the `(meta)` clause of the repo deed (`*_chora.deed`) records the machine-readable architecture axes and practices.
 
 ---
 

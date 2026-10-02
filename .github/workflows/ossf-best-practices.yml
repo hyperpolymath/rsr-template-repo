@@ -64,18 +64,24 @@ jobs:
             exit 1
           fi
           echo "README: OK"
-      - name: Check .machine_readable directory and STATE.a2ml
+      - name: Check .machine_readable directory and the repo deed
         run: |
           if [ ! -d ".machine_readable" ]; then
             echo "::error::.machine_readable/ directory is required"
             exit 1
           fi
 
-          if [ ! -f ".machine_readable/descriptiles/STATE.a2ml" ]; then
-            echo "::error::.machine_readable/descriptiles/STATE.a2ml is required"
+          # Project state is the (status …) clause of the repo deed
+          # (rsr-template-repo#209), which replaced descriptiles/STATE.a2ml.
+          if ! DEED=$(bash scripts/deed-field.sh --find .); then
+            echo "::error::exactly one <repo>_chora.deed is required at the root"
             exit 1
           fi
-          echo ".machine_readable/descriptiles/STATE.a2ml: OK"
+          if ! bash scripts/deed-field.sh --has "$DEED" status; then
+            echo "::error::$DEED has no (status …) clause"
+            exit 1
+          fi
+          echo "$DEED (status): OK"
       - name: Check CHANGELOG exists
         run: |
           if [ ! -f "CHANGELOG.md" ] && [ ! -f "CHANGELOG.adoc" ] && [ ! -f "CHANGES.md" ]; then

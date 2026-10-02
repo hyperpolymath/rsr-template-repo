@@ -55,7 +55,7 @@ info:
     @echo "Version: {{version}}"
     @echo "RSR Tier: {{tier}}"
     @echo "Recipes: $(just --summary | wc -w)"
-    @[ -f ".machine_readable/descriptiles/STATE.a2ml" ] && grep -oP 'phase\s*=\s*"\K[^"]+' .machine_readable/descriptiles/STATE.a2ml | head -1 | xargs -I{} echo "Phase: {}" || true
+    @d=$(bash scripts/deed-field.sh --find . 2>/dev/null) && bash scripts/deed-field.sh "$d" status phase | xargs -I{} echo "Phase: {}" || true
 
 # Run Invariant Path overlay tools for this repository
 invariant-path *ARGS:
@@ -257,10 +257,10 @@ deps-audit:
     @echo "Audit complete"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ARRIVAL PACK — agent-facing CLAUDE.md, compiled from a2ml
+# ARRIVAL PACK — agent-facing CLAUDE.md, compiled from the repo deed
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Compile CLAUDE.md (the agent arrival pack) from this repo's a2ml
+# Compile CLAUDE.md (the agent arrival pack) from this repo's deed
 claude-md:
     @bash .machine_readable/arrival-pack/generate.sh
 
@@ -284,7 +284,7 @@ validate-repo-map:
     rm -f "$before"
     echo "repository map: up to date"
 
-# Fail if CLAUDE.md's generated region drifted from a2ml or was hand-edited
+# Fail if CLAUDE.md's generated region drifted from the deed or was hand-edited
 validate-claude-md:
     @bash .machine_readable/arrival-pack/verify.sh
 
@@ -407,16 +407,17 @@ import? "build/just/validate.just"
 # STATE MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Update STATE.a2ml timestamp
-state-touch:
-    @if [ -f ".machine_readable/descriptiles/STATE.a2ml" ]; then \
-        sed -i 's/last-updated = "[^"]*"/last-updated = "'"$(date +%Y-%m-%d)"'"/' .machine_readable/descriptiles/STATE.a2ml && \
-        echo "STATE.a2ml timestamp updated"; \
-    fi
+# Repo state lives in the repo deed's (status …) and (maturity …) clauses
+# (rsr-template-repo#209); the journal is docs/status/ROADMAP.adoc. There is
+# no last-updated stamp to touch: git log is the record of when it changed.
 
-# Show current phase from STATE.a2ml
+# Show the lifecycle phase and maturity from the repo deed
 state-phase:
-    @sed -n 's/^[[:space:]]*phase[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' .machine_readable/descriptiles/STATE.a2ml 2>/dev/null | head -1 || echo "unknown"
+    #!/usr/bin/env bash
+    DEED=$(bash scripts/deed-field.sh --find . || true)
+    if [ -z "$DEED" ]; then echo "unknown (no *_chora.deed)"; exit 0; fi
+    echo "phase: $(bash scripts/deed-field.sh "$DEED" status phase || echo unknown)"
+    echo "maturity: $(bash scripts/deed-field.sh "$DEED" maturity level || echo unknown)"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GUIX
@@ -438,7 +439,7 @@ guix-build:
 automate task="all":
     #!/usr/bin/env bash
     case "{{task}}" in
-        all) just fmt && just lint && just test && just docs && just state-touch ;;
+        all) just fmt && just lint && just test && just docs ;;
         cleanup) just clean && find . -name "*.orig" -delete && find . -name "*~" -delete ;;
         update) just deps && just validate ;;
         *) echo "Unknown: {{task}}. Use: all, cleanup, update" && exit 1 ;;

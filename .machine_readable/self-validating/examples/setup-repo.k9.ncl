@@ -48,7 +48,7 @@ K9!
 
     # RSR compliance features to enable
     features = {
-      checkpoint_files | Bool = true,  # STATE.a2ml, ECOSYSTEM.a2ml, META.a2ml
+      checkpoint_files | Bool = true,  # the repo deed (*_chora.deed)
       security_workflows | Bool = true,  # CodeQL, Scorecard, etc.
       quality_checks | Bool = true,  # Linting, formatting
       mirroring | Bool = false,  # GitLab/Bitbucket mirrors
@@ -120,12 +120,10 @@ K9!
     },
 
     "create-checkpoint-files" = {
-      description = "Create STATE.a2ml, ECOSYSTEM.a2ml, META.a2ml",
+      description = "Check the repo deed exists (written by just repo-init)",
       commands = [
-        "echo '(state (version \"1.0.0\") (project \"%{config.repo_name}\"))' > STATE.a2ml",
-        "echo '(ecosystem (version \"1.0.0\") (name \"%{config.repo_name}\"))' > ECOSYSTEM.a2ml",
-        "echo '(meta (version \"1.0.0\") (project \"%{config.repo_name}\"))' > META.a2ml",
-        "echo '✓ Checkpoint files created'",
+        "test -f %{config.repo_name}_chora.deed || { echo 'run just repo-init to write the repo deed'; exit 1; }",
+        "echo '✓ Repo deed present'",
       ],
     },
 
@@ -153,7 +151,7 @@ K9!
         "echo '⚠️  This will delete all generated files'",
         "echo 'Press Ctrl+C to cancel, or wait 5 seconds...'",
         "sleep 5",
-        "rm -f STATE.a2ml ECOSYSTEM.a2ml META.a2ml",
+        # The repo deed is authored, not generated: clean never removes it.
         "echo '✓ Cleaned'",
       ],
     },
