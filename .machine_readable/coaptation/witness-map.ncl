@@ -28,14 +28,10 @@
     witnesses = [{ fact = "anchor.authority", op = 'present }],
     note = "descriptiles/anchors/ANCHOR.a2ml parses ⇒ .machine_readable/ exists and is populated",
   },
-  "must.six-directory-present" = {
-    kind = "descriptile",
-    # Only ANCHOR is still read from descriptiles/: state and ecosystem are deed
-    # clauses at the repo root since rsr-template-repo#209, so a deed fact would
-    # attest the root, not this directory.
-    witnesses = [{ fact = "anchor.authority", op = 'present }],
-    note = "ANCHOR.a2ml was read from .machine_readable/descriptiles/anchors/",
-  },
+  # must.six-directory-present has NO descriptile witness. Its probe needs
+  # descriptiles/PLAYBOOK + NEUROSYM and exactly one deed, and no fact here
+  # attests that: state and ecosystem are deed clauses since rsr-template-repo#209,
+  # and ANCHOR attests only anchors/. It is probe-deferred to the Hunt tier.
   "must.anchors-directory" = {
     kind = "descriptile",
     witnesses = [{ fact = "anchor.authority", op = 'present }],

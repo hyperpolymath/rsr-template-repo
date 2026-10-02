@@ -18,6 +18,8 @@
 # Output (stdout): { "facts": [ {id,family,key,value,present} ... ],
 #                   "provenance": { <source>: <hash> } }
 set -euo pipefail
+# A failed $(…) inside a function or assignment must stop the run, not read as "".
+shopt -s inherit_errexit
 
 ROOT="${1:-.}"
 READ="$ROOT/scripts/deed-field.sh"
@@ -28,14 +30,23 @@ DEED="$(bash "$READ" --find "$ROOT")" \
 [ -f "$ANCHOR" ] || { echo "extract-facts.sh: missing $ANCHOR" >&2; exit 2; }
 
 # field PATH KEY -> the deed value, or "" when the clause or key is absent
-field() { bash "$READ" "$DEED" "$1" "$2" || true; }
+# (rc 1); an unreadable deed or a usage error (rc 2) fails the run instead
+field() {
+  local rc=0
+  bash "$READ" "$DEED" "$1" "$2" || rc=$?
+  [ "$rc" -le 1 ] || return "$rc"
+}
 
-# items PATH KEY SEP -> the deed list :KEY ( … ) joined by the literal SEP
+# items PATH KEY SEP -> the deed list :KEY ( … ) joined by the literal SEP,
+# "" when absent; fails like field() when the deed cannot be read
 items() {
-  local out="" item first=1
+  local out="" item first=1 list rc=0
+  list="$(bash "$READ" --list "$DEED" "$1" "$2")" || rc=$?
+  [ "$rc" -le 1 ] || return "$rc"
   while IFS= read -r item; do
+    [ -n "$item" ] || continue
     if [ "$first" -eq 1 ]; then out="$item"; first=0; else out="$out$3$item"; fi
-  done < <(bash "$READ" --list "$DEED" "$1" "$2" || true)
+  done <<< "$list"
   printf '%s' "$out"
 }
 
@@ -77,53 +88,65 @@ read_clauses() {
   bash "$READ" "$DEED" '' canonical-name
   bash "$READ" "$DEED" '' repo-uuid
   for c in identity clade lineage forges status maturity ecosystem agentic; do
-    bash "$READ" --clause "$DEED" "$c" || true
+    bash "$READ" --clause "$DEED" "$c" || [ "$?" -eq 1 ] || return 2
   done
 }
 
 # id <TAB> value rows. Empty value => present:false in jq below.
 emit() { printf '%s\t%s\n' "$1" "$2"; }
 
+# fact ID CMD… -> emit ID with the output of CMD; a failed CMD stops the run,
+# where `emit ID "$(CMD)"` would discard its exit status
+fact() {
+  local id="$1" v
+  shift
+  v="$("$@")"
+  emit "$id" "$v"
+}
+
 # The uuid is derived from the header :repo-uuid name, never stored (deed.abnf).
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-[ -z "$uuid_name" ] || uuid="$(uuidgen --sha1 --namespace @url --name "$uuid_name")"
+[ -z "$uuid_name" ] || uuid="$(bash "$READ" --uuid "$DEED")"
 
 rows="$(
   # --- identity / lineage: (identity) (clade) (lineage) (forges) ---
   emit 'clade.uuid'             "$uuid"
-  emit 'clade.canonical-name'   "$(field '' canonical-name)"
-  emit 'clade.prefixed-name'    "$(field identity prefixed-name)"
-  emit 'clade.primary'          "$(field clade primary)"
-  emit 'clade.born'             "$(field lineage born)"
-  emit 'clade.forge-github'     "$(field forges github)"
+  fact 'clade.canonical-name'   field '' canonical-name
+  fact 'clade.prefixed-name'    field identity prefixed-name
+  fact 'clade.primary'          field clade primary
+  fact 'clade.born'             field lineage born
+  fact 'clade.forge-github'     field forges github
   # --- where things are now: (status) (maturity) ---
-  emit 'state.phase'            "$(field status phase)"
-  emit 'state.maturity'         "$(field maturity level)"
+  fact 'state.phase'            field status phase
+  fact 'state.maturity'         field maturity level
   # --- where it sits + IS-NOT boundary: (ecosystem) ---
-  emit 'ecosystem.type'             "$(field ecosystem position-type)"
-  emit 'ecosystem.position'         "$(field ecosystem pipeline-position)"
-  emit 'ecosystem.coordination'     "$(field ecosystem coordination)"
-  emit 'ecosystem.what-this-is-not' "$(items ecosystem not ' · ')"
+  fact 'ecosystem.type'             field ecosystem position-type
+  fact 'ecosystem.position'         field ecosystem pipeline-position
+  fact 'ecosystem.coordination'     field ecosystem coordination
+  fact 'ecosystem.what-this-is-not' items ecosystem not ' · '
   # --- may I act / integrity posture: (agentic) ---
-  emit 'agentic.fail-closed'                       "$(field agentic/integrity fail-closed)"
-  emit 'agentic.allow-silent-skip'                 "$(field agentic/integrity allow-silent-skip)"
-  emit 'agentic.require-evidence-per-step'         "$(field agentic/integrity require-evidence-per-step)"
-  emit 'agentic.release-claim-requires-hard-pass'  "$(field agentic/integrity release-claim-requires-hard-pass)"
-  emit 'agentic.default-mode'                      "$(field agentic/methodology default-mode)"
+  fact 'agentic.fail-closed'                       field agentic/integrity fail-closed
+  fact 'agentic.allow-silent-skip'                 field agentic/integrity allow-silent-skip
+  fact 'agentic.require-evidence-per-step'         field agentic/integrity require-evidence-per-step
+  fact 'agentic.release-claim-requires-hard-pass'  field agentic/integrity release-claim-requires-hard-pass
+  fact 'agentic.default-mode'                      field agentic/methodology default-mode
   # --- ANCHOR: semantic authority + golden path ---
-  emit 'anchor.authority'            "$(scalar 'authority' "$ANCHOR")"
-  emit 'anchor.policy'               "$(scalar 'policy' "$ANCHOR")"
-  emit 'anchor.project'              "$(scalar 'project' "$ANCHOR")"
-  emit 'anchor.golden-path'          "$(arr 'smoke-test-command' "$ANCHOR" ' && ')"
-  emit 'anchor.success-criteria'     "$(arr 'success-criteria' "$ANCHOR" '; ')"
-  emit 'anchor.must-have-anchor'     "$(scalar 'must-have-anchor' "$ANCHOR")"
-  emit 'anchor.must-have-golden-path' "$(scalar 'must-have-golden-path' "$ANCHOR")"
+  fact 'anchor.authority'            scalar 'authority' "$ANCHOR"
+  fact 'anchor.policy'               scalar 'policy' "$ANCHOR"
+  fact 'anchor.project'              scalar 'project' "$ANCHOR"
+  fact 'anchor.golden-path'          arr 'smoke-test-command' "$ANCHOR" ' && '
+  fact 'anchor.success-criteria'     arr 'success-criteria' "$ANCHOR" '; '
+  fact 'anchor.must-have-anchor'     scalar 'must-have-anchor' "$ANCHOR"
+  fact 'anchor.must-have-golden-path' scalar 'must-have-golden-path' "$ANCHOR"
 )"
 
+h_deed="$(read_clauses | hash12)"
+h_anchor="$(hash12 < "$ANCHOR")"
+
 printf '%s\n' "$rows" | jq -R -s \
-  --arg deed      "$(read_clauses | hash12)" \
-  --arg anchor    "$(hash12 < "$ANCHOR")" \
+  --arg deed      "$h_deed" \
+  --arg anchor    "$h_anchor" \
   '
   {
     facts: (

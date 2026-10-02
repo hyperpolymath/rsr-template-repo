@@ -15,6 +15,7 @@
 #   deed-field.sh --clause DEED PATH      the clause, one token per line (for hashing)
 #   deed-field.sh --has DEED PATH         exit 0 iff the clause exists
 #   deed-field.sh --find [DIR]            print the one *_chora.deed in DIR (default .)
+#   deed-field.sh --uuid DEED             the repo uuid, derived from :repo-uuid
 #
 # PATH names clauses below (repo-deed …), slash-separated: `status`,
 # `agentic/integrity`, `meta/maintenance-axes`. An empty PATH is (repo-deed …)
@@ -28,13 +29,17 @@
 # literal prints its string: `:repo-uuid #u5"github.com/o/r"` gives
 # github.com/o/r, the uuid5 name (uuidgen --sha1 --namespace @url --name …).
 #
+# --uuid derives the uuid5 (RFC 9562, URL namespace) of the header :repo-uuid
+# name. It uses uuidgen when that supports --sha1, else bun, and exits 2 when
+# neither is available or the result is not uuid-shaped: it never guesses.
+#
 # Exit: 0 found; 1 clause or key absent (nothing printed); 2 usage error or no
 # readable deed. --find exits 1 unless exactly one deed is present.
 set -euo pipefail
 
 mode=value
 case "${1:-}" in
-  --list|--clause|--has) mode="${1#--}"; shift ;;
+  --list|--clause|--has|--uuid) mode="${1#--}"; shift ;;
   --find)
     shopt -s nullglob
     deeds=("${2:-.}"/*_chora.deed)
@@ -44,6 +49,7 @@ case "${1:-}" in
 esac
 
 deed="${1:-}"; path="${2-}"; key="${3:-}"
+[ "$mode" != uuid ] || { path=""; key=repo-uuid; }
 if [ -z "$deed" ] || [ ! -r "$deed" ]; then
   echo "deed-field.sh: no readable deed: '${deed}'" >&2; exit 2
 fi
@@ -51,7 +57,9 @@ if { [ "$mode" = value ] || [ "$mode" = list ]; } && [ -z "$key" ]; then
   echo "deed-field.sh: KEY is required" >&2; exit 2
 fi
 
-awk -v mode="$mode" -v path="$path" -v key="$key" '
+# read_deed MODE -> run the clause reader over $deed for $path / $key
+read_deed() {
+awk -v mode="$1" -v path="$path" -v key="$key" '
 BEGIN { RS = "\001" }
 {
   # Tokenise: "(" ")" , S<string> , A<atom>. Comments are dropped here.
@@ -144,3 +152,34 @@ END {
   exit 1
 }
 ' "$deed"
+}
+
+# uuid5_url NAME -> the uuid5 of NAME in the RFC 9562 URL namespace
+uuid5_url() {
+  if uuidgen --sha1 --namespace @url --name x >/dev/null 2>&1; then
+    uuidgen --sha1 --namespace @url --name "$1"
+  elif command -v bun >/dev/null 2>&1; then
+    bun -e '
+      const h = new Bun.CryptoHasher("sha1");
+      h.update(Buffer.from("6ba7b8119dad11d180b400c04fd430c8", "hex"));
+      h.update(process.argv[1]);
+      const b = h.digest().subarray(0, 16);
+      b[6] = (b[6] & 0x0f) | 0x50;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      const x = b.toString("hex");
+      console.log([x.slice(0, 8), x.slice(8, 12), x.slice(12, 16), x.slice(16, 20), x.slice(20)].join("-"));
+    ' "$1"
+  else
+    echo "deed-field.sh: --uuid needs uuidgen with --sha1, or bun" >&2; return 2
+  fi
+}
+
+if [ "$mode" = uuid ]; then
+  name="$(read_deed value)" || exit $?
+  id="$(uuid5_url "$name")" || exit 2
+  [[ "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+    || { echo "deed-field.sh: derived uuid is not uuid5-shaped: '$id'" >&2; exit 2; }
+  printf '%s\n' "$id"
+  exit 0
+fi
+read_deed "$mode"

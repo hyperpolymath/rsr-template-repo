@@ -11,17 +11,17 @@ proposed-action = "advisory — soft drift within bands (posture/intend). Open a
 
 [coverage]
 clauses-total = 52
-descriptile-witnessed = 3
-probe-deferred-to-hunt = 24
+descriptile-witnessed = 2
+probe-deferred-to-hunt = 25
 must-trust-unmeasured-gaps = 0
 note = "Yard sees descriptile evidence only; probe-deferred obligations need a Hunt-tier run for a full hard-gate."
 
 [reading.must-trust]
 grade = "boolean_gate / boolean_gate_provenance"
-witnessed = 3
+witnessed = 2
 refuted = 0
 unmeasured-gaps = 0
-probe-deferred = 24
+probe-deferred = 25
 gate = "pass"
 
 [reading.adjust]
@@ -60,7 +60,7 @@ must.machine-readable-dir = "witnessed"
 must.contractiles-complete = "probe-deferred"
 must.contractiles-files-present = "probe-deferred"
 must.bust-dust-files-present = "probe-deferred"
-must.six-directory-present = "witnessed"
+must.six-directory-present = "probe-deferred"
 must.anchors-directory = "witnessed"
 must.self-validating-structure = "probe-deferred"
 must.no-placeholder-values = "probe-deferred"

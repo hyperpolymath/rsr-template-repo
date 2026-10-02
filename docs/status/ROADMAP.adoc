@@ -44,12 +44,14 @@ version is 0.1.0 (`Justfile`, `CITATION.cff`, tag `v0.1.0`, deed
   prepared (recon P0.2/01), pending its PR. The dogfood job works around it
   with an explicit `--ssot` until then.
 . Estate-wide `actions.lock` sweep (D38/D39 ruling 2026-09-19): the grace
-  window closes 2026-10-01; gatekeeper repos first.
+  window closed on 2026-10-01. The sweep's estate-wide status is not recorded
+  here. This repo's own lockfile verifies (`gh actions-lock --no-fix`, rc=0,
+  2026-10-02).
 
 == Next actions
 
 * Wire the RSR oracle dogfood job in dogfood-gate.yml (recon P0.2) once the hypatia M-3 fix lands
-* Run the estate-wide actions.lock sweep ahead of the 2026-10-01 enforcement date (gatekeeper repos first)
+* Record where the estate-wide actions.lock sweep stands now that the 2026-10-01 window has closed (gatekeeper repos first)
 * Rebase rsr-julia-library-template-repo onto this spine (recon P1.3 procedure; ADR-0003 now accepted)
 * Validate container templates across wolfi-base and static Chainguard images
 * Harden multi-forge sync for GitLab/Bitbucket mirroring edge cases

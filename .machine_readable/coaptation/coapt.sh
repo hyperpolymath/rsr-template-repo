@@ -63,7 +63,12 @@ case "$MODE" in
         echo ""
         echo "[carnage]"
         echo "# hard obligations refuted / unmeasured / breaks active (from the receipt):"
-        printf '%s\n' "$receipt" | grep -E ' = (refuted|gap|unmeasured|alarm)$' | sed 's/^/clause = /'
+        # Receipt values are quoted TOML strings. Only hard obligations go in the
+        # basis: adjust is advisory and dust never alarms. The lines are kept as
+        # dotted keys (must.x = "refuted"), which is valid TOML under [carnage].
+        # An empty match is not an error: grep's rc 1 must not abort the basis.
+        printf '%s\n' "$receipt" | sed -n '/^\[clauses\]/,/^\[/p' \
+          | grep -E '^(must|trust|intend|bust)\.[^ ]+ = "(refuted|gap|unmeasured|alarm)"$' || true
         echo ""
         echo "[basis-for-the-human]"
         echo "decision = \"<author records the design decision here>\""

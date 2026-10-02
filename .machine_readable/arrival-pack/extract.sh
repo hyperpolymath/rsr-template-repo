@@ -15,6 +15,8 @@
 # source of truth; arrival-pack.ncl renders this JSON into the CLAUDE.md region.
 # Determinism (no timestamps) is required so the k9 drift check can byte-compare.
 set -euo pipefail
+# A failed $(…) inside a function or assignment must stop the run, not read as "".
+shopt -s inherit_errexit
 
 ROOT="${1:-.}"
 READ="$ROOT/scripts/deed-field.sh"
@@ -25,14 +27,23 @@ DEED="$(bash "$READ" --find "$ROOT")" \
 [ -f "$ANCHOR" ] || { echo "extract.sh: missing $ANCHOR" >&2; exit 2; }
 
 # field PATH KEY -> the deed value, or "" when the clause or key is absent
-field() { bash "$READ" "$DEED" "$1" "$2" || true; }
+# (rc 1); an unreadable deed or a usage error (rc 2) fails the run instead
+field() {
+  local rc=0
+  bash "$READ" "$DEED" "$1" "$2" || rc=$?
+  [ "$rc" -le 1 ] || return "$rc"
+}
 
-# items PATH KEY SEP -> the deed list :KEY ( … ) joined by the literal SEP
+# items PATH KEY SEP -> the deed list :KEY ( … ) joined by the literal SEP,
+# "" when absent; fails like field() when the deed cannot be read
 items() {
-  local out="" item first=1
+  local out="" item first=1 list rc=0
+  list="$(bash "$READ" --list "$DEED" "$1" "$2")" || rc=$?
+  [ "$rc" -le 1 ] || return "$rc"
   while IFS= read -r item; do
+    [ -n "$item" ] || continue
     if [ "$first" -eq 1 ]; then out="$item"; first=0; else out="$out$3$item"; fi
-  done < <(bash "$READ" --list "$DEED" "$1" "$2" || true)
+  done <<< "$list"
   printf '%s' "$out"
 }
 
@@ -60,7 +71,7 @@ hash12() { sha256sum | cut -c1-12; }
 # The uuid is derived from the header :repo-uuid name, never stored (deed.abnf).
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-[ -z "$uuid_name" ] || uuid="$(uuidgen --sha1 --namespace @url --name "$uuid_name")"
+[ -z "$uuid_name" ] || uuid="$(bash "$READ" --uuid "$DEED")"
 
 # read_clauses -> the clauses this pack reads, one token per line. Hashing only
 # these keeps an unrelated deed edit (say a canon-pin bump) from reading as drift.
@@ -69,31 +80,52 @@ read_clauses() {
   bash "$READ" "$DEED" '' canonical-name
   printf '%s\n' "$uuid_name"
   for c in identity clade lineage forges status maturity ecosystem agentic; do
-    bash "$READ" --clause "$DEED" "$c" || true
+    bash "$READ" --clause "$DEED" "$c" || [ "$?" -eq 1 ] || return 2
   done
 }
 
 isnot="$(items ecosystem not ' · ')"
 [ -n "$isnot" ] || isnot="(not yet declared — add (ecosystem :not (…)) to the deed)"
 
+# Each value is its own assignment so that a failed deed read stops the run;
+# as a bare `--arg x "$(…)"` its exit status would be discarded.
+canonical_name="$(field '' canonical-name)"
+[ -n "$canonical_name" ] \
+  || { echo "extract.sh: $(basename "$DEED") has no :canonical-name" >&2; exit 2; }
+prefixed_name="$(field identity prefixed-name)"
+clade_primary="$(field clade primary)"
+clade_secondary="$(items clade secondary ', ')"
+born="$(field lineage born)"
+forge_gh="$(field forges github)"
+purpose="$(field ecosystem purpose)"
+pipeline_pos="$(field ecosystem pipeline-position)"
+chain="$(field ecosystem chain)"
+coordination="$(field ecosystem coordination)"
+phase="$(field status phase)"
+maturity="$(field maturity level)"
+golden_smoke="$(arr 'smoke-test-command' "$ANCHOR" ' && ')"
+golden_crit="$(arr 'success-criteria' "$ANCHOR" '; ')"
+h_deed="$(read_clauses | hash12)"
+h_anchor="$(hash12 < "$ANCHOR")"
+
 jq -n \
-  --arg canonical_name "$(field '' canonical-name)" \
-  --arg prefixed_name  "$(field identity prefixed-name)" \
+  --arg canonical_name "$canonical_name" \
+  --arg prefixed_name  "$prefixed_name" \
   --arg uuid           "$uuid" \
-  --arg clade_primary  "$(field clade primary)" \
-  --arg clade_secondary "$(items clade secondary ', ')" \
-  --arg born           "$(field lineage born)" \
-  --arg forge_gh       "$(field forges github)" \
-  --arg purpose        "$(field ecosystem purpose)" \
+  --arg clade_primary  "$clade_primary" \
+  --arg clade_secondary "$clade_secondary" \
+  --arg born           "$born" \
+  --arg forge_gh       "$forge_gh" \
+  --arg purpose        "$purpose" \
   --arg isnot          "$isnot" \
-  --arg pipeline_pos   "$(field ecosystem pipeline-position)" \
-  --arg chain          "$(field ecosystem chain)" \
-  --arg coordination   "$(field ecosystem coordination)" \
-  --arg phase          "$(field status phase)" \
-  --arg maturity       "$(field maturity level)" \
+  --arg pipeline_pos   "$pipeline_pos" \
+  --arg chain          "$chain" \
+  --arg coordination   "$coordination" \
+  --arg phase          "$phase" \
+  --arg maturity       "$maturity" \
   --arg deed           "$(basename "$DEED")" \
-  --arg golden_smoke   "$(arr 'smoke-test-command' "$ANCHOR" ' && ')" \
-  --arg golden_crit    "$(arr 'success-criteria' "$ANCHOR" '; ')" \
-  --arg h_deed         "$(read_clauses | hash12)" \
-  --arg h_anchor       "$(hash12 < "$ANCHOR")" \
+  --arg golden_smoke   "$golden_smoke" \
+  --arg golden_crit    "$golden_crit" \
+  --arg h_deed         "$h_deed" \
+  --arg h_anchor       "$h_anchor" \
   '$ARGS.named'
