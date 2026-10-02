@@ -5,7 +5,7 @@
 # coapt.sh — the Coaptation RUNNER (the controller of the cybernetic loop).
 #
 # Pipeline: extract-clauses.sh + extract-facts.sh (Kennel: sense) -> coapt.ncl
-# (Yard: compare, pure) -> write receipts/latest.a2ml (Hunt: actuate, leashed).
+# (Yard: compare, pure) -> write receipts/latest.toml (Hunt: actuate, leashed).
 #
 # Modes (runner-invocation grammar):
 #   --report   (default) SITREP — emit the coaptation receipt; decide nothing.
@@ -21,19 +21,19 @@ MODE="${1:---report}"
 
 # Kennel (sense) -> deterministic atomised inputs.
 bash "$CO/extract-clauses.sh" "$ROOT/.machine_readable/contractiles" > "$CO/clauses.json"
-bash "$CO/extract-facts.sh"   "$ROOT/.machine_readable/descriptiles"           > "$CO/facts.json"
+bash "$CO/extract-facts.sh"   "$ROOT"                                          > "$CO/facts.json"
 
 # Yard (compare, pure) -> receipt text.
 receipt="$(nickel export --format raw "$CO/coapt.ncl")"
 
 # Hunt (actuate, leashed) -> persist the receipt.
 mkdir -p "$CO/receipts"
-printf '%s\n' "$receipt" > "$CO/receipts/latest.a2ml"
+printf '%s\n' "$receipt" > "$CO/receipts/latest.toml"
 
 band="$(printf '%s\n' "$receipt"   | grep -oP '^band = "\K[^"]+' | head -1)"
 action="$(printf '%s\n' "$receipt" | grep -oP '^proposed-action = "\K[^"]+' | head -1)"
 
-echo "coapt: receipt written to .machine_readable/coaptation/receipts/latest.a2ml"
+echo "coapt: receipt written to .machine_readable/coaptation/receipts/latest.toml"
 echo "coapt: band = ${band}"
 echo "coapt: ${action}"
 
@@ -43,12 +43,12 @@ case "$MODE" in
     ;;
   --reanchor)
     if [ "$band" = "red" ]; then
-      basis="$CO/receipts/reanchor-basis.a2ml"
-      # repo name from the CLADE descriptile, not a hardcoded literal — this
+      basis="$CO/receipts/reanchor-basis.toml"
+      # repo name from the repo deed, not a hardcoded literal — this
       # script is shared verbatim by every repo instantiated from
       # rsr-template-repo, so a literal "rsr-template-repo" here would
       # misreport every one of them.
-      repo_name="$(grep -oP '^canonical-name = "\K[^"]+' "$ROOT/.machine_readable/descriptiles/CLADE.a2ml" | head -1)"
+      repo_name="$(bash "$ROOT/scripts/deed-field.sh" "$(bash "$ROOT/scripts/deed-field.sh" --find "$ROOT")" "" canonical-name)"
       {
         echo "# SPDX-License-Identifier: MPL-2.0"
         echo "# reanchor-basis — assembled by \`coapt --reanchor\`. This is the BASIS (the"
@@ -73,7 +73,7 @@ case "$MODE" in
         echo "[provenance]"
         printf '%s\n' "$receipt" | sed -n '/^\[provenance\]/,$p' | tail -n +2
       } > "$basis"
-      echo "coapt: re-anchor BASIS assembled at .machine_readable/coaptation/receipts/reanchor-basis.a2ml"
+      echo "coapt: re-anchor BASIS assembled at .machine_readable/coaptation/receipts/reanchor-basis.toml"
       echo "coapt: the anchor DROP is a HUMAN AUTHORITY ACT — coapt never drops an anchor."
       echo "coapt: NOTE — ANCHOR.a2ml lacks a drift/ledger schema; the drop cannot yet be recorded mechanically."
     else

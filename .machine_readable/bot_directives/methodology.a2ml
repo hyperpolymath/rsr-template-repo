@@ -97,7 +97,8 @@ constraints = [
 # ============================================================================
 # STATE FILE VALIDATION
 # ============================================================================
-# Phase 0 reads STATE.a2ml first but it may be broken.
+# Phase 0 reads the repo deed (status) clause and docs/status/ROADMAP.adoc first,
+# but they may be broken.
 # These rules detect corrupt/template/stale state files.
 
 [methodology.state-validation]

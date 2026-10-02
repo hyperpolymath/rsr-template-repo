@@ -413,6 +413,7 @@ Add these checks for language/compiler repositories with formal ABI/FFI constrai
 - [x] Wiki split by audience (laypeople/users/developers) and linked from docs index.
 - [x] Root-level clutter reduced (archive, analysis, reports relegated to `docs/` subtrees).
 - [x] Machine-readable docs synchronized (`STATE.a2ml`, `META.a2ml`, `ECOSYSTEM.a2ml`, contractiles).
+  (2026-10-02 — rsr-template-repo#209 retired STATE/META/ECOSYSTEM/AGENTIC/CLADE.a2ml; their content is now in the repo deed (`*_chora.deed`) and `docs/status/ROADMAP.adoc`.)
 - [x] Human-readable docs synchronized (`README`, `QUICK_STATUS`, roadmap, wiki home).
 - [x] `Mustfile` invariants present and enforceable in CI.
 - [x] `Trustfile` and `Intentfile` present and complete.

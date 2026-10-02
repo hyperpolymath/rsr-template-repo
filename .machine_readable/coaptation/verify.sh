@@ -4,7 +4,7 @@
 #
 # verify.sh — the Yard-tier drift gate for the coaptation receipt (the runnable
 # side of coapt.k9.ncl). Regenerates the receipt from the contractiles +
-# descriptiles and byte-compares it to the committed receipts/latest.a2ml.
+# descriptiles and byte-compares it to the committed receipts/latest.toml.
 # Non-zero exit on drift or hand-edit. Wire into CI/pre-commit.
 #
 # The receipt is a drift-checked PROJECTION: if the normative set-point or the
@@ -14,12 +14,12 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 CO="$ROOT/.machine_readable/coaptation"
-TARGET="$CO/receipts/latest.a2ml"
+TARGET="$CO/receipts/latest.toml"
 
 [ -f "$TARGET" ] || { echo "DRIFT: coaptation receipt missing — run \`just coapt\`"; exit 1; }
 
 bash "$CO/extract-clauses.sh" "$ROOT/.machine_readable/contractiles" > "$CO/clauses.json"
-bash "$CO/extract-facts.sh"   "$ROOT/.machine_readable/descriptiles"           > "$CO/facts.json"
+bash "$CO/extract-facts.sh"   "$ROOT"                                          > "$CO/facts.json"
 
 fresh="$(nickel export --format raw "$CO/coapt.ncl")"
 committed="$(cat "$TARGET")"

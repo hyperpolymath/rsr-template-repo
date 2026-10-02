@@ -18,7 +18,7 @@ Read, in this order, before running anything:
 
 . `*_chora.deed` (the repo deed) — the universal AI entry point at the repository root.
 . `CLAUDE.md` — the generated arrival pack (estate doctrine + repo identity).
-. `.machine_readable/descriptiles/STATE.a2ml` — current phase and completion.
+. `docs/status/ROADMAP.adoc` — milestones, blockers and next actions (phase and maturity are in the deed's `(status)` and `(maturity)` clauses; `just state-phase` prints them).
 
 Do not infer the repository's purpose from its name. If a fact is not written
 down, record it as `UNASSIGNED` rather than inventing it.

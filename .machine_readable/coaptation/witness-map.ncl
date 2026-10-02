@@ -25,16 +25,16 @@
   # --- MUST: presence obligations attested by the fact that we parsed the file ---
   "must.machine-readable-dir" = {
     kind = "descriptile",
-    witnesses = [{ fact = "state.status", op = 'present }],
-    note = "descriptiles parse ⇒ .machine_readable/ exists and is populated",
+    witnesses = [{ fact = "anchor.authority", op = 'present }],
+    note = "descriptiles/anchors/ANCHOR.a2ml parses ⇒ .machine_readable/ exists and is populated",
   },
   "must.six-directory-present" = {
     kind = "descriptile",
-    witnesses = [
-      { fact = "state.phase", op = 'present },
-      { fact = "ecosystem.type", op = 'present },
-    ],
-    note = "STATE.a2ml + ECOSYSTEM.a2ml were read from .machine_readable/descriptiles/",
+    # Only ANCHOR is still read from descriptiles/: state and ecosystem are deed
+    # clauses at the repo root since rsr-template-repo#209, so a deed fact would
+    # attest the root, not this directory.
+    witnesses = [{ fact = "anchor.authority", op = 'present }],
+    note = "ANCHOR.a2ml was read from .machine_readable/descriptiles/anchors/",
   },
   "must.anchors-directory" = {
     kind = "descriptile",
@@ -56,7 +56,7 @@
   "intend.repo-initialization" = {
     kind = "descriptile",
     witnesses = [{ fact = "ecosystem.type", op = 'equals, arg = "repository-template" }],
-    note = "ECOSYSTEM declares this repo IS a template ⇒ the init intent is realised",
+    note = "the deed (ecosystem :position-type) declares this repo IS a template ⇒ the init intent is realised",
   },
 
   # --- ADJUST: accessibility/hygiene posture (advisory; never gates) ---
@@ -68,21 +68,11 @@
     note = "ANCHOR.identity.project is un-substituted ({{PROJECT_NAME}}) ⇒ posture dip",
   },
 
-  # --- BUST: recognised break. For bust, a HOLDING witness means ALARM (active
-  #     failure), not satisfaction. open-failures/last-result are the live signal. ---
-  "bust.template-substitution-failure" = {
-    kind = "descriptile",
-    witnesses = [{ fact = "state.open-failures", op = 'nonzero }],
-    note = "alarm iff STATE records open failures; else latent (declared, not active)",
-  },
-  "bust.sync-drift-between-repos" = {
-    kind = "descriptile",
-    witnesses = [{ fact = "state.open-failures", op = 'nonzero }],
-    note = "alarm iff STATE records open failures; else latent",
-  },
-  "bust.contractile-parse-error" = {
-    kind = "descriptile",
-    witnesses = [{ fact = "state.last-result", op = 'equals, arg = "fail" }],
-    note = "alarm iff the last maintenance run failed; else latent",
-  },
+  # --- BUST: deliberately NO descriptile witness since rsr-template-repo#209. ---
+  # The bust entries used to read STATE.a2ml open-failures / last-result. Those
+  # were hand-written values ("0", "unknown") that no maintenance run ever
+  # updated, and the deed has no such field, so there is no descriptive evidence
+  # of an active break to witness. A bust clause without a witness reads
+  # "latent", the same as a witnessed non-alarm: the receipt cannot tell the two
+  # apart, so do not read "latent" as "checked".
 }

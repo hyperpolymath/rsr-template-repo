@@ -402,10 +402,10 @@ repo-init archetype="":
     #     Justfile:                project := "rsr-template-repo"
     #     Justfile:                REPO    := "rsr-template-repo"
     #     sonar-project.properties sonar.projectKey=hyperpolymath_rsr-template-repo
-    #     STATE.a2ml / ECOSYSTEM.a2ml  project = "rsr-template-repo"
+    #     STATE.a2ml / ECOSYSTEM.a2ml  project = "rsr-template-repo"  (both now in the deed)
     # i.e. it declared that it WAS the template, and would have reported its
     # code analysis into the TEMPLATE's SonarCloud project. This is the same
-    # failure the CLADE.a2ml block below fixes for the uuid/canonical-name;
+    # failure the repo-identity splice below fixes for the uuid/canonical-name;
     # nothing generalised it to the rest of the tree. Confirmed in the wild:
     # hyperpolymath/cargo-zigbuild still carries both Justfile lines.
     #
@@ -420,7 +420,6 @@ repo-init archetype="":
             -not -path './.git/*' \
             -not -path './build/just/repo-init.just' \
             -not -path './docs/decisions/*' \
-            -not -path './.machine_readable/descriptiles/CLADE.a2ml' \
             -not -path './.machine_readable/descriptiles/VARIANT.a2ml' \
             -not -name 'CHANGELOG.md' \
             -not -name 'TEMPLATE-STANDARDS-AUDIT.adoc' \
@@ -474,48 +473,64 @@ repo-init archetype="":
     fi
 
     echo ""
-    echo "── Identity (CLADE.a2ml) ────────────────────────"
+    echo "── Identity (repo deed) ─────────────────────────"
 
-    # Install THIS repo's CLADE.a2ml, replacing rsr-template-repo's own.
+    # Write THIS repo's identity into its deed, replacing rsr-template-repo's own.
     #
-    # The CLADE.a2ml shipped in the template is the TEMPLATE's real identity — a
-    # real uuid for a real repo. Nothing in SED_ARGS ever touched it, so every
-    # repo created from this template inherited uuid a5ea1382-… and
-    # canonical-name "rsr-template-repo" verbatim, and told every arriving agent
-    # it WAS the template. Nothing caught it: each value was individually valid.
-    # chronicles-of-slavia and scaffoldia were corrected for exactly this on
-    # 2026-07-16; paint-type, cargo-zigbuild, email-octad-experiment, llm-grace
-    # and rsr-template-how-to still carry it.
+    # The template ships its REAL identity — clade rm, the canonical-name
+    # rsr-template-repo, a production maturity, its own ecosystem relations —
+    # between the `>>> repo-identity` / `<<< repo-identity` markers of the deed.
+    # Before #209 the same facts sat in descriptiles/CLADE.a2ml, which nothing
+    # in SED_ARGS touched, so every repo created from this template inherited
+    # uuid a5ea1382-… and canonical-name "rsr-template-repo" verbatim and told
+    # every arriving agent it WAS the template. chronicles-of-slavia and
+    # scaffoldia were corrected for exactly this on 2026-07-16.
     #
-    # build/templates/CLADE.a2ml.in has already had its brace tokens filled by
-    # the substitution loop above (including the UUID one, derived earlier).
-    # NB: literal double-brace tokens cannot be written in this recipe body —
-    # just interpolates them, which is why LB/RB are built with printf above.
+    # build/templates/identity.deed.in has already had its brace tokens filled
+    # by the substitution loop above. It uses only tokens whose values cannot
+    # break a deed string (slug, owner, forge, date); free text such as the
+    # description stays UNASSIGNED for the author.
     # The split is the whole point:
-    #   DERIVABLE -> computed, never guessed  (uuid, owner, canonical-name)
+    #   DERIVABLE -> computed, never guessed  (uuid name, owner, canonical-name)
     #   JUDGEMENT -> left UNASSIGNED, fails loudly until a human chooses (clade)
-    CLADE_IN="build/templates/CLADE.a2ml.in"
-    CLADE_OUT=".machine_readable/descriptiles/CLADE.a2ml"
-    if [ -f "$CLADE_IN" ]; then
-        mkdir -p "$(dirname "$CLADE_OUT")"
-        cp "$CLADE_IN" "$CLADE_OUT"
+    ID_IN="build/templates/identity.deed.in"
+    DEED="${REPO}_chora.deed"
+    [ -f "$DEED" ] || DEED="rsr-template-repo_chora.deed"
+    if [ -f "$ID_IN" ] && [ -f "$DEED" ]; then
+        if [ "$(grep -c '^  ; >>> repo-identity' "$DEED")" != 1 ] \
+           || [ "$(grep -c '^  ; <<< repo-identity' "$DEED")" != 1 ]; then
+            echo "Error: $DEED must hold exactly one repo-identity marker pair."
+            exit 1
+        fi
+        awk -v frag="$ID_IN" '
+            /^  ; >>> repo-identity/ { while ((getline l < frag) > 0) print l; skip = 1; next }
+            /^  ; <<< repo-identity/ { skip = 0; next }
+            !skip
+        ' "$DEED" > "$DEED.splice"
+        cat "$DEED.splice" > "$DEED"     # keeps the file's mode
+        rm -f "$DEED.splice"
+        # The uuid5 name. The self-name pass already rewrote owner and slug in
+        # it; the forge domain is set here, because nothing else knows it.
+        sed -i -E 's|^(  :repo-uuid #u5")[^"]*"|\1'"${FORGE}/${OWNER}/${REPO}"'"|' "$DEED"
+        # The template's journal is not the child's: install the stub.
+        mkdir -p docs/status
+        cp build/templates/ROADMAP.adoc.in docs/status/ROADMAP.adoc
         rm -rf build/templates          # template-only; not part of your repo
         if [ "$REPO_UUID" = "UNASSIGNED" ]; then
             echo "  uuid:  UNASSIGNED — uuidgen not found."
-            echo "         Install util-linux (uuid-runtime), then run:"
+            echo "         Install util-linux (uuid-runtime), then check it with:"
             echo "           uuidgen --sha1 --namespace @url --name \"${FORGE}/${OWNER}/${REPO}\""
-            echo "         and put the result in $CLADE_OUT."
         else
             echo "  uuid:  $REPO_UUID"
-            echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived, recomputable, not invented)"
+            echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived from the deed's"
+            echo "          :repo-uuid name, recomputable, not stored, not invented)"
         fi
         echo "  clade: UNASSIGNED — a human must choose one of the 12."
-        echo "         CLADE-003/006 FAIL until you do. That is deliberate:"
+        echo "         just validate-rsr FAILS until you do. That is deliberate:"
         echo "         an unchosen clade must not look like a chosen one."
-        echo "         The taxonomy is listed in $CLADE_OUT."
+        echo "         The taxonomy is listed in the (clade …) comment of $DEED."
     fi
 
-    echo ""
     echo "── Profile & provenance (ADR-0003) ──────────────"
 
     # The template's own rsr-profile.a2ml is deliberately MAXIMAL (it is the
@@ -674,7 +689,8 @@ repo-init archetype="":
         echo "[paths.diverged]"
         echo "# Files a minted repo owns from birth."
         echo "paths = ["
-        echo "  \".machine_readable/descriptiles/CLADE.a2ml\","
+        echo "  \"${REPO}_chora.deed\","
+        echo "  \"docs/status/ROADMAP.adoc\","
         echo "  \".machine_readable/descriptiles/VARIANT.a2ml\","
         echo "  \".machine_readable/rsr-profile.a2ml\","
         echo "]"
@@ -703,7 +719,7 @@ repo-init archetype="":
         echo "#"
         echo "# PROVENANCE.a2ml — what this repo was minted FROM."
         echo "# Written once, at mint, by build/just/repo-init.just. Not a hand-edited"
-        echo "# file: tools that want \"what is this repo\" read STATE.a2ml; tools that"
+        echo "# file: tools that want \"what is this repo\" read the repo deed; tools that"
         echo "# want \"where did this repo come from\" read this."
         echo ""
         echo "[provenance]"
@@ -824,7 +840,7 @@ repo-init archetype="":
     # test's answer list.
     PATTERN="${LB}[A-Z_]*${RB}"
     META='PLACEHOLDER|ANYTHING|TOKEN|UPPER_SNAKE'
-    REMAINING=$(grep -rl "$PATTERN" . --include='*.md' --include='*.adoc' --include='*.yml' --include='*.yaml' --include='*.a2ml' --include='*.toml' --include='*.scm' --include='*.ncl' --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null | grep -v '.git/' | while IFS= read -r f; do
+    REMAINING=$(grep -rl "$PATTERN" . --include='*.md' --include='*.adoc' --include='*.yml' --include='*.yaml' --include='*.a2ml' --include='*.deed' --include='*.toml' --include='*.scm' --include='*.ncl' --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null | grep -v '.git/' | while IFS= read -r f; do
         case "${f#./}" in
             .machine_readable/ai/PLACEHOLDERS.adoc|EXPLAINME.adoc|scripts/check-no-placeholders.sh|tests/e2e/template_instantiation_test.sh) continue ;;
         esac

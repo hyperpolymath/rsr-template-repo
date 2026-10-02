@@ -50,6 +50,8 @@ The RSR template provides:
   CODE_OF_CONDUCT.md, LICENSE (MPL-2.0)
 - **Architecture Decision Records** in `docs/decisions/`
 
+NOTE: 2026-10-02 — rsr-template-repo#209 retired STATE/META/ECOSYSTEM/AGENTIC/CLADE.a2ml; their content is now in the repo deed (`*_chora.deed`) and `docs/status/ROADMAP.adoc`.
+
 New repositories are created by cloning the template:
 
 [source,bash]

@@ -5,7 +5,7 @@ K9!
 # claude-md.k9.ncl — k9 contract for the CLAUDE.md arrival-pack drift check.
 #
 # Yard-tier (pure evaluation / comparison; no exec, no network, no FS write):
-# the check regenerates the arrival-pack region from this repo's a2ml and asserts
+# the check regenerates the arrival-pack region from this repo's deed and asserts
 # the committed CLAUDE.md region byte-matches it. The runnable side is verify.sh;
 # writing (Hunt-tier) is generate.sh. This record documents and validates the
 # contract shape.
@@ -24,7 +24,7 @@ K9!
     metadata = {
       name = "claude-md-arrival-pack",
       version = "1.0.0",
-      description = "CLAUDE.md arrival pack is a faithful projection of this repo's a2ml.",
+      description = "CLAUDE.md arrival pack is a faithful projection of this repo's deed.",
       paired_runner = "verify.sh",
       writer = "generate.sh",
       author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
@@ -33,11 +33,10 @@ K9!
 
   # Inputs the projection reads (single source of truth).
   inputs = {
+    # The repo deed (<repo>_chora.deed) replaced CLADE / ECOSYSTEM / AGENTIC /
+    # STATE .a2ml (rsr-template-repo#209); ANCHOR still holds the golden path.
     descriptiles = [
-      ".machine_readable/descriptiles/CLADE.a2ml",
-      ".machine_readable/descriptiles/ECOSYSTEM.a2ml",
-      ".machine_readable/descriptiles/AGENTIC.a2ml",
-      ".machine_readable/descriptiles/STATE.a2ml",
+      "<repo>_chora.deed",
       ".machine_readable/descriptiles/anchors/ANCHOR.a2ml",
     ],
     estate_common = "hyperpolymath/manifesto@<pinned-sha>",  # DRAFT-unratified today
@@ -47,7 +46,7 @@ K9!
 
   # Checks (all must hold).
   checks = [
-    { id = "inputs-exist",   desc = "every descriptiles input file exists and parses" },
+    { id = "inputs-exist",   desc = "exactly one repo deed and the ANCHOR exist and parse" },
     { id = "region-present", desc = "CLAUDE.md contains exactly one BEGIN/END region" },
     { id = "no-drift",       desc = "committed region byte-equals freshly generated region" },
   ],

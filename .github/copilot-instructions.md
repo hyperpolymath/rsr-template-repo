@@ -81,6 +81,9 @@ migration destination is AffineScript.
 
 ## State Files
 
-Never create these in the repo root:
-STATE.a2ml, META.a2ml, ECOSYSTEM.a2ml, AGENTIC.a2ml, NEUROSYM.a2ml, PLAYBOOK.a2ml.
+The retired STATE/META/ECOSYSTEM/AGENTIC/CLADE `.a2ml` files must not be
+recreated anywhere; their content is in the repo deed (`*_chora.deed`) and
+`docs/status/ROADMAP.adoc`.
+
+Never create NEUROSYM.a2ml or PLAYBOOK.a2ml in the repo root.
 They belong in `.machine_readable/` only.

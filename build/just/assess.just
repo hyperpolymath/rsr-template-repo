@@ -248,9 +248,13 @@ verify:
     check_file "LICENSE"
     check_community_file "CONTRIBUTING"
     check_either "README.adoc" "README.md"
-    check_file ".machine_readable/descriptiles/STATE.a2ml"
-    check_file ".machine_readable/descriptiles/META.a2ml"
-    check_file ".machine_readable/descriptiles/ECOSYSTEM.a2ml"
+    # Identity, state and ecosystem live in the repo deed (rsr-template-repo#209).
+    if DEED=$(bash scripts/deed-field.sh --find . 2>/dev/null) && bash scripts/deed-field.sh --has "$DEED" status; then
+        echo "  OK:   $DEED (status, meta, ecosystem)"
+    else
+        echo "  FAIL: repo deed (*_chora.deed) with a (status …) clause missing"
+        ERRORS=$((ERRORS + 1))
+    fi
     check_either "CHANGELOG.md" "CHANGELOG.adoc"
 
     # Check at least 1 workflow exists

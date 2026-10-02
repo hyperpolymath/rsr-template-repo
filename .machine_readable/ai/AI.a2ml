@@ -4,16 +4,16 @@
 
 ## Repository Focus
 - `rsr-template-repo` is treated as a Rhodium Standard Repository; obey the Rhodium policies and keep `.machine_readable/` authoritative.
-- All machine-readable content lives under `.machine_readable/` — state files (a2ml), bot directives, and contractiles.
+- All machine-readable content lives under `.machine_readable/` (bot directives, contractiles, descriptiles), except the repo deed `*_chora.deed`, which sits at the repo root.
 - Prefer to keep generated files out of source control, and regenerate them with the documented commands before committing.
 
 ## Workflow
-1. Inspect `.machine_readable/descriptiles/STATE.a2ml` for blockers and next actions.
-2. Respect any constraints listed inside `.machine_readable/descriptiles/AGENTIC.a2ml` when tooling changes are requested.
-3. After finishing edits, update STATE with your outcomes and commit with a concise, imperative message.
+1. Inspect `docs/status/ROADMAP.adoc` for blockers and next actions, and the repo deed (`*_chora.deed`) `(status)` clause for the phase.
+2. Respect any constraints in the repo deed's `(agentic)` clause when tooling changes are requested.
+3. After finishing edits, update `docs/status/ROADMAP.adoc` with your outcomes and commit with a concise, imperative message.
 
 ## Delivery Promises
-- Mention in summaries whether STATE, `.machine_readable/contractiles/`, or `.machine_readable/bot_directives/` changed.
+- Mention in summaries whether the repo deed, `docs/status/ROADMAP.adoc`, `.machine_readable/contractiles/`, or `.machine_readable/bot_directives/` changed.
 - Keep this file in sync with the repository's status; update it if the governance changes.
 
 [foundational-integrations]

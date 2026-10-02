@@ -51,7 +51,7 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
-| `{{PROJECT_NAME}}` | Human-readable project name | `My Project` | SECURITY.md, CODE_OF_CONDUCT.md, TOPOLOGY.md, STATE.a2ml, Justfile, GOVERNANCE.md, MAINTAINERS.md, devcontainer.json |
+| `{{PROJECT_NAME}}` | Human-readable project name | `My Project` | SECURITY.md, CODE_OF_CONDUCT.md, TOPOLOGY.md, docs/status/ROADMAP.adoc (via build/templates/ROADMAP.adoc.in), Justfile, GOVERNANCE.md, MAINTAINERS.md, devcontainer.json |
 | `{{PROJECT_DESCRIPTION}}` | One-line description | `A tool for X` | README.adoc, build/container/Containerfile |
 | `{{PROJECT}}` | Uppercase identifier (for Idris2 modules, C macros) | `MY_PROJECT` | ABI-FFI-README.md, src/interface/abi/*.idr, src/interface/ffi/*.zig |
 | `{{project}}` | Lowercase identifier (for C symbols, filenames) | `my_project` | ABI-FFI-README.md, src/interface/ffi/*.zig |
@@ -64,7 +64,7 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
 | `{{CURRENT_YEAR}}` | Current year | `2026` | SPDX headers (all files), GOVERNANCE.md, MAINTAINERS.md |
-| `{{CURRENT_DATE}}` | Current date (ISO) | `2026-02-14` | STATE.a2ml, MAINTAINERS.md |
+| `{{CURRENT_DATE}}` | Current date (ISO) | `2026-02-14` | `*_chora.deed` (via build/templates/identity.deed.in), MAINTAINERS.md |
 | `{{DATE}}` | Last updated date | `2026-02-14` | TOPOLOGY.md, THREAT-MODEL.md |
 
 ### Contact & Security
@@ -90,7 +90,7 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
 | `{{LICENSE}}` | License name | `MPL-2.0` | ABI-FFI-README.md |
-| `{{PROJECT_PURPOSE}}` | One-line project description | `FFI bridges between languages` | STATE.a2ml |
+| `{{PROJECT_PURPOSE}}` | One-line project description | `FFI bridges between languages` | ANCHOR.a2ml (set from `{{PROJECT_DESCRIPTION}}` by `just repo-init`) |
 | `{{OPENSSF_BP_ID}}` | OpenSSF Best Practices numeric project ID (from registering at bestpractices.dev). Optional — leave blank until registered; `just repo-init` then surfaces it in the post-init "remaining placeholders" notice as a reminder. | `1234` | README.adoc (OpenSSF Best Practices badge) |
 
 ### Project Content & Onboarding (manual-fill, post-init)

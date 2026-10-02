@@ -9,7 +9,7 @@
 #
 # Naming convention:
 #   - UPPERCASE + underscore = non-executable machine-readable file
-#   - Lives in .machine_readable/ alongside STATE.a2ml, META.a2ml, etc.
+#   - Lives in .machine_readable/ alongside NEUROSYM.a2ml, PLAYBOOK.a2ml, etc.
 
 # ─────────────────────────────────────────────────────────────────
 # [ensaid] — Core eNSAID identity and version
