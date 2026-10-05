@@ -57,9 +57,50 @@ Use plain JavaScript when this tooling is needed. The "use ReScript" rule is ret
 
 ---
 
+## Estate-Wide Format Migration Directives
+
+**IMPORTANT FOR ALL AGENTS (Claude, Codex, Gemini, Mistral, etc.):**
+
+This estate enforces strict format standards. Failure to follow these causes
+estate drift and broken tooling. These rules are NOT optional.
+
+**KYAML (KEP-5295):** ALL YAML files must use KYAML format. This includes:
+- GitHub Actions workflows (.github/workflows/*.yml)
+- All other YAML configuration files
+- Use `yq` (Go version, NOT Python) for processing
+- Use estate scripts: `kyaml-format.sh`, `kyaml-migrate.sh`
+- KYAML format: `{}` for maps, `[]` for lists, double-quoted strings,
+  unquoted keys where unambiguous, trailing commas OK, 2-space indent
+- KYAML is a SUBSET of YAML - all parsers accept it
+- Owner ruling: standards#1023 confirms "KYAML everywhere, workflows included"
+
+**JCS (RFC 8785):** All JSON files must use JCS with I-JSON integration.
+This is the estate canonical JSON serialization standard.
+
+**UUIDv7:** ALL UUID identifiers must be UUIDv7 (time-sortable).
+Existing UUIDv4 identifiers MUST be migrated across both estates:
+- hyper-repos/ (hyperpolymath org)
+- meta-repos/ (metadatastician org)
+No exceptions.
+
+**.a2ml→.deed:** The a2ml format is FULLY DEPRECATED.
+- Convert ALL .a2ml files to .deed format
+- ABNF grammars: `standards/1-formats/a2ml/anchor/abnf/`
+- Required templates: ANCHOR, META, STATE, ECOSYSTEM, NEUROSYM, AGENTIC, PLAYBOOK,
+  Intentfile, Mustfile, Trustfile, Adjustfile, Bustfile, Dustfile
+- This template repo (rsr-template-repo) must be migrated FIRST as it
+  scaffolds all new repos
+
+**ENFORCEMENT:** These migrations are estate-wide with NO exceptions.
+Bots that produce YAML, JSON, or a2ml files NOT in these formats will
+be blocked. See `standards/AGENTS.adoc` for full details.
+
+---
+
 # This repo: `rsr-template-repo`  ·  clade `rm-rsr-template-repo`
 
 - **Identity** — uuid `a5ea1382-a34c-5334-8a46-a2ebe904c810`; clade `rm` (secondary ``); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
+- **NOTE:** This UUID will be migrated to UUIDv7 per estate standards.
 - **IS** — Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from.
 - **IS-NOT** — a project in its own right · Scaffoldia (the full-featured repo designer) · standards (the canon source this template operationalises)
 - **Where it sits** — pipeline position **foundation**; chain `standards → rsr-template-repo → (every estate repo)`; coordination = `standards`.
