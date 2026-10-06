@@ -4,18 +4,20 @@
 # GROOVE PROTOCOL
 #
 # Imported by ../../Justfile via `import? "build/just/groove.just"`.
-# Recipes here configure and validate the Groove protocol manifest at
-# .machine_readable/integrations/groove.a2ml — port assignment, API surface
-# flags (REST/gRPC/GraphQL/WebSocket/SSE), and template-placeholder hygiene.
-# The manifest itself is consumed by the Groove bridge / zig-unified-api-adapter.
+# Recipes here configure and validate the Groove protocol manifest — the
+# (integrations (groove …)) clause of the repo deed: port assignment, API
+# surface flags (REST/gRPC/GraphQL/WebSocket/SSE), and template-placeholder
+# hygiene. Every write goes through scripts/deed-clause.sh, one clause at a
+# time. The manifest is consumed by the Groove bridge / zig-unified-api-adapter.
 
 # Configure Groove protocol manifest (port assignment, API surfaces)
 groove-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    MANIFEST=".machine_readable/integrations/groove.a2ml"
-    if [ ! -f "$MANIFEST" ]; then
-        echo "Error: $MANIFEST not found. Run 'just repo-init' first."
+    DEED="$(bash scripts/deed-field.sh --find .)" || { echo "Error: no single *_chora.deed here. Run 'just repo-init' first."; exit 1; }
+    MANIFEST="$DEED (integrations (groove))"
+    if ! bash scripts/deed-field.sh --has "$DEED" integrations/groove; then
+        echo "Error: $DEED has no (integrations (groove)) clause."
         exit 1
     fi
 
@@ -28,7 +30,7 @@ groove-setup:
     echo ""
 
     read -rp "Primary port for this service: " PORT
-    [ -z "$PORT" ] && echo "Error: port required" && exit 1
+    [[ "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] && [ "$PORT" -le 65535 ] || { echo "Error: port must be an integer 1-65535"; exit 1; }
 
     echo ""
     echo "Which API surfaces does this project expose?"
@@ -38,14 +40,20 @@ groove-setup:
     read -rp "  WebSocket? [y/N]: " WS
     read -rp "  SSE (Server-Sent Events)? [y/N]: " SSE
 
-    # Update port in manifest
-    sed -i "s/(port 0)/(port ${PORT})/" "$MANIFEST"
+    bash scripts/deed-clause.sh set "$DEED" integrations/groove port "$PORT"
 
-    # Update API surface flags
-    [[ "${GRPC,,}" == "y" ]] && sed -i 's/(grpc.*enabled false)/(grpc    (enabled true)/' "$MANIFEST"
-    [[ "${GRAPHQL,,}" == "y" ]] && sed -i 's/(graphql.*enabled false)/(graphql (enabled true)/' "$MANIFEST"
-    [[ "${WS,,}" == "y" ]] && sed -i 's/(websocket.*enabled false)/(websocket (enabled true)/' "$MANIFEST"
-    [[ "${SSE,,}" == "y" ]] && sed -i 's/(sse.*enabled false)/(sse     (enabled true)/' "$MANIFEST"
+    # surface NAME ANSWER DEFAULT — write :enabled for one API surface from a
+    # y/n answer, DEFAULT (y or n) applying to an empty answer.
+    surface() {
+        local a="${2:-$3}" v='#f'
+        [[ "${a,,}" == y* ]] && v='#t'
+        bash scripts/deed-clause.sh set "$DEED" "integrations/groove/api-surfaces/$1" enabled "$v"
+    }
+    surface rest "$REST" y
+    surface grpc "$GRPC" n
+    surface graphql "$GRAPHQL" n
+    surface websocket "$WS" n
+    surface sse "$SSE" n
 
     echo ""
     echo "Groove manifest updated: $MANIFEST"
@@ -59,7 +67,7 @@ verify-template:
     FOUND=0
 
     # Check for double-brace placeholder patterns
-    HITS=$(grep -rn '{{'{{'}}[A-Z_]*{{'}}'}}' --include="*.adoc" --include="*.md" --include="*.a2ml" \
+    HITS=$(grep -rn '{{'{{'}}[A-Z_]*{{'}}'}}' --include="*.adoc" --include="*.md" --include="*.deed" \
            --include="*.scm" --include="*.toml" --include="*.yml" --include="*.yaml" \
            . 2>/dev/null | grep -v 'node_modules\|\.git/' | grep -v 'PLACEHOLDERS.adoc' || true)
     if [ -n "$HITS" ]; then
@@ -76,7 +84,8 @@ verify-template:
     fi
 
     # Check for port 0 in Groove manifest
-    if grep -q '(port 0)' .machine_readable/integrations/groove.a2ml 2>/dev/null; then
+    DEED="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
+    if [ -n "$DEED" ] && [ "$(bash scripts/deed-field.sh "$DEED" integrations/groove port 2>/dev/null)" = 0 ]; then
         echo "⚠ Groove manifest has port 0 — run 'just groove-setup' to assign a port"
         FOUND=1
     fi
