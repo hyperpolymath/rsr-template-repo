@@ -33,11 +33,10 @@ K9!
 
   # Inputs the projection reads (single source of truth).
   inputs = {
-    # The repo deed (<repo>_chora.deed) replaced CLADE / ECOSYSTEM / AGENTIC /
-    # STATE .a2ml (rsr-template-repo#209); ANCHOR still holds the golden path.
+    # The repo deed (<repo>_chora.deed) is the only input; the golden path is
+    # its (anchor (golden-path)) clause (rsr-template-repo#209).
     descriptiles = [
       "<repo>_chora.deed",
-      ".machine_readable/descriptiles/anchors/ANCHOR.a2ml",
     ],
     estate_common = "hyperpolymath/manifesto@<pinned-sha>",  # DRAFT-unratified today
     target = "CLAUDE.md",
@@ -46,7 +45,7 @@ K9!
 
   # Checks (all must hold).
   checks = [
-    { id = "inputs-exist",   desc = "exactly one repo deed and the ANCHOR exist and parse" },
+    { id = "inputs-exist",   desc = "exactly one repo deed exists, parses and carries (anchor (golden-path))" },
     { id = "region-present", desc = "CLAUDE.md contains exactly one BEGIN/END region" },
     { id = "no-drift",       desc = "committed region byte-equals freshly generated region" },
   ],

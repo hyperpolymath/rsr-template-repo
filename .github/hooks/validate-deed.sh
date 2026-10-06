@@ -4,7 +4,9 @@
 #
 # validate-deed.sh — DEED manifest validation script
 #
-# Scans for .a2ml and .deed files (dual-accept per owner ruling R-H2) and validates:
+# Scans for .deed files and validates the checks below. A .a2ml file is an
+# error on sight: the format is retired estate-wide and its facts belong in
+# the repo deed. Checks:
 #   1. Required fields: agent-id or pedigree name, version
 #   2. SPDX-License-Identifier header presence
 #   3. Attestation block structure (if present)
@@ -89,7 +91,7 @@ report_issue() {
 }
 
 # ---------------------------------------------------------------------------
-# Validator: check a single .a2ml file
+# Validator: check a single .deed file
 # ---------------------------------------------------------------------------
 validate_deed() {
     local file="$1"
@@ -120,7 +122,6 @@ validate_deed() {
     #   - agent-id = "..." or agent_id = "..."
     #   - pedigree block with name field
     #   - name = "..." at top level (for AI manifests)
-    #   - project = "..." (for STATE.a2ml)
     local has_identity=false
     local has_version=false
     local first_form_seen=false
@@ -131,19 +132,7 @@ validate_deed() {
 
         # Check for identity fields (various DEED patterns)
         # TOML/kv form: `name = "..."`, `project = "..."`, `agent-id = "..."`.
-        #
-        # `archetype` is the identity key of the ARCHETYPE.a2ml shape — the
-        # `just repo-init` scaffolding descriptors under archetypes/. It names the
-        # archetype exactly as `name` names a manifest, and is the fourth
-        # dialect this recogniser accommodates alongside TOML, s-expression and
-        # brace-block. Without it, archetypes/julia-library/ARCHETYPE.a2ml
-        # failed with "Missing required identity field" — on main, in this repo
-        # and in every repo instantiated from it.
-        #
-        # Recognising the shape is the right fix rather than adding a redundant
-        # `name = "julia-library"` beside `archetype = "julia-library"`: that
-        # file's own header states an archetype "must not write fiction", and
-        # duplicating its identity to satisfy a grep is exactly that.
+
         if [[ "$line" =~ ^[[:space:]]*(agent[-_]id|name|project|archetype)[[:space:]]*= ]]; then
             has_identity=true
         fi
@@ -207,45 +196,6 @@ validate_deed() {
         fi
     done < "$file"
 
-    # AI manifest files (0-AI-MANIFEST.a2ml, 0.1-AI-MANIFEST.a2ml, etc.)
-    # use markdown-style headers and free text, so identity check is relaxed
-    local basename
-    basename="$(basename "$file")"
-    local is_manifest=false
-    if [[ "$basename" == *"AI-MANIFEST"* ]]; then
-        is_manifest=true
-    fi
-    # Canonical typed manifests under .machine_readable/descriptiles/ — identity comes
-    # from the enclosing directory + filename, not an in-file field. Sibling
-    # files in the same directory (ECOSYSTEM.a2ml, STATE.a2ml) DO carry their
-    # own $name/project and continue to be validated normally.
-    case "$basename" in
-        AGENTIC.a2ml|META.a2ml|NEUROSYM.a2ml|PLAYBOOK.a2ml|AI.a2ml)
-            # AI.a2ml = free-text "AI Assistant Instructions" manifest, the same
-            # doc type as 0-AI-MANIFEST.a2ml but with the bare name; identity is
-            # carried by the enclosing repo/plugin dir, not an in-file field.
-            is_manifest=true
-            ;;
-        # Dockerfile-style top-level typed manifests (Intentfile, Trustfile, …)
-        # use markdown-flavoured DEED; identity is carried by the parent repo.
-        *file.a2ml)
-            is_manifest=true
-            ;;
-    esac
-
-    # Contractile-shape DEED files use `@directive:` syntax instead of
-    # TOML `key = value`. Trustfile.a2ml, Intentfile.a2ml, Mustfile.a2ml,
-    # Adjustfile.a2ml etc. are policy / trust / intent / abstract files
-    # whose identity is implicit in their @-prefixed directives
-    # (`@trust-level`, `@intent`, ...) rather than a TOML name/version
-    # pair. Treating them as manifest-shape produces 100% false positives —
-    # they're a different DEED doc type. Detected by the presence of any
-    # contractile directive in the file body.
-    local is_contractile_shape=false
-    if grep -qE '^@(abstract|trust-level|trust-boundary|trust-actions|trust-deny|intent|must|adjust|end)([[:space:]]*:|$)' "$file"; then
-        is_contractile_shape=true
-    fi
-
     # Canonical structured DEED tree. Everything under a `.machine_readable/`
     # directory is a typed agent-readable doc (CLADE, ANCHOR, STATE,
     # ECOSYSTEM, bot_directives/{debt,coverage,methodology}, ai/AI,
@@ -261,12 +211,12 @@ validate_deed() {
         is_structural_identity=true
     fi
 
-    if [[ "$has_identity" == "false" && "$is_manifest" == "false" && "$is_contractile_shape" == "false" && "$is_structural_identity" == "false" ]]; then
+    if [[ "$has_identity" == "false" && "$is_structural_identity" == "false" ]]; then
         report_issue "error" "$file" 1 \
             "Missing required identity field (agent-id, name, or project)"
     fi
 
-    if [[ "$has_version" == "false" && "$is_manifest" == "false" && "$is_contractile_shape" == "false" && "$is_structural_identity" == "false" ]]; then
+    if [[ "$has_version" == "false" && "$is_structural_identity" == "false" ]]; then
         report_issue "warning" "$file" 1 \
             "Missing version or schema_version field"
     fi
@@ -324,15 +274,22 @@ validate_deed() {
 }
 
 # ---------------------------------------------------------------------------
-# Main: discover and validate .a2ml files
+# Main: refuse retired .a2ml files, then discover and validate .deed files
 # ---------------------------------------------------------------------------
 
 echo "::group::DEED Manifest Validation"
-echo "Scanning ${SCAN_PATH} for .a2ml files..."
+echo "Scanning ${SCAN_PATH} for .deed files..."
 echo ""
 
-# Find all manifest files (.a2ml legacy + .deed — dual-accept; extension migration = standards #837, the DEED conversion campaign), excluding .git
-mapfile -t deed_candidates < <(find "$SCAN_PATH" \( -name '*.a2ml' -o -name '*.deed' \) -not -path '*/.git/*' -type f | sort)
+# The .a2ml format is retired: every such file is an error, whatever its content.
+mapfile -t a2ml_files < <(find "$SCAN_PATH" -iname '*.a2ml' -not -path '*/.git/*' -type f | sort)
+for _f in "${a2ml_files[@]}"; do
+    path_ignored "$_f" && continue
+    report_issue "error" "$_f" 1 "Retired .a2ml file: move its facts into the repo deed and delete it"
+done
+
+# Find all deed manifests, excluding .git
+mapfile -t deed_candidates < <(find "$SCAN_PATH" -name '*.deed' -not -path '*/.git/*' -type f | sort)
 
 # Apply paths-ignore filter
 deed_files=()
@@ -350,15 +307,17 @@ if [[ $SKIPPED -gt 0 ]]; then
 fi
 
 if [[ ${#deed_files[@]} -eq 0 ]]; then
-    echo "::notice::No .a2ml files found in ${SCAN_PATH}"
+    echo "::notice::No .deed files found in ${SCAN_PATH}"
     echo "files_scanned=0" >> "$GITHUB_OUTPUT_FILE" 2>/dev/null || true
-    echo "errors=0" >> "$GITHUB_OUTPUT_FILE" 2>/dev/null || true
+    echo "errors=${ERRORS}" >> "$GITHUB_OUTPUT_FILE" 2>/dev/null || true
     echo "warnings=0" >> "$GITHUB_OUTPUT_FILE" 2>/dev/null || true
     echo "::endgroup::"
+    # A retired .a2ml file is still an error when no deed is present.
+    [[ $ERRORS -eq 0 ]] || exit 1
     exit 0
 fi
 
-echo "Found ${#deed_files[@]} .a2ml file(s)"
+echo "Found ${#deed_files[@]} .deed file(s)"
 echo ""
 
 for file in "${deed_files[@]}"; do

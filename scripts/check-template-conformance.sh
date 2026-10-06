@@ -12,9 +12,9 @@
 #      hand-simulated it as recurring standardisation-PR campaigns. This is the
 #      answer-file."
 #
-# It built the answer-file — .machine_readable/PROVENANCE.a2ml — and then built
-# neither the update nor the check. Nothing in this repository read that file.
-# It was write-only.
+# It built the answer-file — then .machine_readable/PROVENANCE.a2ml, now the
+# repo deed's (provenance) clause — and then built neither the update nor the
+# check. Nothing in this repository read that record. It was write-only.
 #
 # Four open defects are all the same missing half:
 #
@@ -30,10 +30,12 @@
 # ── What it checks ───────────────────────────────────────────────────────────
 #
 # Structural invariants (always, no network):
-#   T1  PROVENANCE.a2ml exists
+#   T1  the repo deed carries a (provenance) clause
+#       (a repo still carrying only the retired PROVENANCE.a2ml is BLOCKED:
+#       that file is not read, it must be migrated into the deed first)
 #   T2  it does not name THIS repo as its own template  (self-parent)
-#   T3  template_branch / template_commit / template_tree are not UNASSIGNED
-#   T4  the repo carries no branches beyond its declared extra_branches
+#   T3  :template-branch / :template-commit / :template-tree are not UNASSIGNED
+#   T4  the repo carries no branches beyond its declared :extra-branches
 #
 # T2 is the #200/#201 class. T4 is #203.
 #
@@ -87,7 +89,9 @@ bad()  { FAIL=$((FAIL+1)); printf '  \033[31mFAIL\033[0m  %s\n' "$1"; }
 warn() { WARN=$((WARN+1)); printf '  \033[33mWARN\033[0m  %s\n' "$1"; }
 note() { [ "$QUIET" -eq 1 ] || printf '        %s\n' "$1"; }
 
-PROV="$TARGET/.machine_readable/PROVENANCE.a2ml"
+READ="$SCRIPT_DIR/deed-field.sh"
+DEED="$(bash "$READ" --find "$TARGET" 2>/dev/null || true)"
+RETIRED="$TARGET/.machine_readable/PROVENANCE.a2ml"
 
 finish() {
     echo
@@ -116,26 +120,32 @@ echo "template conformance: $TARGET"
 echo
 
 # ── T1: provenance exists ────────────────────────────────────────────────────
-if [ ! -f "$PROV" ]; then
-    bad "T1 no .machine_readable/PROVENANCE.a2ml — this repo cannot state what it was minted from"
-    note "A repo minted through the GitHub template UI, or by copying a tree, never"
-    note "runs repo-init and so never writes this file. That is the #203 mechanism."
-    note "Recreate it by hand from the template commit you actually took."
+if [ -n "$DEED" ] && bash "$READ" --has "$DEED" provenance; then
+    ok "T1 provenance present ($(basename "$DEED") (provenance))"
+elif [ -f "$RETIRED" ]; then
+    bad "T1 BLOCKED: only the retired .machine_readable/PROVENANCE.a2ml — not read"
+    note "Move its facts into the repo deed's (provenance) clause and delete the"
+    note "a2ml file; this check will not parse the retired format."
     finish
     exit $?
 else
-    ok "T1 provenance present"
+    bad "T1 no (provenance) clause in a repo deed — this repo cannot state what it was minted from"
+    note "A repo minted through the GitHub template UI, or by copying a tree, never"
+    note "runs repo-init and so never writes this clause. That is the #203 mechanism."
+    note "Recreate it by hand from the template commit you actually took."
+    finish
+    exit $?
 fi
 
-# a2ml is a flat key = "value" format as far as this check needs.
+# prov_get KEY — the value of :KEY in the deed's (provenance) clause, or empty.
 prov_get() {
-    sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\"\(.*\)\"[[:space:]]*$/\1/p" "$PROV" | head -1
+    bash "$READ" "$DEED" provenance "$1" 2>/dev/null || true
 }
 
-T_REPO="$(prov_get template_repo)"
-T_BRANCH="$(prov_get template_branch)"
-T_COMMIT="$(prov_get template_commit)"
-T_TREE="$(prov_get template_tree)"
+T_REPO="$(prov_get template-repo)"
+T_BRANCH="$(prov_get template-branch)"
+T_COMMIT="$(prov_get template-commit)"
+T_TREE="$(prov_get template-tree)"
 
 # ── T2: no self-parent ───────────────────────────────────────────────────────
 SELF_SLUG=""
@@ -151,7 +161,7 @@ if command -v git >/dev/null 2>&1 && git -C "$TARGET" rev-parse --git-dir >/dev/
 fi
 
 if [ -z "$T_REPO" ]; then
-    bad "T2 provenance has no template_repo"
+    bad "T2 provenance has no :template-repo"
 elif [ -n "$SELF_SLUG" ] && [ "$T_REPO" = "$SELF_SLUG" ]; then
     bad "T2 provenance names THIS repo as its own template ($T_REPO) — self-parent"
     note "This is the #200/#201 class: the repo is asserting template identity."
@@ -161,7 +171,7 @@ else
 fi
 
 # ── T3: the pin is real ──────────────────────────────────────────────────────
-for pair in "template_branch:$T_BRANCH" "template_commit:$T_COMMIT" "template_tree:$T_TREE"; do
+for pair in "template-branch:$T_BRANCH" "template-commit:$T_COMMIT" "template-tree:$T_TREE"; do
     key="${pair%%:*}"; val="${pair#*:}"
     if [ -z "$val" ] || [ "$val" = "UNASSIGNED" ]; then
         bad "T3 $key is ${val:-missing} — the parent pin is not resolvable"
@@ -184,8 +194,8 @@ if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
         done
     fi
 
-    # Declared extras: parse the bracketed list on the extra_branches line.
-    DECLARED="$(sed -n 's/^[[:space:]]*extra_branches[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' "$PROV" | head -1 | tr ',' '\n' | tr -d ' "' | grep -v '^$' || true)"
+    # Declared extras: the :extra-branches list of the (provenance) clause.
+    DECLARED="$(bash "$READ" --list "$DEED" provenance extra-branches 2>/dev/null || true)"
 
     UNEXPECTED=""
     while IFS= read -r br; do
@@ -197,7 +207,7 @@ if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
 
     if [ -n "$UNEXPECTED" ]; then
         bad "T4 branch(es) not in the mint contract:${UNEXPECTED}"
-        note "Declared extra_branches: ${DECLARED:-<none>}"
+        note "Declared :extra-branches: ${DECLARED:-<none>}"
         note "This is the #203 signature. A template work branch (coderabbit/,"
         note "chore/, bot-task) copied wholesale into a child. Review each: keep it"
         note "deliberately, or delete it. Do not force unrelated histories together."
@@ -238,10 +248,11 @@ if [ -n "$TEMPLATE" ]; then
     MISSING=0; DRIFTED=0
 
     # Paths the template owns: everything it ships except what it deliberately
-    # drops at mint (archetypes/, build/, and the answer-file itself).
+    # drops at mint (archetypes/, build/) and the repo deed, which every repo
+    # names after itself and which carries the answer-file.
     while IFS= read -r rel; do
         case "$rel" in
-            archetypes/*|build/*|.git/*|.machine_readable/PROVENANCE.a2ml) continue ;;
+            archetypes/*|build/*|.git/*|*_chora.deed) continue ;;
         esac
         if [ ! -e "$TARGET/$rel" ]; then
             MISSING=$((MISSING+1)); [ "$MISSING" -le 15 ] && echo "    MISSING  $rel"

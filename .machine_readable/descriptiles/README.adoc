@@ -14,11 +14,10 @@ They pair with the contractiles in `../contractiles/`, which record what it
 `1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc` in
 https://github.com/hyperpolymath/standards[hyperpolymath/standards].
 
-The format formerly called A2ML has been renamed *DEED*, with the file
-extension `.deed`. The files in this directory still carry the `.a2ml`
-extension: the estate-wide rename is a single atomic change tracked
-separately, because ~40% of these basenames appear as literals in source
-and in Nickel runners. Do not hand-convert individual files.
+The format formerly called A2ML is retired: no `.a2ml` file may exist in
+this repository. Descriptive facts are clauses of the repo deed
+(`*_chora.deed`, at the repo root) or `*_praxis.deed` files, with the file
+extension `.deed`. Read a field with `scripts/deed-field.sh`.
 
 DEED is an *s-expression* format. If you have seen these files described
 anywhere as a "TOML-like key-value" format, that description is wrong and
@@ -29,18 +28,17 @@ grammar specification, never against a neighbouring file.
 
 == The descriptiles
 
-`NEUROSYM.a2ml`:: Symbolic semantics, composition algebra.
-`PLAYBOOK.a2ml`:: Executable plans, operational runbooks.
+The descriptiles are clauses of the repo deed (`*_chora.deed`), not
+separate files; no `.a2ml` file may be recreated anywhere
+(rsr-template-repo#209):
 
-The retired STATE/META/ECOSYSTEM/AGENTIC/CLADE `.a2ml` files must not be
-recreated anywhere (rsr-template-repo#209). Their content now lives in:
-
-* the repo deed (`*_chora.deed`): `(status)` and `(maturity)` for project
-  phase and maturity; `(meta)` for architecture axes and development
-  practices (ADRs themselves are in `docs/decisions/`); `(ecosystem)` for
-  ecosystem position and boundaries; `(agentic)` for agent permissions and
-  gating; `(identity)`, `(clade)`, `(lineage)` and `(forges)` for the facet
-  classification record;
+* `(neurosym)`: symbolic semantics, composition algebra;
+* `(playbook)`: executable plans, operational runbooks;
+* `(status)` and `(maturity)` for project phase and maturity; `(meta)` for
+  architecture axes and development practices (ADRs themselves are in
+  `docs/decisions/`); `(ecosystem)` for ecosystem position and boundaries;
+  `(agentic)` for agent permissions and gating; `(identity)`, `(clade)`,
+  `(lineage)` and `(forges)` for the facet classification record;
 * `docs/status/ROADMAP.adoc`: milestones, blockers, next actions and
   maintenance runs.
 
@@ -49,14 +47,15 @@ recreated anywhere (rsr-template-repo#209). Their content now lives in:
 This directory also carries files whose classification is settled elsewhere
 and is deliberately not restated here:
 
-`anchors/`:: `ANCHOR` records. An anchor is *both* descriptile and
+`anchors/`:: Explains the `ANCHOR` record, which is now the repo deed's
+`(anchor)` clause. An anchor is *both* descriptile and
 contractile — it states an observed drift (descriptive) and issues a
 mandated realignment (normative). It is the join between the two families
 and has its own specification.
 
 `*_chora.deed` (repo deed, at the repo root):: The universal AI entry point —
-a DEED-grammar file. The family-7 allocation manifest (0-AI-MANIFEST.a2ml) and
-the ply directory tree folded into it in the standards#837 pilot.
+a DEED-grammar file. The family-7 allocation manifest (the former root AI
+manifest) and the ply directory tree folded into it in the standards#837 pilot.
 
 == Generation
 
@@ -65,6 +64,4 @@ These files may be generated from `.scm` sources by transpilation. Source
 
 == See also
 
-* https://github.com/hyperpolymath/standards/blob/main/A2ML-REPO-TEMPLATE.adoc[Historical A2ML repository template (non-normative)]
-* https://github.com/hyperpolymath/standards#a2ml-format-family-7-formats[Historical A2ML format family overview (non-normative)]
 * `../contractiles/README.adoc` — the normative counterpart family

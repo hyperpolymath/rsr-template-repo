@@ -50,16 +50,16 @@ If you are unsure what something is, **read the canon; do not guess** (guessing 
 ## The machine-readable substrate (read in this order on arrival)
 **CHORA** → **ANCHOR** → **AGENTIC** → **ECOSYSTEM** → **STATE** -> **NEUROSYM** -> **PLAYBOOK**
 
-AGENTIC, ECOSYSTEM and STATE are clauses of the CHORA deed — `(agentic)`, `(ecosystem)`, `(status)` and `(maturity)` — not files; STATE's journal is `docs/status/ROADMAP.adoc`.
+ANCHOR, AGENTIC, ECOSYSTEM, STATE, NEUROSYM and PLAYBOOK are clauses of the CHORA deed — `(anchor)`, `(agentic)`, `(ecosystem)`, `(status)` and `(maturity)`, `(neurosym)`, `(playbook)` — not files; STATE's journal is `docs/status/ROADMAP.adoc`. There are no `.a2ml` files in this estate.
 
 The descriptive family (working name *descriptiles*) describes what-is; the **contractiles** are the normative set-point.
 
 | File | Answers |
 |---|---|
 | `%{data.deed}` | **CHORA**, the repo deed. Its `(identity)` `(clade)` `(lineage)` clauses say what this repo IS (registers into `gv-clade-index`); `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
-| `ANCHOR.a2ml` | *Semantic authority + golden path* — what downstream may extend-not-redefine; if a recognised-drift / re-anchor marker is present, it **supersedes** accumulated context — read it first. |
-| `NEUROSYM.a2ml` | *Meaning* of operations — proof obligations. |
-| `PLAYBOOK.a2ml` | *How* permitted actions run. |
+| `(anchor)` | *Semantic authority + golden path* — what downstream may extend-not-redefine; if a recognised-drift / re-anchor marker is present, it **supersedes** accumulated context — read it first. |
+| `(neurosym)` | *Meaning* of operations — proof obligations. |
+| `(playbook)` | *How* permitted actions run. |
 | `docs/status/ROADMAP.adoc` | *What is next* — milestones, blockers, next actions. |
 | contractiles | Normative doctrine: **Intend** (north-star) · **Must** (invariants) · **Trust** (security) · **Adjust** (accessibility / inclusive design) — the integral core that holds strong; plus **Dust** (exnovation drift) · **Bust** (failure / breakage, not drift). |
 | k9 | *Validation*. Kennel (data) / Yard (pure eval) / Hunt (guarded exec). |
@@ -81,7 +81,7 @@ Use plain JavaScript when this tooling is needed. The "use ReScript" rule is ret
 - **IS** — %{data.purpose}
 - **IS-NOT** — %{data.isnot}
 - **Where it sits** — pipeline position **%{data.pipeline_pos}**; chain `%{data.chain}`; coordination = `%{data.coordination}`.
-- **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: `.machine_readable/bot_directives/{methodology,coverage,debt}.a2ml`.
+- **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: the deed's `(bot-directives (methodology) (coverage) (debt))` clauses.
 - **Golden path** (ANCHOR) — `%{data.golden_smoke}` → %{data.golden_crit}.
 - **State** — phase %{data.phase}; maturity %{data.maturity}. Milestones and next actions: `docs/status/ROADMAP.adoc`.
 

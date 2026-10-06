@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # Trust — security + safe-hacking runner
 #
-# Pairs with: Trustfile.a2ml (same directory)
+# Pairs with: the `declaration` field of trust.k9.ncl (same directory)
 # Verb:       trust
 # Semantics:  integrity / provenance / security verification PLUS a declared
 #             "safe hacking + testing" section — authorised offensive probes
@@ -34,7 +34,7 @@ let base = import "../_base.ncl" in
         name = "trust-runner",
         version = "1.0.0",
         description = "Security + provenance verifications plus authorised safe-hacking probes. All probes are scoped to the repo under test; never hits external systems.",
-        paired_xfile = "Trustfile.a2ml",
+        paired_xfile = "trust.k9.ncl#declaration",
         author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
       },
     },
@@ -88,7 +88,7 @@ let base = import "../_base.ncl" in
     & {
       on_any_fail = "exit-nonzero", # hard gate on verifications
       safe_hacking_on_unexpected_outcome = "exit-nonzero", # probe found what it shouldn't = block
-      report_format = "a2ml",
+      report_format = "json",
       emit_summary = true,
     },
 }

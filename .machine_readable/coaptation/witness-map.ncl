@@ -22,21 +22,21 @@
 # declarative. Keep this list HONEST: only assert a witness you can defend — the
 # whole point is to make boundary-erosion visible, not to manufacture green.
 {
-  # --- MUST: presence obligations attested by the fact that we parsed the file ---
-  "must.machine-readable-dir" = {
+  # --- MUST: presence obligations ---
+  # must.machine-readable-dir has NO descriptile witness any more. It was
+  # attested by "anchor.authority is present", which held because that fact was
+  # read from descriptiles/anchors/ANCHOR.a2ml. The anchor now lives in the root
+  # deed's (anchor …) clause, so the fact says nothing about the directory;
+  # keeping the witness would manufacture green. It is probe-deferred to Hunt.
+  "must.anchor-clause" = {
     kind = "descriptile",
     witnesses = [{ fact = "anchor.authority", op = 'present }],
-    note = "descriptiles/anchors/ANCHOR.a2ml parses ⇒ .machine_readable/ exists and is populated",
+    note = "anchor.authority is read from the deed's (anchor) clause, so its presence IS the clause's presence",
   },
   # must.six-directory-present has NO descriptile witness. Its probe needs
   # descriptiles/PLAYBOOK + NEUROSYM and exactly one deed, and no fact here
   # attests that: state and ecosystem are deed clauses since rsr-template-repo#209,
-  # and ANCHOR attests only anchors/. It is probe-deferred to the Hunt tier.
-  "must.anchors-directory" = {
-    kind = "descriptile",
-    witnesses = [{ fact = "anchor.authority", op = 'present }],
-    note = "ANCHOR.a2ml was read from .machine_readable/descriptiles/anchors/",
-  },
+  # and the anchor facts come from the deed. It is probe-deferred to the Hunt tier.
 
   # --- TRUST: deliberately NO descriptile witness. ---
   # Every Trust obligation here (no-secrets / no-private-keys / author-correct /
@@ -61,7 +61,7 @@
   "adjust.placeholder-drift" = {
     kind = "descriptile",
     witnesses = [{ fact = "anchor.project", op = 'not_contains, arg = "{{" }],
-    note = "ANCHOR.identity.project is un-substituted ({{PROJECT_NAME}}) ⇒ posture dip",
+    note = "deed (anchor (identity :project)) is un-substituted ({{PROJECT_NAME}}) ⇒ posture dip",
   },
 
   # --- BUST: deliberately NO descriptile witness since rsr-template-repo#209. ---

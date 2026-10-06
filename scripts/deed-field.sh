@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MPL-2.0
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
-# deed-field.sh — read one field out of a repo deed (<repo>_chora.deed).
+# deed-field.sh — read one field out of a deed (<repo>_chora.deed, or any
+# *_praxis.deed: the root is the first form with an ABNF doc-head).
 #
 # The repo deed holds what the descriptiles CLADE / META / ECOSYSTEM / STATE /
 # AGENTIC .a2ml files used to hold (rsr-template-repo#209). This is the one
@@ -119,13 +120,15 @@ function show(x) {
 }
 END {
   o = 0
-  for (t = 1; t <= nt; t++) if (tok[t] == "(" && tok[t + 1] == "Arepo-deed") { o = t; break }
+  for (t = 1; t <= nt; t++)
+    if (tok[t] == "(" && tok[t + 1] ~ /^A(repo-deed|praxis-deed|estate-deed|estate-atlas-deed)$/) { o = t; break }
   if (!o) exit 1
   if (path != "") {
     np = split(path, part, "/")
     for (p = 1; p <= np; p++) { o = child(o, part[p]); if (!o) exit 1 }
   }
   e = close_of(o)
+  if (!e) exit 2
   if (mode == "has") exit 0
   if (mode == "clause") { for (t = o; t <= e; t++) print tok[t]; exit 0 }
   d = 0

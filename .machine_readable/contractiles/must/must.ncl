@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: MPL-2.0
 # Must — invariants runner
 #
-# Pairs with: Mustfile.a2ml (same directory)
+# Pairs with: the `declaration` field of must.k9.ncl (same directory)
 # Verb:       must (invariant assertion)
 # Semantics:  every check is a hard gate. A single failure blocks merge.
-# CLI:        `contractile must run` → reads Mustfile.a2ml, evaluates each check,
+# CLI:        `contractile must run` → reads the must.k9.ncl declaration, evaluates each check,
 #             emits pass/fail verdict per item, exits non-zero if any failed.
 #
 # This file is the *schema + runner* that the `contractile` CLI (at
 # /var/mnt/eclipse/repos/reposystem/contractiles/cli/) loads alongside
-# Mustfile.a2ml. Anything else in this directory is human-only notes/archive
+# must.k9.ncl (whose `declaration` field holds the invariants). Anything else in this directory is human-only notes/archive
 # and MUST be ignored by machines.
 #
 # Base: ../_base.ncl provides pedigree_schema, run_defaults, probe_schema.
@@ -32,14 +32,14 @@ let base = import "../_base.ncl" in
       metadata = {
         name = "must-runner",
         version = "1.0.0",
-        description = "Evaluates every invariant in the adjacent Mustfile.a2ml as a hard gate.",
-        paired_xfile = "Mustfile.a2ml",
+        description = "Evaluates every invariant in the adjacent must.k9.ncl declaration as a hard gate.",
+        paired_xfile = "must.k9.ncl#declaration",
         author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
       },
     },
 
-  # Contract schema — the shape every Mustfile.a2ml must satisfy.
-  # Used by `contractile must typecheck Mustfile.a2ml`.
+  # Contract schema — the shape every must declaration (must.k9.ncl `declaration`) targets.
+  # Used by `contractile must typecheck`.
   schema = {
     invariants
       | Array {
@@ -61,7 +61,7 @@ let base = import "../_base.ncl" in
     base.run_defaults
     & {
       on_any_fail = "exit-nonzero", # hard gate
-      report_format = "a2ml", # emit a2ml report, not json
+      report_format = "json",
       emit_summary = true,
     },
 }

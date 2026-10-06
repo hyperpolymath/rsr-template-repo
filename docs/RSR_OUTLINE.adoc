@@ -78,7 +78,7 @@ just validate-rsr
 |Site-operations bundle; RFC-compliant metadata at `www/.well-known/` (security.txt, ai.txt, humans.txt)
 
 |`.machine_readable/`
-|All machine-readable content: state files (6 a2ml), `bot_directives/`, `contractiles/`
+|All machine-readable content: `ai/`, `bot_directives/`, `contractiles/` (state and descriptive facts are clauses of the root repo deed, `*_chora.deed`)
 
 |`docs/`
 |Documentation directory
@@ -113,8 +113,8 @@ just validate-rsr
 |`*_chora.deed` (repo deed)
 |Universal AI agent entry point
 
-|`AI.a2ml`
-|Claude-specific instructions
+|`.machine_readable/ai/README.adoc`
+|AI agent instructions (including the Claude-specific ones)
 
 |`src/interface/Abi/`
 |Idris2 ABI definitions (Types, Layout, Foreign)

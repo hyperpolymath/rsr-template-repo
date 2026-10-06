@@ -26,7 +26,7 @@ jobs:
       - name: Layout gate — fail loud while docs/ is absent
         run: |
           if [ ! -f docs/Project.toml ] || [ ! -f docs/make.jl ] || [ ! -d docs/src ]; then
-            echo "::error::docs-site declared but no Documenter build: docs/Project.toml, docs/make.jl and docs/src/ are required. Either add the build or drop the docs-site capability from rsr-profile.a2ml."
+            echo "::error::docs-site declared but no Documenter build: docs/Project.toml, docs/make.jl and docs/src/ are required. Either add the build or drop the docs-site capability from the repo deed's (rsr-profile) clause."
             exit 1
           fi
       - uses: julia-actions/setup-julia@v3.0.2

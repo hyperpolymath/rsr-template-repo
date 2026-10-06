@@ -3,7 +3,7 @@ K9!
 # trust.k9.ncl — K9 trust-tier component of the trust trident
 # Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 #
-# Pairs with: Trustfile.a2ml (declaration) + trust.ncl (runner).
+# Pairs with: the `declaration` field of this file + trust.ncl (runner).
 # Trident completeness is a hard precondition — a repo shipping
 # Trustfile without this file AND its runner is an invalid trident;
 # the contractile CLI's verify gate refuses partial publication.
@@ -21,7 +21,8 @@ K9!
 # full (tier, authority) surface.
 #
 # Cardinality: ONE trust trident per repo (see feedback_contractile_
-# layout_rules.md). ANCHOR.a2ml is the sole multi-instance exception —
+# layout_rules.md). The deed's (anchor) clause is the sole multi-instance
+# exception —
 # it is NOT a verb contractile.
 #
 # Design commitments baked in (full memory trail under
@@ -39,17 +40,16 @@ K9!
 # * Plain-language translation — user never authors a Nickel schema for
 #   a cipher suite; AI does the spec work, user reviews in domain
 #   language ("TLS 1.3 with PQ key exchange, HSTS preload, 1yr").
-# * Evidence sinks: VeriSimDB (queryable) + descriptiles/DRIFT.a2ml (repo-local).
+# * Evidence sinks: VeriSimDB (queryable) + descriptiles/drift_praxis.deed (repo-local).
 # * Failure-mode defenses cross-referenced — trust carries the most
 #   defenses of any verb because the threat surface is widest.
 
-let base_k9 = import "../k9/template-hunt.k9.ncl" in
 let base    = import "../_base.ncl" in
 
 {
-  pedigree = base_k9.pedigree_schema & {
+  pedigree = base.pedigree_schema & {
     contractile_verb = "trust",
-    paired_xfile     = "../trust/Trustfile.a2ml",
+    paired_xfile     = "../trust/trust.k9.ncl#declaration",
     paired_runner    = "../trust/trust.ncl",
 
     # α two-axis declaration — capability × authority.
@@ -65,7 +65,7 @@ let base    = import "../_base.ncl" in
       name = "trust-k9",
       version = "1.0.0",
       description = "Executes security verifications + authorised safe-hacking probes. HARD GATE: failed verification blocks merge. Catches the 'turn off the firewall' class of drift directly. Implements negotiation-ratification-accountability protocol inherited from intend.k9.ncl v2.0.0.",
-      paired_xfile = "Trustfile.a2ml",
+      paired_xfile = "trust.k9.ncl#declaration",
       paired_runner = "trust.ncl",
       author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
     },
@@ -80,6 +80,143 @@ let base    = import "../_base.ncl" in
       authorised_probes_only = true,    # probe section explicitly lists allowed targets + probe classes
       probe_scope_enforcement = 'this_repo_only,  # probes NEVER hit external systems
     },
+
+    # Trident manifest — folded in from the retired <verb>.manifest.a2ml.
+    # The sha256 / size_bytes fields were "pending-first-verify" placeholders
+    # and the cross_refs named the retired Xfile; both are dropped. The
+    # declaration now lives in this file (`declaration` below), so the
+    # trident is runner + this k9 component.
+    trident = {
+      notes = "Asserts: exactly three files constitute the trust trident; their\ncontent-hashes are pinned here; cross-references round-trip; no\npartial publication is permitted.\n\nThe contractile CLI's `verify trust` subcommand MUST:\n  1. Confirm all three listed files exist at the declared paths.\n  2. Compute each file's sha256 and match against the pinned value.\n  3. Follow each cross-reference and confirm the target file's\n     reciprocal field points back.\n  4. Refuse the dir (exit non-zero) if any of 1–3 fails.\n\ntrust is the concrete + ephemeral + transactional verb (per user\n2026-04-18); first blocking-authority trident in the estate. Exercises\nthe (Hunt, blocking) authority pattern — complement to intend's\n(Hunt, reporting). Primary defense against failure mode B1 (threat-\nmodel misclassification) and the \"turn off the firewall\" class of\ndrift attempts the adversarial pilot is designed to exercise.\n",
+      trident_version = "1.0.0",
+      semantics = "security + provenance + safe-hacking",
+      cardinality = "one per repo",
+      authority = "blocking (hard gate)",
+      files = [
+        { role = "declaration", former_path = "Trustfile.a2ml", notes = "Extensively populated exemplar; covers threat model, DNS, TLS, crypto, SDP, safe-hacking, response headers, container supply chain, Cloudflare edge." },
+        { role = "runner", former_path = "trust.ncl", notes = "Runner existed pre-trident; schema covers verifications + safe_hacking with authorised-probes-only, this_repo_only scope enforcement." },
+        { role = "k9_component", former_path = "trust.k9.ncl", notes = "Trust-tier Hunt with blocking authority. on_open foregrounds threat model before negotiation; block_session_close_on_critical_drift." },
+      ],
+      signed_by = {
+        user = "Jonathan D.A. Jewell",
+        date = "2026-04-18",
+        context = "trust trident — canonical template in rsr-template-repo. (Hunt, blocking) authority pattern. Primary catchment for adversarial drift test scenarios (firewall-off, cleartext-auth, PQ-downgrade, CSP-weaken). Hard gate: failed verification blocks merge. Copy this trident into a new repo and point it at the real keys, policies, and authority boundaries.",
+      },
+      history = [
+        { date = "2026-04-18", event = "trident-born", note = "Trustfile.a2ml and trust.ncl pre-existed. This manifest + trust.k9.ncl complete the trident. Inherits on_open negotiation + accountability + plain-language-translation schema from intend.k9.ncl v2.0.0; adds trust-specific threat_model_foregrounding + block_session_close_on_critical_drift + stricter accountability pledge (user cannot disable verification to unblock merges)." },
+        { date = "2026-10-06", event = "a2ml-retired", note = "The A2ML declaration and this manifest were folded into trust.k9.ncl (declaration + pedigree.trident) under the owner directive that no .a2ml file remains. Item ids, probes and prose were carried over unchanged." },
+      ],
+    },
+  },
+
+  # -------------------------------------------------------------------
+  # Declaration — the trust contract data. Migrated losslessly from the
+  # retired A2ML Xfile (owner directive: zero A2ML files). Item records
+  # carry the field names of trust.ncl's `schema`; values are kept exactly
+  # as authored, so the runner schema is NOT applied as a contract here
+  # (several authored severities / classes / fields fall outside its enums).
+  # Read by .machine_readable/coaptation/extract-clauses.sh.
+  # -------------------------------------------------------------------
+  declaration = {
+    preamble = "# SPDX-License-Identifier: MPL-2.0\n# Trustfile — Trust boundaries and integrity invariants for rsr-template-repo\n# Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>\n#\n# Defines what LLM/SLM agents are trusted to do without asking, and\n# integrity invariants that verify the repo has not been tampered with.\n",
+    abstract = "Trust boundaries and integrity checks for rsr-template-repo. This file\ncombines the trust-level definitions from the original TRUST.contractile\nwith the integrity invariants from the old Trustfile.a2ml. It defines\nwhat AI agents may do autonomously and what requires human approval,\nplus checks that verify repository integrity.",
+    prose = [
+      {
+        section = "Trust Levels",
+        text = "The rsr-template-repo operates at trust level: maximal\n\nTrust levels:\n- maximal:    Agent may read, build, test, lint, format, heal freely.\n             Only destructive/external actions require approval.\n- standard:   Agent may read and build. Test/lint need approval.\n- restricted: Agent may read only. All modifications need approval.\n- minimal:    Agent may read specific files only. Everything else blocked.\n\nCurrent trust level: maximal",
+      },
+    ],
+    verifications = [
+      {
+        id = "no-secrets-committed",
+        section = "Integrity Invariants",
+        group = "Secrets",
+        description = "No credential files in repo",
+        probe = "test ! -f .env && test ! -f credentials.json && test ! -f .env.local && test ! -f .env.production",
+        severity = 'critical,
+      },
+      {
+        id = "no-private-keys",
+        section = "Integrity Invariants",
+        group = "Secrets",
+        description = "No private key files committed",
+        probe = "! find . -name '*.pem' -o -name '*.key' -o -name 'id_rsa' -o -name 'id_ed25519' 2>/dev/null | grep -v node_modules | head -1 | grep -q .",
+        severity = 'critical,
+      },
+      {
+        id = "no-tokens-in-source",
+        section = "Integrity Invariants",
+        group = "Secrets",
+        description = "No hardcoded API tokens in source",
+        probe = "! grep -rE '(api[_-]?key|secret|token|password)\\s*[:=]\\s*[\"'\\''][A-Za-z0-9]{16,}' --include='*.js' --include='*.ts' --include='*.res' --include='*.py' . 2>/dev/null | grep -v node_modules | head -1 | grep -q .",
+        severity = 'critical,
+      },
+      {
+        id = "author-correct",
+        section = "Provenance",
+        description = "Git author matches expected identity",
+        probe = "git log -1 --format='%ae' | grep -qE '(hyperpolymath|j\\.d\\.a\\.jewell)'",
+        severity = 'warning,
+      },
+      {
+        id = "license-content",
+        section = "Provenance",
+        description = "LICENSE is the canonical MPL-2.0 text",
+        probe = "grep -q 'Mozilla Public License Version 2.0' LICENSE",
+        severity = 'warning,
+      },
+      {
+        id = "template-files-readonly",
+        section = "Template-Specific Trust",
+        description = "Template scaffold files should not be modified except by maintainer",
+        probe = "test -z \"$(git status --short .machine_readable/ 2>/dev/null | grep -v '^??' || true)\"",
+        severity = 'advisory,
+        notes = "Changes to template files require careful review",
+      },
+      {
+        id = "trust-deny-areas",
+        section = "Template-Specific Trust",
+        description = "Sensitive areas from INTENT.contractile require explicit approval",
+        probe = "echo \"Check .machine_readable/ contractiles and governance docs\"",
+        severity = 'advisory,
+        areas = [".machine_readable/", "docs/GOVERNANCE.adoc", "docs/MAINTAINERS.adoc", ".github/CODEOWNERS"],
+      },
+      {
+        id = "container-images-pinned",
+        section = "Container Security",
+        description = "Containerfile uses pinned base images",
+        probe = "test ! -f Containerfile || grep -q 'cgr.dev\\|@sha256:' Containerfile",
+        severity = 'warning,
+      },
+      {
+        id = "no-dockerfile",
+        section = "Container Security",
+        description = "No Dockerfile (use Containerfile)",
+        probe = "test ! -f Dockerfile",
+        severity = 'warning,
+      },
+      {
+        id = "site-security-headers",
+        section = "Website Security",
+        description = "Any website directory (www, site, docs/site) must contain a security_headers directory",
+        probe = "for d in www site docs/site; do if [ -d \"$d\" ]; then test -d \"$d/security_headers\" || exit 1; fi; done",
+        severity = 'critical,
+      },
+      {
+        id = "site-well-known",
+        section = "Website Security",
+        description = "Any website directory must contain a .well-known directory",
+        probe = "for d in www site docs/site; do if [ -d \"$d\" ]; then test -d \"$d/.well-known\" || exit 1; fi; done",
+        severity = 'warning,
+      },
+      {
+        id = "site-resource-records",
+        section = "Website Security",
+        description = "Any website directory must contain resource-record templates (resource_records/, or dns/records/ in the issue-53 canonical layout)",
+        probe = "for d in www site docs/site; do if [ -d \"$d\" ]; then { test -d \"$d/resource_records\" || test -d \"$d/dns/records\"; } || exit 1; fi; done",
+        severity = 'warning,
+      },
+    ],
   },
 
   # -------------------------------------------------------------------
@@ -90,7 +227,8 @@ let base    = import "../_base.ncl" in
   # variances on intend (reporting) entries — variance approver MUST
   # be the repo maintainer or above for critical-severity entries.
   # -------------------------------------------------------------------
-  variance_schema = {
+  # A record SHAPE (contract-only fields, no values): kept out of `nickel export`.
+  variance_schema | not_exported = {
     entry_id     | String,   # which verification / probe id
     reason       | String,
     approved_by  | String,   # maintainer or above for critical entries
@@ -144,7 +282,7 @@ let base    = import "../_base.ncl" in
       },
       {
         kind        = 'drift_log,
-        path        = ".machine_readable/descriptiles/DRIFT.a2ml",
+        path        = ".machine_readable/descriptiles/drift_praxis.deed",
         append_only = true,
       },
     ],
@@ -234,7 +372,7 @@ let base    = import "../_base.ncl" in
             signature_required = true,
           },
         ],
-        signed_record_destination = ".machine_readable/descriptiles/ratification-<session-id>.a2ml",
+        signed_record_destination = ".machine_readable/descriptiles/ratification-<session-id>_praxis.deed",
         must_precede_work = true,
       },
 

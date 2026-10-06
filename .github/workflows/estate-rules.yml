@@ -66,6 +66,13 @@ jobs:
       # Was written but wired to nothing, so it had never run in CI.
       - name: V-language gate self-test
         run: bash tests/workflows/check_no_vlang_test.sh
+      # .a2ml is retired estate-wide: facts are deed clauses, contracts are .k9.
+      - name: No .a2ml files
+        run: bash scripts/check-no-a2ml.sh .
+      - name: No-a2ml gate self-test (planted positives must fail)
+        run: bash tests/workflows/check_no_a2ml_test.sh
+      - name: Deed clause writer controls
+        run: bash tests/workflows/deed_clause_test.sh
       - name: Install verified Nickel 1.17.0
         run: |
           mkdir -p "$RUNNER_TEMP/nickel-bin"
@@ -84,7 +91,7 @@ jobs:
       - name: Verify mint cleanup controls
         run: bash tests/workflows/mint_cleanup_test.sh
       # The CHECK half of the template contract. repo-init has always written an
-      # answer-file (.machine_readable/PROVENANCE.a2ml); nothing ever read it.
+      # answer-file (now the child deed's (provenance) clause); nothing ever read it.
       # This is the missing reader, and it covers the #200/#201/#203 class:
       # self-parenting identity, unresolved pins, and leaked template branches.
       #

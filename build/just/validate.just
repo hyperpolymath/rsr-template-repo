@@ -18,11 +18,10 @@ validate-rsr:
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
     # The repo deed's filename carries the repo slug (<stem>_chora.deed), so
-    # this is a glob; the folded replacement of the old 0-AI-MANIFEST.a2ml.
+    # this is a glob.
     ls *_chora.deed >/dev/null 2>&1 || MISSING="$MISSING repo-deed (*_chora.deed)"
-    for f in .machine_readable/descriptiles/anchors/ANCHOR.a2ml .machine_readable/policies/MAINTENANCE-AXES.a2ml .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml; do
-        [ -f "$f" ] || MISSING="$MISSING $f"
-    done
+    # .a2ml is retired: a repo carrying one is non-conformant, whatever else holds.
+    bash scripts/check-no-a2ml.sh . >/dev/null || MISSING="$MISSING no-a2ml(run scripts/check-no-a2ml.sh)"
     for f in docs/legal/EXHIBIT-A-ETHICAL-USE.txt docs/legal/EXHIBIT-B-QUANTUM-SAFE.txt LICENSES/MPL-2.0.txt; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
@@ -35,12 +34,9 @@ validate-rsr:
     for f in docs/governance/MAINTENANCE-CHECKLIST.adoc docs/governance/SOFTWARE-DEVELOPMENT-APPROACH.adoc; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    # Identity, lifecycle and maintenance axes live in the repo deed
-    # (rsr-template-repo#209). A repo minted before #209 still has them in
-    # descriptiles/{CLADE,META,ECOSYSTEM,STATE}.a2ml and no (status …)
-    # clause; for that repo the legacy checks below still run, unchanged.
+    # Identity, lifecycle, maintenance axes, the anchor and the maintenance
+    # policies are all clauses of the repo deed (rsr-template-repo#209).
     DEED=$(bash scripts/deed-field.sh --find . || true)
-    LEGACY=.machine_readable/descriptiles/META.a2ml
     if [ -n "$DEED" ] && bash scripts/deed-field.sh --has "$DEED" status; then
         # Prints the field, or nothing when it is absent.
         field() { bash scripts/deed-field.sh "$DEED" "$1" "$2" || true; }
@@ -79,25 +75,16 @@ validate-rsr:
         want meta/axis-3 audit-focus "systems in place, documentation explains actual state, safety/security accounted for, observed effects reviewed"
         want meta/axis-3 compliance-focus "seams/compromises/exception register, bounded exceptions, anti-drift checks"
         want meta/axis-3 effects-evidence "benchmark execution/results and maintainer status dialogue/review"
-    elif [ -f "$LEGACY" ]; then
-        for f in .machine_readable/descriptiles/STATE.a2ml .machine_readable/descriptiles/ECOSYSTEM.a2ml; do
-            [ -f "$f" ] || MISSING="$MISSING $f"
+        for c in anchor policies/maintenance-axes policies/maintenance-checklist policies/software-development-approach; do
+            bash scripts/deed-field.sh --has "$DEED" "$c" || MISSING="$MISSING $DEED:($c)"
         done
-        grep -q 'axis-1 = "must > intend > like"' "$LEGACY" || MISSING="$MISSING META.a2ml:axis-1"
-        grep -q 'axis-2 = "corrective > adaptive > perfective"' "$LEGACY" || MISSING="$MISSING META.a2ml:axis-2"
-        grep -q 'axis-3 = "systems > compliance > effects"' "$LEGACY" || MISSING="$MISSING META.a2ml:axis-3"
-        grep -q 'scoping-first = true' "$LEGACY" || MISSING="$MISSING META.a2ml:scoping-first"
-        grep -q 'idris-unsound-scan = "believe_me/assert_total"' "$LEGACY" || MISSING="$MISSING META.a2ml:idris-unsound-scan"
-        grep -q 'audit-focus = "systems in place, documentation explains actual state, safety/security accounted for, observed effects reviewed"' "$LEGACY" || MISSING="$MISSING META.a2ml:audit-focus"
-        grep -q 'compliance-focus = "seams/compromises/exception register, bounded exceptions, anti-drift checks"' "$LEGACY" || MISSING="$MISSING META.a2ml:compliance-focus"
-        grep -q 'effects-evidence = "benchmark execution/results and maintainer status dialogue/review"' "$LEGACY" || MISSING="$MISSING META.a2ml:effects-evidence"
+        want policies/maintenance-axes/axis-3-audit compliance-tooling "panic-attack"
+        want policies/maintenance-axes/axis-3-audit effects-tooling "ecological checking with sustainabot guidance"
+        want policies/maintenance-checklist/metadata source-human "docs/governance/MAINTENANCE-CHECKLIST.adoc"
+        want policies/software-development-approach/metadata source-human "docs/governance/SOFTWARE-DEVELOPMENT-APPROACH.adoc"
     else
         MISSING="$MISSING repo-deed:(status …)-clause"
     fi
-    grep -q 'compliance-tooling = "panic-attack"' .machine_readable/policies/MAINTENANCE-AXES.a2ml || MISSING="$MISSING MAINTENANCE-AXES.a2ml:compliance-tooling"
-    grep -q 'effects-tooling = "ecological checking with sustainabot guidance"' .machine_readable/policies/MAINTENANCE-AXES.a2ml || MISSING="$MISSING MAINTENANCE-AXES.a2ml:effects-tooling"
-    grep -q 'source-human = "docs/governance/MAINTENANCE-CHECKLIST.adoc"' .machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml || MISSING="$MISSING MAINTENANCE-CHECKLIST.a2ml:source-human"
-    grep -q 'source-human = "docs/governance/SOFTWARE-DEVELOPMENT-APPROACH.adoc"' .machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml || MISSING="$MISSING SOFTWARE-DEVELOPMENT-APPROACH.a2ml:source-human"
     if [ -n "$MISSING" ]; then
         echo "MISSING:$MISSING"
         exit 1
@@ -105,7 +92,7 @@ validate-rsr:
     echo "RSR compliance: PASS"
 
 # Validate the repo's lifecycle state: the deed's (status …) and
-# (maturity …) clauses, or STATE.a2ml for a repo minted before #209.
+# (maturity …) clauses.
 validate-state:
     #!/usr/bin/env bash
     cd "{{justfile_directory()}}"
@@ -119,16 +106,8 @@ validate-state:
             echo "$DEED: INVALID (needs (status :phase …) and (maturity :level …))"
             exit 1
         fi
-    elif [ -f .machine_readable/descriptiles/STATE.a2ml ]; then
-        if grep -q '^\[metadata\]' .machine_readable/descriptiles/STATE.a2ml \
-           && grep -q 'project\s*=' .machine_readable/descriptiles/STATE.a2ml; then
-            echo "STATE.a2ml: valid"
-        else
-            echo "STATE.a2ml: INVALID (missing required sections)"
-            exit 1
-        fi
     else
-        echo "No repo state found: neither a deed (status …) clause nor STATE.a2ml"
+        echo "No repo state found: the repo deed has no (status …) clause"
         exit 1
     fi
 

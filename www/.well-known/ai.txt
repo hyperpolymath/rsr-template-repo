@@ -13,5 +13,5 @@ Disallow-Generation: yes
 #
 # For AI agent integration instructions, see:
 #   <reponame>_chora.deed — the repo deed: universal AI entry point (allocation + ply tree)
-#   AI.a2ml (Claude-specific instructions)
+#   .machine_readable/ai/README.adoc (AI agent instructions, including Claude-specific)
 #   .machine_readable/ (structured project state)

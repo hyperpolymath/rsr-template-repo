@@ -35,19 +35,19 @@ K9!
   # Inputs the reading reads (the two sides of the face-off + the knowledge layer).
   inputs = {
     contractiles = [
-      ".machine_readable/contractiles/intend/Intentfile.a2ml",
-      ".machine_readable/contractiles/must/Mustfile.a2ml",
-      ".machine_readable/contractiles/trust/Trustfile.a2ml",
-      ".machine_readable/contractiles/adjust/Adjustfile.a2ml",
-      ".machine_readable/contractiles/dust/Dustfile.a2ml",
-      ".machine_readable/contractiles/bust/Bustfile.a2ml",
+      ".machine_readable/contractiles/intend/intend.k9.ncl",
+      ".machine_readable/contractiles/must/must.k9.ncl",
+      ".machine_readable/contractiles/trust/trust.k9.ncl",
+      ".machine_readable/contractiles/adjust/adjust.k9.ncl",
+      ".machine_readable/contractiles/dust/dust.k9.ncl",
+      ".machine_readable/contractiles/bust/bust.k9.ncl",
     ],
     descriptiles = [
       # The repo deed at the root (<repo>_chora.deed), read through
       # scripts/deed-field.sh; it replaced CLADE/STATE/ECOSYSTEM/AGENTIC.a2ml
       # (rsr-template-repo#209).
+      # Its (anchor …) clause replaced descriptiles/anchors/ANCHOR.a2ml.
       "*_chora.deed",
-      ".machine_readable/descriptiles/anchors/ANCHOR.a2ml",
     ],
     witness_map = ".machine_readable/coaptation/witness-map.ncl",
     grades = ".machine_readable/coaptation/grades.ncl",
@@ -57,7 +57,7 @@ K9!
 
   # Checks (all must hold).
   checks = [
-    { id = "clauses-atomise", desc = "every Xfile ###/#### clause lifts to a stable id verb.slug" },
+    { id = "clauses-atomise", desc = "every contractile declaration record (<verb>.k9.ncl `declaration`) lifts to a stable id verb.slug" },
     { id = "facts-extract",   desc = "every descriptile fact lifts to a stable id family.key" },
     { id = "coverage-total",  desc = "every clause is witnessed, refuted, probe-deferred, expected, or an explicit gap (Coverage is total)" },
     { id = "no-drift",        desc = "committed receipt byte-equals a freshly generated receipt" },

@@ -33,13 +33,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      - name: Check for manifest files (.a2ml/.deed)
+      - name: Check for deed manifests
         id: detect
         run: |
-          COUNT=$(find . \( -name '*.a2ml' -o -name '*.deed' \) -not -path './.git/*' | wc -l)
+          COUNT=$(find . -name '*.deed' -not -path './.git/*' | wc -l)
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
           if [ "$COUNT" -eq 0 ]; then
-            echo "::warning::No .a2ml/.deed manifest files found. Every RSR repo should have a repo deed (<reponame>_chora.deed); legacy 0-AI-MANIFEST.a2ml accepted mid-migration — standards #837"
+            echo "::warning::No .deed manifest found. Every RSR repo should have a repo deed (<reponame>_chora.deed) at its root."
           fi
 
       - name: Validate DEED manifests
@@ -56,14 +56,14 @@ jobs:
             cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## DEED Manifest Validation
 
-          :warning: **No .a2ml/.deed manifest files found.** Every RSR-compliant repo should have a repo deed (`<reponame>_chora.deed`) at its root.
+          :warning: **No .deed manifest found.** Every RSR-compliant repo should have a repo deed (`<reponame>_chora.deed`) at its root.
 
-          Copy it from [rsr-template-repo](https://github.com/hyperpolymath/rsr-template-repo). Manifests are validated against the DEED grammar (standards `1-formats/deed/`); the `.a2ml` → `.deed` extension migration is tracked in standards #837 — the deed validator scans both.
+          Copy it from [rsr-template-repo](https://github.com/hyperpolymath/rsr-template-repo). Manifests are validated against the DEED grammar (standards `1-formats/deed/`). The `.a2ml` format is retired; no `.a2ml` file may exist.
           EOF
           else
             echo "## DEED Manifest Validation" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Scanned **${MANIFEST_COUNT}** .a2ml/.deed manifest(s). See step output for details." >> "$GITHUB_STEP_SUMMARY"
+            echo "Scanned **${MANIFEST_COUNT}** .deed manifest(s). See step output for details." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   # ---------------------------------------------------------------------------
@@ -330,11 +330,9 @@ jobs:
   # declares the SAME hashes in the `(canon …)` clause of its repo deed,
   # rsr-template-repo_chora.deed.
   #
-  # The pin used to live in .machine_readable/rsr-profile.a2ml [canon]. D43
-  # froze .a2ml writes (#837 steps 1-3), so the pin could not follow canon
-  # 2.1.2 and this job went red on every PR (#215). The deed is the
-  # one-deed-per-repo home (#837), so the pin moved there; the a2ml block is
-  # now a frozen echo, compared below only to WARN when it drifts.
+  # The pin used to live in a retired .a2ml profile, which D43 froze, so it
+  # could not follow canon 2.1.2 and this job went red on every PR (#215). The
+  # deed is the one-deed-per-repo home (#837), so the pin lives only there.
   #
   # Before this job, the declaration was two free-text strings
   # (`spec = "rsr-criteria-v2"`, `declares-against = "2.0.0-draft"`) and nothing
@@ -442,7 +440,7 @@ jobs:
               echo "$_clauses" | grep -oE ':'"$1"'[[:space:]]+"[^"]*"' | head -1 | sed -E 's/^[^"]*"//; s/"$//' || true
           }
           # canon_key <key> <toml-file>: print <key> from the [canon] section.
-          # Reads canon.lock, and the frozen a2ml echo for the drift warning.
+          # Reads canon.lock.
           canon_key() {
             awk -v key="$1" '
               /^[[:space:]]*#/ { next }
@@ -502,16 +500,6 @@ jobs:
             row gates-sha256    "$want_gates" "$got_gates"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # The frozen a2ml echo. D43 forbids writing it, so it may lag the
-          # deed; that is reported, never failed. It disappears with #837's
-          # a2ml conversion, and so does this block.
-          A2ML="$RUNNER_TEMP/rsr-profile.a2ml"
-          if curl -fsSL --retry 3 --max-time 30 "$RAW/.machine_readable/rsr-profile.a2ml" -o "$A2ML" 2>/dev/null; then
-            a2ml_ver="$(canon_key version "$A2ML")"
-            if [ -n "$a2ml_ver" ] && [ "$a2ml_ver" != "$got_ver" ]; then
-              echo "::warning::rsr-profile.a2ml [canon] says ${a2ml_ver}, the deed says ${got_ver}. The deed is authoritative; the a2ml block is frozen by D43 and retires with standards#837."
-            fi
-          fi
 
           if [ "$ok" = "1" ]; then
             echo ":white_check_mark: This template implements the canon at HEAD."
@@ -548,8 +536,8 @@ jobs:
           SCORE=0
           MAX=6
 
-          # DEED manifest present? (.a2ml legacy extension accepted during standards #837 migration)
-          if find . \( -name '*.a2ml' -o -name '*.deed' \) -not -path './.git/*' | head -1 | grep -q .; then
+          # DEED manifest present?
+          if find . -name '*.deed' -not -path './.git/*' | head -1 | grep -q .; then
             SCORE=$((SCORE + 1))
             DEED_STATUS=":white_check_mark:"
           else
@@ -644,16 +632,10 @@ jobs:
           # --ssot is explicit until the hypatia M-3 fix lands (the
           # --standards default still points at the pre-reorg path).
           mix hypatia.rsr_score .. \
-            --ssot ../_standards/0-canon/rsr/rsr-criteria-v2.a2ml \
-            --write
-      - name: Show the scorecard
-        if: always()
-        run: |
-          if [ -f .machine_readable/descriptiles/SCORECARD.a2ml ]; then
-            cat .machine_readable/descriptiles/SCORECARD.a2ml
-          else
-            echo "::warning::no scorecard written — the oracle failed; see the step log"
-          fi
+            --ssot ../_standards/0-canon/rsr/rsr-criteria-v2.a2ml
+      # No --write: the oracle prints the scorecard to this log, and --write
+      # would put a .a2ml file in the tree (the format is retired; the criteria
+      # file named by --ssot is the canon's, in hyperpolymath/standards).
       # Deliberately NO --fail-under: the point is to publish the honest
       # scorecard (provisional=true until the coverage worklist is triaged),
       # not to gate the spine on itself. Tightens in the PR that lands the

@@ -368,12 +368,15 @@ for file in "$CHILD_DEED" "docs/status/ROADMAP.adoc"; do
         exit 1
     fi
 done
-for retired in CLADE META ECOSYSTEM STATE AGENTIC; do
-    if [ -e "$TEST_REPO_PATH/.machine_readable/descriptiles/$retired.a2ml" ]; then
-        log_error "mint wrote retired descriptiles/$retired.a2ml (#209)"
-        exit 1
-    fi
-done
+# The a2ml format is retired estate-wide: a mint carries no .a2ml file
+# anywhere, not merely none of the names that used to be descriptiles.
+A2ML_LEFT=$(cd "$TEST_REPO_PATH" && find . -path ./.git -prune -o -name '*.a2ml' -print)
+if [ -n "$A2ML_LEFT" ]; then
+    log_error "mint carries retired .a2ml files:"
+    echo "$A2ML_LEFT" >&2
+    exit 1
+fi
+log_pass "Mint carries no .a2ml file"
 # The template's identity must not survive into the mint: its clade, its
 # maturity, its uuid name, or an unfilled token.
 DEED_READ="$TEST_REPO_PATH/scripts/deed-field.sh"
@@ -390,6 +393,28 @@ fi
 # above, which scans every file and exempts metasyntactic tokens such as
 # the {{PLACEHOLDER}} the deed's prose mentions.
 log_pass "Child deed carries the minted repo's identity"
+
+# Mint-time clauses (rsr-template-repo#209 follow-up): the profile is the
+# minimal one, not the template's maximal spine profile; provenance and the
+# variant record name the template commit; exactly one canon pin survives.
+if [ "$(bash "$DEED_READ" "$CHILD" rsr-profile role 2>/dev/null || true)" = "spine" ]; then
+    log_error "child (rsr-profile) is still the template's spine profile"
+    exit 1
+fi
+for clause in "provenance template-commit" "variant parent-pin"; do
+    # shellcheck disable=SC2086
+    val=$(bash "$DEED_READ" "$CHILD" $clause 2>/dev/null || true)
+    if [ -z "$val" ]; then
+        log_error "child deed has no ($clause) value"
+        exit 1
+    fi
+done
+CANON_N=$(grep -cE '^[[:space:]]*[(]canon([[:space:]]|$)' "$CHILD" || true)
+if [ "$CANON_N" != "1" ]; then
+    log_error "child deed carries $CANON_N (canon …) clauses, need exactly 1"
+    exit 1
+fi
+log_pass "Child deed carries minimal (rsr-profile), (variant), (provenance) and one (canon)"
 
 #==============================================================================
 # WWW SITE-OPERATIONS BUNDLE (issue #53)

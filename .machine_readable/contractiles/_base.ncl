@@ -28,7 +28,7 @@
 #         name = "must-runner",
 #         version = "1.0.0",
 #         description = "...",
-#         paired_xfile = "Mustfile.a2ml",
+#         paired_xfile = "must.k9.ncl#declaration",
 #         author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
 #       },
 #     },
@@ -134,7 +134,7 @@
   run_defaults = {
     on_pass = "continue",
     on_any_fail = "exit-nonzero",
-    report_format = "a2ml",
+    report_format = "json",
     emit_summary = true,
   },
 }

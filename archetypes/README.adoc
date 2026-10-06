@@ -6,22 +6,23 @@ An *archetype* specialises the spine for one kind of repository (a Julia
 library, a WordPress plugin, …) **as data, not as a fork**. Each archetype is
 a directory here:
 
-    archetypes/<name>/ARCHETYPE.a2ml     required — the contract (see below)
+    archetypes/<name>/<name>_praxis.deed  required — the contract (see below)
     archetypes/<name>/overlay/           optional — files copied over the spine
 
 Decision record: `docs/decisions/0003-forge-and-sustain-lifecycle.adoc`.
 Normative lifecycle: standards `spec/SCAFFOLD-LIFECYCLE.adoc`.
 
-== The contract (`ARCHETYPE.a2ml`)
+== The contract (`<name>_praxis.deed`)
 
-Single-line values, grep-parseable (same discipline as the canon's
-`template-capability-gates.toml`):
+A `praxis-deed` (standards `1-formats/deed/spec/abnf/deed.abnf`), read by
+`just repo-init` through `scripts/deed-field.sh`. Values are single-line
+strings:
 
-- `[metadata]` — `archetype`, `schema_version`.
-- `[capability] preset = "<name>"` — MUST name a preset in standards
+- `(metadata :archetype … :schema_version …)`.
+- `(capability :preset "<name>")` — MUST name a preset in standards
   `.machine_readable/template-capability-gates.toml [presets]`. The archetype
   directory name and the preset name are the same string by convention.
-- `[tokens]` — `TOKEN = "value"` lines. Only tokens the archetype can
+- `(tokens :TOKEN "value" …)` — one pair per token. Only tokens the archetype can
   honestly determine (`PROJECT_KIND`, `PROJECT_DOMAIN`, `LANG_STACK`,
   `BUILD_CMD`, `TEST_CMD`, `DEPS`, `BUILD_OUTPUT_PATH`, `MAIN_FUNCTION`).
   Values MUST NOT contain `|` (the init sed delimiter — init skips such
@@ -32,14 +33,14 @@ Single-line values, grep-parseable (same discipline as the canon's
 
 `just repo-init <name>` applies the overlay directory (if present), adds the
 token substitutions, and writes the preset into the minted repo's
-`.machine_readable/rsr-profile.a2ml`. This whole `archetypes/` directory is
+deed's `(rsr-profile)` clause. This whole `archetypes/` directory is
 template-only and is removed from the minted tree, exactly like
 `build/templates/`.
 
 == Current archetypes
 
 - `julia-library` — reference instance, harvested from
-  rsr-julia-library-template-repo's `VARIANT.a2ml` (ADR-0002) and the
+  rsr-julia-library-template-repo's variant record (ADR-0002) and the
   dormant scaffoldia registry's `julia/package.ncl`. The variant repo
   remains the full hand-maintained reference until the scaffoldia
   inversion; this archetype covers the `just repo-init` path.

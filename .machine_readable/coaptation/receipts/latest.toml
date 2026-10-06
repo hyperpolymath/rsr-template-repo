@@ -11,17 +11,17 @@ proposed-action = "advisory — soft drift within bands (posture/intend). Open a
 
 [coverage]
 clauses-total = 52
-descriptile-witnessed = 2
-probe-deferred-to-hunt = 25
+descriptile-witnessed = 1
+probe-deferred-to-hunt = 26
 must-trust-unmeasured-gaps = 0
 note = "Yard sees descriptile evidence only; probe-deferred obligations need a Hunt-tier run for a full hard-gate."
 
 [reading.must-trust]
 grade = "boolean_gate / boolean_gate_provenance"
-witnessed = 2
+witnessed = 1
 refuted = 0
 unmeasured-gaps = 0
-probe-deferred = 25
+probe-deferred = 26
 gate = "pass"
 
 [reading.adjust]
@@ -56,12 +56,12 @@ must.readme-present = "probe-deferred"
 must.security-policy = "probe-deferred"
 must.repo-deed = "probe-deferred"
 must.governance-docs = "probe-deferred"
-must.machine-readable-dir = "witnessed"
+must.machine-readable-dir = "probe-deferred"
 must.contractiles-complete = "probe-deferred"
 must.contractiles-files-present = "probe-deferred"
 must.bust-dust-files-present = "probe-deferred"
 must.six-directory-present = "probe-deferred"
-must.anchors-directory = "witnessed"
+must.anchor-clause = "witnessed"
 must.self-validating-structure = "probe-deferred"
 must.no-placeholder-values = "probe-deferred"
 must.no-untracked-contractiles = "probe-deferred"
@@ -98,5 +98,5 @@ bust.sync-drift-between-repos = "latent"
 bust.contractile-parse-error = "latent"
 
 [provenance]
-contractiles = "intend@b5248bb14c9b must@9d89fe9c78de trust@44cb84cef597 adjust@8faad9ca0650 dust@5bdd97ba931e bust@dd6a53e1fc9b"
-descriptiles = "deed@f362377f174c anchor@8b66b03d7736"
+contractiles = "intend@feaaa58c4690 must@6a15dd3ccc3a trust@71566e6b64fc adjust@d7e4225fe5a8 dust@448489330834 bust@ea93d531c781"
+descriptiles = "deed@ab944221ee82 anchor@51194a4e21e8"
