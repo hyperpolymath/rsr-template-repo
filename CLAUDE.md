@@ -57,6 +57,19 @@ Use plain JavaScript when this tooling is needed. The "use ReScript" rule is ret
 
 ---
 
+# This repo: `rsr-template-repo`  ·  clade `rm-rsr-template-repo`
+
+- **Identity** — uuid `a5ea1382-a34c-5334-8a46-a2ebe904c810`; clade `rm` (secondary ``); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
+- **IS** — Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from.
+- **IS-NOT** — a project in its own right · Scaffoldia (the full-featured repo designer) · standards (the canon source this template operationalises)
+- **Where it sits** — pipeline position **foundation**; chain `standards → rsr-template-repo → (every estate repo)`; coordination = `standards`.
+- **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: `.machine_readable/bot_directives/{methodology,coverage,debt}.a2ml`.
+- **Golden path** (ANCHOR) — `just test && just quality` → Core tests pass; Quality gates pass; No unresolved critical security findings.
+- **State** — phase active; maturity production. Milestones and next actions: `docs/status/ROADMAP.adoc`.
+
+<!-- ARRIVAL-PACK:END · provenance: DEED@f362377f174c ANCHOR@8b66b03d7736 · Manifesto@DRAFT-unratified · regenerate: `just claude-md` (k9 drift-detects; do not hand-edit above) -->
+
+<!-- Hand-authored (owner, 2026-10-05): kept below the generated region so `just claude-md` does not overwrite it. -->
 ## Estate-Wide Format Migration Directives
 
 **IMPORTANT FOR ALL AGENTS (Claude, Codex, Gemini, Mistral, etc.):**
@@ -85,7 +98,7 @@ No exceptions.
 
 **.a2ml→.deed:** The a2ml format is FULLY DEPRECATED.
 - Convert ALL .a2ml files to .deed format
-- ABNF grammars: `standards/1-formats/a2ml/anchor/abnf/`
+- ABNF grammars: `standards/1-formats/deed/spec/abnf/deed.abnf` (and `1-formats/k9/` for .k9)
 - Required templates: ANCHOR, META, STATE, ECOSYSTEM, NEUROSYM, AGENTIC, PLAYBOOK,
   Intentfile, Mustfile, Trustfile, Adjustfile, Bustfile, Dustfile
 - This template repo (rsr-template-repo) must be migrated FIRST as it
@@ -94,18 +107,4 @@ No exceptions.
 **ENFORCEMENT:** These migrations are estate-wide with NO exceptions.
 Bots that produce YAML, JSON, or a2ml files NOT in these formats will
 be blocked. See `standards/AGENTS.adoc` for full details.
-
----
-
-# This repo: `rsr-template-repo`  ·  clade `rm-rsr-template-repo`
-
-- **Identity** — uuid `a5ea1382-a34c-5334-8a46-a2ebe904c810`; clade `rm` (secondary ``); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
-- **NOTE:** This UUID will be migrated to UUIDv7 per estate standards.
-- **IS** — Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from.
-- **IS-NOT** — a project in its own right · Scaffoldia (the full-featured repo designer) · standards (the canon source this template operationalises)
-- **Where it sits** — pipeline position **foundation**; chain `standards → rsr-template-repo → (every estate repo)`; coordination = `standards`.
-- **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: `.machine_readable/bot_directives/{methodology,coverage,debt}.a2ml`.
-- **Golden path** (ANCHOR) — `just test && just quality` → Core tests pass; Quality gates pass; No unresolved critical security findings.
-- **State** — phase active; maturity production. Milestones and next actions: `docs/status/ROADMAP.adoc`.
-
-<!-- ARRIVAL-PACK:END · provenance: DEED@f362377f174c ANCHOR@8b66b03d7736 · Manifesto@DRAFT-unratified · regenerate: `just claude-md` (k9 drift-detects; do not hand-edit above) -->
+- **NOTE:** This repo's UUID will be migrated to UUIDv7 per estate standards.
