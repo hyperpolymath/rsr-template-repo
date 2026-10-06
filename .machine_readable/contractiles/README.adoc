@@ -15,10 +15,10 @@ aspiration, and service-automation framework.
 The normative grammar for the record family used throughout this directory
 is `1-formats/deed/spec/DEED-GRAMMAR-SPEC.adoc` in
 https://github.com/hyperpolymath/standards[hyperpolymath/standards]. The
-format formerly called A2ML is retired: no `.a2ml` file remains in this
-directory. Each verb's declaration now lives as Nickel data in the
+format formerly called A2ML is retired: no `.a2ml` file may exist in this
+repository. Each verb's declaration now lives as Nickel data in the
 `declaration` field of its `<verb>.k9.ncl`, and the former per-verb
-manifests and `INDEX.a2ml` registry were folded into each k9 file's
+manifests and the `INDEX` registry were folded into each k9 file's
 `pedigree.trident` and the registry table below.
 
 The "contractile CLI" has never been built -- enforcement currently rides on
@@ -30,7 +30,7 @@ roles:
 
 * `<verb>.k9.ncl` — the k9 service-automation component (trust-tiered). Its
   `declaration` field is the project-specific declaration (data) that used to
-  be `<Verb>file.a2ml` (Intentfile, Mustfile, Trustfile, Adjustfile, Dustfile,
+  be the `<Verb>file` (Intentfile, Mustfile, Trustfile, Adjustfile, Dustfile,
   Bustfile); its `pedigree.trident` record holds what the per-verb manifest
   held (semantics, cardinality, authority, signed_by, history).
 * `<verb>.ncl` — the paired Nickel runner (pedigree + schema + run policy).
@@ -95,7 +95,7 @@ Registry `contractiles-registry` v2.0.0 (2.0.0, 2026-04-18: all 6 verbs on
 trident shape; verb set complete). Last updated 2026-04-18. Base schema
 `.machine_readable/contractiles/_base.ncl`. Meta-schema: pending — see
 https://github.com/hyperpolymath/standards/blob/main/docs/CONTRACTILE-SPEC.adoc[CONTRACTILE-SPEC]
-§validator-meta-schema. Folded in from the retired `INDEX.a2ml`; trident
+§validator-meta-schema. Folded in from the retired `INDEX` registry; trident
 paths below are current.
 
 [cols="1,2,1,1,1,2,1,4", options="header"]
@@ -209,7 +209,7 @@ When copying this set into a new repo:
 == Intentfile: Commitments vs Aspirations — Two Sections, One File
 
 Since 2026-04-18 both axes live in one declaration (formerly
-`intend/Intentfile.a2ml`, now the `declaration` field of `intend/intend.k9.ncl`):
+`intend/Intentfile`, now the `declaration` field of `intend/intend.k9.ncl`):
 
 * `intents` (formerly `\[[intents]]`) is the **commitment axis**. Items here are tracked
   next-actions with probes. Status progresses

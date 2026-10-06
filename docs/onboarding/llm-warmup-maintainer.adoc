@@ -39,4 +39,4 @@ mergeable.
 
 Owner rulings for the estate are recorded in `hyperpolymath/standards`
 (issue #787 is the decision surface). Do not re-open a ruled question; cite it.
-Rulings that bind this repository in particular: bun is the only JavaScript runtime (deno, TypeScript, ReScript, Python are banned), A2ML is retired (leave existing `.a2ml` files alone, build nothing new on them), and Justfile changes are mirrored in `.machine_readable/contractiles/Justfile`, which is kept byte-identical.
+Rulings that bind this repository in particular: bun is the only JavaScript runtime (deno, TypeScript, ReScript, Python are banned), A2ML is retired (no `.a2ml` file may exist; descriptive and policy facts are clauses of the repo deed, `*_chora.deed`), and Justfile changes are mirrored in `.machine_readable/contractiles/Justfile`, which is kept byte-identical.

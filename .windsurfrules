@@ -10,11 +10,10 @@
 # SPDX header required on every source file.
 # Copyright: {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
-# STATE FILES (.machine_readable/ ONLY)
-# The retired STATE/META/ECOSYSTEM/AGENTIC/CLADE .a2ml files must not be
-# recreated anywhere; their content is in the repo deed (*_chora.deed) and
-# docs/status/ROADMAP.adoc.
-# Never create NEUROSYM.a2ml or PLAYBOOK.a2ml in the repo root.
+# STATE FILES
+# No .a2ml file may exist anywhere: the format is retired. State, metadata,
+# (neurosym) and (playbook) are clauses of the repo deed (*_chora.deed);
+# the journal is docs/status/ROADMAP.adoc. Never recreate them as files.
 # The repo deed and .machine_readable/ are the single source of truth.
 
 # BANNED PATTERNS

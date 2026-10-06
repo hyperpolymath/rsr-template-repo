@@ -7,6 +7,8 @@ v1.0, 2026-04-07
 :toclevels: 3
 :sectnums:
 
+NOTE: Superseded in part (2026-10-06, rsr-template-repo#209): the `.a2ml` files named below no longer exist; their facts are clauses of the repo deed (`*_chora.deed`).
+
 == Scope And Inventory
 
 Audit scope:
@@ -155,7 +157,7 @@ Current status:
 rsr-template-repo/
   README.adoc
   AUDIT.adoc
-  0-AI-MANIFEST.a2ml
+  rsr-template-repo_chora.deed
   EXPLAINME.adoc
   Justfile
   coordination.k9

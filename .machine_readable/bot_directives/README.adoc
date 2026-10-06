@@ -6,36 +6,44 @@
 Methodology-aware configuration for AI agents. Read by any AI agent
 (Claude, Gemini, Copilot, etc.) at session start.
 
-== Files
+The directives are clauses of the repo deed (`*_chora.deed`), under
+`(bot-directives …)`; this directory holds only this README. No `.a2ml`
+file may be created here.
+
+== Clauses
 
 [cols="1,3"]
 |===
-| File | Purpose
+| Clause | Purpose
 
-| `methodology.a2ml`
+| `(bot-directives (methodology))`
 | Default mode, invariants, ring ceiling, priority weights, convergent budget
 
-| `coverage.a2ml`
+| `(bot-directives (coverage))`
 | Session coverage tracking — what was visited, what was skipped, what has MUSTs
 
-| `debt.a2ml`
+| `(bot-directives (debt))`
 | Meander debt — things found but not fixed, carried between sessions
+
+| `(bot-directives (rra))`
+| robot-repo-automaton modules and their settings
 |===
 
 == How Agents Use These
 
-1. Read `methodology.a2ml` at session start — know mode, invariants, ceiling
-2. Read `coverage.a2ml` — know what was visited last time, what was skipped
-3. Read `debt.a2ml` — know what's outstanding from previous sessions
-4. At session end, update `coverage.a2ml` and `debt.a2ml`
+1. Read `(bot-directives (methodology))` at session start — know mode, invariants, ceiling
+2. Read `(bot-directives (coverage))` — know what was visited last time, what was skipped
+3. Read `(bot-directives (debt))` — know what's outstanding from previous sessions
+4. At session end, update the `(bot-directives (coverage))` and `(bot-directives (debt))`
+   clauses with `scripts/deed-clause.sh` (read fields with `scripts/deed-field.sh`)
 
 == Relationship to Other Files
 
 * The `(agentic)` clause of the repo deed (`*_chora.deed`) says WHAT agents can do (permissions, gating)
-* `bot_directives/` says HOW agents should work (methodology)
-* `bot_directives/` says what the gitbot-fleet does (fleet-specific)
+* The `(bot-directives)` clause says HOW agents should work (methodology)
+* The `(bot-directives)` clause says what the gitbot-fleet does (fleet-specific)
 * `CLAUDE.md` says how Claude specifically should work (Claude-specific)
 
 == Reference
 
-ADR-002 in `standards/agentic-a2ml/docs/ADR-002-methodology-layer.adoc`
+ADR-002 (methodology layer) in https://github.com/hyperpolymath/standards[hyperpolymath/standards]

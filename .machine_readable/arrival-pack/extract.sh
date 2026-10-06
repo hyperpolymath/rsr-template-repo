@@ -6,10 +6,9 @@
 #
 # Projects the fields the CLAUDE.md arrival pack needs out of this repo's deed
 # (<repo>_chora.deed: identity, clade, lineage, status, maturity, ecosystem,
-# agentic) and the golden path in anchors/ANCHOR.a2ml into a single
-# deterministic JSON document on stdout. The deed took over CLADE / ECOSYSTEM /
-# AGENTIC / STATE .a2ml (rsr-template-repo#209); every deed read goes through
-# scripts/deed-field.sh.
+# agentic, and the golden path in its (anchor) clause) into a single
+# deterministic JSON document on stdout. Every deed read goes through
+# scripts/deed-field.sh; there are no .a2ml inputs (rsr-template-repo#209).
 #
 # This is a READER only — it authors nothing. The deed remains the single
 # source of truth; arrival-pack.ncl renders this JSON into the CLAUDE.md region.
@@ -20,11 +19,11 @@ shopt -s inherit_errexit
 
 ROOT="${1:-.}"
 READ="$ROOT/scripts/deed-field.sh"
-ANCHOR="$ROOT/.machine_readable/descriptiles/anchors/ANCHOR.a2ml"
 
 DEED="$(bash "$READ" --find "$ROOT")" \
   || { echo "extract.sh: need exactly one *_chora.deed in $ROOT" >&2; exit 2; }
-[ -f "$ANCHOR" ] || { echo "extract.sh: missing $ANCHOR" >&2; exit 2; }
+bash "$READ" --has "$DEED" anchor/golden-path \
+  || { echo "extract.sh: $(basename "$DEED") has no (anchor (golden-path)) clause" >&2; exit 2; }
 
 # field PATH KEY -> the deed value, or "" when the clause or key is absent
 # (rc 1); an unreadable deed or a usage error (rc 2) fails the run instead
@@ -44,24 +43,6 @@ items() {
     [ -n "$item" ] || continue
     if [ "$first" -eq 1 ]; then out="$item"; first=0; else out="$out$3$item"; fi
   done <<< "$list"
-  printf '%s' "$out"
-}
-
-# arr KEY FILE SEP -> join all quoted strings in the a2ml `KEY = [ ... ]` block
-# (ANCHOR is not part of the deed). SEP is a literal multi-char string.
-arr() {
-  local key="$1" file="$2" sep="${3:-, }" out="" i
-  local -a vals
-  mapfile -t vals < <(
-    awk -v k="$key" '
-      index($0, k" = [")==1 {grab=1}
-      grab {print}
-      grab && /\]/ {exit}
-    ' "$file" | grep -oP '"[^"]*"' | sed 's/^"//; s/"$//' || true
-  )
-  for i in "${!vals[@]}"; do
-    if [ "$i" -eq 0 ]; then out="${vals[$i]}"; else out="$out$sep${vals[$i]}"; fi
-  done
   printf '%s' "$out"
 }
 
@@ -103,10 +84,11 @@ chain="$(field ecosystem chain)"
 coordination="$(field ecosystem coordination)"
 phase="$(field status phase)"
 maturity="$(field maturity level)"
-golden_smoke="$(arr 'smoke-test-command' "$ANCHOR" ' && ')"
-golden_crit="$(arr 'success-criteria' "$ANCHOR" '; ')"
+golden_smoke="$(items anchor/golden-path smoke-test-command ' && ')"
+golden_crit="$(items anchor/golden-path success-criteria '; ')"
+anchor_clause="$(bash "$READ" --clause "$DEED" anchor)"
 h_deed="$(read_clauses | hash12)"
-h_anchor="$(hash12 < "$ANCHOR")"
+h_anchor="$(printf '%s\n' "$anchor_clause" | hash12)"
 
 jq -n \
   --arg canonical_name "$canonical_name" \

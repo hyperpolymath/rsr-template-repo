@@ -8,7 +8,7 @@ Use this as a repeatable maintenance runbook for any repo.
 Companion policy:
 
 - `docs/practice/SOFTWARE-DEVELOPMENT-APPROACH.adoc` (human-readable)
-- `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` (machine-readable)
+- `*_chora.deed` `(policies (software-development-approach))` (machine-readable)
 
 ## Canonical Repo Baseline (Final)
 
@@ -91,8 +91,8 @@ Run this pass at the end of a corrective/adaptive/perfective cycle:
   - `MAINTAINER` in root
   - `.github/CODEOWNERS`
 - [ ] Keep machine-readable canonical structure under `.machine_readable/`:
-  - state/meta/ecosystem files (`*.a2ml` or repo standard)
-  - `anchors/ANCHOR.a2ml`
+  - state/meta/ecosystem/anchor facts as clauses of the root repo deed
+    (`*_chora.deed`: `(status)`, `(meta)`, `(ecosystem)`, `(anchor)`); no `.a2ml` files
   - `contractiles/` (`must`, `trust`, `intend`, and related)
   - `ai/` for AI guidance files
   - `bot_directives/` for bot control files
@@ -412,8 +412,7 @@ Add these checks for language/compiler repositories with formal ABI/FFI constrai
 - [x] README structure restored (index/TOC, audience paths, quickstart sanity).
 - [x] Wiki split by audience (laypeople/users/developers) and linked from docs index.
 - [x] Root-level clutter reduced (archive, analysis, reports relegated to `docs/` subtrees).
-- [x] Machine-readable docs synchronized (`STATE.a2ml`, `META.a2ml`, `ECOSYSTEM.a2ml`, contractiles).
-  (2026-10-02 — rsr-template-repo#209 retired STATE/META/ECOSYSTEM/AGENTIC/CLADE.a2ml; their content is now in the repo deed (`*_chora.deed`) and `docs/status/ROADMAP.adoc`.)
+- [x] Machine-readable docs synchronized (repo deed `(status)`, `(meta)`, `(ecosystem)` clauses, contractiles).
 - [x] Human-readable docs synchronized (`README`, `QUICK_STATUS`, roadmap, wiki home).
 - [x] `Mustfile` invariants present and enforceable in CI.
 - [x] `Trustfile` and `Intentfile` present and complete.

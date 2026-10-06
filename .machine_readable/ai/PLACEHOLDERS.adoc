@@ -90,7 +90,7 @@ sed -i "s/{{CURRENT_DATE}}/$(date +%Y-%m-%d)/g" $(grep -rl '{{CURRENT_DATE}}' .)
 | Placeholder | Description | Example | Files |
 |---|---|---|---|
 | `{{LICENSE}}` | License name | `MPL-2.0` | ABI-FFI-README.md |
-| `{{PROJECT_PURPOSE}}` | One-line project description | `FFI bridges between languages` | ANCHOR.a2ml (set from `{{PROJECT_DESCRIPTION}}` by `just repo-init`) |
+| `{{PROJECT_PURPOSE}}` | One-line project description | `FFI bridges between languages` | `*_chora.deed` `(anchor (identity))` :one-sentence (set from `{{PROJECT_DESCRIPTION}}` by `just repo-init`) |
 | `{{OPENSSF_BP_ID}}` | OpenSSF Best Practices numeric project ID (from registering at bestpractices.dev). Optional — leave blank until registered; `just repo-init` then surfaces it in the post-init "remaining placeholders" notice as a reminder. | `1234` | README.adoc (OpenSSF Best Practices badge) |
 
 ### Project Content & Onboarding (manual-fill, post-init)
@@ -111,12 +111,12 @@ surfaces any left unfilled.
 | `{{BUILD_OUTPUT_PATH}}` | Build artefact output path | `build/` | docs/onboarding/QUICKSTART-MAINTAINER.adoc |
 | `{{DEPS}}` | Project dependencies summary | `Idris2 0.7, Zig 0.13` | docs/onboarding/QUICKSTART-MAINTAINER.adoc |
 | `{{MUST_INVARIANTS}}` | Required project invariants | `no believe_me; totality on` | docs/onboarding/QUICKSTART-DEV.adoc |
-| `{{MAIN_FUNCTION}}` | Primary function / purpose | `FFI bridge generation` | machine-readable-design/canonical-directory-structure/Intentfile.a2ml |
-| `{{TARGET_AUDIENCE}}` | Intended audience | `library authors` | machine-readable-design/canonical-directory-structure/Intentfile.a2ml |
-| `{{EXPECTED_AUTHOR}}` | Expected author identity (trust anchor) | `hyperpolymath` | machine-readable-design/canonical-directory-structure/Trustfile.a2ml |
-| `{{PROJECT_UNIQUE_STRENGTH}}` | What this project does better than alternatives | `proof-carrying FFI` | .machine_readable/bot_directives/methodology.a2ml |
-| `{{PROJECT_KIND}}` | Project kind / category | `library` | .machine_readable/descriptiles/anchors/ANCHOR.a2ml |
-| `{{PROJECT_DOMAIN}}` | Project domain | `formal-methods` | .machine_readable/descriptiles/anchors/ANCHOR.a2ml |
+| `{{MAIN_FUNCTION}}` | Primary function / purpose | `FFI bridge generation` | no file in this template (the retired Intentfile is now `.machine_readable/contractiles/intend/intend.k9.ncl`, which does not carry the token) |
+| `{{TARGET_AUDIENCE}}` | Intended audience | `library authors` | no file in this template (the retired Intentfile is now `.machine_readable/contractiles/intend/intend.k9.ncl`, which does not carry the token) |
+| `{{EXPECTED_AUTHOR}}` | Expected author identity (trust anchor) | `hyperpolymath` | no file in this template (the retired Trustfile is now `.machine_readable/contractiles/trust/trust.k9.ncl`, which does not carry the token) |
+| `{{PROJECT_UNIQUE_STRENGTH}}` | What this project does better than alternatives | `proof-carrying FFI` | `*_chora.deed` `(bot-directives (methodology (methodology (unique-strength))))` :description |
+| `{{PROJECT_KIND}}` | Project kind / category | `library` | `*_chora.deed` `(anchor (identity))` :kind |
+| `{{PROJECT_DOMAIN}}` | Project domain | `formal-methods` | `*_chora.deed` `(anchor (identity))` :domain |
 | `{{OPENSSF_PROJECT_ID}}` | OpenSSF Best Practices project ID (same value as `{{OPENSSF_BP_ID}}`) | `1234` | docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc |
 
 ### Repo deed (folded family-7 allocation manifest)
@@ -126,7 +126,7 @@ surfaces any left unfilled.
 | `[YOUR-REPO-NAME]` | Repository name | `my-project` | `*_chora.deed` (repo deed) |
 | `[YOUR-NAME/ORG]` | Maintainer name | `hyperpolymath` | `*_chora.deed` (repo deed) |
 
-(`[DATE]` was listed here for 0-AI-MANIFEST.a2ml but no file ever carried the
+(`[DATE]` was listed here for the root AI manifest but no file ever carried the
 literal token — row removed with the fold; standards#837 pilot.)
 
 ### AI Installation Guide
@@ -163,7 +163,7 @@ Some files contain deletion instructions:
 After replacing all placeholders, verify none remain:
 
 ```bash
-grep -rn '{{' . --include='*.md' --include='*.adoc' --include='*.a2ml' \
+grep -rn '{{' . --include='*.md' --include='*.adoc' --include='*.deed' \
   --include='*.scm' --include='*.idr' --include='*.zig' --include='*.res' \
   --include='Justfile' --include='*.nix' --include='*.toml' --include='*.yml' \
   --include='*.yaml' --include='*.hs' --include='*.ncl' --include='*.txt' \

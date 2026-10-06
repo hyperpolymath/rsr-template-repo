@@ -82,5 +82,5 @@ deliberate. Test a change to the FFI in a scratch copy after `repo-init`.
   substitutes them. Write "placeholder token" instead.
 * `build/` is not an artefact directory here: `just clean` deliberately leaves it,
   because `build/just/repo-init.just` lives there.
-* Descriptile and policy files are A2ML, which is retired: do not extend them or
-  build anything new on them.
+* Descriptile and policy facts are clauses of the repo deed (`*_chora.deed`),
+  read with `scripts/deed-field.sh`; A2ML is retired and no `.a2ml` file may exist.

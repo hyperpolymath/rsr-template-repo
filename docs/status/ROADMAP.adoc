@@ -10,8 +10,8 @@ Phase and maturity are not recorded here. They live in the repo deed,
 `rsr-template-repo_chora.deed`, in the `(status …)` and `(maturity …)`
 clauses (`just state-phase` prints both).
 
-This file took over the journal half of
-`.machine_readable/descriptiles/STATE.a2ml` (rsr-template-repo#209), last
+This file took over the journal half of the retired STATE record
+(rsr-template-repo#209), last
 updated there on 2026-09-19. STATE also recorded version 0.3.0; the release
 version is 0.1.0 (`Justfile`, `CITATION.cff`, tag `v0.1.0`, deed
 `(meta :version …)`).
@@ -24,7 +24,7 @@ version is 0.1.0 (`Justfile`, `CITATION.cff`, tag `v0.1.0`, deed
 
 | Phase 0: Core scaffolding (justfile, CI/CD, machine-readable) | 100%
 | Phase 1: ABI/FFI standard (Idris2/Zig templates) | 100%
-| Phase 1b: AI Gatekeeper Protocol (0-AI-MANIFEST.a2ml) | 100%
+| Phase 1b: AI Gatekeeper Protocol (AI manifest, now the repo deed) | 100%
 | Phase 1c: TOPOLOGY.md standard and guide | 100%
 | Phase 1d: Maintenance gate (axes, checklist, approach) | 100%
 | Phase 1e: Trustfile / contractiles | 100%

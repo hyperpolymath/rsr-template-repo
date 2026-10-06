@@ -37,7 +37,8 @@ one-shot relocation PR per project once the template lands.
 The full enumeration lives in `.machine_readable/root-allow.txt`. Summary:
 
 * *Authority files (root):* `README.adoc`, `AUDIT.adoc`, `EXPLAINME.adoc`,
-  `0-AI-MANIFEST.a2ml` (thin pointer), `LICENSE`, `CHANGELOG.md`.
+  `<repo>_chora.deed` (the repo deed, which is the AI manifest), `LICENSE`,
+  `CHANGELOG.md`.
 * *Build entry points (root):* `Justfile`, `coordination.k9`.
 * *Tool-required dotfiles (root):* `.editorconfig`, `.envrc`, `.gitattributes`,
   `.gitignore`, `.tool-versions`.
@@ -161,19 +162,10 @@ across `Justfile`, `scripts/`, `.machine_readable/`).
 
 === AI manifest deduplication
 
-`.machine_readable/0.1-AI-MANIFEST.a2ml` is the canonical AI manifest in both
-the template and downstream repos (e.g. `the-nash-equilibrium` README line
-244). The root `0-AI-MANIFEST.a2ml` becomes a thin pointer:
-
-[source,a2ml]
-----
-# 0-AI-MANIFEST.a2ml — pointer file
-authority = ".machine_readable/0.1-AI-MANIFEST.a2ml"
-note = "AI agents MUST read the canonical manifest at the path above."
-----
-
-Once the canonical version is stable, decide whether to keep this pointer at
-root or delete it entirely.
+Resolved: the repo deed (`<repo>_chora.deed` at the root) is the single AI
+manifest. The family-7 allocation manifest folded into it (standards#837
+pilot), and no separate manifest or pointer file remains: no `.a2ml` file
+may exist in the template or its downstream repos (rsr-template-repo#209).
 
 === Template-only relocations
 

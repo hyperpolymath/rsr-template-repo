@@ -101,15 +101,17 @@ self-assess:
         echo "    ⚠ Consequence: no C-compatible FFI bridge."
     fi
 
-    if $HAS_API && [ -f ".machine_readable/integrations/groove.a2ml" ]; then
-        PORT=$(grep '(port ' .machine_readable/integrations/groove.a2ml 2>/dev/null | sed 's/.*(port \([0-9]*\)).*/\1/')
+    # The Groove manifest is the repo deed's (integrations (groove …)) clause.
+    GROOVE_DEED=$(bash scripts/deed-field.sh --find . 2>/dev/null || true)
+    if $HAS_API && [ -n "$GROOVE_DEED" ] && bash scripts/deed-field.sh --has "$GROOVE_DEED" integrations/groove; then
+        PORT=$(bash scripts/deed-field.sh "$GROOVE_DEED" integrations/groove port 2>/dev/null || true)
         if [ "$PORT" = "0" ]; then
-            echo "  ⚠ groove.a2ml — Port not assigned. Run 'just groove-setup'."
+            echo "  ⚠ (integrations (groove)) — Port not assigned. Run 'just groove-setup'."
         else
-            echo "  ✓ groove.a2ml — KEEP (Groove discovery on port $PORT)"
+            echo "  ✓ (integrations (groove)) — KEEP (Groove discovery on port $PORT)"
         fi
     elif $HAS_API; then
-        echo "  ✗ groove.a2ml — MISSING. Your project has an API but no Groove manifest."
+        echo "  ✗ (integrations (groove)) — MISSING. Your project has an API but no Groove clause in its deed."
         echo "    → Run 'just groove-setup' to enable snap-on/snap-off discovery."
     fi
 

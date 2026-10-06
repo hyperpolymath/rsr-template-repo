@@ -5,6 +5,8 @@
 :toclevels: 3
 :sectnums:
 
+NOTE: Superseded in part (2026-10-06, rsr-template-repo#209): the `.a2ml` files named below no longer exist; their facts are clauses of the repo deed (`*_chora.deed`).
+
 *Measured 2026-09-15 against the live estate.* This document records what the
 template's self-identity repair passes do, what they provably did *not* do to
 repositories minted before they existed, and — just as importantly — which of

@@ -57,9 +57,8 @@ check_file_exists() {
 
 # The repo deed's FILENAME carries the repository name (filename dispatch:
 # <stem>_chora.deed, stem = repo slug — deed.abnf v1.0.0), so the check is a
-# glob, not a literal. Pre-deed era this slot was 0-AI-MANIFEST.a2ml; the
-# family-7 allocation manifest and the ply tree folded into the deed
-# (standards#837 pilot).
+# glob, not a literal. The family-7 allocation manifest and the ply tree are
+# folded into the deed (standards#837 pilot).
 check_deed_exists() {
     local description="${1:-}"
     local f
@@ -187,16 +186,17 @@ echo ""
 log_info "Phase 2: Machine-readable metadata (.machine_readable/)"
 echo ""
 
-# Project state, architecture axes and ecosystem position are clauses of the
-# repo deed (rsr-template-repo#209), no longer STATE/META/ECOSYSTEM.a2ml.
+# Project state, architecture axes, ecosystem position, the anchor and the
+# maintenance axes are clauses of the repo deed (rsr-template-repo#209).
 DEED_FILE=$(bash "$REPO_ROOT/scripts/deed-field.sh" --find "$REPO_ROOT" || true)
-for clause in status maturity meta ecosystem; do
+for clause in status maturity meta ecosystem anchor policies/maintenance-axes; do
     if [ -z "$DEED_FILE" ] || ! bash "$REPO_ROOT/scripts/deed-field.sh" --has "$DEED_FILE" "$clause"; then
         log_error "Repo deed lacks the ($clause …) clause"
     fi
 done
-check_file_exists ".machine_readable/descriptiles/anchors/ANCHOR.a2ml" "Semantic boundary anchor"
-check_file_exists ".machine_readable/policies/MAINTENANCE-AXES.a2ml" "Maintenance axes"
+if ! bash "$REPO_ROOT/scripts/check-no-a2ml.sh" "$REPO_ROOT" >/dev/null; then
+    log_error "Retired .a2ml files present (run scripts/check-no-a2ml.sh)"
+fi
 
 #==============================================================================
 # VALIDATION PHASE 3: REQUIRED WORKFLOWS (17 minimum)

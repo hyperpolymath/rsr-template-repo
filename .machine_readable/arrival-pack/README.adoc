@@ -24,9 +24,9 @@ Two halves of the generated region:
   position, constraints, golden path, state.
 
 The repo deed (`<repo>_chora.deed`) is the single source of truth; it took
-over CLADE / ECOSYSTEM / AGENTIC / STATE .a2ml (rsr-template-repo#209), and
-`extract.sh` reads it through `scripts/deed-field.sh`. The golden path still
-comes from `anchors/ANCHOR.a2ml`. CLAUDE.md is a *view*. Content
+over the former CLADE / ECOSYSTEM / AGENTIC / STATE records (rsr-template-repo#209), and
+`extract.sh` reads it through `scripts/deed-field.sh`. The golden path
+comes from its `(anchor (golden-path))` clause. CLAUDE.md is a *view*. Content
 outside the `ARRIVAL-PACK:BEGIN/END` markers is hand-authorable and preserved.
 
 == Files
@@ -54,5 +54,5 @@ just validate-claude-md   # fail if the committed region drifted / was hand-edit
   his voice, then pin to a `hyperpolymath/manifesto` commit SHA.
 * `ECOSYSTEM.what-this-is-not` is empty here, so IS-NOT renders as "not yet
   declared". Populating it is the boundary-erosion fix (the `lith` lesson).
-* `ANCHOR.a2ml` currently encodes semantic-authority + golden-path; the
+* The `(anchor)` clause currently encodes semantic-authority + golden-path; the
   recognised-drift / re-anchor-ledger aspect is a pending standards change.

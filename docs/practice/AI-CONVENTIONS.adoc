@@ -13,10 +13,10 @@ Per-tool config files (.cursorrules, .clinerules, etc.) reference this document.
 
 1. Read the repo deed (`*_chora.deed` at root) FIRST (mandatory gatekeeper).
 2. Read `docs/status/ROADMAP.adoc` for blockers and next actions (phase and maturity are in the deed's `(status)` and `(maturity)` clauses).
-3. Read `.machine_readable/descriptiles/anchors/ANCHOR.a2ml` for canonical authority boundaries.
-4. Read `.machine_readable/policies/MAINTENANCE-AXES.a2ml` for maintenance/audit sequencing.
-5. Read `.machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml` for baseline controls.
-6. Read `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` for execution order.
+3. Read the deed's `(anchor)` clause for canonical authority boundaries.
+4. Read the deed's `(policies (maintenance-axes))` clause for maintenance/audit sequencing.
+5. Read the deed's `(policies (maintenance-checklist))` clause for baseline controls.
+6. Read the deed's `(policies (software-development-approach))` clause for execution order.
 7. Read the deed's `(agentic)` clause for agent constraints.
 
 === License
@@ -44,13 +44,11 @@ Per estate policy (hyperpolymath/standards `LICENCE-POLICY.adoc` Rule 1 + Addend
 
 === State Files
 
-The retired STATE/META/ECOSYSTEM/AGENTIC/CLADE .a2ml files must not be
-recreated anywhere; their content is in the repo deed (`*_chora.deed`) and
-`docs/status/ROADMAP.adoc`.
-
-State/metadata files, anchors, and policies (.a2ml) belong in `.machine_readable/` ONLY.
-NEVER create NEUROSYM.a2ml, PLAYBOOK.a2ml, ANCHOR.a2ml, MAINTENANCE-AXES.a2ml,
-MAINTENANCE-CHECKLIST.a2ml, or SOFTWARE-DEVELOPMENT-APPROACH.a2ml in the repository root.
+No `.a2ml` file may exist anywhere in this repository: the format is retired.
+State, metadata, anchor and policy facts are clauses of the repo deed
+(`*_chora.deed`) — `(status)`, `(maturity)`, `(meta)`, `(anchor)`,
+`(neurosym)`, `(playbook)`, `(policies …)` — and the journal is
+`docs/status/ROADMAP.adoc`. Never recreate them as separate files.
 
 === Banned Patterns
 
@@ -100,7 +98,7 @@ Use `just` (Justfile) for all build, test, lint, and format tasks.
 - `*_chora.deed` `(agentic)` -- agent permissions and constraints
 - `*_chora.deed` `(status)` / `(maturity)` -- current phase and maturity
 - `docs/status/ROADMAP.adoc` -- milestones, blockers, next actions
-- `.machine_readable/descriptiles/anchors/ANCHOR.a2ml` -- canonical authority and policy boundary
-- `.machine_readable/policies/MAINTENANCE-AXES.a2ml` -- canonical axis sequencing and audit requirements
-- `.machine_readable/policies/MAINTENANCE-CHECKLIST.a2ml` -- baseline maintenance checklist policy
-- `.machine_readable/policies/SOFTWARE-DEVELOPMENT-APPROACH.a2ml` -- axis execution approach policy
+- `*_chora.deed` `(anchor)` -- canonical authority and policy boundary
+- `*_chora.deed` `(policies (maintenance-axes))` -- canonical axis sequencing and audit requirements
+- `*_chora.deed` `(policies (maintenance-checklist))` -- baseline maintenance checklist policy
+- `*_chora.deed` `(policies (software-development-approach))` -- axis execution approach policy

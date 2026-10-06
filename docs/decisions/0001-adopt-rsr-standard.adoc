@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
 
+NOTE: Superseded in part (2026-10-06, rsr-template-repo#209): the `.a2ml` files named below no longer exist; their facts are clauses of the repo deed (`*_chora.deed`).
+
 == 1. Adopt Rhodium Standard Repository (RSR) Template
 
 Date: 2026-02-14
