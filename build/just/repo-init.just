@@ -30,13 +30,13 @@ repo-init archetype="":
     ARCH_FILE=""
     ARCH_PRESET=""
     if [ -n "$ARCHETYPE" ]; then
-        ARCH_FILE="archetypes/${ARCHETYPE}/ARCHETYPE.a2ml"
+        ARCH_FILE="archetypes/${ARCHETYPE}/${ARCHETYPE}_praxis.deed"
         if [ ! -f "$ARCH_FILE" ]; then
             echo "Error: unknown archetype '${ARCHETYPE}'. Available:"
             ls -1 archetypes 2>/dev/null | grep -v 'README' || echo "  (none)"
             exit 1
         fi
-        ARCH_PRESET=$(sed -n 's/^preset = "\(.*\)"$/\1/p' "$ARCH_FILE" | head -1)
+        ARCH_PRESET=$(bash scripts/deed-field.sh "$ARCH_FILE" capability preset || true)
         echo "Archetype: ${ARCHETYPE}${ARCH_PRESET:+  (capability preset: $ARCH_PRESET)}"
         echo ""
     fi
@@ -274,16 +274,18 @@ repo-init archetype="":
     # below — sed applies expressions in order, so a token the archetype
     # answers never reaches the fallback, and one it omits still fails loudly.
     if [ -n "$ARCH_FILE" ]; then
-        while IFS= read -r arch_line; do
-            arch_tok="${arch_line%%=*}"; arch_tok="${arch_tok// /}"
-            arch_val=$(printf '%s' "$arch_line" | sed -n 's/^[^=]*= *"\(.*\)" *$/\1/p')
+        # The archetype's (tokens) clause: every :KEY "value" pair, read through
+        # deed-field.sh so string escapes are decoded by the one reader.
+        while IFS= read -r arch_tok; do
+            arch_val=$(bash scripts/deed-field.sh "$ARCH_FILE" tokens "$arch_tok" || true)
             { [ -n "$arch_tok" ] && [ -n "$arch_val" ]; } || continue
             case "$arch_val" in *'|'*)
                 echo "WARN: archetype token $arch_tok contains '|' (the sed delimiter) — skipped, stays UNASSIGNED"
                 continue ;;
             esac
             SED_ARGS+=(-e "s|${LB}${arch_tok}${RB}|${arch_val}|g")
-        done < <(awk '$0=="[tokens]"{f=1;next} /^\[/{f=0} f && !/^[[:space:]]*#/ && NF' "$ARCH_FILE")
+        done < <(bash scripts/deed-field.sh --clause "$ARCH_FILE" tokens \
+                   | awk 'prev ~ /^A:/ && /^S/ { print substr(prev, 3) } { prev = $0 }')
     fi
 
     # Tokens only the author can answer. init cannot know a project's unique
