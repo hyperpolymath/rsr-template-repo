@@ -5,97 +5,106 @@
 # extract-clauses.sh — the NORMATIVE-side atomiser for Coaptation.
 #
 # Step 1 of the build path: give each contractile verb a machine-checkable
-# clause-list with STABLE IDs. The clauses already exist as `###`/`####` anchors
-# inside the six Xfiles (Intentfile/Mustfile/Trustfile/Adjustfile/Dustfile/
-# Bustfile); this reader lifts them — it invents no semantics. Each obligation
-# becomes a stable id `verb.slug` with its description, gate-field and whether it
-# carries a runnable probe.
+# clause-list with STABLE IDs. The clauses live as records in the `declaration`
+# field of each verb's K9 component (`<verb>/<verb>.k9.ncl`; the A2ML Xfiles they
+# came from are retired). This reader lifts them — it invents no semantics. Each
+# obligation becomes a stable id `verb.slug` with its description, gate-field and
+# whether it carries a runnable probe (`probe`, `injection_probe` or
+# `recovery_probe`).
 #
-# A header is treated as a CLAUSE (not a section/grouping header) iff its block
-# contains at least one `- <field>:` line. This separates `### Secrets` (a Trust
-# grouping header, no fields) from `#### no-secrets-committed` (a real clause).
+# Collections read, per verb (the runner schema's collection name):
+#   intend: intents, then wishes   must: invariants     trust: verifications
+#   adjust: requirements           dust: removal_candidates   bust: failure_modes
 #
 # READER only — authors nothing. Deterministic (no timestamps) so the receipt the
 # Yard comparator emits can be byte-compared by verify.sh.
 #
+# Needs: nickel, jq. A K9 file starts with the `K9!` magic line, which is not
+# Nickel, so each file is exported from a stripped copy placed next to a copy of
+# `_base.ncl` (the k9 files import `../_base.ncl`).
+#
 # Output (stdout): { "clauses": [ {id,verb,slug,description,severity,status,
-#                   tolerance,has_probe} ... ], "provenance": { <verb>: <hash> } }
+#                   tolerance,has_probe,horizon,is_wish} ... ],
+#                   "provenance": { <verb>: <hash of <verb>.k9.ncl> } }
 set -euo pipefail
 
 DIR="${1:-.machine_readable/contractiles}"
+NICKEL="${NICKEL:-nickel}"
 
-# verb -> Xfile (relative to $DIR)
-declare -A XFILE=(
-  [intend]="intend/Intentfile.a2ml"
-  [must]="must/Mustfile.a2ml"
-  [trust]="trust/Trustfile.a2ml"
-  [adjust]="adjust/Adjustfile.a2ml"
-  [dust]="dust/Dustfile.a2ml"
-  [bust]="bust/Bustfile.a2ml"
-)
 ORDER=(intend must trust adjust dust bust)
 
 for v in "${ORDER[@]}"; do
-  f="$DIR/${XFILE[$v]}"
-  [ -f "$f" ] || { echo "extract-clauses.sh: missing Xfile: $f" >&2; exit 2; }
+  f="$DIR/$v/$v.k9.ncl"
+  [ -f "$f" ] || { echo "extract-clauses.sh: missing contractile K9 file: $f" >&2; exit 2; }
 done
+[ -f "$DIR/_base.ncl" ] || { echo "extract-clauses.sh: missing $DIR/_base.ncl" >&2; exit 2; }
 
-# short content hash (drift provenance), matches arrival-pack extract.sh
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+cp "$DIR/_base.ncl" "$WORK/_base.ncl"
+
+# Print a short content hash of file $1 (drift provenance; matches
+# arrival-pack extract.sh).
 sh() { sha256sum "$1" | cut -c1-12; }
 
-# Emit TSV rows: verb \t slug \t description \t severity \t status \t tolerance \t has_probe
+# Print the `declaration` field of verb $1's K9 file as JSON. Strips the `K9!`
+# magic line into a scratch copy so `nickel export` can read it.
+declaration_json() {
+  local verb="$1"
+  mkdir -p "$WORK/$verb"
+  tail -n +2 "$DIR/$verb/$verb.k9.ncl" > "$WORK/$verb/$verb.k9.ncl"
+  "$NICKEL" export --format json --field declaration "$WORK/$verb/$verb.k9.ncl"
+}
+
+# Emit one clause object per line (JSON) for verb $1, in declaration order.
+# A record is a clause only if its id is a plain slug, as before.
 atomise() {
-  local verb="$1" file="$2"
-  awk -v verb="$verb" '
-    function flush() {
-      if (have_field && slug ~ /^[A-Za-z0-9_-]+$/) {
-        gsub(/\t/, " ", desc)
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", verb, slug, desc, sev, status, tol, hasprobe, horizon
+  local verb="$1"
+  declaration_json "$verb" | jq -c --arg verb "$verb" '
+    def s: if . == null then "" else tostring end;
+    (if $verb == "intend" then (.intents // []) + (.wishes // [])
+     elif $verb == "must"   then .invariants // []
+     elif $verb == "trust"  then .verifications // []
+     elif $verb == "adjust" then .requirements // []
+     elif $verb == "dust"   then .removal_candidates // []
+     elif $verb == "bust"   then .failure_modes // []
+     else [] end)[]
+    | select(.id | test("^[A-Za-z0-9_-]+$"))
+    | {
+        verb: $verb,
+        slug: .id,
+        description: (.description | s | gsub("\t"; " ")),
+        severity:  (.severity | s),
+        status:    (.status | s),
+        tolerance: (.tolerance | s),
+        has_probe: (has("probe") or has("injection_probe") or has("recovery_probe")),
+        horizon:   (.horizon | s)
       }
-      slug=""; desc=""; sev=""; status=""; tol=""; hasprobe="false"; horizon=""; have_field=0
-    }
-    /^#{3,4} / { flush(); line=$0; sub(/^#{3,4}[[:space:]]+/, "", line); slug=line; next }
-    /^## /     { flush(); next }
-    /^- description:/ { d=$0; sub(/^- description:[[:space:]]*/, "", d); desc=d; have_field=1; next }
-    /^- severity:/    { d=$0; sub(/^- severity:[[:space:]]*/, "", d);    sev=d;  have_field=1; next }
-    /^- status:/      { d=$0; sub(/^- status:[[:space:]]*/, "", d);      status=d; have_field=1; next }
-    /^- tolerance:/   { d=$0; sub(/^- tolerance:[[:space:]]*/, "", d);   tol=d;  have_field=1; next }
-    /^- horizon:/     { d=$0; sub(/^- horizon:[[:space:]]*/, "", d);     horizon=d; have_field=1; next }
-    /^- run:/             { hasprobe="true"; have_field=1; next }
-    /^- probe:/           { hasprobe="true"; have_field=1; next }
-    /^- injection_probe:/ { hasprobe="true"; have_field=1; next }
-    /^- recovery_probe:/  { hasprobe="true"; have_field=1; next }
-    /^- class:/        { have_field=1; next }
-    /^- verification:/ { have_field=1; next }
-    /^- corrective:/   { have_field=1; next }
-    END { flush() }
-  ' "$file"
+  '
 }
 
 # Build the clause rows + the provenance object.
-rows="$(for v in "${ORDER[@]}"; do atomise "$v" "$DIR/${XFILE[$v]}"; done)"
+rows="$(for v in "${ORDER[@]}"; do atomise "$v"; done)"
 
 prov_args=()
 for v in "${ORDER[@]}"; do
-  prov_args+=(--arg "$v" "$(sh "$DIR/${XFILE[$v]}")")
+  prov_args+=(--arg "$v" "$(sh "$DIR/$v/$v.k9.ncl")")
 done
 
-printf '%s\n' "$rows" | jq -R -s "${prov_args[@]}" '
+printf '%s\n' "$rows" | jq -s "${prov_args[@]}" '
   {
-    clauses: (
-      split("\n") | map(select(length > 0)) | map(split("\t")) | map({
-        id:          (.[0] + "." + .[1]),
-        verb:        .[0],
-        slug:        .[1],
-        description: (.[2] // ""),
-        severity:    (.[3] // ""),
-        status:      (.[4] // ""),
-        tolerance:   (.[5] // ""),
-        has_probe:   ((.[6] // "false") == "true"),
-        horizon:     (.[7] // ""),
-        is_wish:     ((.[7] // "") | length > 0)
-      })
-    ),
+    clauses: map({
+      id:          (.verb + "." + .slug),
+      verb:        .verb,
+      slug:        .slug,
+      description: .description,
+      severity:    .severity,
+      status:      .status,
+      tolerance:   .tolerance,
+      has_probe:   .has_probe,
+      horizon:     .horizon,
+      is_wish:     (.horizon | length > 0)
+    }),
     provenance: {
       intend: $intend, must: $must, trust: $trust,
       adjust: $adjust, dust: $dust, bust: $bust

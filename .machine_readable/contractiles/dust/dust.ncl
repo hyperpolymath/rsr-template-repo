@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # Dust — exnovation / code-removal runner
 #
-# Pairs with: Dustfile.a2ml (same directory)
+# Pairs with: the `declaration` field of dust.k9.ncl (same directory)
 # Verb:       dust
 # Semantics:  exnovation. Identifies code, docs, files, dependencies that are
 #             candidates for REMOVAL. Advisory by default; can be flipped to
@@ -33,8 +33,8 @@ let base = import "../_base.ncl" in
       metadata = {
         name = "dust-runner",
         version = "1.0.0",
-        description = "Identifies and optionally removes exnovation targets listed in Dustfile.a2ml. Destructive mode gated behind --apply.",
-        paired_xfile = "Dustfile.a2ml",
+        description = "Identifies and optionally removes exnovation targets listed in the dust.k9.ncl declaration. Destructive mode gated behind --apply.",
+        paired_xfile = "dust.k9.ncl#declaration",
         author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
       },
     },
@@ -62,7 +62,7 @@ let base = import "../_base.ncl" in
     base.run_defaults
     & {
       on_any_fail = "continue-with-warnings",
-      report_format = "a2ml",
+      report_format = "json",
       emit_summary = true,
       apply_requires_approval = true, # only 'approved items get swept, even with --apply
     },

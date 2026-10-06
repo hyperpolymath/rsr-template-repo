@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # Adjust — accessibility runner
 #
-# Pairs with: Adjustfile.a2ml (same directory)
+# Pairs with: the `declaration` field of adjust.k9.ncl (same directory)
 # Verb:       adjust
 # Semantics:  accessibility compliance (WCAG 2.1 AA baseline). Gating where
 #             a deterministic fix exists; advisory where human review needed.
@@ -30,8 +30,8 @@ let base = import "../_base.ncl" in
       metadata = {
         name = "adjust-runner",
         version = "1.0.0",
-        description = "Evaluates accessibility requirements from Adjustfile.a2ml. Fixes deterministic items; flags the rest for human review.",
-        paired_xfile = "Adjustfile.a2ml",
+        description = "Evaluates accessibility requirements from the adjust.k9.ncl declaration. Fixes deterministic items; flags the rest for human review.",
+        paired_xfile = "adjust.k9.ncl#declaration",
         author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
       },
     },
@@ -58,7 +58,7 @@ let base = import "../_base.ncl" in
     base.run_defaults
     & {
       on_any_fail = "continue-with-warnings", # accessibility is progress-tracked, not a hard gate by default
-      report_format = "a2ml",
+      report_format = "json",
       emit_summary = true,
       auto_fix_when_available = true,
     },

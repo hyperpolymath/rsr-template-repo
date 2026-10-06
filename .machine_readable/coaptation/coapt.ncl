@@ -6,7 +6,7 @@
 # Pure evaluation, no side effects (k9 'Yard): imports the atomised clauses
 # (normative obligations) and facts (descriptive evidence), runs the witness map
 # (Coverage), grades per verb, aggregates to a band, and renders the coaptation
-# receipt as deterministic a2ml text (exported with `nickel export --format raw`).
+# receipt as deterministic TOML text (exported with `nickel export --format raw`).
 #
 # This is the Nickel prototype of the comparator. The dependent-typed sound core
 # (Idris2 `Witnesses`/`Coverage`, where an unwitnessed Must is a COMPILE-TIME
@@ -120,7 +120,7 @@ let amber = !posture_ok || !intend_ok in
 let band = if red then "red" else if amber then "amber" else "green" in
 let action =
   if band == "red" then
-    "ASSEMBLE re-anchor basis — a hard obligation is refuted/unmeasured or a recognised break is active. The anchor DROP is a human authority act; coapt only assembles the basis. ANCHOR.a2ml has no drift/ledger schema yet, so the drop cannot be recorded mechanically."
+    "ASSEMBLE re-anchor basis — a hard obligation is refuted/unmeasured or a recognised break is active. The anchor DROP is a human authority act; coapt only assembles the basis. The deed's (anchor) clause has no drift/ledger schema yet, so the drop cannot be recorded mechanically."
   else if band == "amber" then
     "advisory — soft drift within bands (posture/intend). Open an advisory issue; no re-anchor."
   else

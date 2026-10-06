@@ -3,7 +3,7 @@ K9!
 # must.k9.ncl — K9 trust-tier component of the must trident
 # Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 #
-# Pairs with: Mustfile.a2ml (declaration) + must.ncl (runner).
+# Pairs with: the `declaration` field of this file + must.ncl (runner).
 # Trident completeness is a hard precondition — a repo shipping
 # Mustfile without this file AND its runner is an invalid trident;
 # the contractile CLI's verify gate refuses partial publication.
@@ -28,13 +28,12 @@ K9!
 # fabrication of success "facts" — invariants ground truth against
 # marketing copy) and D1 (lore fabrication about what the repo contains).
 
-let base_k9 = import "../k9/template-hunt.k9.ncl" in
 let base    = import "../_base.ncl" in
 
 {
-  pedigree = base_k9.pedigree_schema & {
+  pedigree = base.pedigree_schema & {
     contractile_verb = "must",
-    paired_xfile     = "../must/Mustfile.a2ml",
+    paired_xfile     = "../must/must.k9.ncl#declaration",
     paired_runner    = "../must/must.ncl",
 
     # α two-axis: Hunt tier (subprocess for grep/test/etc.) but
@@ -47,7 +46,7 @@ let base    = import "../_base.ncl" in
       name = "must-k9",
       version = "1.0.0",
       description = "Evaluates release-blocking invariants as a hard gate. Third trident instance. Complements trust (ephemeral blocking) with persistent invariant blocking.",
-      paired_xfile = "Mustfile.a2ml",
+      paired_xfile = "must.k9.ncl#declaration",
       paired_runner = "must.ncl",
       author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
     },
@@ -75,6 +74,160 @@ let base    = import "../_base.ncl" in
         'exploit_attempt,          # that's trust's safe_hacking territory
       ],
     },
+
+    # Trident manifest — folded in from the retired <verb>.manifest.a2ml.
+    # The sha256 / size_bytes fields were "pending-first-verify" placeholders
+    # and the cross_refs named the retired Xfile; both are dropped. The
+    # declaration now lives in this file (`declaration` below), so the
+    # trident is runner + this k9 component.
+    trident = {
+      notes = "Third trident instance in the estate. Completes the blocking-authority\npair (must + trust). must is concrete + persistent invariants; trust\nis concrete + ephemeral transactions. Together they gate every\nsecurity- and invariant-affecting merge.\n",
+      trident_version = "1.0.0",
+      semantics = "invariant assertion — release-blocking",
+      cardinality = "one per repo",
+      authority = "blocking (hard gate)",
+      files = [
+        { role = "declaration", former_path = "Mustfile.a2ml", notes = "Mustfile declaration — invariants each with id, description, probe, severity." },
+        { role = "runner", former_path = "must.ncl", notes = "Runner pre-existed. Schema covers invariants array with status_core + severity." },
+        { role = "k9_component", former_path = "must.k9.ncl", notes = "Hunt-restricted read-only tier; blocking authority. Tracks per-invariant trend across sessions; flags silent regressions; blocks session close on critical drift." },
+      ],
+      signed_by = {
+        user = "Jonathan D.A. Jewell",
+        date = "2026-04-18",
+        context = "must trident — canonical template in rsr-template-repo. Blocking-authority verb (paired with trust). Specialises in subtle invariant-erosion catchment vs trust's outrageous-attack catchment. Hard gate: any failing invariant blocks merge. Copy this trident into a new repo and replace the declaration with project-specific invariants.",
+      },
+      history = [
+        { date = "2026-04-18", event = "trident-born", note = "Mustfile.a2ml and must.ncl pre-existed. This manifest + must.k9.ncl complete the trident. Inherits on_open schema from intend.k9.ncl v2.0.0; inherits block_session_close_on_critical_drift + variance-severity-acknowledgement from trust.k9.ncl v1.0.0; adds must-specific track_per_session_trend + flag_silent_regression + probe_scope = 'read_only (must doesn't do active exploit attempts — that's trust's safe_hacking territory)." },
+        { date = "2026-10-06", event = "a2ml-retired", note = "The A2ML declaration and this manifest were folded into must.k9.ncl (declaration + pedigree.trident) under the owner directive that no .a2ml file remains. Item ids, probes and prose were carried over unchanged." },
+      ],
+    },
+  },
+
+  # -------------------------------------------------------------------
+  # Declaration — the must contract data. Migrated losslessly from the
+  # retired A2ML Xfile (owner directive: zero A2ML files). Item records
+  # carry the field names of must.ncl's `schema`; values are kept exactly
+  # as authored, so the runner schema is NOT applied as a contract here
+  # (several authored severities / classes / fields fall outside its enums).
+  # Read by .machine_readable/coaptation/extract-clauses.sh.
+  # -------------------------------------------------------------------
+  declaration = {
+    preamble = "# SPDX-License-Identifier: MPL-2.0\n# Mustfile — Physical state contract for rsr-template-repo\n# Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>\n#\n# What MUST be true about this repository. Hard requirements.\n# Run with: must check\n# Fix with: must fix (where a deterministic fix exists)\n",
+    abstract = "Physical-state invariants for rsr-template-repo. This is the canonical\nRSR template repository. These are hard requirements — CI and pre-commit\nhooks fail if any check fails.",
+    prose = [
+      {
+        section = "Template Integrity",
+        text = "# template-readonly RETIRED 2026-09-19 (standards#837 pilot): it grepped\n# RSR_TEMPLATE_DO_NOT_EDIT in .machine_readable/0.1-AI-MANIFEST.a2ml, but the\n# marker never existed outside this Mustfile and the file is now folded into\n# the repo deed — the check could only ever fail. A gate that cannot pass is\n# the fake-gate class this estate hunts; retiring it, not re-aiming it.",
+      },
+    ],
+    invariants = [
+      {
+        id = "license-present",
+        section = "File Presence",
+        description = "LICENSE file must exist",
+        probe = "test -f LICENSE",
+        severity = 'critical,
+      },
+      {
+        id = "readme-present",
+        section = "File Presence",
+        description = "README.adoc must exist",
+        probe = "test -f README.adoc",
+        severity = 'critical,
+      },
+      {
+        id = "security-policy",
+        section = "File Presence",
+        description = "SECURITY.md must exist",
+        probe = "test -f SECURITY.md || test -f .github/SECURITY.md",
+        severity = 'critical,
+      },
+      {
+        id = "repo-deed",
+        section = "File Presence",
+        description = "the repo deed (<reponame>_chora.deed) must exist at root",
+        probe = "ls *_chora.deed >/dev/null 2>&1",
+        severity = 'critical,
+      },
+      {
+        id = "governance-docs",
+        section = "File Presence",
+        description = "governance model, maintainer roster and CODEOWNERS must exist",
+        probe = "test -f docs/GOVERNANCE.adoc && test -f docs/MAINTAINERS.adoc && test -f .github/CODEOWNERS",
+        severity = 'critical,
+      },
+      {
+        id = "machine-readable-dir",
+        section = "File Presence",
+        description = ".machine_readable/ directory must exist",
+        probe = "test -d .machine_readable",
+        severity = 'critical,
+      },
+      {
+        id = "contractiles-complete",
+        section = "Directory Structure",
+        description = "All required contractile directories exist",
+        probe = "test -d .machine_readable/contractiles && test -d .machine_readable/contractiles/bust && test -d .machine_readable/contractiles/dust",
+        severity = 'critical,
+      },
+      {
+        id = "contractiles-files-present",
+        section = "Directory Structure",
+        description = "All six contractile declarations exist (<verb>/<verb>.k9.ncl)",
+        probe = "for v in intend must trust adjust dust bust; do test -f .machine_readable/contractiles/$v/$v.k9.ncl || exit 1; done",
+        severity = 'critical,
+      },
+      {
+        id = "bust-dust-files-present",
+        section = "Directory Structure",
+        description = "The bust and dust declarations exist in their directories",
+        probe = "test -f .machine_readable/contractiles/bust/bust.k9.ncl && test -f .machine_readable/contractiles/dust/dust.k9.ncl",
+        severity = 'critical,
+      },
+      {
+        id = "six-directory-present",
+        section = "Directory Structure",
+        description = "the repo has exactly one deed (*_chora.deed) and it carries the (anchor), (neurosym) and (playbook) clauses",
+        probe = "d=$(bash scripts/deed-field.sh --find .) && bash scripts/deed-field.sh --has \"$d\" anchor && bash scripts/deed-field.sh --has \"$d\" neurosym && bash scripts/deed-field.sh --has \"$d\" playbook",
+        severity = 'critical,
+      },
+      {
+        id = "anchor-clause",
+        section = "Directory Structure",
+        description = "the deed carries the (anchor) clause (semantic authority + golden path)",
+        probe = "bash scripts/deed-field.sh --has \"$(bash scripts/deed-field.sh --find .)\" anchor",
+        severity = 'warning,
+      },
+      {
+        id = "self-validating-structure",
+        section = "Directory Structure",
+        description = "self-validating directory has k9-svc and examples",
+        probe = "test -d .machine_readable/self-validating && test -d .machine_readable/self-validating/k9-svc && test -d .machine_readable/self-validating/examples",
+        severity = 'warning,
+      },
+      {
+        id = "no-placeholder-values",
+        section = "Template Integrity",
+        description = "No placeholder values remain in template files",
+        probe = "test -z \"$(grep -r '{{' .machine_readable/contractiles/ 2>/dev/null)\"",
+        severity = 'critical,
+        notes = "All placeholders must be substituted when copying this template",
+      },
+      {
+        id = "no-untracked-contractiles",
+        section = "Git State",
+        description = "All contractile files are tracked in git",
+        probe = "test -z \"$(git ls-files -o --exclude-standard .machine_readable/contractiles/ 2>/dev/null)\"",
+        severity = 'critical,
+      },
+      {
+        id = "signed-commits",
+        section = "Git State",
+        description = "All commits must be signed",
+        probe = "git verify-commit HEAD",
+        severity = 'critical,
+      },
+    ],
   },
 
   # -------------------------------------------------------------------
@@ -82,7 +235,8 @@ let base    = import "../_base.ncl" in
   # Because must is BLOCKING, variances carry real weight. Critical-
   # severity invariants can only be varied by maintainer-or-above.
   # -------------------------------------------------------------------
-  variance_schema = {
+  # A record SHAPE (contract-only fields, no values): kept out of `nickel export`.
+  variance_schema | not_exported = {
     entry_id     | String,   # which invariant id the variance applies to
     reason       | String,
     approved_by  | String,   # maintainer or above for critical-severity
@@ -120,7 +274,7 @@ let base    = import "../_base.ncl" in
       },
       {
         kind        = 'drift_log,
-        path        = ".machine_readable/descriptiles/DRIFT.a2ml",
+        path        = ".machine_readable/descriptiles/drift_praxis.deed",
         append_only = true,
       },
     ],
@@ -195,7 +349,7 @@ let base    = import "../_base.ncl" in
             signature_required = true,
           },
         ],
-        signed_record_destination = ".machine_readable/descriptiles/ratification-<session-id>.a2ml",
+        signed_record_destination = ".machine_readable/descriptiles/ratification-<session-id>_praxis.deed",
         must_precede_work = true,
       },
 

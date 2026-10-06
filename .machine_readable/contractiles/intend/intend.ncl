@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
-# Intend — north-star runner (verb is `intend`, file is `Intentfile.a2ml`)
+# Intend — north-star runner (verb is `intend`; its declaration, formerly Intentfile, lives in intend.k9.ncl)
 #
-# Pairs with: Intentfile.a2ml (same directory)
+# Pairs with: the `declaration` field of intend.k9.ncl (same directory)
 # Verb:       intend
 # Semantics:  Declares BOTH concrete committed next-actions ([[intents]]) and
 #             horizon aspirations ([[wishes]]). Not a gate — reports progress
@@ -39,7 +39,7 @@ let base = import "../_base.ncl" in
         name = "intend-runner",
         version = "2.0.0",
         description = "Reports progress toward committed next-actions and lists horizon aspirations. Non-gating. Absorbed `lust` semantics 2026-04-18.",
-        paired_xfile = "Intentfile.a2ml",
+        paired_xfile = "intend.k9.ncl#declaration",
         author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
       },
     },
@@ -76,7 +76,7 @@ let base = import "../_base.ncl" in
     & {
       on_pass = "continue",
       on_any_fail = "continue", # never blocks; it's a report
-      report_format = "a2ml",
+      report_format = "json",
       emit_summary = true,
       emit_diff = true, # declared vs observed (intents)
       emit_grouped_by_horizon = true, # wishes grouped by horizon (absorbed from lust)

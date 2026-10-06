@@ -7,7 +7,8 @@
 # Step 1 of the build path (descriptile half): give each descriptive fact a
 # STABLE ID. Reads this repo's deed (<repo>_chora.deed, which took over
 # CLADE / STATE / ECOSYSTEM / AGENTIC .a2ml in rsr-template-repo#209) through
-# scripts/deed-field.sh, plus descriptiles/anchors/ANCHOR, and projects the
+# scripts/deed-field.sh, including its (anchor …) clause (which took over
+# descriptiles/anchors/ANCHOR.a2ml), and projects the
 # fields that can bear witness to contractile obligations into one
 # deterministic JSON document. Fact IDs keep their old family prefixes
 # (clade., state., ecosystem., agentic.) so witness-map.ncl and coapt.ncl
@@ -23,11 +24,11 @@ shopt -s inherit_errexit
 
 ROOT="${1:-.}"
 READ="$ROOT/scripts/deed-field.sh"
-ANCHOR="$ROOT/.machine_readable/descriptiles/anchors/ANCHOR.a2ml"
 
 DEED="$(bash "$READ" --find "$ROOT")" \
   || { echo "extract-facts.sh: need exactly one *_chora.deed in $ROOT" >&2; exit 2; }
-[ -f "$ANCHOR" ] || { echo "extract-facts.sh: missing $ANCHOR" >&2; exit 2; }
+bash "$READ" --has "$DEED" anchor \
+  || { echo "extract-facts.sh: $DEED has no (anchor …) clause" >&2; exit 2; }
 
 # field PATH KEY -> the deed value, or "" when the clause or key is absent
 # (rc 1); an unreadable deed or a usage error (rc 2) fails the run instead
@@ -47,34 +48,6 @@ items() {
     [ -n "$item" ] || continue
     if [ "$first" -eq 1 ]; then out="$item"; first=0; else out="$out$3$item"; fi
   done <<< "$list"
-  printf '%s' "$out"
-}
-
-# scalar KEY FILE -> first `KEY = "value"` or unquoted `KEY = value` (anchored);
-# ANCHOR only, which is not part of the deed
-scalar() {
-  local v
-  v="$(grep -oP "^$1 = \"\K[^\"]+" "$2" | head -1 || true)"
-  if [ -z "$v" ]; then
-    v="$(grep -oP "^$1 = \K[^\"#]+" "$2" | head -1 | sed 's/[[:space:]]*$//' || true)"
-  fi
-  printf '%s' "$v"
-}
-
-# arr KEY FILE SEP -> join all quoted strings in the a2ml `KEY = [ ... ]` block
-arr() {
-  local key="$1" file="$2" sep="${3:-, }" out="" i
-  local -a vals
-  mapfile -t vals < <(
-    awk -v k="$key" '
-      index($0, k" = [")==1 {grab=1}
-      grab {print}
-      grab && /\]/ {exit}
-    ' "$file" | grep -oP '"[^"]*"' | sed 's/^"//; s/"$//' || true
-  )
-  for i in "${!vals[@]}"; do
-    if [ "$i" -eq 0 ]; then out="${vals[$i]}"; else out="$out$sep${vals[$i]}"; fi
-  done
   printf '%s' "$out"
 }
 
@@ -131,18 +104,18 @@ rows="$(
   fact 'agentic.require-evidence-per-step'         field agentic/integrity require-evidence-per-step
   fact 'agentic.release-claim-requires-hard-pass'  field agentic/integrity release-claim-requires-hard-pass
   fact 'agentic.default-mode'                      field agentic/methodology default-mode
-  # --- ANCHOR: semantic authority + golden path ---
-  fact 'anchor.authority'            scalar 'authority' "$ANCHOR"
-  fact 'anchor.policy'               scalar 'policy' "$ANCHOR"
-  fact 'anchor.project'              scalar 'project' "$ANCHOR"
-  fact 'anchor.golden-path'          arr 'smoke-test-command' "$ANCHOR" ' && '
-  fact 'anchor.success-criteria'     arr 'success-criteria' "$ANCHOR" '; '
-  fact 'anchor.must-have-anchor'     scalar 'must-have-anchor' "$ANCHOR"
-  fact 'anchor.must-have-golden-path' scalar 'must-have-golden-path' "$ANCHOR"
+  # --- (anchor): semantic authority + golden path ---
+  fact 'anchor.authority'            field anchor authority
+  fact 'anchor.policy'               field anchor/semantic-authority policy
+  fact 'anchor.project'              field anchor/identity project
+  fact 'anchor.golden-path'          items anchor/golden-path smoke-test-command ' && '
+  fact 'anchor.success-criteria'     items anchor/golden-path success-criteria '; '
+  fact 'anchor.must-have-anchor'     field anchor/satellite-policy must-have-anchor
+  fact 'anchor.must-have-golden-path' field anchor/satellite-policy must-have-golden-path
 )"
 
 h_deed="$(read_clauses | hash12)"
-h_anchor="$(hash12 < "$ANCHOR")"
+h_anchor="$(bash "$READ" --clause "$DEED" anchor | hash12)"
 
 printf '%s\n' "$rows" | jq -R -s \
   --arg deed      "$h_deed" \

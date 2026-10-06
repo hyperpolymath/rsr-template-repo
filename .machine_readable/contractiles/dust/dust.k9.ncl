@@ -3,7 +3,7 @@ K9!
 # dust.k9.ncl — K9 trust-tier component of the dust trident
 # Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 #
-# Pairs with: Dustfile.a2ml (declaration) + dust.ncl (runner).
+# Pairs with: the `declaration` field of this file + dust.ncl (runner).
 #
 # Verb:       dust            (rollback / recovery / deprecation)
 # Tier:       Yard            (audit + structural checks; destructive
@@ -25,13 +25,12 @@ K9!
 # rollback path; anything retired must preserve the evidence of its
 # previous existence).
 
-let base_k9 = import "../k9/template-hunt.k9.ncl" in
 let base    = import "../_base.ncl" in
 
 {
-  pedigree = base_k9.pedigree_schema & {
+  pedigree = base.pedigree_schema & {
     contractile_verb = "dust",
-    paired_xfile     = "../dust/Dustfile.a2ml",
+    paired_xfile     = "../dust/dust.k9.ncl#declaration",
     paired_runner    = "../dust/dust.ncl",
 
     tier      = 'Yard,
@@ -41,7 +40,7 @@ let base    = import "../_base.ncl" in
       name = "dust-k9",
       version = "1.0.0",
       description = "Rollback + deprecation + audit-trail runner. Sixth trident instance — completes the full verb set.",
-      paired_xfile = "Dustfile.a2ml",
+      paired_xfile = "dust.k9.ncl#declaration",
       paired_runner = "dust.ncl",
       author = "Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>",
     },
@@ -62,9 +61,106 @@ let base    = import "../_base.ncl" in
         approval_mechanism = 'explicit_user_signature,
       },
     },
+
+    # Trident manifest — folded in from the retired <verb>.manifest.a2ml.
+    # The sha256 / size_bytes fields were "pending-first-verify" placeholders
+    # and the cross_refs named the retired Xfile; both are dropped. The
+    # declaration now lives in this file (`declaration` below), so the
+    # trident is runner + this k9 component.
+    trident = {
+      notes = "Sixth + final trident instance. Completes the full verb set —\nthe estate now has tridents for every contractile verb.\n",
+      trident_version = "1.0.0",
+      semantics = "rollback / recovery / deprecation / audit-trail preservation",
+      cardinality = "one per repo",
+      authority = "advisory (continue-with-warnings)",
+      files = [
+      ],
+      signed_by = {
+        user = "Jonathan D.A. Jewell",
+        date = "2026-04-18",
+        context = "dust trident — canonical template in rsr-template-repo. Specialises in audit-trail preservation + rollback-path verification. Yard tier with destructive-action gating (dry-run default; --apply + per-item approval required for mutations). Copy this trident into a new repo and describe how it actually rolls back or retires behaviour.",
+      },
+      history = [
+        { date = "2026-04-18", event = "trident-born", note = "Dustfile.a2ml and dust.ncl pre-existed. This manifest + dust.k9.ncl complete the trident and the full verb set. All 6 verbs now on trident shape: intend (Hunt, reporting), trust (Hunt, blocking), must (Hunt-read-only, blocking), bust (Hunt-read-only, blocking), adjust (Yard, advisory), dust (Yard, advisory)." },
+        { date = "2026-04-18", event = "verb-set-complete", note = "Full estate trident coverage. Blocking-authority triple (must/trust/bust) handles release-gating. Advisory pair (adjust/dust) handles drift-warning and audit-trail. Single reporting verb (intend) handles north-star. α two-axis surface fully exercised on all four (tier, authority) combinations used: (Hunt, reporting), (Hunt, blocking), (Hunt-read-only, blocking), (Yard, advisory). The contractile system is ready for the adversarial Gemini+Copilot drift pilot." },
+        { date = "2026-10-06", event = "a2ml-retired", note = "The A2ML declaration and this manifest were folded into dust.k9.ncl (declaration + pedigree.trident) under the owner directive that no .a2ml file remains. Item ids, probes and prose were carried over unchanged." },
+      ],
+    },
   },
 
-  variance_schema = {
+  # -------------------------------------------------------------------
+  # Declaration — the dust contract data. Migrated losslessly from the
+  # retired A2ML Xfile (owner directive: zero A2ML files). Item records
+  # carry the field names of dust.ncl's `schema`; values are kept exactly
+  # as authored, so the runner schema is NOT applied as a contract here
+  # (several authored severities / classes / fields fall outside its enums).
+  # Read by .machine_readable/coaptation/extract-clauses.sh.
+  # -------------------------------------------------------------------
+  declaration = {
+    preamble = "# SPDX-License-Identifier: MPL-2.0\n# Dustfile — Cleanup and hygiene contract for rsr-template-repo\n# Author: Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>\n#\n# Paired runner: dust.ncl\n# Verb:          dust\n# Semantics:     What should be cleaned up. Housekeeping, not blockers.\n#\n# This repository: rsr-template-repo is the canonical template.\n# Cleanup items here ensure the template itself remains pristine.\n",
+    abstract = "Cleanup and hygiene items for rsr-template-repo. These are maintenance tasks\nthat ensure the template repository remains clean and ready for distribution\nto new repositories.",
+    prose = [
+    ],
+    removal_candidates = [
+      {
+        id = "no-template-artifacts",
+        section = "Stale Files",
+        description = "No generated files from template testing in root",
+        probe = "test -z \"$(ls template-test-* 2>/dev/null)\"",
+        severity = 'info,
+        notes = "Template testing should use /tmp or dedicated test directories",
+      },
+      {
+        id = "no-example-placeholders",
+        section = "Stale Files",
+        description = "No example placeholder files (EXAMPLE-, SAMPLE-) in contractiles/",
+        probe = "test -z \"$(find .machine_readable/contractiles/ -name 'EXAMPLE-*' -o -name 'SAMPLE-*' 2>/dev/null)\"",
+        severity = 'warning,
+        notes = "All placeholders should be replaced with actual content or removed",
+      },
+      {
+        id = "no-old-contractile-formats",
+        section = "Stale Files",
+        description = "No old .contractile, .hs or retired .a2ml files remaining",
+        probe = "test -z \"$(find .machine_readable/contractiles/ \\( -name '*.contractile' -o -name '*.hs' -o -name '*.a2ml' \\) 2>/dev/null)\"",
+        severity = 'warning,
+        notes = "All contractiles are <verb>/<verb>.k9.ncl declarations plus <verb>.ncl implementations",
+      },
+      {
+        id = "justfile-imports-in-sync",
+        section = "Format Duplicates",
+        description = "The root Justfile and its contractiles mirror declare the SAME import? set",
+        probe = "diff <(grep '^import?' Justfile) <(grep '^import?' .machine_readable/contractiles/Justfile) >/dev/null",
+        severity = 'warning,
+        notes = "Replaces a no-duplicate-justfile rule that compared INODES to assert the two\nfiles were hardlinked. That rule could never pass: git does not track\nhardlinks, so the pair have separate inodes after any clone (measured:\n1026120 vs 1031824). Its premise was also false — these are not one file\nseen twice but two deliberately different Justfiles, differing by 88 lines,\nso swapping the inode test for `cmp` would merely exchange one\nalways-failing check for another. `stat -c` is GNU-only too, so it broke on\nmacOS regardless.\n\nWhat actually must hold is that the mirror declares the same import? set as\nthe root — that is the drift which silently breaks recipes, because `import?`\nis the OPTIONAL form and fails quietly rather than erroring. Both currently\ndeclare 7 imports and agree.\n",
+      },
+      {
+        id = "no-duplicate-readme-format",
+        section = "Format Duplicates",
+        description = "Only one README format in contractiles/ (.adoc canonical)",
+        probe = "test ! -f .machine_readable/contractiles/README.md",
+        severity = 'info,
+      },
+      {
+        id = "no-stale-template-references",
+        section = "Template Hygiene",
+        description = "No references to rsr-template-repo in generic template files",
+        probe = "test -z \"$(grep -r 'rsr-template-repo' machine-readable-design/ 2>/dev/null)\"",
+        severity = 'warning,
+        notes = "Generic templates should use {{PROJECT_NAME}} or similar placeholders",
+      },
+      {
+        id = "version-sync-checked",
+        section = "Template Hygiene",
+        description = "Version in canonical-directory-structure matches .machine_readable/contractiles",
+        verification = "compare version identifiers in both locations",
+        severity = 'info,
+      },
+    ],
+  },
+
+  # A record SHAPE (contract-only fields, no values): kept out of `nickel export`.
+  variance_schema | not_exported = {
     entry_id     | String,
     reason       | String,
     approved_by  | String,
@@ -92,7 +188,7 @@ let base    = import "../_base.ncl" in
       { kind = 'verisimdb, table = "contractile_executions",
         schema = "contractile_execution_v1",
         aux_tables = [ "dust_retirement_history" ] },
-      { kind = 'drift_log, path = ".machine_readable/descriptiles/DRIFT.a2ml",
+      { kind = 'drift_log, path = ".machine_readable/descriptiles/drift_praxis.deed",
         append_only = true },
     ],
 
@@ -145,7 +241,7 @@ let base    = import "../_base.ncl" in
             signature_required = true,
           },
         ],
-        signed_record_destination = ".machine_readable/descriptiles/ratification-<session-id>.a2ml",
+        signed_record_destination = ".machine_readable/descriptiles/ratification-<session-id>_praxis.deed",
         must_precede_work = true,
       },
 

@@ -11,8 +11,8 @@
 #   --report   (default) SITREP — emit the coaptation receipt; decide nothing.
 #   --reanchor           If the band is red, assemble the BASIS for an anchor-drop
 #                        (the "carnage"). The DROP ITSELF is a human authority act —
-#                        coapt never drops an anchor. ANCHOR.a2ml has no drift/ledger
-#                        schema yet, so the drop cannot be recorded mechanically.
+#                        coapt never drops an anchor. The deed's (anchor) clause has no
+#                        drift/ledger schema yet, so the drop cannot be recorded mechanically.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -54,7 +54,7 @@ case "$MODE" in
         echo "# reanchor-basis — assembled by \`coapt --reanchor\`. This is the BASIS (the"
         echo "# \"carnage\") for an anchor-drop, NOT the drop. The drop is a human authority"
         echo "# act: a dated, named, hashed event authored by someone with the right and the"
-        echo "# responsibility. ANCHOR.a2ml has no drift/ledger schema yet — wire that first."
+        echo "# responsibility. The deed's (anchor) clause has no drift/ledger schema yet — wire that first."
         echo ""
         echo "[reanchor-basis]"
         echo "schema = \"hyperpolymath.reanchor-basis/0\""
@@ -80,7 +80,7 @@ case "$MODE" in
       } > "$basis"
       echo "coapt: re-anchor BASIS assembled at .machine_readable/coaptation/receipts/reanchor-basis.toml"
       echo "coapt: the anchor DROP is a HUMAN AUTHORITY ACT — coapt never drops an anchor."
-      echo "coapt: NOTE — ANCHOR.a2ml lacks a drift/ledger schema; the drop cannot yet be recorded mechanically."
+      echo "coapt: NOTE — the deed's (anchor) clause lacks a drift/ledger schema; the drop cannot yet be recorded mechanically."
     else
       echo "coapt: band is '${band}' (not red) — no re-anchor basis needed."
     fi
