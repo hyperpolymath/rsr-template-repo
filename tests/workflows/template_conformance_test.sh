@@ -30,6 +30,7 @@ command -v git >/dev/null 2>&1 || { echo "SKIP: no git"; exit 0; }
 [ -x "$CHECK" ] || [ -f "$CHECK" ] || { echo "FAIL: checker not found at $CHECK"; exit 1; }
 
 # ── fixture: a template and a minted child ───────────────────────────────────
+# make_template DIR — a minimal template checkout with one commit.
 make_template() {
     local d="$1"
     mkdir -p "$d/.github" "$d/scripts"
@@ -41,6 +42,8 @@ make_template() {
     git -C "$d" -c user.email=t@t -c user.name=t commit -qm "template"
 }
 
+# make_child DIR PARENT BRANCH COMMIT TREE — a minted child whose deed's
+# (provenance) clause records the given parent pin.
 make_child() {
     local d="$1" parent_slug="$2" branch="$3" commit="$4" tree="$5"
     mkdir -p "$d/.machine_readable" "$d/.github" "$d/scripts"
@@ -49,14 +52,15 @@ make_child() {
     printf 'body\n'       > "$d/README.adoc"
     printf 'ci: []\n'     > "$d/.github/workflows.yml"
     cp "$CHECK" "$d/scripts/check-template-conformance.sh"
-    cat > "$d/.machine_readable/PROVENANCE.a2ml" <<EOF
-[provenance]
-template_repo      = "$parent_slug"
-template_branch    = "$branch"
-template_commit    = "$commit"
-template_tree      = "$tree"
-extra_branches     = []
-minted_by          = "repo-init"
+    cat > "$d/knot-knot_chora.deed" <<EOF
+(repo-deed :schema-version "1.0.0" :canonical-name "knot-knot"
+  (provenance
+    :template-repo "$parent_slug"
+    :template-branch "$branch"
+    :template-commit "$commit"
+    :template-tree "$tree"
+    :extra-branches ()
+    :minted-by "repo-init"))
 EOF
     git -C "$d" init -q -b main
     git -C "$d" remote add origin "https://github.com/metadatastician/knot-knot.git"
@@ -64,7 +68,8 @@ EOF
     git -C "$d" -c user.email=t@t -c user.name=t commit -qm "mint"
 }
 
-run_check() { # $1=repo dir, $2=optional template dir
+# run_check REPO [TEMPLATE] — run the checker quietly; print its exit code.
+run_check() {
     local repo="$1" tmpl="${2:-}"
     if [ -n "$tmpl" ]; then
         bash "$CHECK" --repo "$repo" --template "$tmpl" --quiet >"$SCRATCH/out" 2>&1
@@ -74,6 +79,7 @@ run_check() { # $1=repo dir, $2=optional template dir
     echo $?
 }
 
+# say TITLE — print a section heading.
 say() { echo; echo "── $1 ──"; }
 
 TMPL="$SCRATCH/template"; make_template "$TMPL"
@@ -91,9 +97,18 @@ if [ "$rc" -eq 0 ]; then ok "conforming child accepted (positive control)"; else
 say "negative control 1: missing provenance must FAIL (#203)"
 CHILD="$SCRATCH/child-noprov"
 make_child "$CHILD" "hyperpolymath/rsr-template-repo" "main" "$T_COMMIT" "$T_TREE"
-rm "$CHILD/.machine_readable/PROVENANCE.a2ml"
+bash "$REPO_DIR/scripts/deed-clause.sh" replace "$CHILD/knot-knot_chora.deed" provenance - </dev/null
 rc=$(run_check "$CHILD")
-if [ "$rc" -ne 0 ]; then ok "child with no provenance rejected (T1)"; else bad "child with no provenance ACCEPTED — T1 is vacuous"; fi
+if [ "$rc" -ne 0 ]; then ok "child with no provenance clause rejected (T1)"; else bad "child with no provenance clause ACCEPTED — T1 is vacuous"; fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+say "negative control 1b: a retired PROVENANCE.a2ml is BLOCKED, never read"
+CHILD="$SCRATCH/child-retired"
+make_child "$CHILD" "hyperpolymath/rsr-template-repo" "main" "$T_COMMIT" "$T_TREE"
+rm "$CHILD/knot-knot_chora.deed"
+printf '[provenance]\ntemplate_repo = "hyperpolymath/rsr-template-repo"\n' > "$CHILD/.machine_readable/PROVENANCE.a2ml"
+rc=$(run_check "$CHILD")
+if [ "$rc" -ne 0 ] && grep -q "BLOCKED" "$SCRATCH/out"; then ok "retired a2ml provenance blocked (T1)"; else bad "retired a2ml provenance not blocked (rc=$rc)"; cat "$SCRATCH/out"; fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 say "negative control 2: self-parent must FAIL (#200/#201 class)"
