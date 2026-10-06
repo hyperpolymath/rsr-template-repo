@@ -56,6 +56,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* Dev container starts for everyone: dropped the ghcr.io dev container
+  features (anonymous pulls returned 403), installing just from Wolfi and a
+  SHA-256-checked Nickel 1.17.0 binary instead. The default
+  `.devcontainer/devcontainer.json` now targets rootless Podman
+  (`--userns=keep-id:uid=65532,gid=65532`, `label=disable`) so the workspace
+  is writable as wolfi-base's built-in `nonroot`; Docker, Codespaces and
+  Gitpod use `.devcontainer/docker/devcontainer.json`.
 * `dot-wellknown-enforcement.yml` now drives the migrator that #106 described
   but never wired up: previously the workflow only printed advice to run it,
   so nothing verified that a repository would survive the migration. It now
