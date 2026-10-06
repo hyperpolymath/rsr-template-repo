@@ -11,7 +11,7 @@
 # says "email us".
 #
 # This is the single implementation of that rule, called from two places:
-#   * .github/workflows/openssf-compliance.yml — on the repo as committed
+#   * .github/workflows/ossf-best-practices.yml (job openssf-compliance) — on the repo as committed
 #   * tests/e2e/template_instantiation_test.sh — on a freshly init'd repo,
 #     which is where a leak is still cheap to fix
 # It exists as a script rather than inline shell in each caller because the

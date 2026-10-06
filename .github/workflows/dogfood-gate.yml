@@ -342,7 +342,14 @@ jobs:
   # would have required an actions.lock row, and this repo's lock records
   # FLOATING refs ('actions/checkout@v7.0.1') where the canon's records SHAs -
   # so a pinned `uses:` here would mismatch the lock and fail at LOAD time with
-  # `jobs=0` and no annotation. Read-only over the public internet needs no auth.
+  # `jobs=0` and no annotation.
+  #
+  # Auth: canon.lock lives in the public hyperpolymath/standards repo and is
+  # fetched anonymously (the job token is scoped to THIS repo and could not
+  # read another one anyway). This repo's own deed is fetched through the
+  # contents API with the job token, because raw.githubusercontent.com without
+  # a credential returns 404 for every PRIVATE repo minted from this template
+  # (measured 2026-10-06 on a private descendant: anonymous 404, token 200).
   # ---------------------------------------------------------------------------
   canon-lockstep:
     name: Canon lockstep
@@ -407,12 +414,20 @@ jobs:
           # The event's head sha is the commit that actually exists there.
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           REPO: ${{ github.repository }}
+          # The job token (contents: read) authenticates the deed fetch, so the
+          # gate also works in private repositories. Passed as a header, never
+          # in the URL, so it cannot leak into a log line.
+          TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          RAW="https://raw.githubusercontent.com/${REPO}/${HEAD_SHA}"
           DEED_NAME="${REPO#*/}_chora.deed"
           DEED="$RUNNER_TEMP/repo.deed"
-          if ! curl -fsSL --retry 3 --max-time 30 "$RAW/$DEED_NAME" -o "$DEED"; then
+          API="https://api.github.com/repos/${REPO}/contents/${DEED_NAME}?ref=${HEAD_SHA}"
+          if ! curl -fsSL --retry 3 --max-time 30 \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Accept: application/vnd.github.raw" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$API" -o "$DEED"; then
             echo "::error::no $DEED_NAME at ${HEAD_SHA:0:7} — this repo cannot declare a canon pin"
             exit 1
           fi
