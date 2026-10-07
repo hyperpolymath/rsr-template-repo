@@ -22,15 +22,13 @@
 # Lean: sorry
 # Rust: transmute (unless FFI with // SAFETY: comment)
 
-# JS RUNTIMES — ordered preference, reach for the first that can do the job
-# (standards/3-practice/LANGUAGE-POLICY.adoc section 1, ruled 2026-07-29)
-# 1. Bun    default for all new work; runs .ts directly, no build step
-# 2. Deno   existing Deno projects are grandfathered; prefer over pnpm/npm
-# 3. pnpm   only where an upstream toolchain needs a node_modules layout
-# 4. npm    last resort; permitted, never preferred — a noted decision
-# TypeScript IS PERMITTED under Bun. The old "use ReScript instead" rule is
-# RETIRED: ReScript is no longer used in this estate, so that rule named a dead
-# alternative. Do NOT migrate Bun to Deno — that inverts the current ruling.
+# JS RUNTIME — Bun (standards/3-practice/LANGUAGE-POLICY.adoc section 1)
+# 1. Bun    the JavaScript runtime: package.json + bun.lock, run with bun / bunx
+# 2. pnpm   only where an upstream toolchain needs a node_modules layout
+# 3. npm    last resort; permitted, never preferred — a noted decision
+# Deno is RETIRED, not grandfathered (owner ruling 2026-08-26, standards#655):
+# existing Deno projects migrate to Bun. TypeScript and ReScript are banned
+# too; they migrate to AffineScript. Use plain JavaScript where JS is needed.
 
 # BANNED LANGUAGES
 # Go -> use Rust

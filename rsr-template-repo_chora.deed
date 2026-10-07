@@ -860,7 +860,11 @@
           ".machine_readable/ai/"
           ".machine_readable/bot_directives/"
           )
-        :contractiles_required ("Mustfile" "Trustfile" "Intentfile")
+        :contractiles_required (
+          ".machine_readable/contractiles/must/"
+          ".machine_readable/contractiles/trust/"
+          ".machine_readable/contractiles/intend/"
+          )
         :security_required ("www/.well-known/security.txt" "ci-security-scan")
         :quality_gate_required (
           "format"

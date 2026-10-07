@@ -51,9 +51,9 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
 ## Estate language policy (overridable per-repo via AGENTIC)
-Deny: **Nix, Python, Go, TypeScript, AGPL**. (Guix, not Nix.)
-JavaScript tooling order: **Bun** (default) > Deno (being removed — owner ruling 2026-08-26, standards#655) > pnpm > npm (last resort, permitted).
-Use plain JavaScript when this tooling is needed. The "use ReScript" rule is retired — ReScript is no longer used in this estate. Do not migrate Bun to Deno.
+Deny: **Nix, Python, Go, TypeScript, Deno, ReScript, AGPL**. (Guix, not Nix.)
+JavaScript runtime: **Bun** (package.json + bun.lock) > pnpm > npm (last resort, permitted). Deno is retired, not grandfathered (owner ruling 2026-08-26, standards#655): existing Deno projects migrate to Bun.
+Use plain JavaScript when this tooling is needed. TypeScript and ReScript migrate to AffineScript.
 
 ---
 
@@ -77,34 +77,38 @@ Use plain JavaScript when this tooling is needed. The "use ReScript" rule is ret
 This estate enforces strict format standards. Failure to follow these causes
 estate drift and broken tooling. These rules are NOT optional.
 
-**KYAML (KEP-5295):** ALL YAML files must use KYAML format. This includes:
-- GitHub Actions workflows (.github/workflows/*.yml)
-- All other YAML configuration files
-- Use `yq` (Go version, NOT Python) for processing
-- Use estate scripts: `kyaml-format.sh`, `kyaml-migrate.sh`
+**KYAML (KEP-5295, owner rulings D280/D307):** YAML content is KYAML.
+- Estate-owned config uses the `.kyaml` extension.
+- `.yml`/`.yaml` only where a tool demands the name: GitHub workflows,
+  dependabot. Workflows migrate to KYAML content only once the lock-coverage
+  shim is a required context (D280); leave them alone until then.
+- Use `yq` (Go version) and the estate scripts `kyaml-format.sh`,
+  `kyaml-migrate.sh`. No Python YAML parsers (D293).
 - KYAML format: `{}` for maps, `[]` for lists, double-quoted strings,
-  unquoted keys where unambiguous, trailing commas OK, 2-space indent
-- KYAML is a SUBSET of YAML - all parsers accept it
-- Owner ruling: standards#1023 confirms "KYAML everywhere, workflows included"
+  unquoted keys where unambiguous, trailing commas OK, 2-space indent.
+  KYAML is a subset of YAML; every YAML parser accepts it.
 
-**JCS (RFC 8785):** All JSON files must use JCS with I-JSON integration.
-This is the estate canonical JSON serialization standard.
+**JSON (owner ruling D306):** every `.json`/`.jsonl` is I-JSON (RFC 7493),
+serialised by JCS (RFC 8785), one record per line for JSON Lines. Extensions
+do not change. Tool: `hyperpolymath/ijson-jcs`. Rule and gate:
+`standards/3-practice/JSON-POLICY.adoc`. Tool-demanded JSONC
+(`devcontainer.json`) is carved out.
 
-**UUIDv7:** ALL UUID identifiers must be UUIDv7 (time-sortable).
-Existing UUIDv4 identifiers MUST be migrated across both estates:
-- hyper-repos/ (hyperpolymath org)
-- meta-repos/ (metadatastician org)
-No exceptions.
+**UUIDv8 (owner ruling D305, standards ADR-008):** mint every new identifier
+as UUIDv8 in the ADR-008 layout. Do not rewrite existing v4/v7 identifiers by
+hand; that migration is done per repo (ADR-008 phase P3). In deed files use
+`#u5` literals until the deed ABNF admits v8; a `#u7` literal is illegal.
 
-**.a2ml→.deed:** The a2ml format is FULLY DEPRECATED.
-- Convert ALL .a2ml files to .deed format
-- ABNF grammars: `standards/1-formats/deed/spec/abnf/deed.abnf` (and `1-formats/k9/` for .k9)
-- Required templates: ANCHOR, META, STATE, ECOSYSTEM, NEUROSYM, AGENTIC, PLAYBOOK,
-  Intentfile, Mustfile, Trustfile, Adjustfile, Bustfile, Dustfile
-- This template repo (rsr-template-repo) must be migrated FIRST as it
-  scaffolds all new repos
+**.a2ml → deed:** A2ML is retired; never create or restore a `.a2ml` file.
+- Grammars: `standards/1-formats/deed/spec/abnf/deed.abnf` (authoritative
+  over the deed README, D308) and `standards/1-formats/k9/` for k9.
+- Descriptiles (anchor, meta, state, ecosystem, agentic, neurosym, playbook)
+  are clauses of `rsr-template-repo_chora.deed` (D312).
+- Contractiles (intend, must, trust, adjust, bust, dust) are k9 contracts in
+  `.machine_readable/contractiles/<verb>/`. The deed attests to them
+  (`:contractiles_required`, and a `(contractiles …)` clause per D312).
+- Do not hand-convert A2ML in bulk: conversion is kcX's first front end (D313).
 
-**ENFORCEMENT:** These migrations are estate-wide with NO exceptions.
-Bots that produce YAML, JSON, or a2ml files NOT in these formats will
-be blocked. See `standards/AGENTS.adoc` for full details.
-- **NOTE:** This repo's UUID will be migrated to UUIDv7 per estate standards.
+**ENFORCEMENT:** these rulings are recorded on `standards#787`. Some are
+ruled but not yet gated: check the gate on `standards` main before
+relying on it.

@@ -69,9 +69,9 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
 ## Estate language policy (overridable per-repo via AGENTIC)
-Deny: **Nix, Python, Go, TypeScript, AGPL**. (Guix, not Nix.)
-JavaScript tooling order: **Bun** (default) > Deno (being removed — owner ruling 2026-08-26, standards#655) > pnpm > npm (last resort, permitted).
-Use plain JavaScript when this tooling is needed. The "use ReScript" rule is retired — ReScript is no longer used in this estate. Do not migrate Bun to Deno.
+Deny: **Nix, Python, Go, TypeScript, Deno, ReScript, AGPL**. (Guix, not Nix.)
+JavaScript runtime: **Bun** (package.json + bun.lock) > pnpm > npm (last resort, permitted). Deno is retired, not grandfathered (owner ruling 2026-08-26, standards#655): existing Deno projects migrate to Bun.
+Use plain JavaScript when this tooling is needed. TypeScript and ReScript migrate to AffineScript.
 
 ---
 
