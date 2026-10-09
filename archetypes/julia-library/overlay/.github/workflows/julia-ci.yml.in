@@ -1,11 +1,14 @@
+# This workflow is managed by gh actions-lock.
+# SPDX-License-Identifier: MPL-2.0
 # {{PROJECT_NAME}} — Julia CI (julia-library archetype)
 #
 # Pin posture (estate ruling R2, 2026-09-02; D38/D39 resolution 2026-09-19):
 # symbolic refs here, pinned by .github/workflows/actions.lock (same dir).
-# Refs resolved 2026-09-19 against the estate estate-pins:
-#   actions/checkout@v7.0.1        = 3d3c42e5aac5ba805825da76410c181273ba90b1
+# The lock records come from archetypes/julia-library/actions.lock, merged
+# into the spine's lock at mint. Refs resolved 2026-10-09:
+#   actions/checkout@v7.0.1          = 3d3c42e5aac5ba805825da76410c181273ba90b1
 #   julia-actions/setup-julia@v3.0.2 = fa02766e078afaaf09b14210362cee14137e6a32
-#   julia-actions/cache@v2         = a7bed9df697e5d7309d68afe7542a87621a8b6c8
+#   julia-actions/cache@v3.5.0       = 9353db09a0f2bbbdec6f41791918c75d37391b36
 # Regenerate the lock in the SAME PR as any uses: change (estate MUST).
 
 name: Julia CI
@@ -14,6 +17,10 @@ on:
   push:
     branches: [main, master]
   pull_request:
+
+# No job here writes to the repository.
+permissions:
+  contents: read
 
 # No `continue-on-error` on a MUST check (R1–R9): a red job is the gate
 # working. Coverage (R4) is reported by the estate's standard coverage
@@ -54,7 +61,7 @@ jobs:
       - uses: julia-actions/setup-julia@v3.0.2
         with:
           version: "1"
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3.5.0
       - name: JET analysis (supported API)
         # JET's path/string entry points were REMOVED in v0.12.0, having been
         # deprecated since v0.11: `report_package(::AbstractString)`,
@@ -107,6 +114,6 @@ jobs:
       - uses: julia-actions/setup-julia@v3.0.2
         with:
           version: ${{ matrix.julia }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3.5.0
       - name: Pkg.test()
         run: julia --project=. -e 'using Pkg; Pkg.test()'

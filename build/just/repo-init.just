@@ -59,8 +59,15 @@ repo-init archetype="":
 
     read -rp "Repository slug (e.g. my-project): " REPO
     [ -z "$REPO" ] && echo "Error: repo slug required" && exit 1
-    if [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+    # A Julia package repo is named after its package: `<Name>.jl`, where
+    # <Name> is the package's own identifier (UpperCamelCase by Julia
+    # convention). The julia-library archetype accepts that form as well as
+    # the estate slug; every other mint takes the estate slug only.
+    if [[ "$ARCHETYPE" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
+        :
+    elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
         echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
+        [ "$ARCHETYPE" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
         exit 1
     fi
 
@@ -132,24 +139,29 @@ repo-init archetype="":
     read -rp "OpenSSF Best Practices project ID (blank if not yet registered) []: " OPENSSF_BP_ID
 
     # --- Container values (optional — only relevant if build/container/ exists) ---
+    # The default service name is the slug in lower case: an OCI image name
+    # may not contain capitals, and a Julia slug (`<Name>.jl`) has them.
     if [ -d "build/container" ]; then
         echo ""
         echo "── Container configuration (optional) ─────────"
-        read -rp "Service name [${REPO}]: " _SERVICE_NAME
-        SERVICE_NAME="${_SERVICE_NAME:-${REPO}}"
+        read -rp "Service name [${REPO,,}]: " _SERVICE_NAME
+        SERVICE_NAME="${_SERVICE_NAME:-${REPO,,}}"
         read -rp "Primary port [8080]: " _PORT
         PORT="${_PORT:-8080}"
         read -rp "Container registry [ghcr.io/${OWNER}]: " _REGISTRY
         REGISTRY="${_REGISTRY:-ghcr.io/${OWNER}}"
     else
-        SERVICE_NAME="${REPO}"
+        SERVICE_NAME="${REPO,,}"
         PORT="8080"
         REGISTRY="ghcr.io/${OWNER}"
     fi
 
     # --- Derived values ---
-    PROJECT_UPPER=$(echo "$REPO" | tr '[:lower:]-' '[:upper:]_')
-    PROJECT_LOWER=$(echo "$REPO" | tr '[:upper:]-' '[:lower:]_')
+    # The PROJECT and project tokens land in identifiers (Zig, Idris, C macros),
+    # so every character an identifier cannot hold maps to an underscore: the
+    # hyphens of a slug and the dot of a Julia slug alike.
+    PROJECT_UPPER=$(echo "$REPO" | tr '[:lower:]-.' '[:upper:]__')
+    PROJECT_LOWER=$(echo "$REPO" | tr '[:upper:]-.' '[:lower:]__')
     CURRENT_YEAR=$(date +%Y)
     CURRENT_DATE=$(date +%Y-%m-%d)
     VERSION="0.1.0"
@@ -200,6 +212,15 @@ repo-init archetype="":
     if [ -n "$ARCHETYPE" ] && [ -d "archetypes/${ARCHETYPE}/overlay" ]; then
         cp -a "archetypes/${ARCHETYPE}/overlay/." .
         echo "  applied overlay: archetypes/${ARCHETYPE}/overlay/"
+    fi
+
+    # An archetype's workflows bring their lock records as a fragment beside
+    # the overlay, never as an overlay file: an overlay actions.lock REPLACES
+    # the spine's lock, and every spine workflow then dies at startup with no
+    # record. Merge the fragment in; a conflicting record stops the mint.
+    if [ -n "$ARCHETYPE" ] && [ -f "archetypes/${ARCHETYPE}/actions.lock" ]; then
+        bash scripts/rust-tool.sh merge-actions-lock \
+            .github/workflows/actions.lock "archetypes/${ARCHETYPE}/actions.lock"
     fi
 
     # Seed docs/ from the documentation seed, BEFORE substitution so the seed's
