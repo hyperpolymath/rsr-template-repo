@@ -36,6 +36,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7.0.1
+        # deploydocs pushes with GITHUB_TOKEN from its own env, so the
+        # checkout keeps no credential for package code run during setup.
+        with:
+          persist-credentials: false
       - name: Layout gate — fail loud while docs/ is absent
         run: |
           if [ ! -f docs/Project.toml ] || [ ! -f docs/make.jl ] || [ ! -d docs/src ]; then

@@ -65,7 +65,7 @@ fn parse(path: &str, text: &str) -> Result<Lock, String> {
             };
             let entry = lock.sections[s]
                 .get_mut(&key)
-                .expect("current entry exists");
+                .ok_or_else(|| at("entry body whose key was not recorded"))?;
             entry.push_str(line);
             entry.push('\n');
             continue;

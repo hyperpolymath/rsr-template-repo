@@ -70,6 +70,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   top-level permissions, and julia-docs builds with plain steps instead of
   the allowlist-refused julia-buildpkg/julia-docdeploy. julia-actions/cache
   moves to v3.5.0. The root allowlist admits `?Project.toml` and `?test/`.
+  The docs checkout sets `persist-credentials: false`, so package code run
+  while the docs environment is set up finds no stored token. deploydocs
+  still receives GITHUB_TOKEN.
 * `just repo-init julia-library` accepts a `<Name>.jl` slug. The PROJECT
   tokens map its dot to an underscore, and the default service name is the
   slug in lower case.

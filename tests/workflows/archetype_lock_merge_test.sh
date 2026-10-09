@@ -20,7 +20,8 @@
 #               and the base is left untouched
 #   identity    merging an empty fragment rewrites the spine lock byte for byte
 #   idempotent  merging the fragment twice changes nothing
-#   wiring      build/just/repo-init.just still invokes the merge
+#   wiring      build/just/repo-init.just still invokes the merge, and renames
+#               each overlay .in workflow (GitHub never runs a .in file)
 #   shape       no overlay carries .github/workflows/actions.lock
 #   headers     each overlay workflow passes workflow-linter.yml's SPDX and
 #               top-level permissions predicates, which a minted repo runs
@@ -79,7 +80,7 @@ for arch in "$repo"/archetypes/*/; do
     overlay_wf="${arch}overlay/.github/workflows"
     [ ! -e "$overlay_wf/actions.lock" ] \
         || fail "$name: overlay ships .github/workflows/actions.lock, which replaces the spine's lock at mint; move it to archetypes/$name/actions.lock"
-    wfs=("$overlay_wf"/*.yml.in "$overlay_wf"/*.yml)
+    wfs=("$overlay_wf"/*.yml.in "$overlay_wf"/*.yml "$overlay_wf"/*.yaml.in "$overlay_wf"/*.yaml)
     [ ${#wfs[@]} -gt 0 ] || continue
     frag="${arch}actions.lock"
     [ -f "$frag" ] || fail "$name: overlay ships workflows but archetypes/$name/actions.lock is missing"
@@ -88,6 +89,10 @@ for arch in "$repo"/archetypes/*/; do
     for f in "${wfs[@]}"; do
         spdx_ok "$f" || fail "$name: ${f#"$repo"/} has no SPDX line in its leading comment block"
         perms_ok "$f" || fail "$name: ${f#"$repo"/} has no top-level permissions"
+        case "$f" in
+            *.in) grep -qF ".github/workflows/$(basename "$f")" "$repo/build/just/repo-init.just" \
+                || fail "$name: build/just/repo-init.just never renames ${f#"$repo"/}, so the minted workflow keeps its .in suffix and never runs" ;;
+        esac
     done
 
     # The mint: spine workflows and lock, then the overlay's workflows under
