@@ -11,7 +11,8 @@
 #
 # Owner rulings exercised here (2026-09-19):
 #   D7  - the package uuid is generated at mint (derived, stable, v5)
-#   D6  - the minted workflows are lock-SSOT compliant (actions.lock ships)
+#   D6  - the minted workflows are lock-SSOT compliant (the archetype's
+#         lock fragment merges into the spine's actions.lock)
 #
 # Usage:
 #   JULIA_BIN=/path/to/julia bash tests/e2e/julia_mint_test.sh
@@ -81,20 +82,20 @@ else
 fi
 
 # ── 4b. lock coverage (D6: actions.lock is the pin truth) ──────────────
-if python3 - <<'PY'
-import re, sys, pathlib
-wfdir = pathlib.Path(".github/workflows")
-lock_text = (wfdir / "actions.lock").read_text()
-for wf in sorted(wfdir.glob("*.yml")):
-    uses = {m.group(1) for line in wf.read_text().splitlines()
-            if (m := re.match(r'\s*uses:\s*(\S+)', line))}
-    sect = re.search(r"'" + re.escape(str(wf)) + r"':\s*\n((?:\s+-\s+'[^']+'\n?)*)", lock_text)
-    locked = set(re.findall(r"-\s+'([^']+)'", sect.group(1))) if sect else set()
-    if uses - locked:
-        print(f"  MISSING in lock: {wf.name}: {sorted(uses - locked)}")
-        sys.exit(1)
-PY
-then ok "every uses: ref is in actions.lock"; else bad "lockfile coverage gap"; fi
+# A minted tree holds the spine's workflows and lock as well as the
+# overlay's. Bring them in, merge the archetype's lock fragment as repo-init
+# does, and run the estate's own checker on the result.
+for wf in "$REPO_DIR"/.github/workflows/*.yml; do
+    [ -e ".github/workflows/$(basename "$wf")" ] || cp "$wf" .github/workflows/
+done
+cp "$REPO_DIR/.github/workflows/actions.lock" .github/workflows/actions.lock
+if bash "$REPO_DIR/scripts/rust-tool.sh" merge-actions-lock \
+        .github/workflows/actions.lock "$REPO_DIR/archetypes/julia-library/actions.lock" \
+    && bash "$REPO_DIR/scripts/check-lock-sync.sh" .github/workflows; then
+    ok "merged actions.lock passes check-lock-sync"
+else
+    bad "lockfile coverage gap"
+fi
 
 # ── 5. Pkg.instantiate + Pkg.test (Test + Aqua) ────────────────────────
 if "$JULIA" --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()' >/tmp/julia-mint-inst.log 2>&1; then

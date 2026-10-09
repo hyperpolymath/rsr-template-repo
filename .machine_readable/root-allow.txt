@@ -82,3 +82,5 @@ tests/
 ?CONTRIBUTING.adoc          # estate docs gate (standards scripts/check-docs-presence.sh) requires CONTRIBUTING at the ROOT; this is the copy it verifies
 ?SECURITY.md               # accepted at root OR .github/; likewise
 ?REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just repo-init` runs
+?Project.toml              # julia-library archetype: Pkg reads the package manifest from the package root only
+?test/                     # julia-library archetype: Pkg.test runs test/runtests.jl, a fixed path (the spine keeps tests/)

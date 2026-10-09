@@ -8,6 +8,7 @@ a directory here:
 
     archetypes/<name>/<name>_praxis.deed  required — the contract (see below)
     archetypes/<name>/overlay/           optional — files copied over the spine
+    archetypes/<name>/actions.lock       required when the overlay ships workflows
 
 Decision record: `docs/decisions/0003-forge-and-sustain-lifecycle.adoc`.
 Normative lifecycle: standards `spec/SCAFFOLD-LIFECYCLE.adoc`.
@@ -36,6 +37,31 @@ token substitutions, and writes the preset into the minted repo's
 deed's `(rsr-profile)` clause. This whole `archetypes/` directory is
 template-only and is removed from the minted tree, exactly like
 `build/templates/`.
+
+== Workflows and their lock records
+
+An overlay that ships workflows ships their lock records **beside** the
+overlay, as `archetypes/<name>/actions.lock`, and never inside it. An
+`overlay/.github/workflows/actions.lock` would replace the spine's lock when
+the overlay is copied, and every spine workflow would then be refused at
+startup for want of a record. That is how the first Julia mints
+(ZeroInflatedCounts.jl, ResidualEvidenceTypes.jl) began with Lock Sync red.
+
+`just repo-init` merges the fragment into `.github/workflows/actions.lock`
+with `scripts/merge-actions-lock.rs`: entries are unioned, and a key present
+in both files with a different record stops the mint. Write the fragment with
+the authoritative tool, never by hand:
+
+. Copy the overlay workflows into an empty git repository, under
+  `.github/workflows/` and under their minted names (drop the `.in`).
+. Run `gh actions-lock --no-narrow` there, then `gh actions-lock --no-fix`
+  to check it.
+. Copy the resulting `.github/workflows/actions.lock` to
+  `archetypes/<name>/actions.lock`.
+
+Regenerate it in the same PR as any `uses:` change in the overlay.
+`tests/workflows/archetype_lock_merge_test.sh` mints each archetype's
+workflow set and runs `scripts/check-lock-sync.sh` on the merged lock.
 
 == Current archetypes
 

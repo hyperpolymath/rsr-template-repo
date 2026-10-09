@@ -33,6 +33,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   template; they exist for running `repo-init` over a tree that predates
   #53. #106 described both as already present — neither was, which is a
   fair part of why the estate still carries root `.well-known/` directories.
+* `scripts/merge-actions-lock.rs` — merges an archetype's lock fragment
+  (`archetypes/<name>/actions.lock`) into the spine's
+  `.github/workflows/actions.lock` at mint. A record that differs between
+  the two stops the mint. `tests/workflows/archetype_lock_merge_test.sh`
+  (wired into estate-rules) checks the merged lock with
+  `check-lock-sync.sh`, and checks that the old clobber, a missing record
+  and a conflicting record all fail.
 
 ==== Changed
 
@@ -55,6 +62,20 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   drift in every repository swept.
 
 ==== Fixed
+
+* Julia mints start with Lock Sync green. The julia-library overlay
+  shipped its own `actions.lock`, which replaced the spine's at mint, so
+  every spine workflow lost its records. The records now ship beside the
+  overlay and are merged in. The overlay workflows gain SPDX headers and
+  top-level permissions, and julia-docs builds with plain steps instead of
+  the allowlist-refused julia-buildpkg/julia-docdeploy. julia-actions/cache
+  moves to v3.5.0. The root allowlist admits `?Project.toml` and `?test/`.
+  The docs checkout sets `persist-credentials: false`, so package code run
+  while the docs environment is set up finds no stored token. deploydocs
+  still receives GITHUB_TOKEN.
+* `just repo-init julia-library` accepts a `<Name>.jl` slug. The PROJECT
+  tokens map its dot to an underscore, and the default service name is the
+  slug in lower case.
 
 * Dev container starts for everyone: dropped the ghcr.io dev container
   features (anonymous pulls returned 403), installing just from Wolfi and a
