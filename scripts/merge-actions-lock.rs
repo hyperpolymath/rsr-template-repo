@@ -63,7 +63,9 @@ fn parse(path: &str, text: &str) -> Result<Lock, String> {
                 (Some(s), Some(k)) => (s, k.clone()),
                 _ => return Err(at("indented line outside an entry")),
             };
-            let entry = lock.sections[s].get_mut(&key).expect("current entry exists");
+            let entry = lock.sections[s]
+                .get_mut(&key)
+                .expect("current entry exists");
             entry.push_str(line);
             entry.push('\n');
             continue;
@@ -215,5 +217,10 @@ fn main() {
         let _ = fs::remove_file(&tmp);
         process::exit(1);
     }
-    println!("  actions.lock: merged {} new entr{} from {}", added, if added == 1 { "y" } else { "ies" }, frag_path);
+    println!(
+        "  actions.lock: merged {} new entr{} from {}",
+        added,
+        if added == 1 { "y" } else { "ies" },
+        frag_path
+    );
 }
