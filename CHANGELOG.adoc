@@ -63,6 +63,21 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* The mint's self-name pass keeps issue references. It rewrote
+  `rsr-template-repo#N`, a reference to this template's own issue, into
+  `<child>#N`, which names an issue of the child that does not exist or is
+  unrelated. resource-algebra carried such references after its mint.
+  `tests/workflows/self_name_pass_test.sh` (wired into Estate Rules) runs
+  the recipe's own rewrite program on fixtures.
+* CLAUDE.md prints the deed's typed identity (`#u5"<name>"`) instead of
+  the derived uuid5 in hex, and the deed's identity comment no longer
+  spells it out. ADR-008's strict v8 gate (governance "UUID v7
+  conformance") rejected both, in the template and in every minted repo.
+* The standards reusables are pinned to `934b879`, whose governance job
+  installs gh-actions-lock v0.2.0. At `ae36881` it installed v0.1.6, which
+  refuses lock format v0.0.3 ("newer than this binary supports"), so
+  Actions lockfile verify failed. `actions.lock` was relocked with
+  standards' `propagate-workflow-pins.sh` (hyperpolymath/standards#1254).
 * The non-interactive mint completes. `RSR_NON_INTERACTIVE=1` used to
   stub `read` for the whole recipe, so an unanswered prompt killed the
   mint under `set -u` and the substitution loops never ended. Prompts now
