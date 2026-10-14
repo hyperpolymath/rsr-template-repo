@@ -69,8 +69,8 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
 ## Estate language policy (overridable per-repo via AGENTIC)
-Deny: **Nix, Python, Go, TypeScript, Deno, ReScript, AGPL**. (Guix, not Nix.)
-JavaScript runtime: **Bun** (package.json + bun.lock) > pnpm > npm (last resort, permitted). Deno is retired, not grandfathered (owner ruling 2026-08-26, standards#655): existing Deno projects migrate to Bun.
+Deny: **Nix, Python, Go, TypeScript, ReScript, AGPL**. (Guix, not Nix.)
+JavaScript runtime: **Bun** > Deno > pnpm > npm (last resort, permitted), from one `package.json` that carries every runtime's lock (`bun.lock`, `deno.lock`, `pnpm-lock.yaml`), all written by `js-runtimes regen` (owner ruling 2026-10-14, standards LANGUAGE-POLICY §1.3–§1.4). Deno is permitted again; `package-lock.json` stays refused.
 Use plain JavaScript when this tooling is needed. TypeScript and ReScript migrate to AffineScript.
 
 ## Asking the owner
