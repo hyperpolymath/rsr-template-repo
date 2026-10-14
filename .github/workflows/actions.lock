@@ -31,13 +31,13 @@ workflows:
     '.github/workflows/estate-rules.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/governance.yml':
-        - 'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82'
+        - 'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76'
     '.github/workflows/groove-check.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/guix-policy.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/hypatia-scan.yml':
-        - 'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82'
+        - 'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76'
     '.github/workflows/k9-validate.yml':
         - 'actions/checkout@v7.0.1'
         - 'hyperpolymath/k9-ecosystem@main'
@@ -47,7 +47,7 @@ workflows:
     '.github/workflows/main-estate-audit.yml':
         - 'hyperpolymath/cicd-suite@55556cf5ba71ba744695861503c13148d3915a5d'
     '.github/workflows/mirror.yml':
-        - 'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82'
+        - 'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76'
     '.github/workflows/ossf-best-practices.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/pages.yml':
@@ -72,11 +72,11 @@ workflows:
     '.github/workflows/runtime-policy.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/rust-ci.yml':
-        - 'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82'
+        - 'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76'
     '.github/workflows/scorecard.yml':
-        - 'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82'
+        - 'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76'
     '.github/workflows/secret-scanner.yml':
-        - 'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82'
+        - 'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76'
     '.github/workflows/security-policy.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/sonarqube.yml':
@@ -243,9 +243,9 @@ dependencies:
         commit: 'sha1-c1c9fa07992a02c1fd3d67a0dc1b08cccb852aef'
         owner_id: 6759885
         repo_id: 1352485172
-    'hyperpolymath/standards@934b879f6068295e42dac20d80e010d555ebec82':
-        ref: '934b879f6068295e42dac20d80e010d555ebec82'
-        commit: 'sha1-934b879f6068295e42dac20d80e010d555ebec82'
+    'hyperpolymath/standards@6a9251037760690d56022ad6fab2cfe9d887dd76':
+        ref: '6a9251037760690d56022ad6fab2cfe9d887dd76'
+        commit: 'sha1-6a9251037760690d56022ad6fab2cfe9d887dd76'
         owner_id: 6759885
         repo_id: 1116521501
         uses:
