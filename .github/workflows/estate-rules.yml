@@ -90,6 +90,19 @@ jobs:
         run: bash tests/workflows/session_contracts_test.sh
       - name: Verify mint cleanup controls
         run: bash tests/workflows/mint_cleanup_test.sh
+      # The automated mint path (RSR_NON_INTERACTIVE) never completed, and no
+      # workflow exercised repo-init at all: tests/e2e runs nowhere in CI.
+      - name: Install verified just 1.43.0
+        run: |
+          mkdir -p "$RUNNER_TEMP/just-bin"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
+            https://github.com/casey/just/releases/download/1.43.0/just-1.43.0-x86_64-unknown-linux-musl.tar.gz \
+            --output "$RUNNER_TEMP/just.tgz"
+          echo "a1bc93654f31669fd964ea3011a5e5e9676b9b6f8adcd762606e5140632ea72d  $RUNNER_TEMP/just.tgz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/just.tgz" -C "$RUNNER_TEMP/just-bin" just
+          echo "$RUNNER_TEMP/just-bin" >> "$GITHUB_PATH"
+      - name: Non-interactive mint resolves every prompt from the environment
+        run: bash tests/workflows/non_interactive_mint_test.sh
       # An archetype overlay once shipped its own actions.lock, which replaced
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock
