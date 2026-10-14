@@ -58,7 +58,7 @@ hash12() { sha256sum | cut -c1-12; }
 # and follows the deed when it moves to version 8.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-[ -z "$uuid_name" ] || uuid="$(sed -n -E 's/^  :repo-uuid (#u[0-9]+"[^"]*").*/\1/p' "$DEED" | head -1)"
+[ -z "$uuid_name" ] || uuid="$(sed -n -E 's/^[[:space:]]*:repo-uuid[[:space:]]+(#u[0-9]+"[^"]*").*/\1/p' "$DEED" | head -1)"
 [ -z "$uuid_name" ] || [ -n "$uuid" ] \
   || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #u<n>\"...\" literal" >&2; exit 2; }
 
