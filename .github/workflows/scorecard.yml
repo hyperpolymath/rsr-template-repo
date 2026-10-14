@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   scorecard:
-    uses: hyperpolymath/standards/.github/workflows/scorecard-reusable.yml@ae36881b5ff4b469fb904b66542ac226a15107f3
+    uses: hyperpolymath/standards/.github/workflows/scorecard-reusable.yml@934b879f6068295e42dac20d80e010d555ebec82
     # Reusable called-workflow permissions are CAPPED by the caller's grants;
     # without security-events: write here the scorecard SARIF upload fails with
     # startup_failure (hypatia WF018). id-token: write enables OIDC publish.

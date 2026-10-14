@@ -60,6 +60,11 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    CLAUDE.md regenerated from it), `mise.toml`, `docs/SETUP.adoc` PV-W23,
    PV-W30 and PV-W34, the dev warm-up, `.cursorrules`, `.clinerules`,
    `.windsurfrules`, `.github/copilot-instructions.md` and the PR template.
+** The six standards reusables move from `ae36881` to `934b879`. At
+   `ae36881` governance's Actions lockfile verify installs gh-actions-lock
+   v0.1.6, which cannot read this lock's format v0.0.3 (exit 2, red on main).
+   `actions.lock` is re-keyed and closed at the new pin (setup-bun and
+   setup-deno records added), as resource-algebra#8 did.
 
 * Canonical `.well-known/` location moved from the repository root to
   `www/.well-known/`. Well-known enforcement, Groove checks, the root-shape
