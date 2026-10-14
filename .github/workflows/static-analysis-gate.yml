@@ -357,17 +357,17 @@ jobs:
     if: always()
     steps:
       - name: Download panic-attack findings
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: panic-attack-findings
           path: findings/
       - name: Download hypatia findings
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: hypatia-findings
           path: findings/
       - name: Download bridge report
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: bridge-report
           path: findings/
