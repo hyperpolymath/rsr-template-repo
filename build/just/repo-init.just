@@ -14,11 +14,28 @@ repo-init archetype="":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Non-interactive support: if RSR_NON_INTERACTIVE is set, dummy-out 'read'.
-    # This prevents blocking on input and seamlessly uses environment variables.
-    if [ -n "${RSR_NON_INTERACTIVE:-}" ]; then
-        read() { return 0; }
-    fi
+    # ask PROMPT VAR — every prompt below goes through this, never through a
+    # bare `read`. Interactive: read VAR from the terminal. Non-interactive
+    # (RSR_NON_INTERACTIVE set, the scaffoldia / CI path): touch no stdin and
+    # keep VAR's value from the environment, or empty when it has none.
+    #
+    # This replaced `read() { return 0; }`, which shadowed the builtin for the
+    # WHOLE recipe. Measured 2026-10-14 minting resource-algebra:
+    #   * a prompt the environment did not answer left its variable unset, so
+    #     `set -u` killed the mint at OPENSSF_BP_ID, after docs/ had already
+    #     been overwritten by the seed;
+    #   * every `while read -r` loop below inherited the no-op, which succeeds
+    #     without reading, so the substitution pass spun forever on an unbound
+    #     `file`.
+    # The non-interactive mint could therefore never complete, and the e2e test
+    # drove only the interactive path, so nothing noticed.
+    ask() {
+        if [ -n "${RSR_NON_INTERACTIVE:-}" ]; then
+            printf -v "$2" '%s' "${!2:-}"
+        else
+            read -rp "$1" "$2"
+        fi
+    }
 
     echo "═══════════════════════════════════════════════════"
     echo "  RSR Project Bootstrap"
@@ -54,10 +71,10 @@ repo-init archetype="":
     fi
 
     # --- Required values (pre-filled from defaults if available) ---
-    read -rp "Project name (human-readable, e.g. My Project): " PROJECT_NAME
+    ask "Project name (human-readable, e.g. My Project): " PROJECT_NAME
     [ -z "$PROJECT_NAME" ] && echo "Error: project name required" && exit 1
 
-    read -rp "Repository slug (e.g. my-project): " REPO
+    ask "Repository slug (e.g. my-project): " REPO
     [ -z "$REPO" ] && echo "Error: repo slug required" && exit 1
     # A Julia package repo is named after its package: `<Name>.jl`, where
     # <Name> is the package's own identifier (UpperCamelCase by Julia
@@ -71,23 +88,23 @@ repo-init archetype="":
         exit 1
     fi
 
-    read -rp "Owner [${OWNER:-}]: " _OWNER
+    ask "Owner [${OWNER:-}]: " _OWNER
     OWNER="${_OWNER:-${OWNER:-}}"
     [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
 
-    read -rp "Author full name [${AUTHOR:-}]: " _AUTHOR
+    ask "Author full name [${AUTHOR:-}]: " _AUTHOR
     AUTHOR="${_AUTHOR:-${AUTHOR:-}}"
     [ -z "$AUTHOR" ] && echo "Error: author name required" && exit 1
 
-    read -rp "Author email [${AUTHOR_EMAIL:-}]: " _AUTHOR_EMAIL
+    ask "Author email [${AUTHOR_EMAIL:-}]: " _AUTHOR_EMAIL
     AUTHOR_EMAIL="${_AUTHOR_EMAIL:-${AUTHOR_EMAIL:-}}"
     [ -z "$AUTHOR_EMAIL" ] && echo "Error: email required" && exit 1
 
     # --- Optional values (pre-filled from defaults if available) ---
-    read -rp "Author organization [${AUTHOR_ORG:-none}]: " _AUTHOR_ORG
+    ask "Author organization [${AUTHOR_ORG:-none}]: " _AUTHOR_ORG
     AUTHOR_ORG="${_AUTHOR_ORG:-${AUTHOR_ORG:-}}"
 
-    read -rp "Previous/alt email [${AUTHOR_EMAIL_ALT:-none}]: " _AUTHOR_EMAIL_ALT
+    ask "Previous/alt email [${AUTHOR_EMAIL_ALT:-none}]: " _AUTHOR_EMAIL_ALT
     AUTHOR_EMAIL_ALT="${_AUTHOR_EMAIL_ALT:-${AUTHOR_EMAIL_ALT:-}}"
 
     # ORCID iD for CITATION.cff. Defaults from AUTHOR_ORCID in the defaults
@@ -96,7 +113,7 @@ repo-init archetype="":
     # Blank drops the orcid line below. An all-zeros placeholder is worse than
     # no line: citation tools resolve it and attribute the work to nobody.
     AUTHOR_ORCID="${AUTHOR_ORCID:-$(git config --get user.orcid 2>/dev/null || true)}"
-    read -rp "Author ORCID iD [${AUTHOR_ORCID:-none}]: " _AUTHOR_ORCID
+    ask "Author ORCID iD [${AUTHOR_ORCID:-none}]: " _AUTHOR_ORCID
     AUTHOR_ORCID="${_AUTHOR_ORCID:-${AUTHOR_ORCID:-}}"
     AUTHOR_ORCID="${AUTHOR_ORCID#http*://orcid.org/}"
     if [ -n "$AUTHOR_ORCID" ]; then
@@ -119,24 +136,24 @@ repo-init archetype="":
         fi
     fi
 
-    read -rp "Project description []: " PROJECT_DESCRIPTION
+    ask "Project description []: " PROJECT_DESCRIPTION
 
-    read -rp "Forge domain [${FORGE:-github.com}]: " _FORGE
+    ask "Forge domain [${FORGE:-github.com}]: " _FORGE
     FORGE="${_FORGE:-${FORGE:-github.com}}"
 
-    read -rp "Security contact email [${SECURITY_EMAIL:-$AUTHOR_EMAIL}]: " _SECURITY_EMAIL
+    ask "Security contact email [${SECURITY_EMAIL:-$AUTHOR_EMAIL}]: " _SECURITY_EMAIL
     SECURITY_EMAIL="${_SECURITY_EMAIL:-${SECURITY_EMAIL:-$AUTHOR_EMAIL}}"
 
-    read -rp "Conduct contact email [${CONDUCT_EMAIL:-$AUTHOR_EMAIL}]: " _CONDUCT_EMAIL
+    ask "Conduct contact email [${CONDUCT_EMAIL:-$AUTHOR_EMAIL}]: " _CONDUCT_EMAIL
     CONDUCT_EMAIL="${_CONDUCT_EMAIL:-${CONDUCT_EMAIL:-$AUTHOR_EMAIL}}"
 
-    read -rp "Project type (library|binary|monorepo|service|website) [library]: " PROJECT_TYPE
+    ask "Project type (library|binary|monorepo|service|website) [library]: " PROJECT_TYPE
     PROJECT_TYPE="${PROJECT_TYPE:-library}"
 
-    read -rp "Website URL [https://${FORGE}/${OWNER}/${REPO}]: " WEBSITE
+    ask "Website URL [https://${FORGE}/${OWNER}/${REPO}]: " WEBSITE
     WEBSITE="${WEBSITE:-https://${FORGE}/${OWNER}/${REPO}}"
 
-    read -rp "OpenSSF Best Practices project ID (blank if not yet registered) []: " OPENSSF_BP_ID
+    ask "OpenSSF Best Practices project ID (blank if not yet registered) []: " OPENSSF_BP_ID
 
     # --- Container values (optional — only relevant if build/container/ exists) ---
     # The default service name is the slug in lower case: an OCI image name
@@ -144,16 +161,16 @@ repo-init archetype="":
     if [ -d "build/container" ]; then
         echo ""
         echo "── Container configuration (optional) ─────────"
-        read -rp "Service name [${REPO,,}]: " _SERVICE_NAME
-        SERVICE_NAME="${_SERVICE_NAME:-${REPO,,}}"
-        read -rp "Primary port [8080]: " _PORT
-        PORT="${_PORT:-8080}"
-        read -rp "Container registry [ghcr.io/${OWNER}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-ghcr.io/${OWNER}}"
+        ask "Service name [${SERVICE_NAME:-${REPO,,}}]: " _SERVICE_NAME
+        SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-${REPO,,}}}"
+        ask "Primary port [${PORT:-8080}]: " _PORT
+        PORT="${_PORT:-${PORT:-8080}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER}}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER}}}"
     else
-        SERVICE_NAME="${REPO,,}"
-        PORT="8080"
-        REGISTRY="ghcr.io/${OWNER}"
+        SERVICE_NAME="${SERVICE_NAME:-${REPO,,}}"
+        PORT="${PORT:-8080}"
+        REGISTRY="${REGISTRY:-ghcr.io/${OWNER}}"
     fi
 
     # --- Derived values ---
@@ -201,7 +218,7 @@ repo-init archetype="":
     echo "  Year:        $CURRENT_YEAR"
     echo "────────────────────────────────────────────────"
     echo ""
-    read -rp "Proceed? [Y/n] " CONFIRM
+    ask "Proceed? [Y/n] " CONFIRM
     [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
 
     echo ""
@@ -349,9 +366,17 @@ repo-init archetype="":
     # in the new repo's README, and it trips the placeholder gate on every
     # subsequent push, which trains people to ignore a red CI. No id yet means
     # no badge yet; add it when you register at bestpractices.dev.
+    #
+    # Line deletion is only safe where the line is the whole construct. It
+    # used to run on docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc too, where
+    # the token's line is one CELL of a six-column table row: deleting it
+    # left an incomplete row, asciidoctor reported "dropping cells from
+    # incomplete row", and Estate Rules' render gate failed in every child
+    # minted without an OpenSSF id (measured 2026-10-14 on resource-algebra).
+    # That document names the README's tokens rather than using them, so it
+    # now spells them as plain names and needs no pass here.
     if [ -z "$OPENSSF_BP_ID" ]; then
         sed -i "/bestpractices\.dev\/projects\/${LB}OPENSSF_BP_ID${RB}/d" README.adoc 2>/dev/null || true
-        sed -i "/${LB}OPENSSF_PROJECT_ID${RB}/d" docs/governance/TEMPLATE-STANDARDS-AUDIT.adoc 2>/dev/null || true
     fi
     # Same rule for the ORCID iD: CFF makes `orcid` optional, a wrong one is not.
     if [ -z "$AUTHOR_ORCID" ]; then
@@ -369,9 +394,22 @@ repo-init archetype="":
     fi
 
     # Replace in all text files (skip .git, LICENSE text, and binaries)
+    #
+    # Skip just files too. In a Justfile or *.just module, double braces are
+    # just's OWN interpolation syntax, never a template token: every one in
+    # the template is a just variable or parameter. The lowercase project
+    # token is spelled exactly like just's interpolation of the `project`
+    # variable, so this pass used to freeze it into the identifier form.
+    # Measured 2026-10-14 minting resource-algebra: 7 Justfile lines, the
+    # contractile Justfile copy and container.just's image tag all became the
+    # literal `resource_algebra` instead of following `project :=
+    # "resource-algebra"` (docs/man/resource_algebra.1, an image tagged with
+    # the underscored name). The self-name pass below still rewrites the
+    # template literal in these files; that is the edit they actually need.
     find . -type f \
         -not -path './.git/*' \
         -not -name 'MPL-2.0.txt' \
+        -not -name 'Justfile' -not -name '*.just' \
         -not -name '*.png' -not -name '*.jpg' -not -name '*.gif' \
         -not -name '*.woff' -not -name '*.woff2' \
         | while read -r file; do
@@ -437,8 +475,16 @@ repo-init archetype="":
     # (ADRs, its changelog, its own audit, and this recipe itself — which
     # holds PARENT_SLUG) are skipped wholesale, and within every other file
     # any line that names the parent AS a parent is left byte-for-byte alone.
+    #
+    # A line that names the template as something to DETECT is protected too:
+    # the deed's state-validation `:reject-if-contains ("rsr-template-repo")`
+    # flags state files still carrying template text. Rewritten to the child's
+    # own slug it rejected every legitimate state file of the child (measured
+    # 2026-10-14 on resource-algebra) - the same "detector eaten by the
+    # filling" defect the :reject-if-matches comment in the deed records for
+    # tokens.
     if [ "$REPO" != "rsr-template-repo" ]; then
-        SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: '
+        SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: |reject-if-contains'
         find . -type f \
             -not -path './.git/*' \
             -not -path './build/just/repo-init.just' \
@@ -804,6 +850,28 @@ repo-init archetype="":
                  .github/workflows/julia-docs.yml.in; do
             [ -f "$f" ] && { mv "$f" "${f%.in}"; echo "  overlay: ${f%.in}"; }
         done
+    fi
+
+    # ── Regenerate what is DERIVED from the deed and the tree ───────────────
+    # CLAUDE.md's arrival pack and the repository map are generated files, and
+    # until now the mint left both describing the TEMPLATE. The self-name pass
+    # swaps the slug inside them, which is worse than leaving them alone: the
+    # pack then states the template's uuid and clade, maturity `production`,
+    # and pipeline position `foundation` with chain "standards -> <this repo>
+    # -> (every estate repo)", under the child's name. Measured 2026-10-14 on
+    # resource-algebra. The map also kept the archetypes/ root entry,
+    # which this recipe deletes, so Estate Rules' map-freshness step failed in
+    # every minted child. Both are regenerated here, after every deed clause
+    # above is written and every template-only path is gone. Fail-closed: a
+    # generator that cannot run (no nickel on PATH) stops the mint rather than
+    # shipping a pack that names the wrong repository.
+    if [ -f .machine_readable/arrival-pack/generate.sh ]; then
+        bash .machine_readable/arrival-pack/generate.sh
+        echo "  arrival pack: CLAUDE.md regenerated from ${DEED_OUT}"
+    fi
+    if [ -f scripts/gen-repo-map.sh ]; then
+        bash scripts/gen-repo-map.sh . >/dev/null
+        echo "  repo map:     docs/architecture/REPOSITORY-MAP.adoc regenerated"
     fi
 
     echo ""

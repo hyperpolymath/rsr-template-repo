@@ -89,6 +89,8 @@
     :position-type "UNASSIGNED"
     :purpose "UNASSIGNED"
     :not ()
+    :pipeline-position "UNASSIGNED"
+    :chain "UNASSIGNED"
     :coordination standards
     (related :name "rsr-template-repo" :relationship minted-from :notes "the template this repo was minted from by just repo-init"))
   ; <<< repo-identity
