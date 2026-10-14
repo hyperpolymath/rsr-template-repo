@@ -16,5 +16,6 @@ anchor, `docs/AI_INSTALLATION_GUIDE.adoc`, `docs/SETUP.adoc` and the three
 `llm-warmup-{user,dev,maintainer}.adoc` warm-ups.
 
 This repository's own section (see `README.adoc`) is specialised for a template:
-its sentence asks the assistant to create a new repository, and it keeps the one
-trap agents hit here — never set `RSR_NON_INTERACTIVE=1`; pipe answers to stdin.
+its sentence asks the assistant to create a new repository, and it keeps the
+note on minting without a terminal (`RSR_NON_INTERACTIVE=1` with the answers in
+the environment).
