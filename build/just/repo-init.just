@@ -483,8 +483,16 @@ repo-init archetype="":
     # 2026-10-14 on resource-algebra) - the same "detector eaten by the
     # filling" defect the :reject-if-matches comment in the deed records for
     # tokens.
+    #
+    # An issue or PR reference `rsr-template-repo#N` names the TEMPLATE's own
+    # issue, and stays so. Rewritten it pointed at an issue of the child that
+    # does not exist, or worse, an unrelated one: resource-algebra carried 20
+    # such references (`resource-algebra#209` for the deed-clause migration)
+    # after its mint on 2026-10-14. tests/workflows/self_name_pass_test.sh
+    # runs these two lines on fixtures.
     if [ "$REPO" != "rsr-template-repo" ]; then
         SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: |reject-if-contains'
+        SELF_NAME_SED="/${SELF_PROV}/!{s|rsr-template-repo#([0-9])|__RSR_TEMPLATE_ISSUE__\\1|g;s|hyperpolymath/rsr-template-repo|${OWNER}/${REPO}|g;s|rsr-template-repo|${REPO}|g;s|__RSR_TEMPLATE_ISSUE__|rsr-template-repo#|g;}"
         find . -type f \
             -not -path './.git/*' \
             -not -path './build/just/repo-init.just' \
@@ -498,7 +506,7 @@ repo-init archetype="":
             grep -q 'rsr-template-repo' "$file" 2>/dev/null || continue
             file --brief "$file" | grep -qi 'text\|ascii\|utf' || continue
             # sed -i preserves the mode bit; rewriting via a temp file would not.
-            sed -i -E "/${SELF_PROV}/!{s|hyperpolymath/rsr-template-repo|${OWNER}/${REPO}|g;s|rsr-template-repo|${REPO}|g;}" "$file"
+            sed -i -E "$SELF_NAME_SED" "$file"
         done
         echo "  self-name: rewrote template literal -> ${REPO} (provenance lines preserved)"
 

@@ -90,6 +90,8 @@ jobs:
         run: bash tests/workflows/session_contracts_test.sh
       - name: Verify mint cleanup controls
         run: bash tests/workflows/mint_cleanup_test.sh
+      - name: Self-name pass keeps issue references, provenance and detectors
+        run: bash tests/workflows/self_name_pass_test.sh
       # The automated mint path (RSR_NON_INTERACTIVE) never completed, and no
       # workflow exercised repo-init at all: tests/e2e runs nowhere in CI.
       - name: Install verified just 1.43.0
