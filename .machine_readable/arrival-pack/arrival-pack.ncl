@@ -73,6 +73,9 @@ Deny: **Nix, Python, Go, TypeScript, Deno, ReScript, AGPL**. (Guix, not Nix.)
 JavaScript runtime: **Bun** (package.json + bun.lock) > pnpm > npm (last resort, permitted). Deno is retired, not grandfathered (owner ruling 2026-08-26, standards#655): existing Deno projects migrate to Bun.
 Use plain JavaScript when this tooling is needed. TypeScript and ReScript migrate to AffineScript.
 
+## Asking the owner
+Put every question that needs the owner's decision through the selector (the AskUserQuestion tool), not as prose at the end of a report. Batch up to four per call, offer concrete options with the recommended one first, and say what each option would cause.
+
 ---
 
 # This repo: `%{data.canonical_name}`  ·  clade `%{data.prefixed_name}`

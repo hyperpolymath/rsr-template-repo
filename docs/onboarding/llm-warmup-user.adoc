@@ -39,8 +39,8 @@ A person uses it to start a new repository:
   julia-library` applies the one archetype overlay shipped in `archetypes/`.
 . Run `just validate` (structure + metadata) and `just doctor` (toolchain).
 
-An AI running `repo-init` must pipe answers to stdin and must never set
-`RSR_NON_INTERACTIVE=1`: that stubs `read`, and the substitution loops then never end.
+An AI running `repo-init` sets `RSR_NON_INTERACTIVE=1` and passes the answers as
+environment variables (see `docs/AI_INSTALLATION_GUIDE.adoc`), or pipes them to stdin.
 
 == When something is wrong
 

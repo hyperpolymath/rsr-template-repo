@@ -63,6 +63,22 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* The non-interactive mint completes. `RSR_NON_INTERACTIVE=1` used to
+  stub `read` for the whole recipe, so an unanswered prompt killed the
+  mint under `set -u` and the substitution loops never ended. Prompts now
+  read answers from the environment; `tests/workflows/non_interactive_mint_test.sh`
+  drives that path in Estate Rules, and the docs that warned agents off it
+  now describe it.
+* A mint leaves just's own interpolation of `project` alone, regenerates
+  CLAUDE.md and the repository map from the child's deed and tree, keeps
+  the deed's `reject-if-contains` detector, and no longer breaks the
+  OpenSSF audit table when no OpenSSF id is given.
+* The standards reusables are pinned to standards main (`ae36881`), where
+  the Actions lockfile verify job pins its tool and treats `sha-as-ref`
+  as advisory.
+* The julia-library lock fragment is at the spine's lockfile format
+  v0.0.3, so Julia mints merge it again.
+
 * Julia mints start with Lock Sync green. The julia-library overlay
   shipped its own `actions.lock`, which replaced the spine's at mint, so
   every spine workflow lost its records. The records now ship beside the
