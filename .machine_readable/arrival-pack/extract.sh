@@ -49,10 +49,18 @@ items() {
 # hash12 -> short content hash of stdin (drift provenance)
 hash12() { sha256sum | cut -c1-12; }
 
-# The uuid is derived from the header :repo-uuid name, never stored (deed.abnf).
+# The identity is the deed's own TYPED literal (#u5"<name>", later #u8"<domain:name>"),
+# never a computed hex uuid. The uuid is derived from that name and never
+# stored (deed.abnf); printing its hex form put a version-5 literal in
+# CLAUDE.md, which ADR-008's strict gate (owner ruling D320, standards
+# governance job uuid-v7-conformance) rejects in every minted repo. The
+# typed literal says what the identifier is, as ADR-008 asks of legacy ids,
+# and follows the deed when it moves to version 8.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-[ -z "$uuid_name" ] || uuid="$(bash "$READ" --uuid "$DEED")"
+[ -z "$uuid_name" ] || uuid="$(sed -n -E 's/^  :repo-uuid (#u[0-9]+"[^"]*").*/\1/p' "$DEED" | head -1)"
+[ -z "$uuid_name" ] || [ -n "$uuid" ] \
+  || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #u<n>\"...\" literal" >&2; exit 2; }
 
 # read_clauses -> the clauses this pack reads, one token per line. Hashing only
 # these keeps an unrelated deed edit (say a canon-pin bump) from reading as drift.
