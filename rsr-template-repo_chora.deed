@@ -45,7 +45,8 @@
   ; block's uuid and canonical-name and told arriving agents it WAS the
   ; template (corrected in chronicles-of-slavia and scaffoldia 2026-07-16).
   ; The uuid is not stored: it is uuid5(URL namespace, the header
-  ; :repo-uuid name), a5ea1382-a34c-5334-8a46-a2ebe904c810 here.
+  ; :repo-uuid name). Only that typed name is written down; a hex form here
+  ; fails ADR-008's strict v8 gate.
   ; Identity, clade, forges, lineage, status: mapping clade-to-repo-deed.
   (identity
     :primary-forge github

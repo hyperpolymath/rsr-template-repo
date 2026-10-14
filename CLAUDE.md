@@ -62,7 +62,7 @@ Put every question that needs the owner's decision through the selector (the Ask
 
 # This repo: `rsr-template-repo`  ·  clade `rm-rsr-template-repo`
 
-- **Identity** — uuid `a5ea1382-a34c-5334-8a46-a2ebe904c810`; clade `rm` (secondary ``); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
+- **Identity** — uuid `#u5"github.com/hyperpolymath/rsr-template-repo"`; clade `rm` (secondary ``); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
 - **IS** — Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from.
 - **IS-NOT** — a project in its own right · Scaffoldia (the full-featured repo designer) · standards (the canon source this template operationalises)
 - **Where it sits** — pipeline position **foundation**; chain `standards → rsr-template-repo → (every estate repo)`; coordination = `standards`.
