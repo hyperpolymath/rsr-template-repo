@@ -196,18 +196,18 @@ every fix marked *auto* for you.
 |PV-W20 |mise.lock is missing, so `latest` is not concrete |`just toolchain-refresh` |yes
 |PV-W21 |both mise.toml and .mise.toml exist |merge into mise.toml, delete .mise.toml |no
 |PV-W22 |a .tool-versions file competes with mise.toml |fold it into mise.toml |no
-|PV-W23 |mise.toml pins a tool the estate does not use |remove that line |no
+|PV-W23 |a mise config (mise.toml, .mise.toml, .tool-versions) pins a tool the estate does not use, or an npm:/pipx:/pip:/go: backend |remove that line |no
 |PV-W24 |a Guix file is an unfilled template |regenerate it (maintainers: `provision-set realign`) |no
 |PV-W25 |guix.scm is missing |as PV-W24 |no
 |PV-W26 |manifest.scm is missing |as PV-W24; mise still works |no
 |PV-W27 |launcher.sh is missing |as PV-W24 |no
 |PV-W28 |a setup document is missing |as PV-W24 |no
 |PV-W29 |a setup document still holds unfilled template slots |replace each `__SPEC_…__` slot with the facts for this repository |no
-|PV-W30 |Deno files remain |the estate runtime is bun; a migration issue tracks it |no
+|PV-W30 |a Deno manifest (`deno.json`, `deno.jsonc`, `import_map.json`) exists |a notice, not a fault: Deno is permitted (tier 2) and reads `package.json`, which stays the one manifest |no
 |PV-W31 |Nix files remain |use Guix |no
 |PV-W32 |a Makefile remains |use the Justfile |no
 |PV-W33 |Python files remain |not an estate language |no
-|PV-W34 |npm/yarn/pnpm/TypeScript files remain |use bun |no
+|PV-W34 |npm/yarn/TypeScript files remain (`package-lock.json`, `yarn.lock`, `tsconfig.json`) |keep `package.json`, and let `js-runtimes regen` write `bun.lock`, `deno.lock` and `pnpm-lock.yaml` |no
 |PV-W35 |both guix.scm and build/guix.scm exist |keep one; the engine uses build/ |no
 |===
 
