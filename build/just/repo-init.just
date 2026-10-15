@@ -353,17 +353,20 @@ repo-init archetype="":
     # (the honest fallback at :437); Pkg then refuses the package loudly
     # until the owner assigns one.
     if [ "$ARCHETYPE" = "julia-library" ]; then
+        # GitHub owner logins are case-insensitive; canonicalize to lowercase
+        # before the preimage so owner casing cannot fork the UUID.
+        OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
         if command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
-            PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER}/${REPO}")
+            PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
         elif command -v python3 >/dev/null 2>&1; then
-            PACKAGE_UUID=$(python3 -c "
-    import hashlib
-    pre = 'julia-package-identity:github.com/${OWNER}/${REPO}'.encode()
+            PACKAGE_UUID=$(python3 -c '
+    import hashlib, sys
+    pre = ("julia-package-identity:github.com/%s/%s" % (sys.argv[1], sys.argv[2])).encode()
     b = bytearray(hashlib.sha256(pre).digest()[:16])
     b[6] = (b[6] & 0x0F) | 0x80   # version 8
     b[8] = (b[8] & 0x3F) | 0x80   # variant 10
     h = b.hex()
-    print(f'{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}')")
+    print(f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}")' "${OWNER_LC}" "${REPO}")
         else
             PACKAGE_UUID=UNASSIGNED
         fi
