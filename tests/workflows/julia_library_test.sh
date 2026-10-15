@@ -11,7 +11,10 @@ trap 'rm -rf "$fixture"' EXIT
 bash_bin=$(command -v bash)
 python_bin=$(command -v python3) || { echo 'FAIL: python3 is needed to exercise the shipped fallback' >&2; exit 1; }
 checks=0
+# Print all arguments as a failure message to stderr and exit the test with status 1.
 fail() { echo "FAIL: $*" >&2; exit 1; }
+# Compare actual $1 with expected $2, using $3 as the diagnostic label.
+# Increment checks on equality; otherwise report the mismatch and exit with status 1.
 equal() {
   [ "$1" = "$2" ] || fail "$3: got '$1', expected '$2'"
   checks=$((checks + 1))
@@ -33,6 +36,9 @@ printf '#!%s\nexit 91\n' "$bash_bin" > "$fixture/python/uuidgen"
 chmod +x "$fixture/python/uuidgen"
 
 # derive TOOL_DIR OWNER REPO [STANDARDS_SCRIPT [ARCHETYPE [REPO_UUID]]]
+# Execute the shipped UUID rule with the supplied identity and isolated tools.
+# Print PACKAGE_UUID and write NUL-separated substitutions to fixture/sed.args;
+# return the subprocess status, including generator failures.
 # env -i prevents host Bun/Python, user config and exported functions from
 # accidentally satisfying a branch. The subprocess only needs Bash builtins
 # and whichever generator this test explicitly places on PATH.

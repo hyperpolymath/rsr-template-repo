@@ -29,7 +29,10 @@ SCRATCH="${SCRATCH:-$(mktemp -d /tmp/julia-mint-test.XXXXXX)}"
 trap 'rm -rf "$SCRATCH"' EXIT
 
 PASS=0; FAIL=0
+# Print the assertion description in $1 and increment the global PASS count.
 ok()   { echo "  PASS: $1"; PASS=$((PASS+1)); }
+# Print the assertion description in $1 and increment FAIL without exiting,
+# allowing subsequent assertions to run before the final failure summary.
 bad()  { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
 
 command -v "$JULIA" >/dev/null 2>&1 || { echo "SKIP: no julia binary (JULIA_BIN)"; exit 0; }
@@ -158,6 +161,8 @@ JET_PKG=$(sed -n 's/^name = "\([^"]*\)".*/\1/p' Project.toml | head -1)
 JET_SRC="src/${JET_PKG}.jl"
 JET_ENV="$SCRATCH/.jet-env"
 
+# Provision JET 0.12 in JET_ENV, develop the fixture package from SCRATCH,
+# and run test_package on JET_PKG; return Julia's status for the controls below.
 run_jet() {
     "$JULIA" -e "
         using Pkg

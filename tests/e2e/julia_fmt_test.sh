@@ -8,6 +8,7 @@ set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
+# Print all arguments as a failure message to stderr and exit the test with status 1.
 fail() { echo "FAIL: $*" >&2; exit 1; }
 julia_bin=$(command -v "${JULIA_BIN:-julia}") || fail 'Julia is required (set JULIA_BIN)'
 # The workflow invokes `julia`; respect JULIA_BIN even if it has another name.
@@ -27,15 +28,19 @@ work="$fixture/package"
 mkdir -p "$work/src/nested" "$work/test/nested" "$work/test/cases/nested"
 cd "$work"
 
+# Reset the three scanned Julia files to formatted contents in the package fixture.
 clean_files() {
   printf 'x = 1\n' > src/example.jl
   printf 'y = 2\n' > test/runtests.jl
   printf 'z = 3\n' > test/cases/example.jl
 }
+# Print SHA-256 checksums for scanned and nested fixture files to detect rewrites.
 snapshot() {
   sha256sum src/example.jl test/runtests.jl test/cases/example.jl \
     src/nested/ignored.jl test/nested/ignored.jl test/cases/nested/ignored.jl
 }
+# Run the shipped formatter check with the selected Julia binary, logging both
+# output streams to format.log in the fixture; return the check's exit status.
 run_fmt() {
   PATH="$fixture/bin:$PATH" bash -e "$fixture/check-format.sh" > "$fixture/format.log" 2>&1
 }
