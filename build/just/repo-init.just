@@ -357,13 +357,13 @@ repo-init archetype="":
             PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER}/${REPO}")
         elif command -v python3 >/dev/null 2>&1; then
             PACKAGE_UUID=$(python3 -c "
-import hashlib
-pre = 'julia-package-identity:github.com/${OWNER}/${REPO}'.encode()
-b = bytearray(hashlib.sha256(pre).digest()[:16])
-b[6] = (b[6] & 0x0F) | 0x80   # version 8
-b[8] = (b[8] & 0x3F) | 0x80   # variant 10
-h = b.hex()
-print(f'{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}')")
+    import hashlib
+    pre = 'julia-package-identity:github.com/${OWNER}/${REPO}'.encode()
+    b = bytearray(hashlib.sha256(pre).digest()[:16])
+    b[6] = (b[6] & 0x0F) | 0x80   # version 8
+    b[8] = (b[8] & 0x3F) | 0x80   # variant 10
+    h = b.hex()
+    print(f'{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}')")
         else
             PACKAGE_UUID=UNASSIGNED
         fi
