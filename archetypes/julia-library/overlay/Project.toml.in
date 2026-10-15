@@ -1,11 +1,14 @@
 # minted by: just repo-init julia-library ({{CURRENT_YEAR}})
 # owner: {{OWNER}}
 #
-# uuid = "{{PACKAGE_UUID}}" is DERIVED at mint (UUIDv5 over the repo
-# identity — see repo-init's julia-library rule); it is stable across
-# re-mints of the same repo and is never hand-edited. If the mint could not
-# derive it (no uuidgen AND no python3 on the operator machine) it is
-# UNASSIGNED and Pkg refuses to load the package until the owner assigns one.
+# uuid = "{{PACKAGE_UUID}}" is MINTED at mint as UUIDv8 profile C over the
+# registered domain julia-package-identity, preimage
+# github.com/<owner>/<name> (see repo-init's julia-library rule; the strict
+# UUIDv8 gate rejects the v5 mint per ADR-008 D320). Profile C is
+# deterministic, so the uuid is stable across re-mints of the same repo and
+# never hand-edited. If the mint could not derive it (no python3 and no bun
+# with standards' uuid-v8.js on the operator machine) it is UNASSIGNED and
+# Pkg refuses to load the package until the owner assigns one.
 
 name = "{{PROJECT_NAME}}"
 uuid = "{{PACKAGE_UUID}}"

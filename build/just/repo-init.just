@@ -341,18 +341,32 @@ repo-init archetype="":
         SED_ARGS+=(-e "s|${LB}${tok}${RB}|UNASSIGNED|g")
     done
 
-    # julia-library archetype: derive the package uuid at mint (owner ruling
-    # 2026-09-19: generate at mint). Same DERIVABLE class as the REPO uuid
-    # above - computed, never guessed. Namespace = the repo's own derived
-    # uuid, name = julia:<repo>: stable across re-mints of the same repo,
-    # never collides with the repo uuid. No uuidgen AND no python3 on the
-    # operator machine -> UNASSIGNED (the honest fallback at :437); Pkg
-    # then refuses the package loudly until the owner assigns one.
+    # julia-library archetype: mint the package uuid as UUIDv8 profile C
+    # (ADR-008 amendment: the strict UUIDv8 gate rejects the UUIDv5 mint,
+    # and D320 requires unregistered packages at v8). Profile C is
+    # DETERMINISTIC: bytes 0..15 of SHA-256("julia-package-identity" ":"
+    # "github.com/<owner>/<name>"), version nibble 8, variant 10 -- stable
+    # across re-mints of the same repo, derivable by any operator machine
+    # with python3 (or bun over standards' scripts/uuid-v8.js), never
+    # colliding with the repo uuid. The domain is REGISTERED in standards'
+    # ADR-008-profile-c-domains.json. No python3 and no bun -> UNASSIGNED
+    # (the honest fallback at :437); Pkg then refuses the package loudly
+    # until the owner assigns one.
     if [ "$ARCHETYPE" = "julia-library" ]; then
-        if command -v uuidgen >/dev/null 2>&1; then
-            PACKAGE_UUID=$(uuidgen --sha1 --namespace "${REPO_UUID}" --name "julia:${REPO}")
+        # GitHub owner logins are case-insensitive; canonicalize to lowercase
+        # before the preimage so owner casing cannot fork the UUID.
+        OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
+        if command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
+            PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
         elif command -v python3 >/dev/null 2>&1; then
-            PACKAGE_UUID=$(python3 -c "import uuid; print(uuid.uuid5(uuid.UUID('${REPO_UUID}'), 'julia:${REPO}'))")
+            PACKAGE_UUID=$(python3 -c '
+    import hashlib, sys
+    pre = ("julia-package-identity:github.com/%s/%s" % (sys.argv[1], sys.argv[2])).encode()
+    b = bytearray(hashlib.sha256(pre).digest()[:16])
+    b[6] = (b[6] & 0x0F) | 0x80   # version 8
+    b[8] = (b[8] & 0x3F) | 0x80   # variant 10
+    h = b.hex()
+    print(f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}")' "${OWNER_LC}" "${REPO}")
         else
             PACKAGE_UUID=UNASSIGNED
         fi

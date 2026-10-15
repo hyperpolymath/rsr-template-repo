@@ -29,6 +29,7 @@ jobs:
   fmt:
     name: Format (JuliaFormatter)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: julia-actions/setup-julia@v3.0.2
@@ -40,13 +41,13 @@ jobs:
             using Pkg
             Pkg.add("JuliaFormatter")
             using JuliaFormatter
-            for f in filter(isfile, Iterators.flatten((
+            for f in filter(isfile, collect(Iterators.flatten((
                 [joinpath("src", x) for x in readdir("src")],
                 [joinpath("test", x) for x in readdir("test") if x != "cases"],
                 [joinpath("test", "cases", x) for x in readdir(joinpath("test", "cases"))],
-            )))
+            ))))
                 text = read(f, String)
-                formatted = JuliaFormatter.format_string(text)
+                formatted = JuliaFormatter.format_text(text)
                 if text != formatted
                     @error "not formatted" file=f
                     exit(1)
@@ -56,6 +57,7 @@ jobs:
   jet:
     name: Static analysis (JET)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: julia-actions/setup-julia@v3.0.2
@@ -101,6 +103,7 @@ jobs:
   test:
     name: Test (Test + Aqua)
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
