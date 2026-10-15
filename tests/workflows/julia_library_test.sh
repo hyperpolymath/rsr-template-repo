@@ -67,7 +67,7 @@ example-owner mint-check 88f60d1e-793d-8026-8c30-5ceb4c99a728
 VECTORS
 expected=9271df15-3174-8475-ac0b-136d649c1f76
 equal "$(derive "$fixture/python" example-owner MintCheck.jl)" "$expected" 're-mint is deterministic'
-equal "$(derive "$fixture/python" example-owner MintCheck.jl '' julia-library 00000000-0000-4000-8000-000000000000)" \
+equal "$(derive "$fixture/python" example-owner MintCheck.jl '' julia-library 00000000-0000-8000-8000-000000000000)" \
   "$expected" 'package identity is independent of the repository UUID'
 
 # Verify the real substitution expression reaches Project.toml, including
