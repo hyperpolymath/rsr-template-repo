@@ -7,33 +7,16 @@
 // Docker, GitHub Codespaces and Gitpod: use .devcontainer/docker/devcontainer.json
 // instead — Docker rejects the Podman-only `--userns=keep-id` below.
 {
-  "name": "{{PROJECT_NAME}} (Podman)",
-
   "build": {
-    "dockerfile": "Containerfile",
-    "context": ".."
+    "context": "..",
+    "dockerfile": "Containerfile"
   },
-
-  // Rootless Podman maps your host user to root inside the container, so the
-  // bind-mounted workspace would be owned by root and unwritable for `nonroot`.
-  // keep-id maps your host user to uid/gid 65532 (`nonroot`, built into wolfi-base) instead.
-  // label=disable lets the workspace mount work on SELinux-enforcing hosts.
-  "runArgs": [
-    "--userns=keep-id:uid=65532,gid=65532",
-    "--security-opt=label=disable"
-  ],
-  "containerUser": "nonroot",
-  "remoteUser": "nonroot",
-  "updateRemoteUserUID": false,
-
-  "postCreateCommand": "just deps",
-
   "containerEnv": {
-    "HOME": "/home/nonroot",
     "EDITOR": "code --wait",
+    "HOME": "/home/nonroot",
     "LANG": "C.UTF-8"
   },
-
+  "containerUser": "nonroot",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -49,20 +32,29 @@
         "usernamehw.errorlens"
       ],
       "settings": {
+        "[makefile]": {
+          "editor.insertSpaces": false
+        },
         "editor.formatOnSave": true,
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
-        "files.trimTrailingWhitespace": true,
         "files.insertFinalNewline": true,
         "files.trimFinalNewlines": true,
-        "[makefile]": {
-          "editor.insertSpaces": false
-        }
+        "files.trimTrailingWhitespace": true
       }
     }
   },
-
-  "forwardPorts": [],
-
-  "shutdownAction": "stopContainer"
+  "name": "{{PROJECT_NAME}} (Podman)",
+  "postCreateCommand": "just deps",
+  "remoteUser": "nonroot",
+  // Rootless Podman maps your host user to root inside the container, so the
+  // bind-mounted workspace would be owned by root and unwritable for `nonroot`.
+  // keep-id maps your host user to uid/gid 65532 (`nonroot`, built into wolfi-base) instead.
+  // label=disable lets the workspace mount work on SELinux-enforcing hosts.
+  "runArgs": [
+    "--userns=keep-id:uid=65532,gid=65532",
+    "--security-opt=label=disable"
+  ],
+  "shutdownAction": "stopContainer",
+  "updateRemoteUserUID": false
 }
