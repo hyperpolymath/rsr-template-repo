@@ -1,4 +1,5 @@
-# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: MPL-2.0 (code)
+# SPDX-License-Identifier: CC-SA-BY-4.0 (prose)
 # Hyperpolymath estate canonical .gitattributes  (standards#343 phase 1)
 # Canon lives in rsr-template-repo; do not add a per-repo name to this header.
 #
