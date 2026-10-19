@@ -53,6 +53,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   byte-identical to standards' `_shared/container/.gatekeeper.yaml`.
   Estate Rules gains the ratchet "Converted YAML stays KYAML", which runs
   that script at standards `75bd599` with yq 4.53.3, both sha256-verified.
+  Container narrowing at mint can delete any of the three files, so the
+  template must keep all of them, while a minted repository checks the ones
+  it kept and names the ones narrowing removed.
+  `tests/workflows/kyaml_ratchet_test.sh` covers the template and each
+  narrowing, and `tests/workflows/container_kyaml_test.sh` checks that the
+  conversion kept every value in the template's configs. Estate Rules runs
+  both.
   Workflows wait for step 6 (standards#1025). Files that Dependabot,
   FUNDING, issue forms, Probot settings, CodeRabbit, Copilot, GitLab CI or
   pre-commit read or rewrite are not converted, as in standards.

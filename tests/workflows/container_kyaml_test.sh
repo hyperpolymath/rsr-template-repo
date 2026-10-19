@@ -11,6 +11,16 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# These assertions pin the template's own configs, placeholders included. A
+# minted repository has substituted them (container-init) or removed them
+# (container narrowing). archetypes/ marks the template, as in
+# scripts/check-template-conformance.sh; the mint deletes it.
+if [ ! -d "$repo/archetypes" ]; then
+    echo "SKIP: $repo is not the template (no archetypes/); its container configs belong to the mint"
+    exit 0
+fi
+
 assert_value() {
     local file=$1 expression=$2 expected=$3 description=$4 actual
     actual=$(yq -p yaml -o json -I 0 "$expression" "$file")

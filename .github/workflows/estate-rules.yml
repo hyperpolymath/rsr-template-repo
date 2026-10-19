@@ -144,10 +144,34 @@ jobs:
             https://raw.githubusercontent.com/hyperpolymath/standards/75bd5994470661a099df562d6d5ad2fe744dbd66/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      # Container narrowing at mint (build/just/container.just) can delete any
+      # of these files. The template (archetypes/ present) must keep all of
+      # them; a minted repository checks the ones it kept and names the rest.
       - name: Converted YAML stays KYAML
         run: |
           set -euo pipefail
-          bash "$RUNNER_TEMP/kyaml-format.sh" --check \
-            build/container/compose.yaml \
-            build/container/compose.example.yaml \
+          converted=(
+            build/container/compose.yaml
+            build/container/compose.example.yaml
             build/container/stapeln/.gatekeeper.yaml
+          )
+          present=()
+          for file in "${converted[@]}"; do
+            if [ -f "$file" ]; then
+              present+=("$file")
+            elif [ -d archetypes ]; then
+              echo "::error::$file is missing from the template"
+              exit 1
+            else
+              echo "::notice::$file was removed at mint by container narrowing; not checked"
+            fi
+          done
+          if [ "${#present[@]}" -eq 0 ]; then
+            echo "No converted YAML is left in this repository; nothing to check."
+            exit 0
+          fi
+          bash "$RUNNER_TEMP/kyaml-format.sh" --check "${present[@]}"
+      - name: Converted container configs keep their data (template only)
+        run: bash tests/workflows/container_kyaml_test.sh
+      - name: KYAML ratchet self-test (installs verify, gate propagates, narrowing)
+        run: bash tests/workflows/kyaml_ratchet_test.sh

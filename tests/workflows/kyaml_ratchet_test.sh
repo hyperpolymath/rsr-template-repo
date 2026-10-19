@@ -119,16 +119,91 @@ run_install success 0 "$all_events"
 cmp -s "$ASSETS/yq" "$RUNNER_TEMP/yq-bin/yq" || fail 'yq downloaded to the wrong path'
 cmp -s "$ASSETS/kyaml-format.sh" "$RUNNER_TEMP/kyaml-format.sh" || fail 'formatter downloaded to the wrong path'
 
-expected_args=$'--check\nbuild/container/compose.yaml\nbuild/container/compose.example.yaml\nbuild/container/stapeln/.gatekeeper.yaml'
+compose=build/container/compose.yaml
+example=build/container/compose.example.yaml
+policy=build/container/stapeln/.gatekeeper.yaml
+# make_tree NAME ENTRY...: a fixture tree holding only the named files, plus
+# archetypes/ (the template marker) when an entry is "archetypes".
+make_tree() {
+    local tree="$scratch/trees/$1" entry
+    shift
+    mkdir -p "$tree"
+    for entry in "$@"; do
+        if [ "$entry" = archetypes ]; then
+            mkdir -p "$tree/archetypes"
+        else
+            mkdir -p "$tree/$(dirname "$entry")"
+            : > "$tree/$entry"
+        fi
+    done
+    printf '%s\n' "$tree"
+}
+# run_gate TREE FORMATTER_STATUS: sets gate_status and leaves the step's output
+# in $scratch/gate.log. Always run the extracted body as a separate process:
+# testing it in a shell conditional would suppress errexit inside it.
+run_gate() {
+    rm -f "$FORMATTER_ARGS"
+    gate_status=0
+    (cd "$1"; FORMATTER_STATUS=$2 bash --noprofile --norc -e "$scratch/gate.sh") > "$scratch/gate.log" 2>&1 || gate_status=$?
+}
+expect_args() {
+    local expected
+    expected=$(printf '%s\n' --check "$@")
+    [ -f "$FORMATTER_ARGS" ] || fail "$label: formatter did not run"
+    [ "$(cat "$FORMATTER_ARGS")" = "$expected" ] \
+        || fail "$label: ratchet must check exactly the converted files present, with no workflow or bot-owned configs"
+}
+expect_log() { grep -Fq -- "$1" "$scratch/gate.log" || fail "$label: missing '$1' in: $(cat "$scratch/gate.log")"; }
+
+label='template'
+tree=$(make_tree template archetypes "$compose" "$example" "$policy")
 for expected_status in 0 1 2; do
-    status=0
-    # Always run the extracted body as a separate process: testing it in a
-    # shell conditional would suppress errexit inside the code under test.
-    (cd "$repo"; FORMATTER_STATUS=$expected_status bash --noprofile --norc -e "$scratch/gate.sh") || status=$?
-    [ "$status" -eq "$expected_status" ] || fail "ratchet swallowed formatter exit $expected_status (got $status)"
-    [ "$(cat "$FORMATTER_ARGS")" = "$expected_args" ] || fail 'ratchet must check exactly the three converted files, with no workflow or bot-owned configs'
+    run_gate "$tree" "$expected_status"
+    [ "$gate_status" -eq "$expected_status" ] || fail "ratchet swallowed formatter exit $expected_status (got $gate_status)"
+    expect_args "$compose" "$example" "$policy"
 done
 echo 'PASS: pinned HTTPS downloads are verified in order, runner paths with spaces work, and the ratchet propagates clean/drift/refusal statuses'
+
+# The template must keep every converted file: losing one is an error there,
+# and the formatter must not run on the rest as if nothing were wrong.
+label='template missing a file'
+tree=$(make_tree template-missing archetypes "$compose" "$example")
+run_gate "$tree" 0
+[ "$gate_status" -eq 1 ] || fail "$label: expected exit 1, got $gate_status"
+[ ! -f "$FORMATTER_ARGS" ] || fail "$label: formatter ran on a template with a file missing"
+expect_log "::error::$policy is missing from the template"
+
+# Minted repositories, one per container.just narrowing: full container,
+# no-stapeln, container-keep without portable, and no-container.
+label='minted, full container'
+tree=$(make_tree minted-full "$compose" "$example" "$policy")
+run_gate "$tree" 1
+[ "$gate_status" -eq 1 ] || fail "$label: ratchet swallowed formatter exit 1 (got $gate_status)"
+expect_args "$compose" "$example" "$policy"
+
+label='minted, no-stapeln'
+tree=$(make_tree minted-no-stapeln "$compose" "$example")
+run_gate "$tree" 0
+[ "$gate_status" -eq 0 ] || fail "$label: expected exit 0, got $gate_status"
+expect_args "$compose" "$example"
+expect_log "::notice::$policy was removed at mint"
+
+label='minted, not portable'
+tree=$(make_tree minted-not-portable "$policy")
+run_gate "$tree" 2
+[ "$gate_status" -eq 2 ] || fail "$label: ratchet swallowed formatter exit 2 (got $gate_status)"
+expect_args "$policy"
+expect_log "::notice::$compose was removed at mint"
+expect_log "::notice::$example was removed at mint"
+
+label='minted, no-container'
+tree=$(make_tree minted-no-container)
+run_gate "$tree" 1
+[ "$gate_status" -eq 0 ] || fail "$label: expected exit 0, got $gate_status"
+[ ! -f "$FORMATTER_ARGS" ] || fail "$label: formatter ran with no files to check"
+for file in "$compose" "$example" "$policy"; do expect_log "::notice::$file was removed at mint"; done
+expect_log 'nothing to check'
+echo 'PASS: the template requires every converted file; minted repositories check what narrowing kept and name what it removed'
 
 run_install curl:yq 22 'curl:yq'
 [ ! -s "$GITHUB_PATH" ] || fail 'failed yq download was added to PATH'
