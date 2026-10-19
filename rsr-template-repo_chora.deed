@@ -208,7 +208,7 @@
         (file :name "ct-build.sh" :role "Build Pipeline" :description "Shell script implementing the 5-stage pipeline: build (Podman),\npack (cerro-torre .ctp), sign (Ed25519), verify, push (optional).\nDegrades gracefully when cerro-torre tools are not installed." :depends-on ("Containerfile" "manifest.toml"))
         (file :name "entrypoint.sh" :role "Container Entrypoint" :description "Startup script with signal handling (SIGTERM, SIGINT), logging, and\nexec into the main application process." :depends-on ())
         (file :name "vordr.toml" :role "Runtime Monitoring" :description "Vordr monitoring configuration. Health endpoint probing, crash\ndetection, resource thresholds, and structured log output." :depends-on ())
-        (file :name "deploy.k9.ncl" :role "Deployment Component" :description "k9-svc deployment specification at Hunt trust level. Full pedigree\n(L1-L5), environment configs, container config, and rolling\ndeployment strategy." :depends-on ("compose.toml" "ct-build.sh"))
+        (file :name "deploy.k9.ncl.in" :role "Deployment Component (template)" :description "k9-svc deployment specification at Hunt trust level. Full pedigree\n(L1-L5), environment configs, container config, and rolling\ndeployment strategy." :depends-on ("compose.toml" "ct-build.sh"))
         (file :name "compose.example.toml" :role "Example" :description "Fully-commented multi-service example (Rust API + Elixir worker +\nsvalinn gateway). Copy to compose.toml and customise." :depends-on ())
       ))
     (directory :id "docs-pillar" :ply 1 :path "docs" :description "Technical documentation hub. The root contains high-level orientation\n(README, Quickstart, State-Visualizer). Specialized tracks live in\nsubdirectories."

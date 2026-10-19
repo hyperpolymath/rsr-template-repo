@@ -98,5 +98,5 @@ bust.sync-drift-between-repos = "latent"
 bust.contractile-parse-error = "latent"
 
 [provenance]
-contractiles = "intend@feaaa58c4690 must@6a15dd3ccc3a trust@71566e6b64fc adjust@d7e4225fe5a8 dust@448489330834 bust@ea93d531c781"
+contractiles = "intend@53c58b12670b must@df17f095d038 trust@62cd1ad0fb54 adjust@cfd661debafd dust@a3de1d6db05d bust@72320ddbc891"
 descriptiles = "deed@ab944221ee82 anchor@51194a4e21e8"

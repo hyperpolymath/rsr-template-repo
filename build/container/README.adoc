@@ -102,7 +102,7 @@ The container engine is *auto-detected* (`podman`, then `nerdctl`, then
 | *cerro-torre* build → pack → sign (Ed25519) → verify → push pipeline.
   Engine-agnostic; degrades gracefully when cerro-torre tools are absent.
 
-| `deploy.k9.ncl`
+| `deploy.k9.ncl.in`
 | *k9-svc* deployment component at Hunt trust level: full pedigree (L1–L5),
   dev/staging/prod configs, rolling deployment strategy.
 |===
@@ -178,8 +178,8 @@ k9-svc managed deployment:
 
 [source,bash]
 ----
-nickel typecheck build/container/stapeln/deploy.k9.ncl
-k9-svc deploy build/container/stapeln/deploy.k9.ncl --env production
+nickel typecheck build/container/stapeln/deploy.k9.ncl.in
+k9-svc deploy build/container/stapeln/deploy.k9.ncl.in --env production
 ----
 
 == Continuous integration

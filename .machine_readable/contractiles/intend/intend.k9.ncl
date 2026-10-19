@@ -28,21 +28,33 @@ K9!
 # * Evidence sinks: VeriSimDB (queryable) + descriptiles/drift_praxis.deed (repo-local).
 # * Failure-mode defenses cross-referenced to the AI failure catalog.
 
+#
+# 2026-10-19 (K9 contract v1.0.0, D173, standards#1058): this record is a
+# DECLARATION evaluated at 'Yard. The probes it lists are run by the paired
+# runner (intend.ncl and the scripts/run-*.sh runners), which is the execution
+# surface; this file spawns nothing. A 'Hunt record needs signature_required,
+# a signature block and a verified signature (K9-S008/S009/C001); no
+# contractile carries one, so 'Hunt here was a claim the gate could never honour.
+
 let base    = import "../_base.ncl" in
 
 {
   pedigree = base.pedigree_schema & {
     contractile_verb = "intend",
+    schema_version   = "1.0.0",
+    component_type   = "contractile:intend",
+    semantics        = "north-star (commitments + aspirations)",
+    side_effects     = [],
     paired_xfile     = "../intend/intend.k9.ncl#declaration",
     paired_runner    = "../intend/intend.ncl",
 
     # α two-axis declaration — capability × authority.
-    # intend is Hunt-capable (probes shell out) but reporting-authority
-    # (never blocks). must/trust/bust will declare (Hunt, blocking);
+    # intend is Yard-tier as a record (intend.ncl shells out for the probes)
+    # and reporting-authority (never blocks). must/trust/bust declare (Yard, blocking);
     # adjust/dust will declare (Yard, advisory). Splitting the axes
     # means "I'm Hunt-tier so I can override everything" is structurally
     # impossible — authority is a separate field.
-    tier      = 'Hunt,
+    tier      = 'Yard,
     authority = 'reporting,
 
     metadata = {
@@ -59,12 +71,12 @@ let base    = import "../_base.ncl" in
     },
 
     security = {
-      leash = 'Hunt,
-      signature_required = true,
+      leash = 'Yard,
+      signature_required = false,
       trust_level = "subprocess + filesystem-read",
       allow_network = false,
       allow_filesystem_write = false,   # evidence sinks are indirected
-      allow_subprocess = true,
+      allow_subprocess = false,   # the paired runner spawns; this record does not
     },
 
     # Trident manifest — folded in from the retired <verb>.manifest.a2ml.
