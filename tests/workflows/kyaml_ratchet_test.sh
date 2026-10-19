@@ -97,6 +97,7 @@ chmod +x "$scratch/bin/curl" "$scratch/bin/sha256sum"
 original_path=$PATH
 export ASSETS="$scratch/assets"
 export FORMATTER_ARGS="$scratch/formatter-args"
+existing_path_entry='/existing runner/bin'
 run_install() {
     local scenario=$1 expected_status=$2 expected_events=$3 status=0
     # Spaces in GitHub runner paths must survive every invocation/manifest.
@@ -104,7 +105,7 @@ run_install() {
     export GITHUB_PATH="$scratch/$scenario/github path"
     export EVENTS="$scratch/$scenario/events"
     mkdir -p "$RUNNER_TEMP"
-    : > "$GITHUB_PATH"
+    printf '%s\n' "$existing_path_entry" > "$GITHUB_PATH"
     : > "$EVENTS"
     FAIL_AT="$scenario" PATH="$scratch/bin:$original_path" \
         bash --noprofile --norc -e "$scratch/install.sh" > "$scratch/install.log" 2>&1 || status=$?
@@ -115,7 +116,7 @@ run_install() {
 all_events=$'curl:yq\nsha256:yq\ncurl:kyaml-format.sh\nsha256:kyaml-format.sh'
 run_install success 0 "$all_events"
 [[ -x "$RUNNER_TEMP/yq-bin/yq" ]] || fail 'verified yq was not made executable'
-[[ "$(cat "$GITHUB_PATH")" = "$RUNNER_TEMP/yq-bin" ]] || fail 'verified yq directory was not added to the runner path'
+[[ "$(cat "$GITHUB_PATH")" = "$existing_path_entry"$'\n'"$RUNNER_TEMP/yq-bin" ]] || fail 'verified yq directory must be appended without losing existing runner paths'
 cmp -s "$ASSETS/yq" "$RUNNER_TEMP/yq-bin/yq" || fail 'yq downloaded to the wrong path'
 cmp -s "$ASSETS/kyaml-format.sh" "$RUNNER_TEMP/kyaml-format.sh" || fail 'formatter downloaded to the wrong path'
 
@@ -164,52 +165,88 @@ for expected_status in 0 1 2; do
 done
 echo 'PASS: pinned HTTPS downloads are verified in order, runner paths with spaces work, and the ratchet propagates clean/drift/refusal statuses'
 
-# The template must keep every converted file: losing one is an error there,
-# and the formatter must not run on the rest as if nothing were wrong.
-label='template missing a file'
-tree=$(make_tree template-missing archetypes "$compose" "$example")
+# Exercise all eight subsets, including the full/no-stapeln/not-portable/
+# no-container mint paths and a missing file in every position of the list.
+# Unconverted files must never be passed to the formatter, even when they
+# are the only YAML left in a minted repository.
+converted_files=("$compose" "$example" "$policy")
+for mask in {0..7}; do
+    kept=() missing=()
+    for index in "${!converted_files[@]}"; do
+        if ((mask & (1 << index))); then
+            kept+=("${converted_files[index]}")
+        else
+            missing+=("${converted_files[index]}")
+        fi
+    done
+    if [[ "${#missing[@]}" -gt 0 ]]; then
+        label="template subset $mask"
+        tree=$(make_tree "template-$mask" archetypes "${kept[@]}")
+        run_gate "$tree" 0
+        [[ "$gate_status" -eq 1 ]] || fail "$label: expected exit 1, got $gate_status"
+        [[ ! -f "$FORMATTER_ARGS" ]] || fail "$label: formatter ran with a required file missing"
+        expect_log "::error::${missing[0]} is missing from the template"
+        ! grep -Fq '::notice::' "$scratch/gate.log" || fail "$label: template loss was treated as mint narrowing"
+    fi
+
+    label="minted subset $mask"
+    tree=$(make_tree "minted-$mask" "${kept[@]}" .github/workflows/example.yml .github/dependabot.yml .coderabbit.yaml)
+    for formatter_status in 0 1 2 17; do
+        run_gate "$tree" "$formatter_status"
+        expected_status=$formatter_status
+        if [[ "${#kept[@]}" -eq 0 ]]; then
+            expected_status=0
+            [[ ! -f "$FORMATTER_ARGS" ]] || fail "$label: formatter ran with no converted files"
+            expect_log 'nothing to check'
+        else
+            expect_args "${kept[@]}"
+        fi
+        [[ "$gate_status" -eq "$expected_status" ]] || fail "$label: expected exit $expected_status, got $gate_status"
+        for file in "${missing[@]}"; do
+            expect_log "::notice::$file was removed at mint by container narrowing; not checked"
+        done
+        for file in "${kept[@]}"; do
+            ! grep -Fq "::notice::$file " "$scratch/gate.log" || fail "$label: present file reported as removed"
+        done
+        ! grep -Fq '::error::' "$scratch/gate.log" || fail "$label: narrowing reported as a template error"
+    done
+done
+echo 'PASS: every template/mint file subset checks exactly the retained files and propagates formatter failures'
+
+# A directory or broken symlink with a converted filename is not a config.
+for file in "${converted_files[@]}"; do
+    label="template non-file $file"
+    tree=$(make_tree "non-file-$file" archetypes "$compose" "$example" "$policy")
+    rm "$tree/$file"
+    mkdir "$tree/$file"
+    for kind in directory broken-symlink; do
+        run_gate "$tree" 0
+        [[ "$gate_status" -eq 1 ]] || fail "$label ($kind): expected exit 1, got $gate_status"
+        [[ ! -f "$FORMATTER_ARGS" ]] || fail "$label ($kind): formatter ran with a required file missing"
+        expect_log "::error::$file is missing from the template"
+        if [[ "$kind" = directory ]]; then
+            rmdir "$tree/$file"
+            ln -s missing-config.yaml "$tree/$file"
+        fi
+    done
+done
+echo 'PASS: directories and broken symlinks cannot stand in for required template configs'
+
+label='missing formatter'
+tree=$(make_tree missing-formatter "$compose")
+mv "$RUNNER_TEMP/kyaml-format.sh" "$RUNNER_TEMP/kyaml-format.saved"
 run_gate "$tree" 0
-[[ "$gate_status" -eq 1 ]] || fail "$label: expected exit 1, got $gate_status"
-[[ ! -f "$FORMATTER_ARGS" ]] || fail "$label: formatter ran on a template with a file missing"
-expect_log "::error::$policy is missing from the template"
-
-# Minted repositories, one per container.just narrowing: full container,
-# no-stapeln, container-keep without portable, and no-container.
-label='minted, full container'
-tree=$(make_tree minted-full "$compose" "$example" "$policy")
-run_gate "$tree" 1
-[[ "$gate_status" -eq 1 ]] || fail "$label: ratchet swallowed formatter exit 1 (got $gate_status)"
-expect_args "$compose" "$example" "$policy"
-
-label='minted, no-stapeln'
-tree=$(make_tree minted-no-stapeln "$compose" "$example")
-run_gate "$tree" 0
-[[ "$gate_status" -eq 0 ]] || fail "$label: expected exit 0, got $gate_status"
-expect_args "$compose" "$example"
-expect_log "::notice::$policy was removed at mint"
-
-label='minted, not portable'
-tree=$(make_tree minted-not-portable "$policy")
-run_gate "$tree" 2
-[[ "$gate_status" -eq 2 ]] || fail "$label: ratchet swallowed formatter exit 2 (got $gate_status)"
-expect_args "$policy"
-expect_log "::notice::$compose was removed at mint"
-expect_log "::notice::$example was removed at mint"
-
-label='minted, no-container'
-tree=$(make_tree minted-no-container)
-run_gate "$tree" 1
-[[ "$gate_status" -eq 0 ]] || fail "$label: expected exit 0, got $gate_status"
-[[ ! -f "$FORMATTER_ARGS" ]] || fail "$label: formatter ran with no files to check"
-for file in "$compose" "$example" "$policy"; do expect_log "::notice::$file was removed at mint"; done
-expect_log 'nothing to check'
-echo 'PASS: the template requires every converted file; minted repositories check what narrowing kept and name what it removed'
+[[ "$gate_status" -eq 127 ]] || fail "$label: expected exit 127, got $gate_status"
+[[ ! -f "$FORMATTER_ARGS" ]] || fail "$label: unexpected formatter invocation"
+expect_log 'kyaml-format.sh'
+mv "$RUNNER_TEMP/kyaml-format.saved" "$RUNNER_TEMP/kyaml-format.sh"
+echo 'PASS: a missing formatter cannot silently pass a repository with converted files'
 
 run_install curl:yq 22 'curl:yq'
-[[ ! -s "$GITHUB_PATH" ]] || fail 'failed yq download was added to PATH'
+[[ "$(cat "$GITHUB_PATH")" = "$existing_path_entry" ]] || fail 'failed yq download changed the runner path'
 run_install sha256:yq 1 $'curl:yq\nsha256:yq'
 [[ ! -x "$RUNNER_TEMP/yq-bin/yq" ]] || fail 'unverified yq became executable'
-[[ ! -s "$GITHUB_PATH" ]] || fail 'unverified yq was added to PATH'
+[[ "$(cat "$GITHUB_PATH")" = "$existing_path_entry" ]] || fail 'unverified yq changed the runner path'
 run_install curl:kyaml-format.sh 22 $'curl:yq\nsha256:yq\ncurl:kyaml-format.sh'
 run_install sha256:kyaml-format.sh 1 "$all_events"
 echo 'PASS: each failed download or checksum stops installation and cannot report success'
