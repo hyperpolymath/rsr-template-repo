@@ -69,8 +69,6 @@ workflows:
         - 'softprops/action-gh-release@v3.0.3'
     '.github/workflows/rsr-compliance-canary.yml':
         - 'actions/checkout@v7.0.1'
-    '.github/workflows/runtime-policy.yml':
-        - 'actions/checkout@v7.0.1'
     '.github/workflows/rust-ci.yml':
         - 'hyperpolymath/standards@75bd5994470661a099df562d6d5ad2fe744dbd66'
     '.github/workflows/scorecard.yml':
