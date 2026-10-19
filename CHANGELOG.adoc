@@ -43,6 +43,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Changed
 
+* The workflow linter installs Bun 1.4.2, the estate pin, from its release
+  archive and checks its sha256, as Estate Rules installs its tools. It ran
+  `oven-sh/setup-bun@v2.2.0` with `bun-version: latest`, so the runtime was
+  unpinned, and SonarCloud rated a third-party action pinned by tag "C"
+  ("Use full commit SHA hash"), even though `actions.lock` pins its commit.
+  The linter's lock edge to setup-bun goes. The `setup-bun@v2.2.0` record
+  stays, because the commented Bun steps in `e2e.yml.template` resolve
+  through it.
 * `.github/workflows/runtime-policy.yml` is removed, folded into governance
   as the standards cicd-regularisation spec §14 rules. Governance's
   "Language / package anti-pattern policy" fails any tracked
