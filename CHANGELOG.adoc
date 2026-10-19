@@ -86,6 +86,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* Governance, Hypatia Security Scan, Mirror to Git Forges, Rust CI and
+  Secret Scanner start again. GitHub's runner now rejects a lock record whose
+  `ref:` is the record's own SHA ("invalid lockfile pin"), and nine of this
+  lock's action records had one. The standards reusables move from `6a92510`
+  to `75bd599`, whose own lock carries tag refs
+  (hyperpolymath/standards#1271, hyperpolymath/standards#1285), and
+  `relock-standards-pin.sh` at `75bd599` gave the nine records the same tags.
+  No commit changes: each tag was checked to point at its recorded commit.
 * The mint's self-name pass keeps issue references. It rewrote
   `rsr-template-repo#N`, a reference to this template's own issue, into
   `<child>#N`, which names an issue of the child that does not exist or is
