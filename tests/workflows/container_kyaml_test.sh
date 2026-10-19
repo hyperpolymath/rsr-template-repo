@@ -16,7 +16,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 # minted repository has substituted them (container-init) or removed them
 # (container narrowing). archetypes/ marks the template, as in
 # scripts/check-template-conformance.sh; the mint deletes it.
-if [ ! -d "$repo/archetypes" ]; then
+if [[ ! -d "$repo/archetypes" ]]; then
     echo "SKIP: $repo is not the template (no archetypes/); its container configs belong to the mint"
     exit 0
 fi
@@ -24,7 +24,7 @@ fi
 assert_value() {
     local file=$1 expression=$2 expected=$3 description=$4 actual
     actual=$(yq -p yaml -o json -I 0 "$expression" "$file")
-    [ "$actual" = "$expected" ] || fail "$description: expected $expected, got $actual"
+    [[ "$actual" = "$expected" ]] || fail "$description: expected $expected, got $actual"
 }
 canonical_data() { yq -p yaml -o json -I 0 'sort_keys(..)' "$1"; }
 
@@ -41,7 +41,7 @@ for file in "${files[@]}"; do
 
     # A block-style regression must be detectable even when data is equal.
     yq -p yaml -o yaml -P '.' "$file" > "$scratch/block.yaml"
-    [ "$(canonical_data "$file")" = "$(canonical_data "$scratch/block.yaml")" ] \
+    [[ "$(canonical_data "$file")" = "$(canonical_data "$scratch/block.yaml")" ]] \
         || fail "$file changed data in a block-style round trip"
     ! cmp -s "$file" "$scratch/block.yaml" || fail "block-style negative control did not change $file"
     yq -p yaml -o kyaml '.' "$scratch/block.yaml" > "$scratch/roundtrip"
