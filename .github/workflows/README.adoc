@@ -61,3 +61,30 @@ pins), and gitleaks in CI catches a genuine SonarCloud token as `generic-api-key
 
 Each targets a different language/surface; together they cover what no single
 analyser does.
+
+== Deed and K9 conformance come from the canon, not from this tree
+
+`dogfood-gate.yml` validates the repo deed and the K9 contracts by calling the
+two reusable lanes in hyperpolymath/standards, `deed-conformance.yml` and
+`k9-conformance.yml`, at the one standards commit every `uses:` in this
+directory pins. That commit supplies the linter, the validator, the K9 contract
+(v1.0.0, D173) and the verdict-grid renderer, so what CI accepts is exactly
+what the canon says (standards `docs/CONTRACTILE-DESCRIPTILE-VALIDATION.adoc`).
+
+* `k9-validate` (reusable) renders the K9 grid into its job summary and the
+  `k9-grid` artifact; it asks for `pull-requests: read` only. `k9-verdict`
+  downloads that artifact and posts `report.md` to the pull request under
+  `<!-- verdict-grid:k9 regenerated on every run -->`, one comment per PR,
+  updated in place. `badges` publishes `badge.json` to `badges/k9.json` on the
+  `governance-badges` branch on every push to `main`; the README badge reads it
+  through the shields endpoint.
+* `hypatia-scan.yml` -> `verdict` job posts the Hypatia grid the same way
+  (artifact `verdict-grid`, marker `<!-- verdict-grid:hypatia … -->`).
+
+There is deliberately no second validator here: the former `k9-validate.yml`
+and `deed-validate.yml` (the `k9-ecosystem` / `deed-ecosystem` actions at
+`@main`) and the grep checks in `.github/hooks/validate-{k9,deed}.sh` accepted
+files the contract rejects. The hooks are now thin wrappers over the same
+canonical tools, run from a standards checkout (`STANDARDS_DIR`), and skip
+with a notice when none is present. k9iser is retired estate-wide: contracts
+are authored to `1-formats/k9/spec/K9-CONTRACT-SPEC.adoc`, never generated.
