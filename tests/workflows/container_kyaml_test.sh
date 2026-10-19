@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MPL-2.0
+#
+# Regression tests for the container configs converted in PR #245.
+# Usage: bash tests/workflows/container_kyaml_test.sh
+# Requires Mike Farah yq with KYAML output support (CI pins v4.53.3).
+# No containers, network access, or git history are needed.
+set -euo pipefail
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+assert_value() {
+    local file=$1 expression=$2 expected=$3 description=$4 actual
+    actual=$(yq -p yaml -o json -I 0 "$expression" "$file")
+    [ "$actual" = "$expected" ] || fail "$description: expected $expected, got $actual"
+}
+canonical_data() { yq -p yaml -o json -I 0 'sort_keys(..)' "$1"; }
+
+template="$repo/build/container/compose.yaml"
+example="$repo/build/container/compose.example.yaml"
+policy="$repo/build/container/stapeln/.gatekeeper.yaml"
+files=("$template" "$example" "$policy")
+
+for file in "${files[@]}"; do
+    # Compare the actual file, including comments and final newline, with the
+    # exact yq rendering used by the pinned upstream formatter.
+    yq -p yaml -o kyaml '.' "$file" > "$scratch/rendered"
+    cmp -s "$file" "$scratch/rendered" || fail "$file is not canonical KYAML"
+
+    # A block-style regression must be detectable even when data is equal.
+    yq -p yaml -o yaml -P '.' "$file" > "$scratch/block.yaml"
+    [ "$(canonical_data "$file")" = "$(canonical_data "$scratch/block.yaml")" ] \
+        || fail "$file changed data in a block-style round trip"
+    ! cmp -s "$file" "$scratch/block.yaml" || fail "block-style negative control did not change $file"
+    yq -p yaml -o kyaml '.' "$scratch/block.yaml" > "$scratch/roundtrip"
+    cmp -s "$file" "$scratch/roundtrip" || fail "$file lost formatting or comments in a round trip"
+done
+echo 'PASS: all three configs are canonical KYAML; block-style drift is distinguishable without data loss'
+
+assert_value "$template" '.services | keys | sort' '["rokur","svalinn","{{SERVICE_NAME}}"]' 'template service names'
+assert_value "$template" '.services."{{SERVICE_NAME}}".image' '"{{REGISTRY}}/{{SERVICE_NAME}}:latest"' 'quoted image placeholders'
+assert_value "$template" '.services."{{SERVICE_NAME}}".ports' '["{{PORT}}:{{PORT}}"]' 'quoted port placeholders'
+assert_value "$template" '.services.rokur.environment.ROKUR_REQUIRED_SECRETS' '""' 'empty secret list remains an empty string'
+assert_value "$template" '.services.rokur.depends_on."{{SERVICE_NAME}}".condition' '"service_healthy"' 'health-gated template backend'
+assert_value "$template" '.volumes | keys | sort' '["rokur-audit","{{SERVICE_NAME}}-data"]' 'template volume names'
+
+for file in "$template" "$example"; do
+    assert_value "$file" '.services.svalinn.ports' '["443:443","80:80"]' 'gateway port mappings remain strings'
+    assert_value "$file" '.services.svalinn.environment.SVALINN_TLS_AUTO' '"true"' 'Compose TLS environment value remains a string'
+    assert_value "$file" '.services.svalinn.environment.SVALINN_BACKEND' '"http://rokur:8081"' 'gateway routes through the secrets proxy'
+    assert_value "$file" '.services.svalinn.volumes' '["./stapeln/.gatekeeper.yaml:/etc/svalinn/gatekeeper.yaml:ro"]' 'policy filename and read-only mount'
+    assert_value "$file" '.services.rokur.environment.ROKUR_LISTEN' '"[::]:8081"' 'IPv6 proxy listener'
+    assert_value "$file" '.services.rokur.ports' '["8081:8081"]' 'proxy port mapping'
+    assert_value "$file" '.services.rokur.volumes' '["rokur-audit:/var/log/rokur"]' 'persistent proxy audit log'
+    assert_value "$file" '[.services[].restart] | unique' '["unless-stopped"]' 'restart policy for every service'
+    assert_value "$file" '[.services[].healthcheck.retries] | unique' '[3]' 'health retry counts remain numeric'
+    assert_value "$file" '[.services[].healthcheck.interval] | unique' '["30s"]' 'health intervals'
+    assert_value "$file" '[.services[].healthcheck.timeout] | unique' '["5s"]' 'health timeouts'
+    assert_value "$file" '[.volumes[]] | unique' '[null]' 'empty named-volume declarations remain null'
+done
+
+assert_value "$example" '.services | keys | sort' '["elixir-worker","rokur","rust-api","svalinn"]' 'example service names'
+assert_value "$example" '.services."rust-api".build' '{"context":"..","dockerfile":"build/container/Containerfile"}' 'application build paths'
+assert_value "$example" '.services."rust-api".environment.APP_PORT' '"8080"' 'application port remains a string'
+assert_value "$example" '.services."rust-api".volumes' '["api-data:/data"]' 'application data volume'
+assert_value "$example" '.services."elixir-worker".environment' '{"API_URL":"http://rust-api:8080/api/v1","MIX_ENV":"prod","APP_LOG_FORMAT":"json","POOL_SIZE":"10"}' 'worker URL and string environment values'
+assert_value "$example" '.services."elixir-worker".depends_on."rust-api".condition' '"service_healthy"' 'worker waits for a healthy API'
+assert_value "$example" '.services.rokur.depends_on."rust-api".condition' '"service_healthy"' 'proxy waits for a healthy API'
+assert_value "$example" '.services.rokur.environment.ROKUR_REQUIRED_SECRETS' '"DATABASE_URL,JWT_SIGNING_KEY"' 'comma-separated required secrets'
+assert_value "$example" '.services.svalinn.environment.SVALINN_WORKER_BACKEND' '"http://elixir-worker:4000"' 'gateway worker route'
+assert_value "$example" '.services.svalinn.depends_on' '["rokur","elixir-worker"]' 'gateway dependency list'
+assert_value "$example" '.services."rust-api".healthcheck.test' '["CMD","curl","-sf","http://localhost:8080/health"]' 'API health command'
+assert_value "$example" '.services."elixir-worker".healthcheck.test' '["CMD","curl","-sf","http://localhost:4000/health"]' 'worker health command'
+echo 'PASS: Compose topology, mount paths, health dependencies, and YAML scalar types survive conversion'
+
+# Simulate the literal substitutions used by container-init without prompting.
+# Low/high port boundaries and a registry with a port catch quoting regressions.
+for port in 1 65535; do
+    for file in "$template" "$policy"; do
+        sed -e 's|{{SERVICE_NAME}}|demo-api|g' -e "s|{{PORT}}|$port|g" \
+            -e 's|{{REGISTRY}}|registry.example.test:5000/team|g' "$file" > "$scratch/$(basename "$file")"
+    done
+    minted="$scratch/compose.yaml"
+    assert_value "$minted" '.services | keys | sort' '["demo-api","rokur","svalinn"]' 'minted service key'
+    assert_value "$minted" '.services."demo-api".image' '"registry.example.test:5000/team/demo-api:latest"' 'registry and image substitution'
+    assert_value "$minted" '.services."demo-api".ports' "[\"$port:$port\"]" 'boundary port mapping'
+    assert_value "$minted" '.services."demo-api".environment.APP_PORT' "\"$port\"" 'minted port remains a string'
+    assert_value "$minted" '.services."demo-api".healthcheck.test' "[\"CMD\",\"curl\",\"-sf\",\"http://localhost:$port/health\"]" 'minted health URL'
+    assert_value "$minted" '.services.rokur.environment.ROKUR_BACKEND' "\"http://demo-api:$port\"" 'minted proxy backend'
+    assert_value "$minted" '.services.rokur.depends_on."demo-api".condition' '"service_healthy"' 'minted dependency key'
+    assert_value "$minted" '.volumes."demo-api-data" | tag' '"!!null"' 'minted empty volume declaration'
+    assert_value "$scratch/.gatekeeper.yaml" '.trust.trusted_signers[0]' '{"key_id":"demo-api-release","algorithm":"Ed25519","public_key_file":"/etc/svalinn/keys/demo-api-release.pub"}' 'minted signer identity and key path'
+done
+echo 'PASS: container-init substitutions preserve service references and string ports at 1 and 65535'
+
+assert_value "$policy" '.version' '"1.0"' 'policy version remains a string'
+assert_value "$policy" '.auth.public' '[{"path":"/health","methods":["GET"]},{"path":"/ready","methods":["GET"]},{"path":"/metrics","methods":["GET"]}]' 'public probes require GET'
+assert_value "$policy" '.auth.authenticated' '[{"path":"/api/v1/*","methods":["GET","POST","PUT","DELETE"]}]' 'application routes require authentication'
+assert_value "$policy" '.rate_limits.global' '{"requests_per_second":500,"burst":1000}' 'numeric global rate limits'
+assert_value "$policy" '.rate_limits.writes' '{"paths":["/api/v1/*"],"methods":["POST","PUT","DELETE"],"requests_per_second":100,"burst":200}' 'stricter write limits and path glob'
+assert_value "$policy" '.trust.required_attestations' '["source-signature","sbom-complete"]' 'required container attestations'
+assert_value "$policy" '.trust.reject_unsigned' 'true' 'unsigned containers are rejected with a boolean'
+assert_value "$policy" '.validation' '{"max_body_size":"8MB","reject_nan_inf":true,"max_result_limit":500}' 'request validation limits and boolean'
+assert_value "$policy" '.cors' '{"allow_origins":["*"],"allow_methods":["GET","POST","PUT","DELETE","OPTIONS"],"allow_headers":["Content-Type","Authorization"],"max_age":3600}' 'CORS wildcard is a string, with numeric max age'
+assert_value "$policy" '.logging' '{"format":"json","level":"info","audit_paths":["/api/v1/*"]}' 'structured audit logging and literal glob'
+echo 'PASS: gatekeeper authentication, trust, rate limits, validation, CORS, and auditing survive conversion'
