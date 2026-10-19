@@ -121,3 +121,7 @@ jobs:
       # conforming" upstream.
       - name: Template conformance gate self-test (must fail on drift)
         run: bash tests/workflows/template_conformance_test.sh
+      # runtime-policy.yml folded into governance (#244). Both validators must
+      # require governance.yml, and a retired gate's name must not stand in.
+      - name: Validators require governance in place of the runtime gate
+        run: bash tests/workflows/runtime_policy_fold_test.sh
