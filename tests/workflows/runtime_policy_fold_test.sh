@@ -35,6 +35,8 @@ TEMPLATE_CHECKS=$(awk '
   END { if (starts != 1 || ends != 1) exit 1 }
 ' "$REPO_DIR/scripts/validate-template.sh") || fail "cannot locate template workflow checks"
 
+# These variables and callbacks are consumed by the sourced validator section.
+# shellcheck disable=SC2034,SC2329
 template_check() (
   REPO_ROOT="$FIXTURE"
   VERBOSE=1
@@ -107,6 +109,51 @@ for retired in runtime-policy npm-bun-blocker ts-blocker; do
   rm "$WORKFLOWS/$retired.yml"
   echo "PASS: $retired.yml cannot replace governance.yml"
 done
+
+# A repository carrying every historical gate still needs governance. Keep
+# these files through recovery to check coexistence as well as replacement.
+for retired in runtime-policy npm-bun-blocker ts-blocker; do
+  printf '# SPDX-License-Identifier: MPL-2.0\nname: Retired\n' > "$WORKFLOWS/$retired.yml"
+done
+assert_governance_missing
+echo 'PASS: all retired workflows together cannot replace governance.yml'
+cp "$REPO_DIR/.github/workflows/governance.yml" "$WORKFLOWS/governance.yml"
+expect_status 0 template_check
+require_output 'Workflow found: governance.yml'
+reject_output 'Required workflow missing:'
+expect_status 0 workflow_check
+require_output 'Found: governance.yml'
+reject_output 'Missing:'
+echo 'PASS: governance satisfies both validators alongside retired workflows'
+rm "$WORKFLOWS/governance.yml"
+for retired in runtime-policy npm-bun-blocker ts-blocker; do
+  rm "$WORKFLOWS/$retired.yml"
+done
+
+# Only the declared root-level .yml name satisfies this requirement. A .yaml
+# file is discoverable by workflow validation, but is not a configured alias;
+# backup/template suffixes must not pass through a prefix or glob match.
+for alternative in governance.yaml governance.yml.bak governance.yml.in; do
+  cp "$REPO_DIR/.github/workflows/governance.yml" "$WORKFLOWS/$alternative"
+  assert_governance_missing
+  rm "$WORKFLOWS/$alternative"
+  echo "PASS: $alternative cannot replace governance.yml"
+done
+
+# Recursive discovery must not turn a nested workflow into the required file.
+mkdir "$WORKFLOWS/nested"
+cp "$REPO_DIR/.github/workflows/governance.yml" "$WORKFLOWS/nested/governance.yml"
+assert_governance_missing
+rm "$WORKFLOWS/nested/governance.yml"
+rmdir "$WORKFLOWS/nested"
+echo 'PASS: nested governance.yml does not satisfy the root-level requirement'
+
+# Existence checks must not accept an entry whose target is missing.
+ln -s missing-governance.yml "$WORKFLOWS/governance.yml"
+assert_governance_missing 1
+require_output "governance.yml: Missing 'name' field"
+rm "$WORKFLOWS/governance.yml"
+echo 'PASS: dangling governance symlink is treated as missing'
 
 # A path with the right name is insufficient: a regular workflow file is needed.
 mkdir "$WORKFLOWS/governance.yml"
