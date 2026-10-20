@@ -174,7 +174,12 @@ just container-push                # push the signed bundle
 cd build/container/stapeln && selur-compose up --detach
 ----
 
-k9-svc managed deployment:
+k9-svc managed deployment. The deployment ships as
+`build/container/stapeln/deploy.k9.ncl.in` and keeps that name: it predates K9
+contract v1.0.0, so it stays a template outside the K9 lane until it is brought
+up to the contract. `just container-init` fills its `SERVICE_NAME`, `PORT` and
+`REGISTRY` placeholders in place (`just repo-init` fills `PROJECT_NAME` and
+`VERSION`); point the tools at that filled file:
 
 [source,bash]
 ----

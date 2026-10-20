@@ -38,7 +38,13 @@ jobs:
   verdict:
     name: Post the Hypatia verdict grid
     needs: hypatia
-    if: always() && github.event_name == 'pull_request' && needs.hypatia.result != 'skipped'
+    # A fork or Dependabot pull request gets a read-only token, so the comment
+    # call would fail; the scan itself still runs in the hypatia job.
+    if: >-
+      always() && github.event_name == 'pull_request'
+      && needs.hypatia.result != 'skipped'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
