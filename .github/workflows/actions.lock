@@ -64,8 +64,6 @@ workflows:
         - 'softprops/action-gh-release@v3.0.3'
     '.github/workflows/rsr-compliance-canary.yml':
         - 'actions/checkout@v7.0.1'
-    '.github/workflows/runtime-policy.yml':
-        - 'actions/checkout@v7.0.1'
     '.github/workflows/rust-ci.yml':
         - 'hyperpolymath/standards@b3ce78e1a8cb24b33fde5c9da6a7c09486efda78'
     '.github/workflows/scorecard.yml':
@@ -84,7 +82,6 @@ workflows:
         - 'erlef/setup-beam@v1.24.1'
     '.github/workflows/workflow-linter.yml':
         - 'actions/checkout@v7.0.1'
-        - 'oven-sh/setup-bun@v2.2.0'
 dependencies:
     'actions/attest-build-provenance@v4.2.2':
         ref: 'v4.2.2'

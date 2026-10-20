@@ -222,7 +222,11 @@ REQUIRED_WORKFLOWS=(
     # none of the 55 repos carrying it ever adopted Bun. This list was not
     # updated, so it has required two files the template deliberately no longer
     # ships — which is why validate-template.sh has been red since that merge.
-    "runtime-policy.yml"
+    # runtime-policy.yml is folded into governance in turn (standards
+    # cicd-regularisation spec §14): "Language / package anti-pattern policy"
+    # fails any tracked package-lock.json and the "JS runtimes" jobs check each
+    # lock against package.json. So governance.yml is what this list requires.
+    "governance.yml"
     "secret-scanner.yml"
 )
 
