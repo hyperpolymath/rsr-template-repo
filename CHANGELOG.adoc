@@ -43,6 +43,26 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Changed
 
+* KYAML, step 5 of standards YAML-POLICY §5 (standards#1024): the three
+  estate-owned YAML files that no third-party bot rewrites are now KYAML
+  content: `build/container/compose.yaml`, `compose.example.yaml` and
+  `stapeln/.gatekeeper.yaml`. Each keeps its name, because Compose, the
+  Containerfile label and svalinn find it by name (§3.4). They were rewritten
+  by standards' `kyaml-format.sh` alone, which refuses any change to the
+  parsed data. Every comment line survives, and `.gatekeeper.yaml` is now
+  byte-identical to standards' `_shared/container/.gatekeeper.yaml`.
+  Estate Rules gains the ratchet "Converted YAML stays KYAML", which runs
+  that script at standards `75bd599` with yq 4.53.3, both sha256-verified.
+  Container narrowing at mint can delete any of the three files, so the
+  template must keep all of them, while a minted repository checks the ones
+  it kept and names the ones narrowing removed.
+  `tests/workflows/kyaml_ratchet_test.sh` covers the template and each
+  narrowing, and `tests/workflows/container_kyaml_test.sh` checks that the
+  conversion kept every value in the template's configs. Estate Rules runs
+  both.
+  Workflows wait for step 6 (standards#1025). Files that Dependabot,
+  FUNDING, issue forms, Probot settings, CodeRabbit, Copilot, GitLab CI or
+  pre-commit read or rewrite are not converted, as in standards.
 * The workflow linter installs Bun 1.4.2, the estate pin, from its release
   archive and checks its sha256, as Estate Rules installs its tools. It ran
   `oven-sh/setup-bun@v2.2.0` with `bun-version: latest`, so the runtime was

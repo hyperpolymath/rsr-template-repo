@@ -141,3 +141,57 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
+      # every file listed here has been converted and must stay KYAML. A file
+      # joins the list in the PR that converts it and never leaves it. The
+      # formatter is standards' own kyaml-format.sh at a pinned commit, the one
+      # rewriter the step-2 comment-preservation proof covers, so this repo
+      # carries no copy that can drift. yq is pinned too: kyaml-format.sh exits
+      # 2 (red) on a yq that cannot write KYAML, never green. Workflows wait for
+      # step 6 (standards#1025); files a third-party bot or tool rewrites or
+      # finds by schema (Dependabot, FUNDING, issue forms, settings, CodeRabbit,
+      # Copilot, GitLab CI, pre-commit) are not listed, as in standards.
+      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 75bd599)
+        run: |
+          mkdir -p "$RUNNER_TEMP/yq-bin"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
+            https://github.com/mikefarah/yq/releases/download/v4.53.3/yq_linux_amd64 \
+            --output "$RUNNER_TEMP/yq-bin/yq"
+          echo "fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4  $RUNNER_TEMP/yq-bin/yq" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/yq-bin/yq"
+          echo "$RUNNER_TEMP/yq-bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/hyperpolymath/standards/75bd5994470661a099df562d6d5ad2fe744dbd66/scripts/kyaml-format.sh \
+            --output "$RUNNER_TEMP/kyaml-format.sh"
+          echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      # Container narrowing at mint (build/just/container.just) can delete any
+      # of these files. The template (archetypes/ present) must keep all of
+      # them; a minted repository checks the ones it kept and names the rest.
+      - name: Converted YAML stays KYAML
+        run: |
+          set -euo pipefail
+          converted=(
+            build/container/compose.yaml
+            build/container/compose.example.yaml
+            build/container/stapeln/.gatekeeper.yaml
+          )
+          present=()
+          for file in "${converted[@]}"; do
+            if [ -f "$file" ]; then
+              present+=("$file")
+            elif [ -d archetypes ]; then
+              echo "::error::$file is missing from the template"
+              exit 1
+            else
+              echo "::notice::$file was removed at mint by container narrowing; not checked"
+            fi
+          done
+          if [ "${#present[@]}" -eq 0 ]; then
+            echo "No converted YAML is left in this repository; nothing to check."
+            exit 0
+          fi
+          bash "$RUNNER_TEMP/kyaml-format.sh" --check "${present[@]}"
+      - name: Converted container configs keep their data (template only)
+        run: bash tests/workflows/container_kyaml_test.sh
+      - name: KYAML ratchet self-test (installs verify, gate propagates, narrowing)
+        run: bash tests/workflows/kyaml_ratchet_test.sh
