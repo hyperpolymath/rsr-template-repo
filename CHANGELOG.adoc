@@ -8,6 +8,39 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Fixed
+
+* `repo-init` minting a repository created with GitHub's "Use this
+  template" (measured on metadatastician/lintel, 2026-10-14):
+** provenance recorded the CHILD's own HEAD as the template commit. The
+   commit is now resolved by tree equality against the template's history
+   (`scripts/resolve-template-pin.sh`), before anything is written, and an
+   unresolvable tree aborts the mint (`RSR_TEMPLATE_URL`,
+   `RSR_TEMPLATE_COMMIT`, `RSR_ALLOW_UNPINNED=1` for the exceptions);
+** the template's name, owner and deed file are derived from the checkout
+   (Justfile, then remote), not hardcoded, so a mint from a minted repo works
+   (ported from lintel#9, which did not merge; its removal of the
+   `[YOUR-REPO-NAME]` deed seds was not ported, since only they fill it);
+** every rewrite pass and completeness check reads one file list: the
+   repository's own files (`git ls-files`, plus untracked not-ignored), minus
+   `.machine_readable/mint-verbatim.txt`. The strip pass no longer edits
+   git-ignored sibling checkouts under `_build/`, nor the fixture tests its
+   own leftover check exempts; `strip-instruction-blocks.rs` takes files, not
+   a directory. `check-no-placeholders.sh` reads the same manifest;
+** a fresh mint of main aborted on `julia_library_test.sh`'s package-UUID
+   fixture token; it is now carried verbatim;
+** the repository map is generated from the work tree (`gen-repo-map.sh
+   --worktree`), after the last tree-changing step, so it no longer lists
+   `archetypes/` and the template's deed name;
+** stage 8 no longer tells a minted repo to arm `check-variant-drift.sh`,
+   which a fresh mint cannot pass (101 rendered files differ); it points at
+   `check-template-conformance.sh`. The (variant) clause now declares the
+   mint's removals, and the drift gate says why it fails on a minted repo;
+** deed-validate.yml's "Copy it from …" line names the template as the
+   upstream source, so the self-name pass leaves it alone.
+* `tests/e2e/use_template_mint_test.sh` (wired into estate-rules): the first
+  CI job to run a full mint, with a negative control beside each check.
+
 ==== Added
 
 * `www/` site-operations bundle (issue #53): canonical `.well-known/`

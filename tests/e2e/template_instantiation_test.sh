@@ -196,7 +196,18 @@ if [ -d "$TEST_REPO_PATH/build/container" ]; then
 fi
 INIT_ANSWERS+=("Y")             # Proceed?
 
-if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | just repo-init) > "$TEST_DIR/init.log" 2>&1; then
+# Provenance is resolved by tree equality against the template's history
+# (scripts/resolve-template-pin.sh). Read it from the checkout under test, not
+# from GitHub: this copy is of the work tree in hand. A dirty work tree has no
+# commit to name, so that case mints unpinned, loudly, rather than failing for
+# a reason that has nothing to do with instantiation.
+PIN_ENV=(RSR_TEMPLATE_URL="$TEMPLATE_ROOT")
+if [ -n "$(git -C "$TEMPLATE_ROOT" status --porcelain 2>/dev/null)" ]; then
+    log_warn "template work tree is dirty — minting with RSR_ALLOW_UNPINNED=1"
+    PIN_ENV+=(RSR_ALLOW_UNPINNED=1)
+fi
+
+if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | env "${PIN_ENV[@]}" just repo-init) > "$TEST_DIR/init.log" 2>&1; then
     log_error "just repo-init failed:"
     cat "$TEST_DIR/init.log" >&2
     exit 1
@@ -267,9 +278,14 @@ log_step "Checking for un-deleted template instruction blocks"
 # CODE_OF_CONDUCT.md, each one naming "Squisher Corpus" as the project it
 # protects and routing conduct reports to the wrong repository. Measured
 # 2026-08-04. Catch it by name instead.
-LEFTOVER=$(grep -rl 'TEMPLATE INSTRUCTIONS' "$TEST_REPO_PATH" \
-    --exclude-dir=.git 2>/dev/null \
-    | grep -vE '/(scripts/strip-instruction-blocks\.rs|build/just/repo-init\.just|tests/e2e/template_instantiation_test\.sh|tests/workflows/mint_cleanup_test\.sh)$' || true)
+# Over the repository's own files only (git-ignored copies are not this repo's),
+# minus the machinery the mint carries verbatim: the same manifest repo-init's
+# leftover check reads, so the two cannot disagree about what is exempt.
+LEFTOVER=$(cd "$TEST_REPO_PATH" && git ls-files --cached --others --exclude-standard \
+    | grep -vxF -f <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' .machine_readable/mint-verbatim.txt | grep -v '^$') \
+    | while IFS= read -r f; do
+        [ -f "$f" ] && grep -q 'TEMPLATE INSTRUCTIONS' "$f" && echo "$TEST_REPO_PATH/$f"
+    done || true)
 if [ -n "$LEFTOVER" ]; then
     log_error "just repo-init left a TEMPLATE INSTRUCTIONS block in:"
     echo "$LEFTOVER" | sed 's/^/    /' >&2
