@@ -126,7 +126,12 @@ K9!
 #!/bin/sh
 set -eu
 echo "K9: Pre-deployment validation for {{SERVICE_NAME}}..."
-cd build/container/stapeln && selur-compose verify || podman compose --file ../compose.yaml config
+cd build/container/stapeln
+if command -v selur-compose >/dev/null 2>&1; then
+  selur-compose verify
+else
+  podman compose --file ../compose.yaml config
+fi
 echo "K9: Validation passed."
 "%,
 
@@ -138,7 +143,11 @@ ENV="${1:-dev}"
 echo "K9: Deploying {{SERVICE_NAME}} to $ENV environment..."
 cd build/container/stapeln
 ./ct-build.sh
-selur-compose up --detach || podman compose --file ../compose.yaml up --detach
+if command -v selur-compose >/dev/null 2>&1; then
+  selur-compose up --detach
+else
+  podman compose --file ../compose.yaml up --detach
+fi
 echo "K9: Deployment to $ENV complete."
 "%,
 
@@ -148,7 +157,11 @@ echo "K9: Deployment to $ENV complete."
 set -eu
 echo "K9: Rolling back {{SERVICE_NAME}} deployment..."
 cd build/container/stapeln
-selur-compose down || podman compose --file ../compose.yaml down
+if command -v selur-compose >/dev/null 2>&1; then
+  selur-compose down
+else
+  podman compose --file ../compose.yaml down
+fi
 echo "K9: Rollback complete."
 "%,
   },
