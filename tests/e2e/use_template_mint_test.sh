@@ -173,11 +173,6 @@ if grep -qF "${LB}OWNER${RB}" "$C/mint-probe.md"; then fail 'probe: the substitu
 # The probe stays: it was a repository file at mint, so the map lists it.
 pass "(c) ignored files are byte-identical, none created but the arrival-pack artefact; the same content in a repository file was rewritten"
 
-# The deed-validate pointer still names the template it came from.
-grep -qF "[${TEMPLATE_REPO}](https://github.com/${T_SLUG})" "$C/.github/workflows/deed-validate.yml" \
-    || fail 'deed-validate.yml no longer points at the template as the deed source'
-pass "deed-validate.yml still points at the upstream template"
-
 # ── (d) the drift gate is no longer recommended for a minted repo ───────────
 if grep -q 'arm the drift gate' "$work/mint.log"; then fail 'repo-init still recommends arming the drift gate'; fi
 grep -q 'scripts/check-template-conformance.sh' "$work/mint.log" || fail 'repo-init does not point at the conformance check'

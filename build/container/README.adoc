@@ -102,9 +102,11 @@ The container engine is *auto-detected* (`podman`, then `nerdctl`, then
 | *cerro-torre* build → pack → sign (Ed25519) → verify → push pipeline.
   Engine-agnostic; degrades gracefully when cerro-torre tools are absent.
 
-| `deploy.k9.ncl`
-| *k9-svc* deployment component at Hunt trust level: full pedigree (L1–L5),
-  dev/staging/prod configs, rolling deployment strategy.
+| `deploy.k9.ncl.in`
+| *k9-svc* deployment component at the Hunt leash (K9 contract v1.0.0):
+  pedigree with capability grant, side effects and signature block;
+  dev/staging/prod configs, rolling deployment strategy. Rendered to
+  `deploy.k9.ncl` by `just container-init`.
 |===
 
 == The stapeln ecosystem
@@ -174,13 +176,25 @@ just container-push                # push the signed bundle
 cd build/container/stapeln && selur-compose up --detach
 ----
 
-k9-svc managed deployment:
+k9-svc managed deployment. The deployment component ships as the template
+`build/container/stapeln/deploy.k9.ncl.in`, in the K9 contract v1.0.0 shape.
+`just repo-init` fills its `PROJECT_NAME` and `VERSION` placeholders and
+`just container-init` fills `SERVICE_NAME`, `PORT` and `REGISTRY`. Once no
+placeholder token is left, `just container-init` renders it to
+`build/container/stapeln/deploy.k9.ncl`; until then it keeps the `.in` file
+and names the tokens still missing. The rendered file is a K9 component, so
+the K9 lane validates it like any other:
 
 [source,bash]
 ----
-nickel typecheck build/container/stapeln/deploy.k9.ncl
+k9-validate.sh --strict --layer L2 build/container/stapeln/deploy.k9.ncl
 k9-svc deploy build/container/stapeln/deploy.k9.ncl --env production
 ----
+
+It is a `'Hunt` component, so it carries a signature block. That block is a
+claim until you sign the rendered file: the validator reports it
+`'Present_Unverified` (K9-C001), and Hunt stays unauthorised until a verifier
+accepts the signature.
 
 == Continuous integration
 

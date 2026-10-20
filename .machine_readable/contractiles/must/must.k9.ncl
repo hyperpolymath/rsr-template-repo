@@ -28,18 +28,30 @@ K9!
 # fabrication of success "facts" — invariants ground truth against
 # marketing copy) and D1 (lore fabrication about what the repo contains).
 
+#
+# 2026-10-19 (K9 contract v1.0.0, D173, standards#1058): this record is a
+# DECLARATION evaluated at 'Yard. The probes it lists are run by the paired
+# runner (must.ncl and the scripts/run-*.sh runners), which is the execution
+# surface; this file spawns nothing. A 'Hunt record needs signature_required,
+# a signature block and a verified signature (K9-S008/S009/C001); no
+# contractile carries one, so 'Hunt here was a claim the gate could never honour.
+
 let base    = import "../_base.ncl" in
 
 {
   pedigree = base.pedigree_schema & {
     contractile_verb = "must",
+    schema_version   = "1.0.0",
+    component_type   = "contractile:must",
+    semantics        = "invariant assertion — release-blocking",
+    side_effects     = [],
     paired_xfile     = "../must/must.k9.ncl#declaration",
     paired_runner    = "../must/must.ncl",
 
-    # α two-axis: Hunt tier (subprocess for grep/test/etc.) but
-    # restricted to read-only operations. Blocking authority because
+    # α two-axis: Yard tier (the runner shells out for grep/test/etc.;
+    # this record only declares) and read-only operations. Blocking authority because
     # must is the canonical gating verb.
-    tier      = 'Hunt,
+    tier      = 'Yard,
     authority = 'blocking,
 
     metadata = {
@@ -52,12 +64,12 @@ let base    = import "../_base.ncl" in
     },
 
     security = {
-      leash = 'Hunt,
-      signature_required = true,
+      leash = 'Yard,
+      signature_required = false,
       trust_level = "read-only invariant verification with subprocess",
       allow_network = false,
       allow_filesystem_write = false,
-      allow_subprocess = true,
+      allow_subprocess = false,   # the paired runner spawns; this record does not
       probe_scope = 'read_only,              # must probes NEVER mutate
       probe_kinds_allowed = [
         'file_existence,

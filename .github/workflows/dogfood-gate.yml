@@ -22,99 +22,134 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: DEED manifest validation
+  # Job 1: DEED conformance — the canonical deed linter (standards
+  # 1-formats/deed/tools/deed_lint.js) at the pinned standards commit. Nothing
+  # in this tree lints a deed: one validator per family, pinned by the caller
+  # (standards docs/CONTRACTILE-DESCRIPTILE-VALIDATION.adoc, WO-9).
   # ---------------------------------------------------------------------------
   deed-validate:
     name: Validate DEED manifests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
-
-      - name: Check for deed manifests
-        id: detect
-        run: |
-          COUNT=$(find . -name '*.deed' -not -path './.git/*' | wc -l)
-          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
-          if [ "$COUNT" -eq 0 ]; then
-            echo "::warning::No .deed manifest found. Every RSR repo should have a repo deed (<reponame>_chora.deed) at its root."
-          fi
-
-      - name: Validate DEED manifests
-        if: steps.detect.outputs.count > 0
-        uses: hyperpolymath/deed-ecosystem/validate-action@main
-        with:
-          path: '.'
-          strict: 'false'
-
-      - name: Write summary
-        run: |
-          MANIFEST_COUNT="${{ steps.detect.outputs.count }}"
-          if [ "$MANIFEST_COUNT" -eq 0 ]; then
-            cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
-          ## DEED Manifest Validation
-
-          :warning: **No .deed manifest found.** Every RSR-compliant repo should have a repo deed (`<reponame>_chora.deed`) at its root.
-
-          Copy it from [rsr-template-repo](https://github.com/hyperpolymath/rsr-template-repo). Manifests are validated against the DEED grammar (standards `1-formats/deed/`). The `.a2ml` format is retired; no `.a2ml` file may exist.
-          EOF
-          else
-            echo "## DEED Manifest Validation" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Scanned **${MANIFEST_COUNT}** .deed manifest(s). See step output for details." >> "$GITHUB_STEP_SUMMARY"
-          fi
+    uses: hyperpolymath/standards/.github/workflows/deed-conformance.yml@b3ce78e1a8cb24b33fde5c9da6a7c09486efda78
+    with:
+      require-files: true
 
   # ---------------------------------------------------------------------------
-  # Job 2: K9 contract validation
+  # Job 2: K9 conformance — the canonical validator (contract v1.0.0, D173) and
+  # the conformance verdict grid at the same commit, strict, layers L0–L2. The
+  # reusable asks for pull-requests: read only, to find the grid it posted on
+  # the previous revision (delta column); k9-verdict below is what posts it.
   # ---------------------------------------------------------------------------
   k9-validate:
     name: Validate K9 contracts
+    uses: hyperpolymath/standards/.github/workflows/k9-conformance.yml@b3ce78e1a8cb24b33fde5c9da6a7c09486efda78
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      require-files: true
+
+  # The K9 grid comment: one per pull request, regenerated in place under its
+  # marker (standards docs/VERDICT-GRID-SPEC.adoc, "Posting from a caller").
+  k9-verdict:
+    name: Post the K9 verdict grid
+    needs: k9-validate
+    # A fork or Dependabot pull request gets a read-only token, so the comment
+    # call would fail; the K9 verdict itself still runs in k9-validate. The
+    # pull request author, not github.actor (whoever triggered the run), names
+    # a Dependabot pull request.
+    if: >-
+      always() && github.event_name == 'pull_request'
+      && needs.k9-validate.result != 'skipped'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7.0.1
-
-      - name: Check for K9 files
-        id: detect
-        run: |
-          COUNT=$(find . \( -name '*.k9' -o -name '*.k9.ncl' \) -not -path './.git/*' | wc -l)
-          CONFIG_COUNT=$(find . \( -name '*.toml' -o -name '*.yaml' -o -name '*.yml' -o -name '*.json' \) \
-            -not -path './.git/*' -not -path './node_modules/*' -not -path './.deno/*' \
-            -not -name 'package-lock.json' -not -name 'Cargo.lock' -not -name 'deno.lock' | wc -l)
-          echo "k9_count=$COUNT" >> "$GITHUB_OUTPUT"
-          echo "config_count=$CONFIG_COUNT" >> "$GITHUB_OUTPUT"
-          if [ "$COUNT" -eq 0 ] && [ "$CONFIG_COUNT" -gt 0 ]; then
-            echo "::warning::Found $CONFIG_COUNT config files but no K9 contracts. Run k9iser to generate contracts."
-          fi
-
-      - name: Validate K9 contracts
-        if: steps.detect.outputs.k9_count > 0
-        uses: hyperpolymath/k9-ecosystem/validate-action@main
+      - name: Download the grid
+        uses: actions/download-artifact@v8.0.2
+        # The lane uploads the grid whenever it rendered one; a lane that died
+        # before rendering has nothing to post, and that is reported below.
+        continue-on-error: true
         with:
-          path: '.'
-          strict: 'false'
+          name: k9-grid
+          path: ${{ runner.temp }}/k9-grid
 
-      - name: Write summary
+      - name: Create or update the grid comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GRID: ${{ runner.temp }}/k9-grid/report.md
+          MARKER: '<!-- verdict-grid:k9 regenerated on every run -->'
         run: |
-          K9_COUNT="${{ steps.detect.outputs.k9_count }}"
-          CFG_COUNT="${{ steps.detect.outputs.config_count }}"
-          if [ "$K9_COUNT" -eq 0 ]; then
-            cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
-          ## K9 Contract Validation
-
-          :warning: **No K9 contract files found.** Run `k9iser` to generate contracts.
-
-          Generate contracts with: `k9iser generate .`
-          EOF
-          else
-            echo "## K9 Contract Validation" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Validated **${K9_COUNT}** K9 contract(s) against **${CFG_COUNT}** config file(s)." >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          if [ ! -s "$GRID" ]; then
+            echo "::warning::the k9-grid artifact holds no report.md; the lane did not render a grid, see its job"
+            exit 0
           fi
+          comment_id="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            | jq -r --arg m "$MARKER" \
+                '[.[][] | select(.user.login == "github-actions[bot]" and (.body | contains($m)))] | last | .id // ""')"
+          jq -n --rawfile body "$GRID" '{body: $body}' > "$RUNNER_TEMP/k9-comment.json"
+          if [ -n "$comment_id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" --input "$RUNNER_TEMP/k9-comment.json" >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --input "$RUNNER_TEMP/k9-comment.json" >/dev/null
+          fi
+
+  # The live README badge: badge.json (shields endpoint schema) published to
+  # the governance-badges branch on every push to main, through the contents
+  # API so the commit is GitHub-signed and no checkout is written to.
+  badges:
+    name: Publish the lane badges
+    needs: k9-validate
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.k9-validate.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download the grid
+        uses: actions/download-artifact@v8.0.2
+        continue-on-error: true
+        with:
+          name: k9-grid
+          path: ${{ runner.temp }}/k9-grid
+
+      - name: Publish badges/k9.json to the governance-badges branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BADGE: ${{ runner.temp }}/k9-grid/badge.json
+          BRANCH: governance-badges
+          DEST: badges/k9.json
+        run: |
+          set -euo pipefail
+          if [ ! -s "$BADGE" ]; then
+            echo "::warning::the k9-grid artifact holds no badge.json; nothing to publish"
+            exit 0
+          fi
+          jq -e 'type == "object" and has("schemaVersion")' "$BADGE" >/dev/null
+          content="$(base64 -w0 "$BADGE")"
+          message="badges: K9 grid at ${GITHUB_SHA:0:12}"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" >/dev/null 2>&1; then
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$DEST?ref=$BRANCH" --jq .sha 2>/dev/null || true)"
+            jq -n --arg c "$content" --arg s "$sha" --arg b "$BRANCH" --arg m "$message" \
+              '{message: $m, content: $c, branch: $b} + (if $s != "" then {sha: $s} else {} end)' > "$RUNNER_TEMP/put.json"
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/contents/$DEST" --input "$RUNNER_TEMP/put.json" >/dev/null
+          else
+            # First publication: an orphan branch holding only the badge.
+            jq -n --arg c "$content" '{content: $c, encoding: "base64"}' > "$RUNNER_TEMP/blob.json"
+            blob="$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/blobs" --input "$RUNNER_TEMP/blob.json" --jq .sha)"
+            jq -n --arg b "$blob" --arg p "$DEST" '{tree: [{path: $p, mode: "100644", type: "blob", sha: $b}]}' > "$RUNNER_TEMP/tree.json"
+            tree="$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/trees" --input "$RUNNER_TEMP/tree.json" --jq .sha)"
+            jq -n --arg t "$tree" --arg m "$message" '{message: $m, tree: $t, parents: []}' > "$RUNNER_TEMP/commit.json"
+            commit="$(gh api -X POST "repos/$GITHUB_REPOSITORY/git/commits" --input "$RUNNER_TEMP/commit.json" --jq .sha)"
+            jq -n --arg s "$commit" --arg r "refs/heads/$BRANCH" '{ref: $r, sha: $s}' > "$RUNNER_TEMP/ref.json"
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" --input "$RUNNER_TEMP/ref.json" >/dev/null
+          fi
+          echo "published $DEST on $BRANCH"
 
   # ---------------------------------------------------------------------------
   # Job 3: Empty-linter — invisible character detection
