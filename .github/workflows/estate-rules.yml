@@ -105,6 +105,18 @@ jobs:
           echo "$RUNNER_TEMP/just-bin" >> "$GITHUB_PATH"
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
+      # repo-init recorded the CHILD's own HEAD as the template commit whenever
+      # a repo was created with "Use this template" (metadatastician/lintel).
+      - name: Template pin resolves by tree equality (controls)
+        run: bash tests/workflows/resolve_template_pin_test.sh
+      # The first CI job to run a FULL mint: a Use-this-template child, checked
+      # for provenance, untouched fixtures and ignored files, the map and the
+      # closing advice. A fresh mint of main aborted on 2026-10-20 and nothing
+      # here noticed. uuidgen is util-linux; installed only if the image lacks it.
+      - name: Use-this-template mint end to end
+        run: |
+          command -v uuidgen >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q uuid-runtime; }
+          bash tests/e2e/use_template_mint_test.sh
       # An archetype overlay once shipped its own actions.lock, which replaced
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock
