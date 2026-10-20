@@ -124,8 +124,17 @@ ALLOWED=(
     ".machine_readable/ai/PLACEHOLDERS.adoc"   # the token vocabulary itself
     "EXPLAINME.adoc"                           # prose explaining that tokens exist
     "scripts/check-no-placeholders.sh"         # this file (the pattern above)
-    "tests/e2e/template_instantiation_test.sh" # names tokens in its answer list
 )
+# Template machinery the mint carries unchanged, whose fixtures name tokens on
+# purpose (the e2e answer list, the Julia UUID test). One manifest, read by
+# repo-init too, so the mint and this gate cannot disagree about what is a
+# fixture: see .machine_readable/mint-verbatim.txt.
+VERBATIM_LIST="$REPO_ROOT/.machine_readable/mint-verbatim.txt"
+if [ -f "$VERBATIM_LIST" ]; then
+    while IFS= read -r v; do
+        [ -n "$v" ] && ALLOWED+=("$v")
+    done < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$VERBATIM_LIST")
+fi
 
 is_allowed() {
     local rel="$1"
@@ -147,6 +156,26 @@ is_allowed() {
 # teach people that this gate cries wolf. Real tokens name a real init variable.
 META_TOKENS='PLACEHOLDER|ANYTHING|TOKEN|UPPER_SNAKE'
 
+# repo_files — every file of the repository holding an upper-snake token, as
+# "$REPO_ROOT/<path>". In a git work tree, "of the repository" means tracked or
+# untracked-and-not-ignored, the same set `just repo-init` edits: a git-ignored
+# cache such as _build/dependencies/ holds OTHER repositories' files, whose
+# tokens are not this repo's leak. Outside git, every file is scanned.
+repo_files() {
+    if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
+            | while IFS= read -r -d '' rel; do
+                [ -f "$REPO_ROOT/$rel" ] && [ ! -L "$REPO_ROOT/$rel" ] || continue
+                grep -qIE '\{\{[A-Z][A-Z0-9_]*\}\}' "$REPO_ROOT/$rel" 2>/dev/null \
+                    && printf '%s\n' "$REPO_ROOT/$rel"
+            done
+    else
+        grep -rlE '\{\{[A-Z][A-Z0-9_]*\}\}' "$REPO_ROOT" \
+            --exclude-dir=.git --binary-files=without-match 2>/dev/null
+    fi
+    return 0
+}
+
 LEAKS=()
 while IFS= read -r hit; do
     rel="${hit#"$REPO_ROOT"/}"
@@ -156,8 +185,7 @@ while IFS= read -r hit; do
         | grep -qvE "^\{\{($META_TOKENS)\}\}$"; then
         LEAKS+=("$rel")
     fi
-done < <(grep -rlE '\{\{[A-Z][A-Z0-9_]*\}\}' "$REPO_ROOT" \
-             --exclude-dir=.git --binary-files=without-match 2>/dev/null | sort)
+done < <(repo_files | sort)
 
 if [ ${#LEAKS[@]} -eq 0 ]; then
     echo "PASS: no unfilled {{PLACEHOLDER}} tokens"
