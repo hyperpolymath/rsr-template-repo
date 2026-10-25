@@ -1,0 +1,124 @@
+# This workflow is managed by gh actions-lock.
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# fork-governance.yml — PR-time entry point for DEED syntax, K9-DEED L0–L2
+# conformance, and unified summary reporting, pinned to
+# metadatastician/standards@8e48b1caade08a552646adeab66558ac43b4360d.
+name: Fork governance
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deed:
+    name: DEED syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout canonical DEED validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          path: .standards-deed
+          sparse-checkout: 1-formats/deed
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+
+      - name: Setup Bun runtime
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.3.12'
+
+      - name: Validate DEED manifests and block retired .a2ml files
+        run: |
+          set -euo pipefail
+          STANDARDS_ABS="$PWD/.standards-deed"
+          rm -rf "$RUNNER_TEMP/standards-deed"
+          mv "$STANDARDS_ABS" "$RUNNER_TEMP/standards-deed"
+          STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
+
+  k9:
+    name: K9-DEED conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      NICKEL_VERSION: '1.18.0'
+      NICKEL_SHA256: '9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout canonical K9 validator and contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          path: .standards-k9
+          sparse-checkout: 1-formats/k9
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+
+      - name: Install sha256-verified Nickel CLI
+        run: |
+          set -euo pipefail
+          URL="https://github.com/tweag/nickel/releases/download/${NICKEL_VERSION}/nickel-x86_64-linux"
+          curl -sSfL --proto '=https' --proto-redir '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/nickel" "$URL"
+          echo "${NICKEL_SHA256}  ${RUNNER_TEMP}/nickel" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/nickel"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Validate K9 contracts (L0–L2)
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/standards-k9"
+          mv "$PWD/.standards-k9" "$RUNNER_TEMP/standards-k9"
+          STANDARDS_DIR="$RUNNER_TEMP/standards-k9" bash .github/hooks/validate-k9.sh
+
+  verdict:
+    name: Fork governance verdict
+    needs: [deed, k9]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      DEED_RESULT: ${{ needs.deed.result }}
+      K9_RESULT: ${{ needs.k9.result }}
+    steps:
+      - name: Render fork governance summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## Fork Governance Conformance"
+            echo ""
+            echo "| Lane | Result |"
+            echo "|------|--------|"
+            echo "| DEED syntax | \`${DEED_RESULT}\` |"
+            echo "| K9-DEED conformance (L0–L2) | \`${K9_RESULT}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$DEED_RESULT" != "success" ] || [ "$K9_RESULT" != "success" ]; then
+            echo "::error::Fork governance failed (deed=${DEED_RESULT}, k9=${K9_RESULT})"
+            exit 1
+          fi

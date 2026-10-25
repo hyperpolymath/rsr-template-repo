@@ -281,7 +281,7 @@ excluded() { # path -> 0 if excluded by the manifest
 REPORT="${REPORT:-$WORK_DIR/campaign-report.tsv}"
 printf 'repo\tpath\toutcome\tdetail\n' > "$REPORT"
 
-ADDED=0; UPDATED=0; UNCHANGED=0; SKIPPED=0; REFUSED=0; NOCHANGE=0; FAILED=0
+ADDED=0; UPDATED=0; SKIPPED=0; REFUSED=0; NOCHANGE=0; FAILED=0
 
 for repo in "${SELECTED[@]}"; do
     [ -z "$repo" ] && continue
@@ -328,7 +328,7 @@ for repo in "${SELECTED[@]}"; do
     while IFS= read -r rel; do
         [ -z "$rel" ] && continue
         case "$rel" in
-            *.gitkeep|*/.gitkeep) continue ;;
+            *.gitkeep) continue ;;
         esac
         if excluded "$rel"; then
             printf '%s\t%s\tEXCLUDED\tmanifest exclude\n' "$repo" "$rel" >> "$REPORT"

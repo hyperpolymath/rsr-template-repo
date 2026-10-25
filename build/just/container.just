@@ -89,9 +89,19 @@ container-init:
         -e "s|${LB}REGISTRY${RB}|${REGISTRY}|g"
     )
 
+    # Return success when $1 is classified as text, using a byte-content probe
+    # (which accepts empty files) when the file command is unavailable.
+    is_text_file() {
+        if command -v file >/dev/null 2>&1; then
+            file --brief "$1" | grep -qi 'text\|ascii\|utf'
+        else
+            [ ! -s "$1" ] || LC_ALL=C grep -Iq . "$1"
+        fi
+    }
+
     # Recurses into build/container/stapeln/ as well.
-    find build/container/ -type f | while read -r file; do
-        if file --brief "$file" | grep -qi 'text\|ascii\|utf'; then
+    find build/container/ -type f | while IFS= read -r file; do
+        if is_text_file "$file"; then
             sed -i "${SED_ARGS[@]}" "$file"
         fi
     done

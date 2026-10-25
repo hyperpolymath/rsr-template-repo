@@ -117,9 +117,10 @@ positive and negative tests. They are not the destination architecture.
 
 **JSON (owner ruling D306):** every `.json`/`.jsonl` is I-JSON (RFC 7493),
 serialised by JCS (RFC 8785), one record per line for JSON Lines. Extensions
-do not change. Tool: `hyperpolymath/ijson-jcs`. Rule and gate:
+do not change. Tool: `hyperpolymath/ijson-jcs` (`scripts/check-ijson-jcs.sh --enforce`,
+wired in `estate-rules.yml`). Rule and gate:
 `standards/3-practice/JSON-POLICY.adoc`. Tool-demanded JSONC
-(`devcontainer.json`) is carved out.
+(`devcontainer.json`, `.vscode/*.json`) is carved out.
 
 **UUIDv8 (owner ruling D305, standards ADR-008):** mint every new identifier
 as UUIDv8 in the ADR-008 layout. Do not rewrite existing v4/v7 identifiers by

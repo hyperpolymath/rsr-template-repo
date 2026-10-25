@@ -47,20 +47,16 @@ set -euo pipefail
 WF_DIR="${1:-.github/workflows}"
 LOCK="$WF_DIR/actions.lock"
 
-# gawk is required: the parser uses 3-argument match(), a GNU extension. mawk
-# (the Debian/Ubuntu default `awk`) does not support it, and a silent parse
-# failure here would read as a clean pass - the exact failure mode this script
-# exists to prevent. Probe it rather than trusting the name.
+# Portable POSIX awk: avoids GNU gawk's 3-argument match() extension so the
+# gate runs identically on Debian/Ubuntu minimal images (mawk) and gawk.
 AWK=""
-for cand in gawk awk; do
-  if command -v "$cand" >/dev/null 2>&1 \
-     && echo x | "$cand" '{ if (match($0, /(x)/, m) && m[1] == "x") exit 0; exit 1 }' 2>/dev/null; then
+for cand in gawk mawk awk; do
+  if command -v "$cand" >/dev/null 2>&1; then
     AWK="$cand"; break
   fi
 done
 if [ -z "$AWK" ]; then
-  echo "check-lock-sync: FATAL: no awk supporting 3-argument match() (need gawk)" >&2
-  echo "check-lock-sync: install it with: sudo apt-get install -y gawk" >&2
+  echo "check-lock-sync: FATAL: no awk found on PATH" >&2
   exit 1
 fi
 
@@ -105,21 +101,44 @@ function ck(r,   at, s) {
 
 # ---------- pass 1: the lockfile ----------
 FILENAME == lockfile {
+  if ($0 ~ /^version:[[:space:]]*/) {
+    verline = $0
+    sub(/^version:[[:space:]]*/, "", verline)
+    sub(/[[:space:]]*$/, "", verline)
+    has_version = 1
+    lock_version = verline
+    next
+  }
   if ($0 ~ /^workflows:[[:space:]]*$/)    { inwf = 1; indep = 0; next }
   if ($0 ~ /^dependencies:[[:space:]]*$/) { inwf = 0; indep = 1; next }
   if ($0 ~ /^[a-z_]+:/)                   { inwf = 0; indep = 0; next }
 
-  # --- the dependencies: section, for clause 3 ---
+  # --- the dependencies: section, for clause 3 & self-SHA ref guard ---
   if (indep) {
     # "    'owner/repo@ref':"  -- a top-level dependency record
-    if (match($0, /^    '([^']+)':/, m)) {
-      depkey = m[1]
+    if ($0 ~ /^    \047[^\047]+\047:/) {
+      depkey = $0
+      sub(/^    \047/, "", depkey)
+      sub(/\047:.*$/, "", depkey)
       haverec[ck(depkey)] = 1; disp[ck(depkey)] = depkey
       next
     }
+    # "        ref: '...'" -- ban 40-hex self-SHA ref (standards#1271)
+    if ($0 ~ /^        ref:[[:space:]]*\047[0-9a-fA-F]+\047[[:space:]]*$/ && depkey != "") {
+      rval = $0
+      sub(/^        ref:[[:space:]]*\047/, "", rval)
+      sub(/\047[[:space:]]*$/, "", rval)
+      if (length(rval) == 40) {
+        selfsha[depkey] = rval
+      }
+      next
+    }
     # "            - 'owner/repo@ref'"  -- a nested uses: of that record
-    if (match($0, /^            - '([^']+)'/, m) && depkey != "") {
-      r = ck(m[1]); disp[r] = m[1]
+    if ($0 ~ /^            - \047[^\047]+\047/ && depkey != "") {
+      val = $0
+      sub(/^            - \047/, "", val)
+      sub(/\047.*$/, "", val)
+      r = ck(val); disp[r] = val
       want[r] = 1
       wantsrc[r] = wantsrc[r] " dependencies:" depkey
       next
@@ -130,13 +149,18 @@ FILENAME == lockfile {
   if (!inwf) next
 
   # "    '.github/workflows/x.yml':"  or  "... : []"
-  if (match($0, /^    '([^']+)':/, m)) {
-    cur = m[1]
+  if ($0 ~ /^    \047[^\047]+\047:/) {
+    cur = $0
+    sub(/^    \047/, "", cur)
+    sub(/\047:.*$/, "", cur)
     seen_path[cur] = 1
     next
   }
-  if (match($0, /^        - '([^']+)'[[:space:]]*$/, m) && cur != "") {
-    lr = ck(m[1]); disp[lr] = m[1]; lock[cur, lr] = 1
+  if ($0 ~ /^        - \047[^\047]+\047[[:space:]]*$/ && cur != "") {
+    val = $0
+    sub(/^        - \047/, "", val)
+    sub(/\047[[:space:]]*$/, "", val)
+    lr = ck(val); disp[lr] = val; lock[cur, lr] = 1
     lockcount[cur]++
     want[lr] = 1
     wantsrc[lr] = wantsrc[lr] " " cur
@@ -150,9 +174,10 @@ FNR == 1 { wf = FILENAME }
 {
   line = $0
   sub(/[[:space:]]+#.*$/, "", line)              # strip trailing comment
-  if (match(line, /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*(.+)$/, m)) {
-    raw = m[1]
-    gsub(/^["']|["']$/, "", raw)
+  if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
+    raw = line
+    sub(/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*/, "", raw)
+    gsub(/^["\047]|["\047]$/, "", raw)
     gsub(/[[:space:]]+$/, "", raw)
     if (raw ~ /^\$\//) { dollar[wf] = dollar[wf] " " raw; next }   # known corruption
     n = norm(raw)
@@ -257,6 +282,24 @@ END {
     bad = 1
   }
 
+  # --- clause 5: NO SELF-SHA REFS. GitHub rejects any dependencies: record whose
+  #     `ref:` is a 40-hex commit SHA ("invalid lockfile pin", standards#1271). ---
+  nself = 0; selflist = ""
+  for (s in selfsha) {
+    nself++
+    selflist = selflist sprintf("\n       %s (ref: %s)", s, selfsha[s])
+  }
+  if (nself > 0) {
+    printf "FAIL actions.lock: SELF-SHA REFS\n"
+    printf "     %d dependencies: record(s) use a 40-hex SHA as ref: (rejected by GitHub runner):%s\n", nself, selflist
+    bad = 1
+  }
+
+  if (!has_version || lock_version != "\047v0.0.3\047") {
+    printf "FAIL actions.lock: INVALID VERSION (%s; expected \047v0.0.3\047)\n", (has_version ? lock_version : "missing")
+    bad = 1
+  }
+
   # --- a dependencies: record nothing names is dead weight, not fatal: report only ---
   nunref = 0
   for (d in haverec) if (!(d in want)) nunref++
@@ -279,7 +322,7 @@ END {
     print "     github/codeql-action/upload-sarif@<sha> is REJECTED by the schema; collapse it"
     print "     to github/codeql-action@<sha>."
     print "  4. For any UNLISTED WORKFLOWS above, add the path as a lockfile key. A workflow"
-    print "     with no uses: takes an empty list:  \x27.github/workflows/x.yml\x27: []"
+    print "     with no uses: takes an empty list:  \047.github/workflows/x.yml\047: []"
     print "     `gh actions-lock` has been observed to OMIT such a workflow entirely; that"
     print "     omission is itself the defect, so re-running the tool may not add it."
     exit 1

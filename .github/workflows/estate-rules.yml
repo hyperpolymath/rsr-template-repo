@@ -27,7 +27,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # Prove the instrument works before trusting its reading. This gate was
       # one-directional for months, which is indistinguishable from a working
       # gate until you try to make it fail.
@@ -163,7 +165,7 @@ jobs:
       # step 6 (standards#1025); files a third-party bot or tool rewrites or
       # finds by schema (Dependabot, FUNDING, issue forms, settings, CodeRabbit,
       # Copilot, GitLab CI, pre-commit) are not listed, as in standards.
-      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 75bd599)
+      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)
         run: |
           mkdir -p "$RUNNER_TEMP/yq-bin"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
@@ -173,7 +175,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/yq-bin/yq"
           echo "$RUNNER_TEMP/yq-bin" >> "$GITHUB_PATH"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/hyperpolymath/standards/75bd5994470661a099df562d6d5ad2fe744dbd66/scripts/kyaml-format.sh \
+            https://raw.githubusercontent.com/metadatastician/standards/8e48b1caade08a552646adeab66558ac43b4360d/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
       # Container narrowing at mint (build/just/container.just) can delete any
@@ -203,7 +205,26 @@ jobs:
             exit 0
           fi
           bash "$RUNNER_TEMP/kyaml-format.sh" --check "${present[@]}"
+      - name: Estate composite actions stay KYAML
+        run: |
+          set -euo pipefail
+          if [ -f .github/actions/squabble/action.yml ]; then
+            bash "$RUNNER_TEMP/kyaml-format.sh" --check .github/actions/squabble/action.yml
+            if [ -f scripts/kyaml-format.sh ]; then
+              bash scripts/kyaml-format.sh --check .github/actions/squabble/action.yml
+            fi
+          fi
       - name: Converted container configs keep their data (template only)
         run: bash tests/workflows/container_kyaml_test.sh
       - name: KYAML ratchet self-test (installs verify, gate propagates, narrowing)
         run: bash tests/workflows/kyaml_ratchet_test.sh
+      - name: I-JSON (RFC 7493) + JCS (RFC 8785) canonical gate & self-test
+        run: |
+          set -euo pipefail
+          bash tests/workflows/check_ijson_jcs_test.sh
+          bash scripts/check-ijson-jcs.sh --enforce .
+      - name: Required status contexts & squabble anti-bypass gate
+        run: |
+          set -euo pipefail
+          bash tests/workflows/squabble_gate_test.sh
+          bash scripts/check-required-contexts.sh .

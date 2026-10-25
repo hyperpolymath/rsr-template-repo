@@ -15,13 +15,16 @@
 # This file's fixtures must keep the template's literal name, so the mint
 # carries it unchanged (.machine_readable/mint-verbatim.txt). Rewritten, it
 # failed in lintel: `lintel (rsr-template-repo#7)` vs `mint-check (...)`.
-# OWNER, REPO and TEMPLATE_* are read by the eval-ed recipe lines (file-wide).
+# OWNER, REPO and TEMPLATE_* are read by the sourced recipe lines (file-wide).
 # shellcheck disable=SC2034
 set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
 recipe="$repo/build/just/repo-init.just"
 prov=$(grep -m1 -E "^ +SELF_PROV='" "$recipe") || { echo "FAIL: no SELF_PROV line in $recipe" >&2; exit 1; }
 prog=$(grep -m1 -E '^ +SELF_NAME_SED="' "$recipe") || { echo "FAIL: no SELF_NAME_SED line in $recipe" >&2; exit 1; }
+rule_script=$(mktemp)
+trap 'rm -f "$rule_script"' EXIT
+printf '%s\n%s\n' "$prov" "$prog" > "$rule_script"
 # The recipe must derive the template's identity instead of naming one.
 grep -qE 'TEMPLATE_REPO=.*Justfile' "$recipe" \
   || { echo "FAIL: repo-init does not read TEMPLATE_REPO from the Justfile" >&2; exit 1; }
@@ -48,7 +51,8 @@ check() {
 TEMPLATE_OWNER=hyperpolymath TEMPLATE_REPO=rsr-template-repo
 TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
 OWNER=example-owner REPO=mint-check
-eval "$prov"; eval "$prog"
+# shellcheck disable=SC1090
+. "$rule_script"
 check 'project := "rsr-template-repo"' 'project := "mint-check"'
 check 'sonar.projectKey=hyperpolymath_rsr-template-repo' 'sonar.projectKey=hyperpolymath_mint-check'
 check 'https://github.com/hyperpolymath/rsr-template-repo/issues/new' 'https://github.com/example-owner/mint-check/issues/new'
@@ -67,7 +71,8 @@ check 'Copy it from the upstream template, [rsr-template-repo](https://github.co
 TEMPLATE_OWNER=metadatastician TEMPLATE_REPO=lintel
 TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
 OWNER=example-owner REPO=mint-check
-eval "$prov"; eval "$prog"
+# shellcheck disable=SC1090
+. "$rule_script"
 check 'project := "lintel"' 'project := "mint-check"'
 check 'REPO := "lintel"' 'REPO := "mint-check"'
 check 'sonar.projectKey=metadatastician_lintel' 'sonar.projectKey=metadatastician_mint-check'
@@ -84,7 +89,8 @@ check 'see hyperpolymath/rsr-template-repo' 'see hyperpolymath/rsr-template-repo
 TEMPLATE_OWNER=example-owner TEMPLATE_REPO="Geometry.jl"
 TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
 OWNER=example-owner REPO=mint-check
-eval "$prov"; eval "$prog"
+# shellcheck disable=SC1090
+. "$rule_script"
 check 'project := "Geometry.jl"' 'project := "mint-check"'
 check 'Geometry.jl ships it; GeometryXjl is another string' 'mint-check ships it; GeometryXjl is another string'
 
