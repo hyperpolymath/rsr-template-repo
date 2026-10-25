@@ -210,10 +210,7 @@ jobs:
           set -euo pipefail
           if [ -f .github/actions/squabble/action.yml ]; then
             bash "$RUNNER_TEMP/kyaml-format.sh" --check .github/actions/squabble/action.yml
-          fi
-          if [ -f scripts/kyaml-format.sh ]; then
-            bash scripts/kyaml-format.sh --check "${present[@]}"
-            if [ -f .github/actions/squabble/action.yml ]; then
+            if [ -f scripts/kyaml-format.sh ]; then
               bash scripts/kyaml-format.sh --check .github/actions/squabble/action.yml
             fi
           fi
