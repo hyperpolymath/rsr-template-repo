@@ -116,5 +116,72 @@ got=0; IJSON_JCS=ijson-jcs-not-installed bash "$SCRIPT" "$WORK/t" >"$WORK/out" 2
 if [ "$got" = 2 ]; then pass=$((pass + 1)); echo "  PASS: missing explicit IJSON_JCS binary exits 2"
 else fail=$((fail + 1)); echo "  FAIL: missing explicit IJSON_JCS binary exits 2 (got $got)"; fi
 
+echo "=== Local CLI: exact canonical bytes and strict parser boundaries ==="
+# Exercise the fallback directly even on machines with the Rust CLI installed.
+# A byte comparison catches accidental newlines and UTF-16 ordering mistakes.
+command -v bun >/dev/null 2>&1 || { echo 'FAIL: Bun is required for local CLI controls' >&2; exit 1; }
+cli_case() { # <exit> <command> <input> <expected stdout> <label>
+  local want="$1" cmd="$2" input="$3" expected="$4" label="$5" got=0
+  printf '%s' "$input" | bun "$REPO_DIR/scripts/ijson-jcs-cli.js" "$cmd" \
+    >"$WORK/cli-out" 2>"$WORK/cli-err" || got=$?
+  printf '%s' "$expected" >"$WORK/cli-expected"
+  if [ "$got" -eq "$want" ] && cmp -s "$WORK/cli-out" "$WORK/cli-expected"; then
+    pass=$((pass + 1)); echo "  PASS: $label"
+  else
+    fail=$((fail + 1)); echo "  FAIL: $label (wanted exit $want, got $got, or wrong bytes)"
+    cat "$WORK/cli-err"
+  fi
+}
+
+cli_case 0 canon '{"2":2,"10":10,"__proto__":{"z":0,"a":1}}' \
+  '{"10":10,"2":2,"__proto__":{"a":1,"z":0}}' 'numeric and prototype-like keys are preserved and sorted lexically'
+cli_case 0 canon '{"\ue000":1,"\ud83d\ude00":2,"a":3,"aa":4}' \
+  '{"a":3,"aa":4,"😀":2,"":1}' 'astral keys sort by UTF-16 code units, with prefix keys first'
+cli_case 0 canon '[{"z":1,"a":2},false,null,[],{}]' \
+  '[{"a":2,"z":1},false,null,[],{}]' 'nested objects sort without reordering arrays'
+cli_case 0 canon '[-9007199254740991,9007199254740991,-0,1.50,1E+30,0.000001]' \
+  '[-9007199254740991,9007199254740991,0,1.5,1e+30,0.000001]' 'safe integer limits and ECMAScript number serialization'
+cli_case 0 canon '"\/\b\f\n\r\t\u0000\u0061"' \
+  '"/\b\f\n\r\t\u0000a"' 'escapes normalize without losing control characters'
+cli_case 0 canon '{"x":{"a":1},"y":{"a":2}}' \
+  '{"x":{"a":1},"y":{"a":2}}' 'duplicate detection is scoped to each object'
+cli_case 0 check '{"a":1}' '' 'CLI accepts canonical stdin without newline'
+cli_case 0 check $'{"a":1}\n' '' 'CLI accepts one final LF'
+cli_case 1 check $'{"a":1}\r\n' '' 'CRLF is valid JSON but noncanonical'
+cli_case 1 check $'{"a":1}\n\n' '' 'two final LFs are noncanonical'
+
+for input in '' ' ' '{' '[' '{"a":1,}' '[1,]' '{"a" 1}' '[1 2]' \
+  'true false' '01' '-' '1.' '1e' '1e+' '+1' 'NaN' 'Infinity' '1e400' \
+  '-9007199254740992' '"\x00"' '"\u12zz"' '"\udc00"' '"\ud800\u0041"' \
+  '"\udbff\udfff"' '"\ufdd0"' '{"a":1,"\u0061":2}' \
+  $'"raw\tcontrol"' $'\xef\xbb\xbf{}' $'"\xc0\xaf"'; do
+  cli_case 2 canon "$input" '' "invalid input emits no canonical bytes: $(printf '%q' "$input")"
+  cli_case 2 check "$input" '' "invalid input cannot pass check: $(printf '%q' "$input")"
+done
+
+echo "=== JSON Lines framing and scan scope ==="
+# Isolate this section from a host-installed binary and inherited overrides.
+export IJSON_JCS_FORCE_JS=1
+fresh; printf '{"a":1}\n{"b":2}' > "$WORK/t/records.jsonl"
+expect 1 'JSONL without final LF is noncanonical' --enforce
+names 'NOT CANONICAL t/records.jsonl' 'JSONL newline error is classified correctly'
+fresh; printf '{"a":1}\n{"b":2,"b":3}\n' > "$WORK/t/records.jsonl"
+expect 1 'invalid later JSONL record fails the whole file' --enforce
+names 'INVALID t/records.jsonl' 'later invalid record is not merely noncanonical'
+fresh; printf '{bad}\n' > "$WORK/t/a.json"
+expect 0 'report-only mode reports invalid data without blocking'
+names '1 invalid' 'report-only mode retains invalid count'
+fresh
+for dir in .git node_modules target _build; do
+  mkdir -p "$WORK/t/$dir/nested"
+  printf '{bad}\n' > "$WORK/t/$dir/nested/ignored.json"
+done
+printf '{"a":1}\n' > "$WORK/t/name with spaces.json"
+expect 0 'dependency and VCS trees are pruned; filenames with spaces survive' --enforce
+names '1 file(s) checked, 1 canonical' 'only the selected file is counted'
+fresh; printf '// comment\n{}\n' > "$WORK/t/ordinary.json"
+expect 1 'JSONC carve-out does not exempt ordinary JSON' --enforce
+names 'INVALID t/ordinary.json' 'ordinary JSON comments are rejected'
+
 echo "check_ijson_jcs_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

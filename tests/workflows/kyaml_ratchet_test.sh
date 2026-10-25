@@ -250,3 +250,7 @@ run_install sha256:yq 1 $'curl:yq\nsha256:yq'
 run_install curl:kyaml-format.sh 22 $'curl:yq\nsha256:yq\ncurl:kyaml-format.sh'
 run_install sha256:kyaml-format.sh 1 "$all_events"
 echo 'PASS: each failed download or checksum stops installation and cannot report success'
+
+# The local formatter is part of PR #253's ratchet; exercise its byte/data
+# preservation controls as well as the workflow download/dispatch controls.
+bash "$repo/tests/workflows/kyaml_format_test.sh"

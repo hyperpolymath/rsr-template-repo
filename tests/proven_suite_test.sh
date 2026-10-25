@@ -204,5 +204,131 @@ printf '{broken json\n' > "$WORK/malformed-report.json"
 assert_rc 2 "Setup (exit 2): malformed JSON report exits 2" \
   bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/malformed-report.json" "$WORK/mock-pa-ok"
 
+echo "=== 4. Proof scanner comments, scopes, and remaining escape hatches ==="
+mkdir -p "$WORK/comments/nested dir"
+printf 'module Clean\n-- %s ?comment\n||| %s\nimport Data.Nat\n%%hide Prelude.id\n%%default total\nidNat : Nat -> Nat\nidNat x = x -- %s\n' \
+  "$BM" "$AT" "$BM" > "$WORK/comments/nested dir/Clean.idr"
+assert_rc 0 'comments and doc comments are ignored, including nested paths with spaces' \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/comments"
+assert_rc 2 'a missing second scope invalidates an otherwise clean corpus' \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/clean" "$WORK/missing-scope"
+for token in 'assert_smaller' '%partial' '%default partial' '%default covering' 'unsafePerformIO' 'idris_crash' \
+  'public export partial' 'private covering'; do
+  printf 'module Bad\n%%default total\n%s\n' "$token" > "$WORK/clean/Bad.idr"
+  assert_rc 1 "remaining banned form is rejected: $token" \
+    bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/clean"
+done
+rm "$WORK/clean/Bad.idr"
+assert_rc 1 'a bad module cannot be hidden by a clean second scope' \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_bm" "$WORK/clean"
+assert_grep 'Bad.idr:6:' 'scanner preserves original source line numbers'
+
+echo "=== 5. Benchmark statistics, identity, and threshold boundaries ==="
+if command -v jq >/dev/null 2>&1; then
+  assert_rc 0 'LOO ratios use the geometric mean of OTHER workloads' \
+    jq -n -e -L "$REPO_ROOT/scripts" 'include "bench-stats";
+      {results:[{name:"a",median_ns:1},{name:"b",median_ns:4},{name:"c",median_ns:16}]}
+      | loo_ratios | (.a - 0.125 | fabs) < 1e-10 and (.b - 1 | fabs) < 1e-10 and (.c - 8 | fabs) < 1e-10'
+  assert_rc 0 'baseline records all ten sources and expected arithmetic means' \
+    jq -e '.window == 10 and (.sources | length) == 10
+      and all(.sources[]; .commit == "deadbeef" and (.run_id | test("^[0-9]+$")))
+      and .workloads.alpha.mean_median_ns == 10000000
+      and (.workloads.alpha.mean_loo_ratio - 0.3535533905932738 | fabs) < 1e-10' "$WORK/baseline.json"
+
+  # Equal medians make tolerance expectations independent of the implementation.
+  printf '%s\n' '{"kind":"proven-bench-baseline","schema_version":1,"workloads":{"alpha":{"iterations":5,"mean_loo_ratio":1,"mean_median_ns":100},"beta":{"iterations":5,"mean_loo_ratio":1,"mean_median_ns":100},"gamma":{"iterations":5,"mean_loo_ratio":1,"mean_median_ns":100}}}' > "$WORK/equal-baseline.json"
+  jq '.results |= map(.median_ns = 100)' "$WORK/runs/1001/run.json" > "$WORK/equal-run.json"
+  regression_case() { # <exit> <jq transformation> <label> <diagnostic>
+    local want="$1" transform="$2" label="$3" diagnostic="$4"
+    jq "$transform" "$WORK/equal-run.json" > "$WORK/current.json"
+    assert_rc "$want" "$label" bash "$REPO_ROOT/scripts/check-bench-regression.sh" \
+      "$WORK/current.json" "$WORK/equal-baseline.json"
+    assert_grep "$diagnostic" "$label: diagnostic"
+  }
+  regression_case 0 '.results |= reverse' 'workload order does not change identity' 'OK - no workload regressed'
+  regression_case 0 '.results |= map(.median_ns = 250)' 'uniform slowdown exactly at 2.5x passes' 'OK - no workload regressed'
+  regression_case 1 '.results |= map(.median_ns = 251)' 'absolute backstop catches uniform slowdown over 2.5x' 'Unacceptable regression in: alpha beta gamma'
+  regression_case 0 '.results[0].median_ns = 200' 'relative slowdown exactly at 2x passes' 'OK - no workload regressed'
+  regression_case 1 '.results[0].median_ns = 201' 'relative slowdown above 2x fails even below absolute limit' 'Unacceptable regression in: alpha$'
+  regression_case 0 '.results[0].median_ns = 40' 'extraordinary improvement passes and is flagged' 'EXTRAORDINARY'
+  regression_case 2 '.results[0].iterations = 6' 'changed iterations require a new baseline' 'iterations changed for alpha'
+  regression_case 2 '.results[0].name = "delta"' 'renamed workload is not comparable' 'MISSING from baseline: delta'
+  regression_case 2 '.results[0].name = "beta"' 'duplicate workload names are refused' 'duplicate workload name'
+  regression_case 2 '.results = .results[:2]' 'at least three workloads are required' 'at least 3 workloads'
+  regression_case 2 '.results[0].median_ns = 0' 'zero timing is not a measurement' 'not a positive number'
+  regression_case 2 '.results[0].median_ns = -1' 'negative timing is refused' 'not a positive number'
+  regression_case 2 '.results[0].median_ns = "100"' 'timing strings cannot enter logarithms' 'not a positive number'
+  regression_case 2 'del(.results[0].checksum)' 'missing checksum is not true' 'workload is broken'
+  regression_case 2 '.schema_version = 2' 'unknown run schema is refused' 'expected 1'
+  regression_case 2 '.suite = "other"' 'unrelated benchmark suite is refused' 'expected "proven-bench"'
+  for field in mean_median_ns mean_loo_ratio iterations; do
+    jq --arg field "$field" '.workloads.alpha[$field] = 0' "$WORK/equal-baseline.json" > "$WORK/bad-baseline.json"
+    assert_rc 2 "invalid baseline statistic refused: $field" \
+      bash "$REPO_ROOT/scripts/check-bench-regression.sh" "$WORK/equal-run.json" "$WORK/bad-baseline.json"
+    assert_grep "$field" 'malformed baseline names the invalid field'
+  done
+
+  # Distinct filenames in the same CI run must not inflate the baseline window.
+  cp "$WORK/runs/1001/run.json" "$WORK/runs/1001/another.json"
+  assert_rc 2 'duplicate CI run ID is refused even for different source paths' \
+    bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json "$WORK/runs/1001/another.json"
+  assert_grep 'duplicate source run_id' 'duplicate CI run diagnostic'
+  ln -s "$WORK/runs/1001/run.json" "$WORK/run-alias.json"
+  assert_rc 2 'symlink alias cannot count as an independent run' \
+    bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json "$WORK/run-alias.json"
+  assert_grep 'duplicate source run file' 'duplicate canonical path diagnostic'
+  jq '.results[0].iterations = 6' "$WORK/runs/1001/run.json" > "$WORK/different-experiment.json"
+  assert_rc 2 'baseline rejects mixed iteration counts' \
+    bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json "$WORK/different-experiment.json"
+  assert_grep 'different experiments' 'mixed experiments diagnostic'
+
+  # An eleventh run with doubled times distinguishes the arithmetic mean
+  # across all sources from selecting one run or taking a geometric mean.
+  # Historical checksums do not gate baseline inputs (documented in bench-stats).
+  jq '.results |= map(.median_ns *= 2 | .checksum = false)' "$WORK/runs/1001/run.json" > "$WORK/historical.json"
+  bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json "$WORK/historical.json" > "$WORK/varied-baseline.json"
+  assert_rc 0 'baseline averages every source, permits historical checksums, and records unknown run ID' \
+    jq -e '.window == 11 and .sources[-1].run_id == null
+      and (.workloads.alpha.mean_median_ns - (120000000 / 11) | fabs) < 1e-6
+      and (.workloads.alpha.mean_loo_ratio - 0.3535533905932738 | fabs) < 1e-10' "$WORK/varied-baseline.json"
+fi
+
+echo "=== 6. Proof aggregation selection, deduplication, and failure folding ==="
+cat > "$WORK/record-aggregate" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$AGGREGATE_CALLS"
+[[ "$3" != "$FAIL_PROOF" ]]
+SH
+chmod +x "$WORK/record-aggregate"
+export AGGREGATE_CALLS="$WORK/aggregate-calls" FAIL_PROOF=''
+for report in '{"entries":[]}' '{"entries":[{"provenance":"Static-Checked","proof_ladder":[{"proof_file":"ignored.idr"}]}]}' \
+  '{"entries":[{"provenance":"Actually-Proven","proof_ladder":[]}]}' ; do
+  printf '%s\n' "$report" > "$WORK/selection.json"
+  assert_rc 0 'no proven proof files requires no external aggregator' \
+    bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/selection.json" "$WORK/no-such-panic-attack"
+done
+for report in '[]' '{}' '{"entries":null}' '{"entries":{}}'; do
+  printf '%s\n' "$report" > "$WORK/selection.json"
+  assert_rc 2 "invalid report schema is a setup failure: $report" \
+    bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/selection.json" "$WORK/record-aggregate"
+done
+printf '%s\n' '{"entries":[{"provenance":"Actually-Proven","proof_ladder":[{"proof_file":"a proof.idr"},{"proof_file":"z.idr"},{"proof_file":"a proof.idr"}]},{"provenance":"Static-Checked","proof_ladder":[{"proof_file":"ignored.idr"}]}]}' > "$WORK/selection.json"
+printf 'aggregate\n--proof\na proof.idr\n--label\na proof.idr=a proof-ladder\naggregate\n--proof\nz.idr\n--label\nz.idr=z-ladder\n' > "$WORK/expected-calls"
+: > "$AGGREGATE_CALLS"
+assert_rc 0 'only proven files are aggregated, once each, preserving paths with spaces' \
+  bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/selection.json" "$WORK/record-aggregate"
+assert_rc 0 'aggregator receives exact proof and label arguments' cmp "$WORK/expected-calls" "$AGGREGATE_CALLS"
+: > "$AGGREGATE_CALLS"
+FAIL_PROOF='a proof.idr' assert_rc 1 'a failed proof yields failure while remaining proofs are checked' \
+  bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/selection.json" "$WORK/record-aggregate"
+assert_rc 0 'failure does not suppress later aggregation' cmp "$WORK/expected-calls" "$AGGREGATE_CALLS"
+
+echo "=== 7. Isolated runner and lock portability regressions ==="
+assert_rc 0 'runner outcome and benchmark output contracts' bash "$REPO_ROOT/tests/run_proven_suite_test.sh"
+assert_rc 0 'actions.lock guards on POSIX mawk' bash "$REPO_ROOT/tests/workflows/check_lock_sync_test.sh"
+if command -v zig >/dev/null 2>&1; then
+  assert_rc 0 'FFI string ownership and sentinel regressions' bash "$REPO_ROOT/tests/ffi_strings_test.sh"
+fi
+
 echo "proven_suite_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

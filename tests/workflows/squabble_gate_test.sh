@@ -196,5 +196,111 @@ YML
 assert_rc 1 "Firing: backslash-continued 'gh pr merge ... --admin' exits 1" \
   bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$WORK/m_multiline"
 
+echo "=== 3. Attestations require every result and every matching subject ==="
+guard_case() { # <success|failure> <label> <function> [args...]
+  local want="$1" label="$2" got=success
+  shift 2
+  "$@" > "$WORK/out" 2>&1 || got=failure
+  if [ "$want" = "$got" ]; then ok "$label"; else bad "$label ($got)"; fi
+}
+guard_case failure 'missing binary cannot pass digest verification' verify_digest "$WORK/missing-bin"
+for json in '{}' 'null' '[{}]' '{bad}'; do
+  printf '%s\n' "$json" > "$WORK/attestation.json"
+  guard_case failure "invalid attestation shape is refused: $json" check_attestation_json "$WORK/attestation.json"
+done
+jq '.[0].verificationResult.statement.subject += [{name:"SHA256SUMS",digest:{sha256:"unrelated"}}]' \
+  "$WORK/good-att.json" > "$WORK/attestation.json"
+guard_case success 'additional unrelated subjects do not invalidate the matching asset' check_attestation_json "$WORK/attestation.json"
+jq '.[0].verificationResult.statement.subject[0].name = "wrong-asset"' "$WORK/good-att.json" > "$WORK/attestation.json"
+guard_case failure 'correct digest for the wrong asset is refused' check_attestation_json "$WORK/attestation.json"
+jq -s 'add' "$WORK/good-att.json" "$WORK/empty-att.json" > "$WORK/attestation.json"
+guard_case success 'nonempty valid verification result is accepted' check_attestation_json "$WORK/attestation.json"
+jq -s 'add' "$WORK/good-att.json" "$WORK/wrong-att.json" > "$WORK/attestation.json"
+guard_case failure 'one valid result cannot conceal a second bad result' check_attestation_json "$WORK/attestation.json"
+jq '.[0].verificationResult.statement.subject += [{name:.[0].verificationResult.statement.subject[0].name,digest:{sha256:"wrong"}}]' \
+  "$WORK/good-att.json" > "$WORK/attestation.json"
+guard_case failure 'conflicting digests for the same asset are refused' check_attestation_json "$WORK/attestation.json"
+
+# Replace only the gh process boundary; exercise the real verification wrapper.
+verify_fixture_attestation() {
+  (
+    # shellcheck disable=SC2329 # Called indirectly by verify_attestation.
+    gh() {
+      printf '%s\n' "$@" > "$WORK/gh-args"
+      cat "$WORK/good-att.json"
+      return "${GH_VERIFY_STATUS:-0}"
+    }
+    verify_attestation "$@"
+  )
+}
+guard_case success 'verified provenance wrapper accepts valid JSON' verify_fixture_attestation "$WORK/asset with spaces"
+printf '%s\n' attestation verify "$WORK/asset with spaces" \
+  --repo "$SQUABBLE_REPO" --signer-workflow "$SQUABBLE_SIGNER_WORKFLOW" \
+  --source-ref "refs/tags/$SQUABBLE_TAG" --source-digest "$SQUABBLE_SOURCE_DIGEST" \
+  --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners --format json > "$WORK/expected-gh-args"
+assert_rc 0 'attestation verifies the pinned source, signer, tag, and hosted runner' cmp "$WORK/expected-gh-args" "$WORK/gh-args"
+GH_VERIFY_STATUS=42 guard_case failure 'a rejected gh verification cannot be rescued by valid stdout' verify_fixture_attestation "$WORK/asset"
+platform_case() {
+  # shellcheck disable=SC2329 # Called indirectly by require_platform.
+  (uname() { case "$1" in -s) echo "$TEST_OS";; -m) echo "$TEST_ARCH";; esac; }; require_platform)
+}
+TEST_OS=Linux TEST_ARCH=x86_64 assert_rc 0 'Linux x86_64 platform is supported' platform_case
+TEST_OS=Darwin TEST_ARCH=x86_64 assert_rc 1 'non-Linux runners are refused' platform_case
+TEST_OS=Linux TEST_ARCH=aarch64 assert_rc 1 'non-x86_64 runners are refused' platform_case
+
+echo "=== 4. Literal argv and optional runner outputs ==="
+cat > "$WORK/argv-squabble" <<'SH'
+#!/usr/bin/env bash
+: > "$ARGV_CAPTURE"
+if [ "$#" -gt 0 ]; then printf '%s\0' "$@" > "$ARGV_CAPTURE"; fi
+exit "${SQUABBLE_STATUS:-0}"
+SH
+chmod +x "$WORK/argv-squabble"
+export ARGV_CAPTURE="$WORK/argv"
+literal="\$(touch '$WORK/PWNED'); * \$HOME \`id\`"
+printf '%s\0' chains 'repo with spaces' '  leading and trailing  ' "$literal" > "$WORK/expected-argv"
+printf 'existing=value\n' > "$OUT_FILE"
+assert_rc 0 'blank lines drop while spaces and metacharacters remain literal' \
+  env GITHUB_OUTPUT="$OUT_FILE" SQUABBLE_BIN="$WORK/argv-squabble" \
+  SQUABBLE_ARGS=$'\nchains\n\nrepo with spaces\n  leading and trailing  \n'"$literal"$'\n' \
+  bash "$REPO_ROOT/.github/actions/squabble/run.sh"
+assert_rc 0 'argv boundaries are preserved byte for byte' cmp "$WORK/expected-argv" "$ARGV_CAPTURE"
+assert_rc 0 'shell expressions in arguments are never executed' test ! -e "$WORK/PWNED"
+printf 'existing=value\nexit-code=0\n' > "$WORK/expected-output"
+assert_rc 0 'GITHUB_OUTPUT is appended, preserving existing outputs' cmp "$WORK/expected-output" "$OUT_FILE"
+assert_rc 7 'absence of GITHUB_OUTPUT still propagates the binary exit' \
+  env -u GITHUB_OUTPUT SQUABBLE_STATUS=7 SQUABBLE_BIN="$WORK/argv-squabble" SQUABBLE_ARGS='' \
+  bash "$REPO_ROOT/.github/actions/squabble/run.sh"
+assert_rc 0 'empty SQUABBLE_ARGS yields zero arguments' test ! -s "$ARGV_CAPTURE"
+assert_rc 1 'missing executable is refused before invocation' \
+  env SQUABBLE_BIN="$WORK/missing-binary" bash "$REPO_ROOT/.github/actions/squabble/run.sh"
+
+echo "=== 5. Required context setup and trigger boundaries ==="
+context_tree="$WORK/context-boundaries"
+fresh_context() {
+  rm -rf "$context_tree"
+  mkdir -p "$context_tree/.github/workflows" "$context_tree/.machine_readable"
+  printf '# mapping\r\n\r\n scan / gitleaks => .github/workflows/scan.yaml \r\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+  printf 'name: Scan\non: pull_request\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+}
+fresh_context
+assert_rc 0 'scalar PR event, yaml extension, comments, CRLF, and whitespace are accepted' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request_target\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'pull_request_target alone cannot produce a required PR check' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non:\n  pull_request:\n    paths-ignore: []\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'paths-ignore is forbidden even when empty' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+for mapping in '# only comments' 'missing separator' ' => .github/workflows/scan.yaml' \
+  'scan / gitleaks =>' 'scan => file => another'; do
+  printf '%s\n' "$mapping" > "$context_tree/.machine_readable/required-contexts-allow.txt"
+  assert_rc 2 "empty or malformed mapping is setup failure: $mapping" bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+done
+fresh_context
+rm "$context_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 2 'missing mapping is setup failure' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+fresh_context
+rm -rf "$context_tree/.github/workflows"
+assert_rc 2 'missing workflow directory is setup failure' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+
+assert_rc 0 'Dependabot severity and semver policy controls' bash "$REPO_ROOT/tests/workflows/dependabot_automerge_test.sh"
 echo "squabble_gate_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
