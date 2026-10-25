@@ -101,6 +101,17 @@ assert_rc 1 "Firing: missing '%default total' exits 1" \
   bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_nototal"
 assert_grep "missing '%default total'" "Firing: names missing '%default total'"
 
+mkdir -p "$WORK/m_latetotal"
+printf 'module Bad\n\nidNat : Nat -> Nat\nidNat x = x\n\n%%default total\n' > "$WORK/m_latetotal/Bad.idr"
+assert_rc 1 "Firing: '%default total' placed after declaration exits 1" \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_latetotal"
+assert_grep "appears after a declaration" "Firing: names misplaced '%default total'"
+
+mkdir -p "$WORK/m_strhide"
+printf 'module Bad\n\n%%default total\n\nsneaky : a -> (String, b)\nsneaky x = ("--", %s x)\n' "$BM" > "$WORK/m_strhide/Bad.idr"
+assert_rc 1 "Firing: escape hatch after quoted \"--\" string literal exits 1" \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_strhide"
+
 echo "=== 2. compute-bench-baseline.sh & check-bench-regression.sh ==="
 if command -v jq >/dev/null 2>&1; then
   mkdir -p "$WORK/runs"
@@ -115,7 +126,17 @@ JSON
     bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK/runs/1001/run.json" "$WORK/runs/1002/run.json"
   assert_grep "BASELINE BOOTSTRAPPING" "Setup: names BASELINE BOOTSTRAPPING"
 
+  assert_rc 2 "Setup (exit 2): repeated duplicate run file refused" \
+    bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" \
+      "$WORK/runs/1001/run.json" "$WORK/runs/1001/run.json" "$WORK/runs/1002/run.json" \
+      "$WORK/runs/1003/run.json" "$WORK/runs/1004/run.json" "$WORK/runs/1005/run.json" \
+      "$WORK/runs/1006/run.json" "$WORK/runs/1007/run.json" "$WORK/runs/1008/run.json" \
+      "$WORK/runs/1009/run.json"
+  assert_grep "duplicate source run" "Setup: names duplicate source run"
+
   bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json > "$WORK/baseline.json"
+  assert_rc 0 "Silence: generated baseline is canonical I-JSON + JCS" \
+    bash "$REPO_ROOT/scripts/check-ijson-jcs.sh" --enforce "$WORK/baseline.json"
 
   assert_rc 0 "Silence: ordinary run within tolerance passes" \
     bash "$REPO_ROOT/scripts/check-bench-regression.sh" "$WORK/runs/1001/run.json" "$WORK/baseline.json"
@@ -162,6 +183,13 @@ assert_rc 0 "Silence: Closed proof-ladder verdict exits 0" \
 
 assert_rc 1 "Firing: Holes proof-ladder verdict exits 1" \
   bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/report.json" "$WORK/mock-pa-holes"
+
+assert_rc 2 "Setup (exit 2): missing panic-attack binary on Actually-Proven report exits 2" \
+  bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/report.json" "$WORK/no-such-panic-attack"
+
+printf '{broken json\n' > "$WORK/malformed-report.json"
+assert_rc 2 "Setup (exit 2): malformed JSON report exits 2" \
+  bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/malformed-report.json" "$WORK/mock-pa-ok"
 
 echo "proven_suite_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

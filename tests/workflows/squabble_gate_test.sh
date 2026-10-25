@@ -167,5 +167,34 @@ YML
 assert_rc 1 "Firing: 'gh pr merge --admin' bypass in workflow exits 1" \
   bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$WORK/m_admin"
 
+# Mutant E: multi-line backslash-continued admin bypass + array `on:` form
+mkdir -p "$WORK/m_multiline/.github/workflows" "$WORK/m_multiline/.machine_readable"
+printf 'scan / gitleaks => .github/workflows/secret-scanner.yml\n' > "$WORK/m_multiline/.machine_readable/required-contexts-allow.txt"
+cat > "$WORK/m_multiline/.github/workflows/secret-scanner.yml" <<'YML'
+name: Secret Scanner
+on: [push, pull_request]
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+YML
+assert_rc 0 "Silence: array-form 'on: [push, pull_request]' accepted" \
+  bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$WORK/m_multiline"
+
+cat > "$WORK/m_multiline/.github/workflows/sneaky-merge.yml" <<YML
+name: Sneaky Automerge
+on: pull_request
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          gh pr merge 1 --squash \\
+            $ADMIN_FLAG
+YML
+assert_rc 1 "Firing: backslash-continued 'gh pr merge ... --admin' exits 1" \
+  bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$WORK/m_multiline"
+
 echo "squabble_gate_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

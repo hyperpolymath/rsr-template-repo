@@ -7,13 +7,12 @@
 # report) into panic-attack's `aggregate`, which classifies each proof artifact
 # (Closed/Holes/Refuted/Indeterminate) and folds it into a trust-tagged report.
 #
-# Semantic contract (see docs/INTEROP-PANIC-ATTACK.adoc):
-#   * ONLY Actually-Proven ladder files are emitted — they are the only entries
-#     backed by a real proof artifact. A ladder file is expected to classify
-#     `Closed`; a `Holes`/`Refuted` verdict means a cited theorem is not actually
-#     discharged, which is a genuine failure and exits non-zero.
-#   * Provisionally-Proven and Unproven tests have NO proof artifact and are
-#     deliberately not fed (Provisionally != Holes).
+# Exit contract (proven-tests-and-benches 3-outcome convention):
+#   0 = all Actually-Proven ladder files classified Closed (or 0 Actually-Proven
+#       entries in a valid report)
+#   1 = panic-attack aggregate reported a non-Closed verdict (Holes / Refuted)
+#   2 = setup error: missing/unparseable report, missing jq, or missing
+#       panic-attack binary when Actually-Proven files require aggregation
 #
 # Usage: emit-aggregate-inputs.sh <run-report.json> [panic-attack-binary]
 set -euo pipefail
@@ -27,22 +26,35 @@ if [ ! -f "$REPORT" ]; then
   exit 2
 fi
 
-# Distinct proof_file paths from Actually-Proven entries' ladders.
-extract_ladder_files() {
-  if command -v jq >/dev/null 2>&1; then
-    jq -r '.entries[]
-             | select(.provenance == "Actually-Proven")
-             | .proof_ladder[].proof_file
-             | select(. != null)' "$REPORT" | sort -u
-  else
-    # jq-free fallback: pull "proof_file":"..." occurrences. Coarse but works
-    # for our known-safe values (no escaping in file paths).
-    grep -o '"proof_file":"[^"]*"' "$REPORT" \
-      | sed 's/"proof_file":"//;s/"$//' | sort -u
-  fi
-}
+if ! command -v jq >/dev/null 2>&1; then
+  echo "error: jq is required to filter Actually-Proven entries in $REPORT" >&2
+  exit 2
+fi
 
-mapfile -t LADDER_FILES < <(extract_ladder_files)
+EXTRACT_TMP="$(mktemp)"
+trap 'rm -f "$EXTRACT_TMP"' EXIT
+if ! jq -er '
+  if (type != "object") or (.entries | type != "array") then
+    error("report must be an object with an entries array")
+  else
+    [ .entries[]
+      | select(.provenance == "Actually-Proven")
+      | (.proof_ladder // [])[]
+      | .proof_file
+      | select(type == "string" and length > 0)
+    ] | unique | .[]
+  end
+' "$REPORT" > "$EXTRACT_TMP" 2>/dev/null; then
+  # Note: `jq -e` exits 4 when output is empty (`unique | .[]` produces zero
+  # items); distinguish malformed JSON/schema from a valid empty selection.
+  if ! jq -e 'type == "object" and (.entries | type == "array")' "$REPORT" >/dev/null 2>&1; then
+    echo "error: malformed or invalid run report: $REPORT" >&2
+    exit 2
+  fi
+  : > "$EXTRACT_TMP"
+fi
+
+mapfile -t LADDER_FILES < "$EXTRACT_TMP"
 
 if [ "${#LADDER_FILES[@]}" -eq 0 ]; then
   echo "no Actually-Proven proof-ladder files cited in $REPORT — nothing to aggregate"
@@ -53,16 +65,14 @@ echo "Actually-Proven proof-ladder files to aggregate:"
 printf '  %s\n' "${LADDER_FILES[@]}"
 
 if ! command -v "$PANIC_ATTACK" >/dev/null 2>&1; then
-  echo "note: '$PANIC_ATTACK' not on PATH — listed the inputs but did not aggregate." >&2
-  echo "      (build panic-attack, then re-run to fold these into a trust-tagged report)" >&2
-  exit 0
+  echo "error: '$PANIC_ATTACK' not on PATH — cannot classify ${#LADDER_FILES[@]} Actually-Proven proof file(s)" >&2
+  exit 2
 fi
 
 status=0
 for f in "${LADDER_FILES[@]}"; do
   label="$(basename "$f" .idr)-ladder"
   echo "--- aggregate: $f (label=$label) ---"
-  # panic-attack aggregate takes --label as PATH=NAME.
   if ! "$PANIC_ATTACK" aggregate --proof "$f" --label "$f=$label"; then
     echo "error: aggregate reported a non-Closed verdict for $f" >&2
     status=1

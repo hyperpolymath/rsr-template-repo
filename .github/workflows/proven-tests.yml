@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -41,8 +41,7 @@ jobs:
           git -C "$RUNNER_TEMP/standards" checkout -q FETCH_HEAD
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2.2.0
-
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - name: Install verified Zig 0.16.0 (matching mise.lock)
         run: |
           set -euo pipefail
@@ -66,14 +65,16 @@ jobs:
           chmod +x "$RUNNER_TEMP/just-bin/just"
           echo "$RUNNER_TEMP/just-bin" >> "$GITHUB_PATH"
 
-      - name: Cache pinned ijson-jcs binary
+      - name: Cache pinned ijson-jcs and panic-attack binaries
         id: cache-ijson
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cargo/bin/ijson-jcs
-          key: ijson-jcs-${{ runner.os }}-2c880594c8b1f823a7ab2a8a830c894975a1792e
+          path: |
+            ~/.cargo/bin/ijson-jcs
+            ~/.cargo/bin/panic-attack
+          key: proven-tools-${{ runner.os }}-ijson-2c880594c8b1-pa-b5530834a839
 
-      - name: Build pinned hyperpolymath/ijson-jcs when uncached
+      - name: Build pinned hyperpolymath/ijson-jcs & panic-attack when uncached
         if: steps.cache-ijson.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
@@ -81,6 +82,9 @@ jobs:
             --git https://github.com/hyperpolymath/ijson-jcs.git \
             --rev 2c880594c8b1f823a7ab2a8a830c894975a1792e \
             --bin ijson-jcs
+          cargo install --locked \
+            --git https://github.com/hyperpolymath/panic-attack.git \
+            --rev b5530834a839734d1d181bfe6edb0d43d4233cf4
 
       - name: Run 3-outcome proven test, proof honesty, FFI, E2E & bench suite
         env:

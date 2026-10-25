@@ -33,7 +33,11 @@ fi
 #   - Otherwise prefer the compiled hyperpolymath/ijson-jcs binary on PATH, and
 #     fall back to the local Bun RFC 7493/8785 implementation when offline.
 RUNNER=()
-if [ -n "${IJSON_JCS:-}" ]; then
+RUNNER_STDIN=0
+if [ "${IJSON_JCS_FORCE_JS:-0}" = "1" ] && command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; then
+  RUNNER=(bun "$SCRIPT_DIR/ijson-jcs-cli.js")
+  RUNNER_STDIN=1
+elif [ -n "${IJSON_JCS:-}" ]; then
   if ! command -v "$IJSON_JCS" >/dev/null 2>&1; then
     printf '%s: not found; install hyperpolymath/ijson-jcs or set IJSON_JCS\n' "$IJSON_JCS" >&2
     exit 2
@@ -43,6 +47,7 @@ elif command -v ijson-jcs >/dev/null 2>&1; then
   RUNNER=(ijson-jcs)
 elif command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; then
   RUNNER=(bun "$SCRIPT_DIR/ijson-jcs-cli.js")
+  RUNNER_STDIN=1
 else
   printf 'ijson-jcs: neither ijson-jcs nor bun (for %s/ijson-jcs-cli.js) found\n' "$SCRIPT_DIR" >&2
   exit 2
@@ -72,7 +77,11 @@ is_jsonc_carve_out() {
 
 classify_json() {
   local rc=0
-  "${RUNNER[@]}" check "$1" >/dev/null 2>&1 || rc=$?
+  if [ "$RUNNER_STDIN" -eq 1 ]; then
+    "${RUNNER[@]}" check <"$1" >/dev/null 2>&1 || rc=$?
+  else
+    "${RUNNER[@]}" check "$1" >/dev/null 2>&1 || rc=$?
+  fi
   if [ "$rc" = 0 ] && [ "$(tail -c 1 "$1" | od -An -c | tr -d ' ')" != '\n' ]; then
     rc=1
   fi

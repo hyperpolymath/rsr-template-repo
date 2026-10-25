@@ -24,19 +24,19 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Cache pinned panic-attack & pons-asinorum binaries
         id: cache-recon
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/bin/panic-attack
-            ~/.cargo/bin/pons-asinorum
-          key: deep-recon-${{ runner.os }}-pa-b5530834a839-pons-51b8920f5417
+            ~/.cargo/bin/pons
+          key: deep-recon-v2-${{ runner.os }}-pa-b5530834a839-pons-51b8920f5417
 
       - name: Build pinned panic-attack & pons-asinorum when uncached
         if: steps.cache-recon.outputs.cache-hit != 'true'
@@ -45,16 +45,10 @@ jobs:
           cargo install --locked \
             --git https://github.com/hyperpolymath/panic-attack.git \
             --rev b5530834a839734d1d181bfe6edb0d43d4233cf4
-          # pons-asinorum workspace carries an auxiliary example binary too;
-          # install the primary CLI crate cleanly.
           cargo install --locked \
             --git https://github.com/hyperpolymath/pons-asinorum.git \
             --rev 51b8920f541782ceb9465ea3f0d33c96104fc1fb \
-            --bin pons-asinorum || \
-          cargo install --locked \
-            --git https://github.com/hyperpolymath/pons-asinorum.git \
-            --rev 51b8920f541782ceb9465ea3f0d33c96104fc1fb \
-            --bins
+            --bin pons
 
       - name: Run panic-attack assail
         id: assail
@@ -66,23 +60,27 @@ jobs:
           set -e
 
           if [ ! -s panic-attack-findings.json ]; then
-            echo "[]" > panic-attack-findings.json
+            echo "::error::panic-attack produced empty output (exit ${PA_EXIT})"
+            exit 1
           fi
 
-          # Normalize envelope or array shape deterministically
+          # Normalize envelope or array shape deterministically; fail closed on invalid output
           if jq -e 'type == "object" and (.findings | type == "array")' panic-attack-findings.json >/dev/null 2>&1; then
             jq '.findings' panic-attack-findings.json > "$RUNNER_TEMP/pa-norm.json"
             mv "$RUNNER_TEMP/pa-norm.json" panic-attack-findings.json
           elif ! jq -e 'type == "array"' panic-attack-findings.json >/dev/null 2>&1; then
-            echo "::warning::panic-attack output is not a JSON array (exit ${PA_EXIT}); normalizing to []"
-            echo "[]" > panic-attack-findings.json
+            echo "::error::panic-attack did not produce a valid JSON findings array (exit ${PA_EXIT})"
+            exit 1
           fi
 
+          jq 'map(.severity = ((.severity // "") | ascii_downcase))' panic-attack-findings.json > "$RUNNER_TEMP/pa-sev.json"
+          mv "$RUNNER_TEMP/pa-sev.json" panic-attack-findings.json
+
           TOTAL=$(jq '. | length' panic-attack-findings.json)
-          CRITICAL=$(jq '[.[] | select(.severity == "critical" or .severity == "Critical")] | length' panic-attack-findings.json)
-          HIGH=$(jq '[.[] | select(.severity == "high" or .severity == "High")] | length' panic-attack-findings.json)
-          MEDIUM=$(jq '[.[] | select(.severity == "medium" or .severity == "Medium" or .severity == "warn")] | length' panic-attack-findings.json)
-          LOW=$(jq '[.[] | select(.severity == "low" or .severity == "Low")] | length' panic-attack-findings.json)
+          CRITICAL=$(jq '[.[] | select(.severity == "critical")] | length' panic-attack-findings.json)
+          HIGH=$(jq '[.[] | select(.severity == "high")] | length' panic-attack-findings.json)
+          MEDIUM=$(jq '[.[] | select(.severity == "medium" or .severity == "warn")] | length' panic-attack-findings.json)
+          LOW=$(jq '[.[] | select(.severity == "low")] | length' panic-attack-findings.json)
 
           {
             echo "total=$TOTAL"
@@ -94,24 +92,20 @@ jobs:
 
       - name: Run pons-asinorum deep recon audit
         run: |
+          set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
-          if command -v pons-asinorum >/dev/null 2>&1; then
-            pons-asinorum --version || true
-            set +e
-            pons-asinorum scan . > "$RUNNER_TEMP/pons-report.txt" 2>&1 \
-              || pons-asinorum audit . > "$RUNNER_TEMP/pons-report.txt" 2>&1 \
-              || pons-asinorum --help > "$RUNNER_TEMP/pons-report.txt" 2>&1
-            set -e
-            {
-              echo "## pons-asinorum Deep Recon"
-              echo '```'
-              head -n 120 "$RUNNER_TEMP/pons-report.txt"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          command -v pons >/dev/null 2>&1 || { echo "::error::pons binary not found on PATH"; exit 1; }
+          pons --version
+          pons scan . --fail-on critical --format human > "$RUNNER_TEMP/pons-report.txt"
+          {
+            echo "## pons-asinorum Deep Recon"
+            echo '```'
+            head -n 120 "$RUNNER_TEMP/pons-report.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload panic-attack findings
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: panic-attack-findings
           path: panic-attack-findings.json
@@ -134,22 +128,25 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Elixir 1.17 / OTP 27.0 for Hypatia scanner
-        uses: erlef/setup-beam@v1.24.1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.17'
           otp-version: '27.0'
 
       - name: Cache pinned Hypatia build
         id: cache-hypatia
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/hypatia
+          path: |
+            ~/hypatia
+            ~/.hex
+            ~/.mix
           key: hypatia-escript-${{ runner.os }}-otp27-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
 
       - name: Clone and build pinned Hypatia
@@ -162,7 +159,7 @@ jobs:
             git -C "$HOME/hypatia" remote add origin https://github.com/hyperpolymath/hypatia.git
             git -C "$HOME/hypatia" fetch -q --depth 1 origin 9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
             git -C "$HOME/hypatia" checkout -q FETCH_HEAD
-            (cd "$HOME/hypatia" && mix deps.get && mix escript.build)
+            (cd "$HOME/hypatia" && mix local.hex --force && mix local.rebar --force && mix deps.get && mix escript.build)
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
@@ -214,7 +211,7 @@ jobs:
           ' hypatia-findings.json || true
 
       - name: Upload hypatia findings
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: hypatia-findings
           path: hypatia-findings.json
@@ -237,14 +234,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Cache pinned panic-attack binary
         id: cache-pa
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/panic-attack
           key: panic-attack-${{ runner.os }}-b5530834a839734d1d181bfe6edb0d43d4233cf4
@@ -300,7 +297,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload bridge report
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bridge-report
           path: bridge-report.json
@@ -324,19 +321,19 @@ jobs:
     if: always()
     steps:
       - name: Download panic-attack findings
-        uses: actions/download-artifact@v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           name: panic-attack-findings
           path: findings/
       - name: Download hypatia findings
-        uses: actions/download-artifact@v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           name: hypatia-findings
           path: findings/
       - name: Download bridge report
-        uses: actions/download-artifact@v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           name: bridge-report
@@ -402,7 +399,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload unified findings (fleet scanner picks these up)
-        uses: actions/upload-artifact@v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unified-findings
           path: findings/unified-findings.json

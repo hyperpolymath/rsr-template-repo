@@ -32,7 +32,7 @@ REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 for req in \
   "$REPO_ROOT/scripts/check-root-shape.sh" \
   "$REPO_ROOT/scripts/check-ijson-jcs.sh" \
-  "$REPO_ROOT/scripts/check-lock-sync.sh" \
+  "$REPO_ROOT/scripts/check-required-contexts.sh" \
   "$REPO_ROOT/scripts/check-escape-hatches.sh"
 do
   [ -f "$req" ] || { echo "template_bench: required workload script missing: $req" >&2; exit 2; }
@@ -60,7 +60,7 @@ median_of() {
 declare -A MEDIAN_NS
 declare -A ITERS
 declare -A CHECKSUM
-WORKLOADS=(escape_hatches ijson_jcs lock_sync root_shape)
+WORKLOADS=(escape_hatches ijson_jcs required_contexts root_shape)
 ANY_FAILED=0
 
 run_workload() {
@@ -97,8 +97,8 @@ log_human "====================================="
 
 run_workload escape_hatches 5 bash "$REPO_ROOT/scripts/check-escape-hatches.sh" \
   "$REPO_ROOT/src" "$REPO_ROOT/verification" "$REPO_ROOT/.machine_readable/coaptation"
-run_workload ijson_jcs 5 bash "$REPO_ROOT/scripts/check-ijson-jcs.sh" --enforce "$REPO_ROOT"
-run_workload lock_sync 5 bash "$REPO_ROOT/scripts/check-lock-sync.sh" "$REPO_ROOT/.github/workflows"
+run_workload ijson_jcs 5 env IJSON_JCS_FORCE_JS=1 bash "$REPO_ROOT/scripts/check-ijson-jcs.sh" --enforce "$REPO_ROOT"
+run_workload required_contexts 5 bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$REPO_ROOT"
 run_workload root_shape 5 bash "$REPO_ROOT/scripts/check-root-shape.sh" "$REPO_ROOT"
 
 COMMIT_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown')"

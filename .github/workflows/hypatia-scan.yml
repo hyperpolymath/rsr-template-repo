@@ -1,13 +1,14 @@
 # This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
 #
-# Standalone Hypatia security scan for push, weekly schedule, and manual
-# dispatch. Pull-request Hypatia scanning and grid comment posting run once in
-# `.github/workflows/fork-governance.yml` per metadatastician/standards
-# `3-practice/fork-governance/ADOPTION.adoc` §3 ("One PR, one scan").
+# Self-contained Hypatia neurosymbolic security scan + SARIF upload (`category:
+# hypatia`) satisfying the `Hypatia` code-scanning tool requirement in the
+# `Base` branch ruleset on `main`, as well as push, weekly schedule, and manual
+# dispatch runs.
 name: Hypatia Security Scan
 
 on:
+  pull_request:
   push:
     branches: [main, master, develop]
   schedule:
@@ -17,13 +18,103 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 permissions:
-  actions: read      # required by the reusable workflow (staleness check reads workflow runs)
   contents: read
-  security-events: write
 
 jobs:
   hypatia:
-    uses: metadatastician/standards/.github/workflows/hypatia-scan-reusable.yml@8e48b1caade08a552646adeab66558ac43b4360d
-    secrets:
-      HYPATIA_SCAN_PAT: ${{ secrets.HYPATIA_SCAN_PAT }}
+    name: Hypatia Neurosymbolic Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      HYPATIA_SHA: '9a5db53f3b22bdd3e2a10f430ead5fd8a793711d'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Elixir 1.17 / OTP 27.0 for Hypatia scanner
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          elixir-version: '1.17'
+          otp-version: '27.0'
+
+      - name: Cache pinned Hypatia build
+        id: cache-hypatia
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/hypatia
+            ~/.hex
+            ~/.mix
+          key: hypatia-sarif-${{ runner.os }}-otp27-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
+
+      - name: Build pinned Hypatia scanner
+        run: |
+          set -euo pipefail
+          if [ ! -x "$HOME/hypatia/hypatia" ] || [ ! -x "$HOME/hypatia/hypatia-cli.sh" ]; then
+            rm -rf "$HOME/hypatia"
+            git init "$HOME/hypatia"
+            git -C "$HOME/hypatia" remote add origin https://github.com/hyperpolymath/hypatia.git
+            git -C "$HOME/hypatia" fetch --depth=1 origin "$HYPATIA_SHA"
+            git -C "$HOME/hypatia" checkout --detach FETCH_HEAD
+            (
+              cd "$HOME/hypatia"
+              mix local.hex --force
+              mix local.rebar --force
+              mix deps.get
+              mix escript.build
+            )
+            chmod +x "$HOME/hypatia/hypatia" "$HOME/hypatia/hypatia-cli.sh"
+          fi
+
+      - name: Run Hypatia JSON and SARIF analysis
+        id: scan
+        run: |
+          set -euo pipefail
+          HYPATIA_FORMAT=json "$HOME/hypatia/hypatia-cli.sh" scan . --exit-zero > hypatia-findings.json
+          jq -e 'type == "array"' hypatia-findings.json >/dev/null
+
+          HYPATIA_FORMAT=sarif "$HOME/hypatia/hypatia-cli.sh" scan . --exit-zero > hypatia.sarif
+          jq -e '.runs | type == "array" and length > 0' hypatia.sarif >/dev/null
+
+          CRITICAL="$(jq '[.[] | select(.severity == "critical")] | length' hypatia-findings.json)"
+          HIGH="$(jq '[.[] | select(.severity == "high")] | length' hypatia-findings.json)"
+          TOTAL="$(jq 'length' hypatia-findings.json)"
+          {
+            echo "critical=$CRITICAL"
+            echo "high=$HIGH"
+            echo "total=$TOTAL"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload Hypatia SARIF to GitHub Code Scanning
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          sarif_file: hypatia.sarif
+          category: hypatia
+
+      - name: Enforce zero critical Hypatia findings
+        env:
+          CRITICAL_COUNT: ${{ steps.scan.outputs.critical }}
+          HIGH_COUNT: ${{ steps.scan.outputs.high }}
+          TOTAL_COUNT: ${{ steps.scan.outputs.total }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Hypatia Neurosymbolic Scan"
+            echo ""
+            echo "- Critical: ${CRITICAL_COUNT}"
+            echo "- High: ${HIGH_COUNT}"
+            echo "- Total findings: ${TOTAL_COUNT}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CRITICAL_COUNT" != "0" ]; then
+            echo "::error::Hypatia reported ${CRITICAL_COUNT} critical finding(s)"
+            exit 1
+          fi

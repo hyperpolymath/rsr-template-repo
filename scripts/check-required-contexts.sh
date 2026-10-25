@@ -9,8 +9,8 @@
 #      an existing workflow under .github/workflows/ that runs on pull_request
 #      without path-filtering that could strand a PR (#219 defect class).
 #   2. No workflow in .github/workflows/ invokes an admin bypass (`gh pr merge
-#      --admin` or `bypass` override) — enforcing cicd-squabbler's core
-#      `squabble != bypass` invariant statically alongside the runtime binary.
+#      --admin`) — enforcing cicd-squabbler's core `squabble != bypass`
+#      invariant statically alongside the runtime binary.
 #
 # Exit contract (proven-tests-and-benches 3-outcome convention):
 #   0 = all mapped required contexts are producible on pull_request and zero
@@ -101,11 +101,22 @@ for (const [ctx, relWf] of mapped.entries()) {
   }
   const doc = Bun.YAML.parse(readFileSync(fullWf, "utf8"));
   const onBlock = doc?.on ?? doc?.true;
-  if (!onBlock || typeof onBlock !== "object" || !Object.hasOwn(onBlock, "pull_request")) {
+  const triggers =
+    typeof onBlock === "string"
+      ? [onBlock]
+      : Array.isArray(onBlock)
+        ? onBlock.map(String)
+        : onBlock && typeof onBlock === "object"
+          ? Object.keys(onBlock)
+          : [];
+  if (!triggers.includes("pull_request")) {
     fail(`required context '${ctx}' producer '${relWf}' does not trigger on pull_request`);
     continue;
   }
-  const prCfg = onBlock.pull_request;
+  const prCfg =
+    onBlock && typeof onBlock === "object" && !Array.isArray(onBlock)
+      ? onBlock.pull_request
+      : null;
   if (prCfg && typeof prCfg === "object") {
     if (Object.hasOwn(prCfg, "paths") || Object.hasOwn(prCfg, "paths-ignore")) {
       fail(`required context '${ctx}' producer '${relWf}' filters pull_request by paths — strands PRs that do not touch those paths`);
@@ -114,10 +125,10 @@ for (const [ctx, relWf] of mapped.entries()) {
 }
 
 // 4. Enforce squabble != bypass across all workflows: no workflow may call
-//    `gh pr merge ... --admin`.
+//    `gh pr merge ... --admin` (joining backslash line continuations first).
 for (const name of readdirSync(wfDir).sort()) {
   if (!name.endsWith(".yml") && !name.endsWith(".yaml")) continue;
-  const raw = readFileSync(join(wfDir, name), "utf8");
+  const raw = readFileSync(join(wfDir, name), "utf8").replace(/\\\r?\n\s*/g, " ");
   if (/gh\s+pr\s+merge\b[^\n]*--admin\b/.test(raw)) {
     fail(`.github/workflows/${name} invokes 'gh pr merge --admin' (violates squabble != bypass)`);
   }

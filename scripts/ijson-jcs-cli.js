@@ -9,19 +9,18 @@
 // as transitional tooling until metadatastician/kyq passes positive/negative
 // tests across its four-format scope.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 const EXIT_OK = 0;
 const EXIT_NOT_CANONICAL = 1;
 const EXIT_INVALID = 2;
 const SAFE_MAX_INT = 9007199254740991n; // 2^53 - 1 (RFC 7493 §2.2)
 
-const USAGE = `ijson-jcs-cli.js - I-JSON (RFC 7493) parsing and JCS (RFC 8785) canonicalisation
+const USAGE = `ijson-jcs-cli.js - I-JSON (RFC 7493) parsing and JCS (RFC 8785) canonicalisation (stdin filter)
 
 USAGE:
-    ijson-jcs check FILE...    Report whether each FILE is canonical
-    ijson-jcs fix FILE...      Rewrite each valid FILE in canonical form
-    ijson-jcs canon            Canonicalise stdin to stdout
+    ijson-jcs-cli.js check    Read stdin; exit 0 if canonical, 1 if valid I-JSON but non-canonical, 2 if invalid
+    ijson-jcs-cli.js canon    Read stdin; write canonical JCS (no trailing newline) to stdout
 `;
 
 /**
@@ -303,87 +302,33 @@ function canonicalString(bytes) {
 
 const encoder = new TextEncoder();
 
-function cmdCheck(files) {
-  let code = EXIT_OK;
-  for (const path of files) {
-    let bytes;
-    try {
-      bytes = readFileSync(path);
-    } catch (err) {
-      console.log(`INVALID ${path}: cannot read: ${err.message}`);
-      code = EXIT_INVALID;
-      continue;
-    }
-    try {
-      const canon = encoder.encode(canonicalString(bytes));
-      const stripped =
-        bytes.length > 0 && bytes[bytes.length - 1] === 0x0a
-          ? bytes.subarray(0, bytes.length - 1)
-          : bytes;
-      let eq = stripped.length === canon.length;
-      if (eq) {
-        for (let idx = 0; idx < canon.length; idx++) {
-          if (stripped[idx] !== canon[idx]) {
-            eq = false;
-            break;
-          }
-        }
-      }
-      if (eq) {
-        console.log(`OK ${path}`);
-      } else {
-        console.log(`NOT CANONICAL ${path}`);
-        code = Math.max(code, EXIT_NOT_CANONICAL);
-      }
-    } catch (err) {
-      console.log(`INVALID ${path}: ${err.message}`);
-      code = EXIT_INVALID;
-    }
+function cmdCheckStdin() {
+  let bytes;
+  try {
+    bytes = readFileSync(0);
+  } catch (err) {
+    console.error(`INVALID <stdin>: cannot read: ${err.message}`);
+    return EXIT_INVALID;
   }
-  return code;
-}
-
-function cmdFix(files) {
-  let code = EXIT_OK;
-  for (const path of files) {
-    let bytes;
-    try {
-      bytes = readFileSync(path);
-    } catch (err) {
-      console.log(`INVALID ${path}: cannot read: ${err.message}`);
-      code = EXIT_INVALID;
-      continue;
+  try {
+    const canon = encoder.encode(canonicalString(bytes));
+    const stripped =
+      bytes.length > 0 && bytes[bytes.length - 1] === 0x0a
+        ? bytes.subarray(0, bytes.length - 1)
+        : bytes;
+    if (stripped.length !== canon.length) {
+      return EXIT_NOT_CANONICAL;
     }
-    let canonBytes;
-    try {
-      canonBytes = encoder.encode(canonicalString(bytes) + "\n");
-    } catch (err) {
-      console.log(`INVALID ${path}: ${err.message}`);
-      code = EXIT_INVALID;
-      continue;
-    }
-    let same = bytes.length === canonBytes.length;
-    if (same) {
-      for (let idx = 0; idx < canonBytes.length; idx++) {
-        if (bytes[idx] !== canonBytes[idx]) {
-          same = false;
-          break;
-        }
+    for (let idx = 0; idx < canon.length; idx++) {
+      if (stripped[idx] !== canon[idx]) {
+        return EXIT_NOT_CANONICAL;
       }
     }
-    if (same) {
-      console.log(`OK ${path}`);
-    } else {
-      try {
-        writeFileSync(path, canonBytes);
-        console.log(`FIXED ${path}`);
-      } catch (err) {
-        console.log(`INVALID ${path}: cannot write: ${err.message}`);
-        code = EXIT_INVALID;
-      }
-    }
+    return EXIT_OK;
+  } catch (err) {
+    console.error(`INVALID <stdin>: ${err.message}`);
+    return EXIT_INVALID;
   }
-  return code;
 }
 
 function cmdCanon() {
@@ -417,26 +362,11 @@ if (args.length === 0) {
   process.exit(EXIT_INVALID);
 }
 const [cmd, ...rest] = args;
-const files = rest[0] === "--" ? rest.slice(1) : rest;
-if (rest[0] !== "--") {
-  const badOpt = rest.find((a) => a.startsWith("-") && a.length > 1);
-  if (badOpt) {
-    console.error(`ijson-jcs: unknown option '${badOpt}'`);
-    process.exit(EXIT_INVALID);
-  }
-}
-if ((cmd === "check" || cmd === "fix") && files.length === 0) {
-  console.error(`ijson-jcs: '${cmd}' needs at least one FILE`);
+if (rest.length > 0) {
+  console.error(`ijson-jcs: '${cmd}' reads stdin and takes no arguments`);
   process.exit(EXIT_INVALID);
 }
-if (cmd === "check") process.exit(cmdCheck(files));
-if (cmd === "fix") process.exit(cmdFix(files));
-if (cmd === "canon") {
-  if (files.length > 0) {
-    console.error("ijson-jcs: 'canon' reads stdin and takes no FILE");
-    process.exit(EXIT_INVALID);
-  }
-  process.exit(cmdCanon());
-}
+if (cmd === "check") process.exit(cmdCheckStdin());
+if (cmd === "canon") process.exit(cmdCanon());
 console.error(`ijson-jcs: unknown command '${cmd}'`);
 process.exit(EXIT_INVALID);

@@ -124,7 +124,8 @@ so they stay. Do not add either rule back without a producer that runs on
 `required_linear_history` is in `base.json` but not in live `Base`; it is
 enforced by the separate `Require-Linear-History` ruleset. `required_status_checks` (an empty list, so a no-op) and the
 `pull_request` rule are likewise absent from live `Base`. (`non_fast_forward` is
-live in `Base` as of 2026-10-02, and is also covered by `Branch-Floor`.)
+live in `Base` as of 2026-10-02; `branch-floor.json` also specifies it as a
+retained recovery payload, though `Branch-Floor` is not mounted as a separate live ruleset.)
 
 *`Immutable-Tags.json` lags the live ruleset* ::
 

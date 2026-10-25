@@ -3,28 +3,10 @@
 #
 # Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <jonathan.jewell@open.ac.uk>
 #
-# Compute the benchmark baseline from proven-bench JSON v1 run files.
+# Compute the benchmark baseline from proven-bench JSON v1 run files and emit
+# RFC 7493 (I-JSON) + RFC 8785 (JCS) canonical JSON.
 #
-# Usage: scripts/compute-bench-baseline.sh <run.json>... > benchmarks/baseline.json
-#
-# Taxonomy (standards TESTING-TAXONOMY.adoc, Part IV "Baseline Management"):
-# "Baselines are established from the mean of the last 10 CI runs on main."
-# So this script takes AT LEAST 10 run files and refuses fewer: below ten the
-# gate is mathematically inert, and it says so (exit 2, "BASELINE
-# BOOTSTRAPPING") rather than writing a baseline that looks complete.
-# Choosing WHICH runs are "the last 10 on main" is the caller's job, because
-# only the caller knows where the artifacts came from (see the regeneration
-# recipe in benchmarks/README.adoc).
-#
-# Provenance: when a file's parent directory is named by digits only (the
-# layout `gh run download <run-id> -n proven-bench-<run-id> -D <run-id>`
-# produces), that name is recorded as the source's run_id. The output is
-# deterministic — no timestamps — so regenerating from the same artifacts
-# reproduces the committed file byte for byte.
-#
-# Checksums are NOT vetted here (bench-stats.jq `checksum_errors` explains
-# why: artifacts from before #85 carry an XOR-parity checksum that was False on
-# every run). The gate vets the current run's checksum instead.
+# Usage: scripts/compute-bench-baseline.sh <run.json>... > benches/baseline.json
 #
 # Exit codes: 0 baseline written to stdout; 2 no baseline could be computed.
 
@@ -33,15 +15,12 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" || { echo "FAIL: cannot locate script directory" >&2; exit 2; }
 MIN_RUNS=10
 
-# die: print a reason to stderr and exit 2 (no baseline was computed).
 die() {
   echo "compute-bench-baseline: $*" >&2
   echo "compute-bench-baseline: NO BASELINE WRITTEN." >&2
   exit 2
 }
 
-# run_id_of: print the digits-only parent directory name of a file, or
-# nothing when the parent is not named by a run id.
 run_id_of() {
   local parent
   parent="$(basename "$(dirname "$1")")"
@@ -50,8 +29,6 @@ run_id_of() {
   fi
 }
 
-# validate_run: refuse a run file that is missing, unparseable, or not a
-# well-formed proven-bench v1 document, naming every shape error found.
 validate_run() {
   local f="$1" errs
   [ -f "$f" ] || die "run file '$f' does not exist"
@@ -69,21 +46,35 @@ if [ "$#" -lt "$MIN_RUNS" ]; then
   die "BASELINE BOOTSTRAPPING: $#/$MIN_RUNS runs - the gate would be INERT; supply at least $MIN_RUNS"
 fi
 
+declare -A SEEN_PATHS=()
+declare -A SEEN_RUN_IDS=()
 ids_json='[]'
 for f in "$@"; do
   validate_run "$f"
-  ids_json="$(jq -c --arg id "$(run_id_of "$f")" '. + [ if $id == "" then null else $id end ]' <<<"$ids_json")" \
+  canon_path="$(realpath "$f" 2>/dev/null || printf '%s' "$f")"
+  if [ -n "${SEEN_PATHS[$canon_path]:-}" ]; then
+    die "duplicate source run file '$f' - supply $MIN_RUNS distinct runs"
+  fi
+  SEEN_PATHS["$canon_path"]=1
+
+  rid="$(run_id_of "$f")"
+  if [ -n "$rid" ]; then
+    if [ -n "${SEEN_RUN_IDS[$rid]:-}" ]; then
+      die "duplicate source run_id '$rid' - supply $MIN_RUNS distinct runs"
+    fi
+    SEEN_RUN_IDS["$rid"]=1
+  fi
+
+  ids_json="$(jq -c --arg id "$rid" '. + [ if $id == "" then null else $id end ]' <<<"$ids_json")" \
     || die "could not record provenance for '$f'"
 done
 
-# Every run must measure the SAME frozen workload set with the SAME iteration
-# counts; mixing workload definitions would average different experiments.
 if ! jq -L "$SCRIPT_DIR" -s -e 'include "bench-stats";
       (map(iterations_map) | unique | length) == 1' "$@" >/dev/null; then
   die "the run files disagree on the workload set or iteration counts - they measure different experiments"
 fi
 
-jq -L "$SCRIPT_DIR" -s --argjson ids "$ids_json" '
+RAW_JSON="$(jq -L "$SCRIPT_DIR" -cS -s --argjson ids "$ids_json" '
   include "bench-stats";
   . as $runs
   | ($runs[0] | iterations_map) as $iters
@@ -107,4 +98,14 @@ jq -L "$SCRIPT_DIR" -s --argjson ids "$ids_json" '
           mean_loo_ratio: ([ $loo[][.] ] | add / length)
         } }) | from_entries )
     }
-' "$@" || die "jq failed while computing the baseline"
+' "$@")" || die "jq failed while computing the baseline"
+
+if command -v ijson-jcs >/dev/null 2>&1; then
+  printf '%s' "$RAW_JSON" | ijson-jcs canon || die "ijson-jcs failed to canonicalize baseline"
+  printf '\n'
+elif command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; then
+  printf '%s' "$RAW_JSON" | bun "$SCRIPT_DIR/ijson-jcs-cli.js" canon || die "ijson-jcs-cli.js failed to canonicalize baseline"
+  printf '\n'
+else
+  printf '%s\n' "$RAW_JSON"
+fi

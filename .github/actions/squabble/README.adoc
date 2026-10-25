@@ -92,26 +92,25 @@ Read every value from the release itself, never from a tag name alone.
 . Run `gh attestation verify` on the asset with the flags `install.sh` uses
   and that commit as `--source-digest`. It must pass.
 . Set `SQUABBLE_TAG`, `SQUABBLE_SHA256` and `SQUABBLE_SOURCE_DIGEST` in
-  `install.sh`, and the expected version string in
-  `.github/workflows/squabble-action.yml`.
-. Run `bash tests/squabble_action_test.sh`. It must end with every planned
-  case run and none failed.
+  `install.sh`, and update any version reference in
+  `.github/workflows/squabble.yml`.
+. Run `bash tests/workflows/squabble_gate_test.sh`. It must end with every
+  planned case run and none failed.
 
 == How it is tested
 
-`tests/squabble_action_test.sh` exercises each guard on its own, with
-planted negatives: the attestation JSON check against hand-built fixtures,
-`run.sh` against a stand-in binary, the digest and attestation checks against
-the real asset and a copy with one byte appended, and `install.sh` end to end
-with a tampered download, which must be refused and must leave PATH and the
-step outputs untouched. It also checks that `action.yml` runs exactly those
-two scripts with exactly the tested environment, and refuses four planted
-mutants of it. The run fails unless every planned case ran.
+`tests/workflows/squabble_gate_test.sh` exercises the action guards and the
+companion required-context gate with Silence + Firing + Setup cases: the
+`verify_digest` SHA256 mismatch check, the `check_attestation_json` SLSA
+attestation checks (empty array, matching digest, mismatched digest),
+`run.sh` exit-code propagation (`0` and blocking exit `4`) against a stand-in
+binary, and `scripts/check-required-contexts.sh` against missing producers,
+path-filtered workflows, unmapped ruleset contexts, and `gh pr merge --admin`
+bypass invocations.
 
-`.github/workflows/squabble-action.yml` runs that suite, then runs
-`install.sh` and `run.sh` as the action's steps do on a real runner, and
-checks that squabble is on PATH in a later step and that exit codes come
-back as step outputs.
+`.github/workflows/squabble.yml` runs `install.sh` and `run.sh` on a real
+runner against this repository's `.github/workflows` directory and verifies
+`scripts/check-required-contexts.sh`.
 
 === Not yet tested
 

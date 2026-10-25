@@ -89,7 +89,17 @@ for f in "$@"; do
     echo "::error file=$f::kyaml-format: $f is not KYAML — run scripts/kyaml-format.sh $f" >&2
     drift=$((drift + 1))
   else
-    cat "$out" > "$f"
+    staged=""
+    if ! staged="$(mktemp "$(dirname "$f")/.kyaml.XXXXXX")" || ! cp -p "$f" "$staged" 2>/dev/null && ! : > "$staged"; then
+      [ -n "$staged" ] && rm -f "$staged"
+      refuse "$f" "could not stage temporary file in $(dirname "$f")"
+      continue
+    fi
+    if ! cat "$out" > "$staged" || ! cmp -s "$out" "$staged" || ! mv -f "$staged" "$f"; then
+      rm -f "$staged"
+      refuse "$f" "failed to atomically replace $f"
+      continue
+    fi
     echo "kyaml-format: rewrote $f"
     rewritten=$((rewritten + 1))
   fi

@@ -10,17 +10,39 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 permissions:
-  actions: read      # required by the reusable workflow (staleness check reads workflow runs)
   contents: read
 
 jobs:
   scorecard:
-    uses: metadatastician/standards/.github/workflows/scorecard-reusable.yml@8e48b1caade08a552646adeab66558ac43b4360d
-    # Reusable called-workflow permissions are CAPPED by the caller's grants;
-    # without security-events: write here the scorecard SARIF upload fails with
-    # startup_failure (hypatia WF018). id-token: write enables OIDC publish.
+    name: OSSF Scorecard analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
       security-events: write
       id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run OSSF Scorecard
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Validate Scorecard SARIF before upload
+        run: |
+          set -euo pipefail
+          jq -e '.runs | type == "array" and length > 0' results.sarif >/dev/null
+
+      - name: Upload Scorecard SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          sarif_file: results.sarif
+          category: scorecard

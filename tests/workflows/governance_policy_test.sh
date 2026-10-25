@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # PR #244 configuration regressions: the retired runtime policy must not ship,
-# and governance must run for pull requests targeting any branch.
+# and governance must run for pull requests targeting any branch with a locked
+# checkout of metadatastician/standards at a full 40-hex SHA.
 # Usage: bash tests/workflows/governance_policy_test.sh
-# Requires Bun; parses local YAML only, without fetching the reusable workflow.
+# Requires Bun; parses local YAML only.
 
 set -euo pipefail
 
@@ -43,15 +44,21 @@ assert.ok(Object.hasOwn(governance.on, "workflow_dispatch"),
   "manual governance dispatch must remain available");
 console.log("PASS: unrestricted pull requests coexist with filtered pushes and manual dispatch");
 
-// The replacement must still invoke the shared policy, at a locked revision.
-// Derive that revision from the call so legitimate pin updates need no edit.
-const use = governance.jobs.governance.uses;
-const match = /^(metadatastician|hyperpolymath)\/standards\/\.github\/workflows\/governance-reusable\.yml@([a-f0-9]{40})$/.exec(use);
-assert.ok(match, "governance must invoke the standards reusable workflow at a full SHA");
-const dependency = `${match[1]}/standards@${match[2]}`;
-assert.deepEqual(lock.workflows[".github/workflows/governance.yml"], [dependency],
-  "governance's lock record must match its reusable workflow call");
-assert.equal(lock.dependencies[dependency]?.commit, `sha1-${match[2]}`,
-  "the governance pin must have a corresponding locked dependency commit");
-console.log("PASS: governance delegates to the locked standards policy");
+// Governance must pin metadatastician/standards at a full 40-hex SHA and lock
+// every step-level action it invokes in actions.lock.
+const steps = governance.jobs.governance.steps ?? [];
+const standardsCheckout = steps.find(
+  (s) => s.with && /^(metadatastician|hyperpolymath)\/standards$/.test(String(s.with.repository ?? ""))
+);
+assert.ok(standardsCheckout, "governance must check out standards policy scripts");
+assert.match(String(standardsCheckout.with.ref ?? ""), /^[a-f0-9]{40}$/,
+  "governance must pin standards at a full 40-hex commit SHA");
+const checkoutUse = String(standardsCheckout.uses ?? "");
+assert.ok(
+  (lock.workflows[".github/workflows/governance.yml"] ?? []).includes(checkoutUse),
+  "governance's lock record must match its checkout action"
+);
+assert.ok(lock.dependencies[checkoutUse]?.commit,
+  "governance's checkout action must have a corresponding locked dependency commit");
+console.log("PASS: governance executes the pinned standards policy with locked actions");
 JS

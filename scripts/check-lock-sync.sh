@@ -105,21 +105,31 @@ FILENAME == lockfile {
   if ($0 ~ /^dependencies:[[:space:]]*$/) { inwf = 0; indep = 1; next }
   if ($0 ~ /^[a-z_]+:/)                   { inwf = 0; indep = 0; next }
 
-  # --- the dependencies: section, for clause 3 ---
+  # --- the dependencies: section, for clause 3 & self-SHA ref guard ---
   if (indep) {
     # "    'owner/repo@ref':"  -- a top-level dependency record
-    if ($0 ~ /^    \x27[^\x27]+\x27:/) {
+    if ($0 ~ /^    \047[^\047]+\047:/) {
       depkey = $0
-      sub(/^    \x27/, "", depkey)
-      sub(/\x27:.*$/, "", depkey)
+      sub(/^    \047/, "", depkey)
+      sub(/\047:.*$/, "", depkey)
       haverec[ck(depkey)] = 1; disp[ck(depkey)] = depkey
       next
     }
+    # "        ref: '...'" -- ban 40-hex self-SHA ref (standards#1271)
+    if ($0 ~ /^        ref:[[:space:]]*\047[0-9a-f]+\047[[:space:]]*$/ && depkey != "") {
+      rval = $0
+      sub(/^        ref:[[:space:]]*\047/, "", rval)
+      sub(/\047[[:space:]]*$/, "", rval)
+      if (length(rval) == 40) {
+        selfsha[depkey] = rval
+      }
+      next
+    }
     # "            - 'owner/repo@ref'"  -- a nested uses: of that record
-    if ($0 ~ /^            - \x27[^\x27]+\x27/ && depkey != "") {
+    if ($0 ~ /^            - \047[^\047]+\047/ && depkey != "") {
       val = $0
-      sub(/^            - \x27/, "", val)
-      sub(/\x27.*$/, "", val)
+      sub(/^            - \047/, "", val)
+      sub(/\047.*$/, "", val)
       r = ck(val); disp[r] = val
       want[r] = 1
       wantsrc[r] = wantsrc[r] " dependencies:" depkey
@@ -131,17 +141,17 @@ FILENAME == lockfile {
   if (!inwf) next
 
   # "    '.github/workflows/x.yml':"  or  "... : []"
-  if ($0 ~ /^    \x27[^\x27]+\x27:/) {
+  if ($0 ~ /^    \047[^\047]+\047:/) {
     cur = $0
-    sub(/^    \x27/, "", cur)
-    sub(/\x27:.*$/, "", cur)
+    sub(/^    \047/, "", cur)
+    sub(/\047:.*$/, "", cur)
     seen_path[cur] = 1
     next
   }
-  if ($0 ~ /^        - \x27[^\x27]+\x27[[:space:]]*$/ && cur != "") {
+  if ($0 ~ /^        - \047[^\047]+\047[[:space:]]*$/ && cur != "") {
     val = $0
-    sub(/^        - \x27/, "", val)
-    sub(/\x27[[:space:]]*$/, "", val)
+    sub(/^        - \047/, "", val)
+    sub(/\047[[:space:]]*$/, "", val)
     lr = ck(val); disp[lr] = val; lock[cur, lr] = 1
     lockcount[cur]++
     want[lr] = 1
@@ -159,7 +169,7 @@ FNR == 1 { wf = FILENAME }
   if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
     raw = line
     sub(/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*/, "", raw)
-    gsub(/^["\x27]|["\x27]$/, "", raw)
+    gsub(/^["\047]|["\047]$/, "", raw)
     gsub(/[[:space:]]+$/, "", raw)
     if (raw ~ /^\$\//) { dollar[wf] = dollar[wf] " " raw; next }   # known corruption
     n = norm(raw)
@@ -264,6 +274,19 @@ END {
     bad = 1
   }
 
+  # --- clause 5: NO SELF-SHA REFS. GitHub rejects any dependencies: record whose
+  #     `ref:` is a 40-hex commit SHA ("invalid lockfile pin", standards#1271). ---
+  nself = 0; selflist = ""
+  for (s in selfsha) {
+    nself++
+    selflist = selflist sprintf("\n       %s (ref: %s)", s, selfsha[s])
+  }
+  if (nself > 0) {
+    printf "FAIL actions.lock: SELF-SHA REFS\n"
+    printf "     %d dependencies: record(s) use a 40-hex SHA as ref: (rejected by GitHub runner):%s\n", nself, selflist
+    bad = 1
+  }
+
   # --- a dependencies: record nothing names is dead weight, not fatal: report only ---
   nunref = 0
   for (d in haverec) if (!(d in want)) nunref++
@@ -286,7 +309,7 @@ END {
     print "     github/codeql-action/upload-sarif@<sha> is REJECTED by the schema; collapse it"
     print "     to github/codeql-action@<sha>."
     print "  4. For any UNLISTED WORKFLOWS above, add the path as a lockfile key. A workflow"
-    print "     with no uses: takes an empty list:  \x27.github/workflows/x.yml\x27: []"
+    print "     with no uses: takes an empty list:  \047.github/workflows/x.yml\047: []"
     print "     `gh actions-lock` has been observed to OMIT such a workflow entirely; that"
     print "     omission is itself the defect, so re-running the tool may not add it."
     exit 1

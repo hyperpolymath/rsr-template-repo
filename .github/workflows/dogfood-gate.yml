@@ -28,11 +28,34 @@ jobs:
   deed-validate:
     name: Validate DEED manifests
     if: github.event_name != 'pull_request'
-    uses: metadatastician/standards/.github/workflows/deed-conformance.yml@8e48b1caade08a552646adeab66558ac43b4360d
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: read
-    with:
-      require-files: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout canonical DEED validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          path: .standards-deed
+          sparse-checkout: 1-formats/deed
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - name: Setup Bun runtime
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.3.12'
+      - name: Run DEED validation hook
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/standards-deed"
+          mv "$PWD/.standards-deed" "$RUNNER_TEMP/standards-deed"
+          STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
 
   # ---------------------------------------------------------------------------
   # Job 2: K9 conformance on push (pull_request runs in fork-governance.yml).
@@ -40,12 +63,41 @@ jobs:
   k9-validate:
     name: Validate K9 contracts
     if: github.event_name != 'pull_request'
-    uses: metadatastician/standards/.github/workflows/k9-conformance.yml@8e48b1caade08a552646adeab66558ac43b4360d
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: read
-    with:
-      require-files: true
+    env:
+      NICKEL_VERSION: '1.18.0'
+      NICKEL_SHA256: '9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Checkout canonical K9 validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          path: .standards-k9
+          sparse-checkout: 1-formats/k9
+          sparse-checkout-cone-mode: true
+          persist-credentials: false
+      - name: Install sha256-verified Nickel CLI
+        run: |
+          set -euo pipefail
+          URL="https://github.com/tweag/nickel/releases/download/${NICKEL_VERSION}/nickel-x86_64-linux"
+          curl -sSfL --proto '=https' --proto-redir '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/nickel" "$URL"
+          echo "${NICKEL_SHA256}  ${RUNNER_TEMP}/nickel" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/nickel"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Run K9 validation hook
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/standards-k9"
+          mv "$PWD/.standards-k9" "$RUNNER_TEMP/standards-k9"
+          STANDARDS_DIR="$RUNNER_TEMP/standards-k9" bash .github/hooks/validate-k9.sh
 
   # The live README badge: badge.json (shields endpoint schema) published to
   # the governance-badges branch on every push to main, through the contents
@@ -60,7 +112,7 @@ jobs:
       contents: write
     steps:
       - name: Download the grid
-        uses: actions/download-artifact@v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           name: k9-grid
@@ -107,7 +159,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -185,7 +237,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -256,7 +308,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -434,7 +486,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -492,38 +544,40 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: subject
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
           ref: 8e48b1caade08a552646adeab66558ac43b4360d
           path: _standards
           persist-credentials: false
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: hyperpolymath/hypatia
           ref: 9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
           path: _hypatia
           persist-credentials: false
       - name: Setup Elixir 1.17 / OTP 27.0 for Hypatia oracle
-        uses: erlef/setup-beam@v1.24.1
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.17'
           otp-version: '27.0'
       - name: Cache Hypatia Mix deps and build
-        uses: actions/cache@v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             _hypatia/deps
             _hypatia/_build
+            ~/.hex
+            ~/.mix
           key: hypatia-oracle-${{ runner.os }}-otp27-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
       - name: Compile the oracle
         working-directory: _hypatia
-        run: mix deps.get && mix compile
+        run: mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile
       - name: Score this repo against the canon
         working-directory: _hypatia
         run: |

@@ -15,7 +15,15 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REQUIRE_ZIG=0
 RUN_BENCH=0
-REPORT_PATH="$REPO_ROOT/build/report/proven-tests-report.json"
+REPORT_PATH=""
+OWNED_REPORT_TMP=""
+BENCH_TMP=""
+
+cleanup() {
+  [ -n "$OWNED_REPORT_TMP" ] && rm -rf "$OWNED_REPORT_TMP"
+  [ -n "$BENCH_TMP" ] && rm -f "$BENCH_TMP"
+}
+trap cleanup EXIT
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -31,6 +39,13 @@ while [ "$#" -gt 0 ]; do
 done
 
 cd "$REPO_ROOT" || exit 2
+
+if [ -z "$REPORT_PATH" ]; then
+  OWNED_REPORT_TMP="$(mktemp -d)"
+  REPORT_PATH="$OWNED_REPORT_TMP/proven-tests-report.json"
+else
+  mkdir -p "$(dirname "$REPORT_PATH")" || { echo "run-proven-suite: cannot create report parent directory" >&2; exit 2; }
+fi
 
 subject_failures=0
 setup_failures=0
@@ -53,12 +68,41 @@ run_lane() {
   esac
 }
 
-# ── Tier 1: Actually-Proven honesty lint + panic-attack proof-ladder report ──
-run_lane "Idris2 proof escape-hatch & totality gate" \
-  bash scripts/check-escape-hatches.sh src verification .machine_readable/coaptation
+require_file() {
+  if [ ! -f "$1" ]; then
+    printf '    INERT/SETUP (2): missing required gate script: %s\n' "$1" >&2
+    setup_failures=$((setup_failures + 1))
+    return 1
+  fi
+  return 0
+}
 
-mkdir -p "$(dirname "$REPORT_PATH")"
-mapfile -t PROOF_FILES < <(find src verification .machine_readable/coaptation -name '*.idr' -type f | sort)
+# ── Tier 1: Idris2 honesty lint + proof-ladder report ────────────────────────
+if require_file scripts/check-escape-hatches.sh; then
+  run_lane "Idris2 proof escape-hatch & totality gate" \
+    bash scripts/check-escape-hatches.sh src verification .machine_readable/coaptation
+fi
+
+mapfile -t PROOF_FILES < <(find src verification .machine_readable/coaptation -name '*.idr' -type f | LC_ALL=C sort)
+
+# Only claim "Actually-Proven" when the Idris2 typechecker discharges every
+# module in the corpus; static escape-hatch totality verification without the
+# Idris2 kernel is recorded honestly as "Static-Checked" (never overclaiming).
+PROOF_PROVENANCE="Static-Checked"
+if command -v idris2 >/dev/null 2>&1; then
+  idris_ok=1
+  for pf in "${PROOF_FILES[@]}"; do
+    if ! idris2 --check "$pf" >/dev/null 2>&1; then
+      idris_ok=0
+      subject_failures=$((subject_failures + 1))
+      printf '    FAIL (1): idris2 --check %s\n' "$pf" >&2
+    fi
+  done
+  if [ "$idris_ok" -eq 1 ] && [ "${#PROOF_FILES[@]}" -gt 0 ]; then
+    PROOF_PROVENANCE="Actually-Proven"
+  fi
+fi
+
 {
   printf '{"entries":[{"name":"rsr-idris2-proof-corpus","proof_ladder":['
   first=1
@@ -67,41 +111,39 @@ mapfile -t PROOF_FILES < <(find src verification .machine_readable/coaptation -n
     first=0
     printf '{"proof_file":"%s"}' "$pf"
   done
-  printf '],"provenance":"Actually-Proven"}],"schema_version":1}\n'
+  printf '],"provenance":"%s"}],"schema_version":1}\n' "$PROOF_PROVENANCE"
 } > "$REPORT_PATH"
 
-run_lane "Proof-ladder aggregation (emit-aggregate-inputs)" \
-  bash scripts/emit-aggregate-inputs.sh "$REPORT_PATH"
+if require_file scripts/emit-aggregate-inputs.sh; then
+  run_lane "Proof-ladder aggregation (emit-aggregate-inputs)" \
+    bash scripts/emit-aggregate-inputs.sh "$REPORT_PATH"
+fi
 
 # ── Tier 2: Repository invariant & estate data-format gates ──────────────────
-run_lane "Root shape bidirectional allowlist" \
-  bash scripts/check-root-shape.sh .
-run_lane "I-JSON (RFC 7493) + JCS (RFC 8785) canonical gate" \
-  bash scripts/check-ijson-jcs.sh --enforce .
-run_lane "Workflow actions.lock integrity" \
-  bash scripts/check-lock-sync.sh .github/workflows
-if [ -f scripts/check-required-contexts.sh ]; then
-  run_lane "Required status contexts producibility gate" \
-    bash scripts/check-required-contexts.sh .
-fi
-run_lane "CHORA deed validation & retired .a2ml refusal" \
-  bash .github/hooks/validate-deed.sh
-run_lane "K9 pedigree & contract validation" \
-  bash .github/hooks/validate-k9.sh
+require_file scripts/check-root-shape.sh && \
+  run_lane "Root shape bidirectional allowlist" bash scripts/check-root-shape.sh .
+require_file scripts/check-ijson-jcs.sh && \
+  run_lane "I-JSON (RFC 7493) + JCS (RFC 8785) canonical gate" bash scripts/check-ijson-jcs.sh --enforce .
+require_file scripts/check-lock-sync.sh && \
+  run_lane "Workflow actions.lock integrity" bash scripts/check-lock-sync.sh .github/workflows
+require_file scripts/check-required-contexts.sh && \
+  run_lane "Required status contexts producibility gate" bash scripts/check-required-contexts.sh .
+require_file .github/hooks/validate-deed.sh && \
+  run_lane "CHORA deed validation & retired .a2ml refusal" bash .github/hooks/validate-deed.sh
+require_file .github/hooks/validate-k9.sh && \
+  run_lane "K9 pedigree & contract validation" bash .github/hooks/validate-k9.sh
 
 # ── Tier 3: Silence + Firing contract & E2E test suites ──────────────────────
-run_lane "Proven tools Silence + Firing self-tests" \
-  bash tests/proven_suite_test.sh
-run_lane "I-JSON/JCS Silence + Firing self-tests" \
-  bash tests/workflows/check_ijson_jcs_test.sh
-if [ -f tests/workflows/squabble_gate_test.sh ]; then
-  run_lane "CICD-Squabbler & required-context Silence + Firing self-tests" \
-    bash tests/workflows/squabble_gate_test.sh
-fi
-run_lane "Root shape Silence + Firing self-tests" \
-  bash tests/shape/check_root_shape_test.sh
-run_lane "Site & .well-known boundary + planted controls" \
-  bash www/tests/run-all.sh
+require_file tests/proven_suite_test.sh && \
+  run_lane "Proven tools Silence + Firing self-tests" bash tests/proven_suite_test.sh
+require_file tests/workflows/check_ijson_jcs_test.sh && \
+  run_lane "I-JSON/JCS Silence + Firing self-tests" bash tests/workflows/check_ijson_jcs_test.sh
+require_file tests/workflows/squabble_gate_test.sh && \
+  run_lane "CICD-Squabbler & required-context Silence + Firing self-tests" bash tests/workflows/squabble_gate_test.sh
+require_file tests/shape/check_root_shape_test.sh && \
+  run_lane "Root shape Silence + Firing self-tests" bash tests/shape/check_root_shape_test.sh
+require_file www/tests/run-all.sh && \
+  run_lane "Site & .well-known boundary + planted controls" bash www/tests/run-all.sh
 
 # ── Tier 4: Zig FFI unit tests + E2E mint instantiation ──────────────────────
 run_zig_ffi_tests() {
@@ -125,8 +167,8 @@ else
 fi
 
 if command -v rustc >/dev/null 2>&1 && command -v just >/dev/null 2>&1; then
-  run_lane "Template mint instantiation E2E" \
-    bash tests/e2e/template_instantiation_test.sh .
+  require_file tests/e2e/template_instantiation_test.sh && \
+    run_lane "Template mint instantiation E2E" bash tests/e2e/template_instantiation_test.sh .
 fi
 
 # ── Tier 5: Benchmark regression gate (optional --bench) ─────────────────────
@@ -134,17 +176,14 @@ if [ "$RUN_BENCH" -eq 1 ]; then
   if ! command -v jq >/dev/null 2>&1; then
     printf '    INERT/SETUP (2): jq required for --bench regression gate\n' >&2
     setup_failures=$((setup_failures + 1))
-  else
+  elif require_file benches/template_bench.sh && require_file scripts/check-bench-regression.sh && require_file benches/baseline.json; then
     BENCH_TMP="$(mktemp)"
-    trap 'rm -f "$BENCH_TMP"' EXIT
     run_lane "Template benchmark execution (--json)" \
       bash -c "bash benches/template_bench.sh --json . > '$BENCH_TMP'"
     run_lane "Six-Sigma leave-one-out benchmark regression gate" \
       bash scripts/check-bench-regression.sh "$BENCH_TMP" benches/baseline.json
   fi
 fi
-
-rm -rf "$(dirname "$REPORT_PATH")"
 
 if [ "$setup_failures" -gt 0 ]; then
   printf 'proven-suite: SETUP/INERT FAILURE (%d setup, %d subject)\n' "$setup_failures" "$subject_failures" >&2
