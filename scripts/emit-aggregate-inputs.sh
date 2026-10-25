@@ -31,8 +31,9 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-EXTRACT_TMP="$(mktemp)"
-trap 'rm -f "$EXTRACT_TMP"' EXIT
+WORK_DIR="$(mktemp -d)"
+EXTRACT_TMP="$WORK_DIR/files"
+trap 'rm -rf "$WORK_DIR"' EXIT
 if ! jq -er '
   if (type != "object") or (.entries | type != "array") then
     error("report must be an object with an entries array")
@@ -70,10 +71,19 @@ if ! command -v "$PANIC_ATTACK" >/dev/null 2>&1; then
 fi
 
 status=0
+idx=0
 for f in "${LADDER_FILES[@]}"; do
+  idx=$((idx + 1))
+  output="$WORK_DIR/$idx.json"
   label="$(basename "$f" .idr)-ladder"
   echo "--- aggregate: $f (label=$label) ---"
-  if ! "$PANIC_ATTACK" aggregate --proof "$f" --label "$f=$label"; then
+  if ! "$PANIC_ATTACK" aggregate --proof "$f" --label "$f=$label" --output "$output"; then
+    echo "error: aggregate failed for $f" >&2
+    status=1
+  elif ! jq -e '
+    (.aggregated_proofs | type == "array" and length > 0)
+    and all(.aggregated_proofs[]; .verdict == "closed")
+  ' "$output" >/dev/null 2>&1; then
     echo "error: aggregate reported a non-Closed verdict for $f" >&2
     status=1
   fi

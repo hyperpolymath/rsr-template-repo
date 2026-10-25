@@ -83,3 +83,26 @@ for mode in format check; do
 done
 [[ -z "$(find "$work" -name '.kyaml.*' -print)" ]] || fail 'formatter leaked a staging file'
 echo 'PASS: semantic drift is refused in both modes before atomic replacement'
+
+# Preserve the remote regression coverage: formatting refuses links even
+# when the target is already canonical; check mode may inspect the target.
+printf 'name: sample\n' > "$work/target.kyaml"
+cp "$work/target.kyaml" "$work/symlink-original"
+ln -s target.kyaml "$work/link.kyaml"
+expect 2 "$work/link.kyaml"
+grep -qF 'symlink' "$work/out" || fail 'symlink refusal did not name the cause'
+[[ -L "$work/link.kyaml" && "$(readlink "$work/link.kyaml")" == target.kyaml ]] || fail 'formatting replaced the symlink'
+cmp -s "$work/target.kyaml" "$work/symlink-original" || fail 'formatting modified a symlink target'
+expect 1 --check "$work/link.kyaml"
+[[ -L "$work/link.kyaml" ]] || fail 'check mode replaced the symlink'
+cmp -s "$work/target.kyaml" "$work/symlink-original" || fail 'check mode modified a symlink target'
+expect 0 "$work/target.kyaml"
+expect 0 --check "$work/target.kyaml"
+cp "$work/target.kyaml" "$work/symlink-formatted"
+expect 2 "$work/link.kyaml"
+[[ -L "$work/link.kyaml" ]] || fail 'formatting replaced a link to a canonical target'
+cmp -s "$work/target.kyaml" "$work/symlink-formatted" || fail 'formatting changed a canonical symlink target'
+ln -s missing.kyaml "$work/dangling.kyaml"
+expect 2 "$work/dangling.kyaml"
+[[ -L "$work/dangling.kyaml" ]] || fail 'formatting replaced a dangling symlink'
+echo 'PASS: formatter refuses symlinks, preserves targets, and formats regular files'

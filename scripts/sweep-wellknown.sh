@@ -221,6 +221,10 @@ gh_api() { # path...
          "$@"
 }
 
+# Classify OWNER/$1 for migration: Pages/CDN markers (review-pages) take precedence
+# over RSR markers (sweep); repositories with neither need review-other.
+# API failures yield unknown and truncated trees yield review-other, both with
+# success status. root_wk and www_wk indicate .well-known file presence.
 classify_repo() { # repo -> "class|root_wk|www_wk|notes"; paths cached in $WORK/trees/<repo>
     local repo="$1"
     local json paths=""

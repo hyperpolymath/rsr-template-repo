@@ -20,7 +20,8 @@
 #   0 = every FILE is KYAML (after the rewrite, in format mode)
 #   1 = --check: at least one FILE is not KYAML (each one is named)
 #   2 = refused: no FILE given, a FILE is missing or unparseable, a FILE has no
-#       final newline, or the rewrite would change the parsed data. A refusal
+#       final newline, is a symlink in format mode, or the rewrite would change
+#       the parsed data. A refusal
 #       never rewrites that FILE and never counts as clean.
 #
 # Why the final-newline refusal: a `|` block scalar that ends at EOF with no
@@ -69,6 +70,9 @@ i=0
 for f in "$@"; do
   i=$((i + 1))
   out="$TMP/$i.kyaml"
+  if [ "$MODE" = format ] && [ -L "$f" ]; then
+    refuse "$f" "symlink; format its target explicitly"; continue
+  fi
   if [ ! -f "$f" ]; then
     refuse "$f" "no such file"; continue
   fi

@@ -27,6 +27,8 @@ USAGE:
  * Decode a buffer strictly as UTF-8 without BOM (RFC 7493 §2.1).
  * @param {Uint8Array} bytes
  * @returns {string}
+ * @throws {Error} If a BOM is present.
+ * @throws {TypeError} If the bytes are not valid UTF-8.
  */
 function decodeStrictUtf8(bytes) {
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
@@ -39,6 +41,7 @@ function decodeStrictUtf8(bytes) {
 /**
  * Reject Unicode noncharacters and lone surrogates (RFC 7493 §2.1).
  * @param {string} s
+ * @throws {Error} If the string contains a noncharacter or lone surrogate.
  */
 function checkStringCodePoints(s) {
   for (let k = 0; k < s.length; k++) {
@@ -65,14 +68,17 @@ function checkStringCodePoints(s) {
 
 /**
  * Parse `raw` strictly as RFC 7493 I-JSON, rejecting duplicate keys,
- * integers outside +/-(2^53-1), non-finite floats, lone surrogates,
+ * integer tokens outside +/-(2^53-1), non-finite floats, lone surrogates,
  * and Unicode noncharacters.
  * @param {string} raw
+ * @returns {unknown} The parsed value, with objects represented as Maps.
+ * @throws {Error} If JSON syntax or the above validation rules are violated.
  */
 function parseIJson(raw) {
   let i = 0;
   const n = raw.length;
 
+  /** Advance the shared offset past any JSON whitespace. */
   function ws() {
     while (i < n) {
       const ch = raw[i];
@@ -81,6 +87,10 @@ function parseIJson(raw) {
     }
   }
 
+  /**
+   * Read a quoted string at the shared offset and advance past its closing quote.
+   * Throws on malformed escapes, unterminated strings, or invalid code points.
+   */
   function parseString() {
     if (raw[i] !== '"') throw new Error(`expected '"' at byte ${i}`);
     i++;
@@ -131,6 +141,10 @@ function parseIJson(raw) {
     throw new Error("unterminated string");
   }
 
+  /**
+   * Read a JSON number at the shared offset, advancing past it and converting -0 to 0.
+   * Throws on malformed numbers, unsafe integer tokens, or non-finite results.
+   */
   function parseNumber() {
     const start = i;
     if (raw[i] === "-") i++;
@@ -173,6 +187,11 @@ function parseIJson(raw) {
     return Object.is(num, -0) ? 0 : num;
   }
 
+  /**
+   * Read the next value after whitespace, advancing the shared offset.
+   * Objects become Maps; arrays retain their order. Throws on invalid syntax,
+   * duplicate decoded keys, or errors propagated from string or number parsing.
+   */
   function parseValue() {
     ws();
     if (i >= n) throw new Error("unexpected end of input");
@@ -277,8 +296,9 @@ function compareUtf16(a, b) {
 
 /**
  * Serialize a validated value into RFC 8785 (JCS) canonical form.
- * @param {unknown} val
+ * @param {unknown} val - A parsed value whose objects are Maps with string keys.
  * @returns {string}
+ * @throws {Error} If a value is neither a JSON primitive, an array, nor a Map.
  */
 function serializeJcs(val) {
   if (val === null || typeof val === "boolean" || typeof val === "number" || typeof val === "string") {
@@ -294,6 +314,10 @@ function serializeJcs(val) {
   throw new Error("unsupported JSON value");
 }
 
+/**
+ * Return JCS text without a trailing newline from BOM-free UTF-8 I-JSON bytes.
+ * Propagates decoding and I-JSON validation errors.
+ */
 function canonicalString(bytes) {
   const text = decodeStrictUtf8(bytes);
   const parsed = parseIJson(text);
@@ -302,6 +326,11 @@ function canonicalString(bytes) {
 
 const encoder = new TextEncoder();
 
+/**
+ * Check stdin against JCS, allowing a single trailing LF.
+ * Return 0 for canonical input, 1 for valid but non-canonical input, or 2 for
+ * caught read or validation errors, which are reported to stderr.
+ */
 function cmdCheckStdin() {
   let bytes;
   try {
@@ -331,6 +360,10 @@ function cmdCheckStdin() {
   }
 }
 
+/**
+ * Write stdin as JCS without a trailing newline and return 0.
+ * Return 2 and report caught read, validation, or write errors to stderr.
+ */
 function cmdCanon() {
   let bytes;
   try {
@@ -367,6 +400,9 @@ if (rest.length > 0) {
   process.exit(EXIT_INVALID);
 }
 if (cmd === "check") process.exit(cmdCheckStdin());
-if (cmd === "canon") process.exit(cmdCanon());
-console.error(`ijson-jcs: unknown command '${cmd}'`);
-process.exit(EXIT_INVALID);
+if (cmd === "canon") {
+  process.exitCode = cmdCanon();
+} else {
+  console.error(`ijson-jcs: unknown command '${cmd}'`);
+  process.exitCode = EXIT_INVALID;
+}

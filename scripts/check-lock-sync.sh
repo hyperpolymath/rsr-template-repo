@@ -124,7 +124,7 @@ FILENAME == lockfile {
       next
     }
     # "        ref: '...'" -- ban 40-hex self-SHA ref (standards#1271)
-    if ($0 ~ /^        ref:[[:space:]]*\047[0-9a-f]+\047[[:space:]]*$/ && depkey != "") {
+    if ($0 ~ /^        ref:[[:space:]]*\047[0-9a-fA-F]+\047[[:space:]]*$/ && depkey != "") {
       rval = $0
       sub(/^        ref:[[:space:]]*\047/, "", rval)
       sub(/\047[[:space:]]*$/, "", rval)

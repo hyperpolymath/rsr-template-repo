@@ -15,12 +15,15 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" || { echo "FAIL: cannot locate script directory" >&2; exit 2; }
 MIN_RUNS=10
 
+# die MESSAGE... — abort baseline generation with exit status 2.
 die() {
   echo "compute-bench-baseline: $*" >&2
   echo "compute-bench-baseline: NO BASELINE WRITTEN." >&2
   exit 2
 }
 
+# run_id_of FILE — print the parent directory's name if it contains only digits;
+# print nothing otherwise.
 run_id_of() {
   local parent
   parent="$(basename "$(dirname "$1")")"
@@ -29,10 +32,14 @@ run_id_of() {
   fi
 }
 
+# validate_run FILE — require exactly one proven-bench v1 document, exiting 2 on
+# missing, unparseable, or malformed input. Historical checksums are not validated.
 validate_run() {
   local f="$1" errs
   [ -f "$f" ] || die "run file '$f' does not exist"
-  if ! errs="$(jq -L "$SCRIPT_DIR" -r 'include "bench-stats"; bench_errors[]' "$f")"; then
+  if ! errs="$(jq -L "$SCRIPT_DIR" -sr 'include "bench-stats";
+      if length != 1 then ["expected exactly one benchmark document"]
+      else .[0] | bench_errors end | .[]' "$f")"; then
     die "run file '$f' is not parseable JSON"
   fi
   if [ -n "$errs" ]; then
@@ -76,7 +83,7 @@ fi
 
 RAW_JSON="$(jq -L "$SCRIPT_DIR" -cS -s --argjson ids "$ids_json" '
   include "bench-stats";
-  . as $runs
+  (if length != ($ids | length) then error("expected one benchmark document per source file") else . end) as $runs
   | ($runs[0] | iterations_map) as $iters
   | ($runs | map(loo_ratios)) as $loo
   | ($runs | map(medians)) as $med

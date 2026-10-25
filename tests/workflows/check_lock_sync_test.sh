@@ -52,6 +52,12 @@ expect 0 'OK' 'a 38-character hexadecimal tag is not a full SHA'
 fresh
 sed -i "s/ref: 'v1'/ref: '0123456789abcdef0123456789abcdef01234567'/" "$work/current/actions.lock"
 expect 1 'SELF-SHA REFS' 'mawk detects exactly 40 hexadecimal characters in dependency ref'
+for ref in abcdef0123456789abcdef0123456789abcdef01 ABCDEF0123456789ABCDEF0123456789ABCDEF01 aBcDeF0123456789aBcDeF0123456789aBcDeF01; do
+  [[ "${#ref}" -eq 40 ]]
+  fresh
+  sed -i "s/ref: 'v1'/ref: '$ref'/" "$work/current/actions.lock"
+  expect 1 'SELF-SHA REFS' "mawk rejects self-SHA refs regardless of hexadecimal case: $ref"
+done
 fresh
 sed -i "s/ref: 'v1'/ref: '0123456789abcdef0123456789abcdef0123456789'/" "$work/current/actions.lock"
 expect 0 'OK' 'a 42-character tag is not misclassified as a full SHA'
