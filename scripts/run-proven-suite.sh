@@ -19,6 +19,7 @@ REPORT_PATH=""
 OWNED_REPORT_TMP=""
 BENCH_TMP=""
 
+# Remove the runner-owned temporary report directory and benchmark file, if set.
 cleanup() {
   [ -n "$OWNED_REPORT_TMP" ] && rm -rf "$OWNED_REPORT_TMP"
   [ -n "$BENCH_TMP" ] && rm -f "$BENCH_TMP"
@@ -50,6 +51,9 @@ fi
 subject_failures=0
 setup_failures=0
 
+# run_lane LABEL COMMAND... — run a lane and accumulate its outcome without
+# propagating its exit status: 2 increments setup_failures; other nonzero
+# statuses increment subject_failures.
 run_lane() {
   local label="$1" rc=0
   shift
@@ -68,6 +72,8 @@ run_lane() {
   esac
 }
 
+# require_file PATH — return 0 for an existing regular file; otherwise increment
+# setup_failures and return 1.
 require_file() {
   if [ ! -f "$1" ]; then
     printf '    INERT/SETUP (2): missing required gate script: %s\n' "$1" >&2
@@ -146,6 +152,8 @@ require_file www/tests/run-all.sh && \
   run_lane "Site & .well-known boundary + planted controls" bash www/tests/run-all.sh
 
 # ── Tier 4: Zig FFI unit tests + E2E mint instantiation ──────────────────────
+# Run Zig FFI tests in a temporary copy with project placeholders filled in.
+# Remove the copy on return and propagate the zig build test exit status.
 run_zig_ffi_tests() {
   local work tok_lc tok_uc
   work="$(mktemp -d)"

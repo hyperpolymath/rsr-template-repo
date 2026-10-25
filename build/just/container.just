@@ -89,6 +89,8 @@ container-init:
         -e "s|${LB}REGISTRY${RB}|${REGISTRY}|g"
     )
 
+    # Return success when $1 is classified as text, using a byte-content probe
+    # (which accepts empty files) when the file command is unavailable.
     is_text_file() {
         if command -v file >/dev/null 2>&1; then
             file --brief "$1" | grep -qi 'text\|ascii\|utf'

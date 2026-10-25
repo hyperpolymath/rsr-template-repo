@@ -38,6 +38,7 @@ do
   [ -f "$req" ] || { echo "template_bench: required workload script missing: $req" >&2; exit 2; }
 done
 
+# Print a message only in human output mode.
 log_human() {
   if [ "$OUTPUT_FORMAT" = "human" ]; then
     printf '%s\n' "$*"
@@ -45,6 +46,8 @@ log_human() {
 }
 
 # median_of <n1> <n2> ... -> integer median on stdout
+# Requires at least one integer sample; for even counts, truncate the average
+# of the two middle samples toward zero.
 median_of() {
   local sorted count mid
   mapfile -t sorted < <(printf '%s\n' "$@" | sort -n)
@@ -63,6 +66,9 @@ declare -A CHECKSUM
 WORKLOADS=(escape_hatches ijson_jcs required_contexts root_shape)
 ANY_FAILED=0
 
+# run_workload NAME ITERATIONS COMMAND... — run one warm-up and ITERATIONS timed
+# samples, recording median nanoseconds, iterations, and checksum by NAME.
+# Any failed invocation sets ANY_FAILED and a false checksum; sampling continues.
 run_workload() {
   local name="$1" iterations="$2"
   shift 2

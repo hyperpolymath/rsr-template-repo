@@ -15,12 +15,15 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)" || { echo "FAIL: cannot locate script directory" >&2; exit 2; }
 MIN_RUNS=10
 
+# die MESSAGE... — abort baseline generation with exit status 2.
 die() {
   echo "compute-bench-baseline: $*" >&2
   echo "compute-bench-baseline: NO BASELINE WRITTEN." >&2
   exit 2
 }
 
+# run_id_of FILE — print the parent directory's name if it contains only digits;
+# print nothing otherwise.
 run_id_of() {
   local parent
   parent="$(basename "$(dirname "$1")")"
@@ -29,6 +32,8 @@ run_id_of() {
   fi
 }
 
+# validate_run FILE — require exactly one proven-bench v1 document, exiting 2 on
+# missing, unparseable, or malformed input. Historical checksums are not validated.
 validate_run() {
   local f="$1" errs
   [ -f "$f" ] || die "run file '$f' does not exist"

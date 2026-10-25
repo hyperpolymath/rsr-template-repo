@@ -540,6 +540,8 @@ repo-init archetype="":
     # "resource-algebra"` (docs/man/resource_algebra.1, an image tagged with
     # the underscored name). The self-name pass below still rewrites the
     # template literal in these files; that is the edit they actually need.
+    # Return success when $1 is classified as text, using a byte-content probe
+    # (which accepts empty files) when the file command is unavailable.
     is_text_file() {
         if command -v file >/dev/null 2>&1; then
             file --brief "$1" | grep -qi 'text\|ascii\|utf'

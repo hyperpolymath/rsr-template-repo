@@ -51,6 +51,7 @@ const allowPath = join(root, ".machine_readable/required-contexts-allow.txt");
 const rulesetsDir = join(root, ".github/rulesets");
 
 let errors = 0;
+/** Report a violation and increment the shared error count without exiting. */
 function fail(msg) {
   console.error(`FAIL: ${msg}`);
   errors++;

@@ -61,11 +61,15 @@ for path in "$@"; do
   fi
 done
 
+# list_files PATH... — emit NUL-delimited .json/.jsonl paths, pruning .git,
+# node_modules, target, and _build directories.
 list_files() {
   find "$@" \( -name .git -o -name node_modules -o -name target -o -name _build \) -prune \
     -o -type f \( -name '*.json' -o -name '*.jsonl' \) -print0
 }
 
+# is_jsonc_carve_out PATH — return 0 for devcontainer.json or .vscode JSON paths;
+# return 1 otherwise.
 is_jsonc_carve_out() {
   case "$1" in
     */devcontainer.json | devcontainer.json | */.vscode/*.json | .vscode/*.json)
@@ -75,6 +79,8 @@ is_jsonc_carve_out() {
   return 1
 }
 
+# classify_json FILE — print CANONICAL, NOT_CANONICAL, or INVALID using RUNNER.
+# Canonical files require a final LF. Checker errors become INVALID verdicts.
 classify_json() {
   local rc=0
   if [ "$RUNNER_STDIN" -eq 1 ]; then
@@ -92,6 +98,9 @@ classify_json() {
   esac
 }
 
+# classify_jsonl FILE — print CANONICAL, NOT_CANONICAL, or INVALID for JSON Lines.
+# Empty files are canonical; nonempty files require a final LF. Blank records
+# or failed canonicalization yield INVALID; valid records must match JCS exactly.
 classify_jsonl() {
   local file="$1" line canon verdict=CANONICAL
   if [ -s "$file" ] && [ "$(tail -c 1 "$file" | od -An -c | tr -d ' ')" != '\n' ]; then

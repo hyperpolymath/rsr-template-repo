@@ -27,6 +27,8 @@ fn clearError() void {
 
 /// Duplicate a byte slice as a NUL-terminated buffer across Zig 0.15/0.16/0.17
 /// (`Allocator.dupeZ` was removed in Zig 0.17).
+/// The caller owns the returned slice and must free it with `allocator`.
+/// Propagates allocation failure.
 fn dupeZ(allocator: std.mem.Allocator, bytes: []const u8) ![:0]u8 {
     const buf = try allocator.allocSentinel(u8, bytes.len, 0);
     @memcpy(buf[0..bytes.len], bytes);
@@ -118,7 +120,9 @@ export fn {{project}}_process(handle: ?*Handle, input: u32) Result {
 //==============================================================================
 
 /// Get a string result (example)
-/// Caller must free the returned string
+/// Return a NUL-terminated "Example result" owned by the caller; free it with
+/// `{{project}}_free_string`. Return null and set the thread-local error for a
+/// null or uninitialized handle, or allocation failure. Clear the error on success.
 export fn {{project}}_get_string(handle: ?*Handle) ?[*:0]const u8 {
     const h = handle orelse {
         setError("Null handle");
@@ -189,6 +193,8 @@ export fn {{project}}_process_array(
 //==============================================================================
 
 /// Get the last error message.
+/// Return an allocated NUL-terminated copy of the current thread's error, or
+/// null if no error is set or allocation fails. Leave the stored error unchanged.
 /// Caller must free a non-null returned string with `{{project}}_free_string`.
 export fn {{project}}_last_error() ?[*:0]const u8 {
     const err = last_error orelse return null;

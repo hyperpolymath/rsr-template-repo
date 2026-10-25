@@ -61,6 +61,8 @@ hits=0
 STRIP_DIR="$(mktemp -d)"
 trap 'rm -f "$FIND_OUT"; rm -rf "$STRIP_DIR"' EXIT
 
+# strip_idr_comments FILE — print source without line/doc or nested block comments,
+# preserving line numbers and quoted comment markers in string literals.
 strip_idr_comments() {
   awk '
     BEGIN { bs = sprintf("%c", 92); dq = sprintf("%c", 34); depth = 0 }
@@ -111,6 +113,8 @@ for f in "${IDR_FILES[@]}"; do
   STRIPPED_FILE["$f"]="$sf"
 done
 
+# scan_idr_code REGEX — print matching stripped lines as file:line:code.
+# Scan IDR_FILES via STRIPPED_FILE; return 0 if any line matches, 1 otherwise.
 scan_idr_code() {
   local pattern="$1" f line_no=0 found=0
   for f in "${IDR_FILES[@]}"; do
