@@ -65,13 +65,13 @@ jobs:
             if [[ "$UPDATE_TYPE" = "version-update:semver-patch" || "$UPDATE_TYPE" = "version-update:semver-minor" ]]; then
               adv_json="$(gh api "/advisories/${GHSA_ID}" 2>/dev/null || echo '{}')"
               severity="$(printf '%s' "$adv_json" | jq -r '.severity // "unknown"')"
-              cvss="$(printf '%s' "$adv_json" | jq -r '.cvss.score // 10.0')"
+              cvss="$(printf '%s' "$adv_json" | jq -r 'if (.cvss.score | type) == "number" then (.cvss.score | tostring) else "invalid" end')"
               pkg_match="$(printf '%s' "$adv_json" | jq -r --arg deps "$DEP_NAMES" '
                 ($deps | split(",") | map(gsub("^\\s+|\\s+$"; "") | ascii_downcase) | map(select(length > 0))) as $dlist
                 | [ (.vulnerabilities // [])[].package.name // "" | ascii_downcase ] as $alist
                 | if ($dlist | length) > 0 and any($dlist[]; . as $d | any($alist[]; . == $d)) then "true" else "false" end
               ')"
-              if [ "$pkg_match" = "true" ] && [[ "$severity" = "low" || "$severity" = "medium" ]] && awk -v s="$cvss" 'BEGIN { exit !(s + 0 < 7.0) }'; then
+              if [ "$pkg_match" = "true" ] && [[ "$severity" = "low" || "$severity" = "medium" ]] && [[ "$cvss" =~ ^[0-9]+(\.[0-9]+)?$ ]] && awk -v s="$cvss" 'BEGIN { exit !(s + 0 < 7.0) }'; then
                 action="automerge"
                 reason="verified ${severity} security ${UPDATE_TYPE#version-update:} (CVSS ${cvss} < 7.0)"
               else
