@@ -101,6 +101,14 @@ function ck(r,   at, s) {
 
 # ---------- pass 1: the lockfile ----------
 FILENAME == lockfile {
+  if ($0 ~ /^version:[[:space:]]*/) {
+    verline = $0
+    sub(/^version:[[:space:]]*/, "", verline)
+    sub(/[[:space:]]*$/, "", verline)
+    has_version = 1
+    lock_version = verline
+    next
+  }
   if ($0 ~ /^workflows:[[:space:]]*$/)    { inwf = 1; indep = 0; next }
   if ($0 ~ /^dependencies:[[:space:]]*$/) { inwf = 0; indep = 1; next }
   if ($0 ~ /^[a-z_]+:/)                   { inwf = 0; indep = 0; next }
@@ -284,6 +292,11 @@ END {
   if (nself > 0) {
     printf "FAIL actions.lock: SELF-SHA REFS\n"
     printf "     %d dependencies: record(s) use a 40-hex SHA as ref: (rejected by GitHub runner):%s\n", nself, selflist
+    bad = 1
+  }
+
+  if (!has_version || lock_version != "\047v0.0.3\047") {
+    printf "FAIL actions.lock: INVALID VERSION (%s; expected \047v0.0.3\047)\n", (has_version ? lock_version : "missing")
     bad = 1
   }
 
