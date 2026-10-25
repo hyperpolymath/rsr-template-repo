@@ -14,7 +14,7 @@
 
 
 # Test configuration
-TEMPLATE_ROOT="${1:-.}"
+TEMPLATE_ROOT="$(cd "${1:-.}" && pwd)"
 TEST_DIR="${TMPDIR:-/tmp}/rsr-template-test-$$"
 TEST_REPO_NAME="test-instantiated-repo"
 TEST_OWNER="test-owner"

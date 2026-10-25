@@ -147,12 +147,14 @@ require_file www/tests/run-all.sh && \
 
 # ── Tier 4: Zig FFI unit tests + E2E mint instantiation ──────────────────────
 run_zig_ffi_tests() {
-  local work
+  local work tok_lc tok_uc
   work="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$work'" RETURN
   cp -R src/interface/ffi "$work/ffi"
-  sed -i -e 's/{{project}}/test_project/g' -e 's/{{PROJECT}}/TEST_PROJECT/g' \
+  tok_lc="{{""project}}"
+  tok_uc="{{""PROJECT}}"
+  sed -i -e "s/${tok_lc}/test_project/g" -e "s/${tok_uc}/TEST_PROJECT/g" \
     "$work/ffi/build.zig" "$work/ffi/src/main.zig" "$work/ffi/test/integration_test.zig" 2>/dev/null || true
   (cd "$work/ffi" && zig build test)
 }

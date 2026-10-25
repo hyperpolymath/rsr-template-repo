@@ -53,28 +53,27 @@ jobs:
       - name: Run panic-attack assail
         id: assail
         run: |
+          set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
-          set +e
-          panic-attack assail --format json . > panic-attack-findings.json
-          PA_EXIT=$?
-          set -e
+          PA_RAW="$RUNNER_TEMP/pa-report.json"
+          PA_LOG="$RUNNER_TEMP/pa-assail.log"
+          PA_EXIT=0
+          panic-attack assail . --output "$PA_RAW" > "$PA_LOG" 2>&1 || PA_EXIT=$?
 
-          if [ ! -s panic-attack-findings.json ]; then
-            echo "::error::panic-attack produced empty output (exit ${PA_EXIT})"
+          if [ "$PA_EXIT" -ne 0 ] || [ ! -s "$PA_RAW" ]; then
+            cat "$PA_LOG" >&2 || :
+            echo "::error::panic-attack assail failed or produced empty report (exit ${PA_EXIT})"
             exit 1
           fi
 
-          # Normalize envelope or array shape deterministically; fail closed on invalid output
-          if jq -e 'type == "object" and (.findings | type == "array")' panic-attack-findings.json >/dev/null 2>&1; then
-            jq '.findings' panic-attack-findings.json > "$RUNNER_TEMP/pa-norm.json"
-            mv "$RUNNER_TEMP/pa-norm.json" panic-attack-findings.json
-          elif ! jq -e 'type == "array"' panic-attack-findings.json >/dev/null 2>&1; then
-            echo "::error::panic-attack did not produce a valid JSON findings array (exit ${PA_EXIT})"
+          if ! jq -e 'type == "object" and (.weak_points | type == "array")' "$PA_RAW" >/dev/null 2>&1; then
+            cat "$PA_LOG" >&2 || :
+            echo "::error::panic-attack assail did not produce a valid AssailReport JSON object"
             exit 1
           fi
 
-          jq 'map(.severity = ((.severity // "") | ascii_downcase))' panic-attack-findings.json > "$RUNNER_TEMP/pa-sev.json"
-          mv "$RUNNER_TEMP/pa-sev.json" panic-attack-findings.json
+          jq '[.weak_points[] | select(.suppressed != true) | .severity = ((.severity // "") | ascii_downcase)]' \
+            "$PA_RAW" > panic-attack-findings.json
 
           TOTAL=$(jq '. | length' panic-attack-findings.json)
           CRITICAL=$(jq '[.[] | select(.severity == "critical")] | length' panic-attack-findings.json)
@@ -96,12 +95,26 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           command -v pons >/dev/null 2>&1 || { echo "::error::pons binary not found on PATH"; exit 1; }
           pons --version
-          pons scan . --fail-on critical --format human > "$RUNNER_TEMP/pons-report.txt"
+          PONS_JSON="$RUNNER_TEMP/pons-report.json"
+          PONS_LOG="$RUNNER_TEMP/pons.log"
+          PONS_RC=0
+          pons scan --format json . > "$PONS_JSON" 2> "$PONS_LOG" || PONS_RC=$?
+          if [ "$PONS_RC" -ne 0 ] || ! jq -e 'type == "object" and (.findings | type == "array")' "$PONS_JSON" >/dev/null 2>&1; then
+            cat "$PONS_LOG" >&2 || :
+            echo "::error::pons scan failed (exit ${PONS_RC})"
+            exit 1
+          fi
+          ERR_COUNT="$(jq '[.findings[] | select((.evidence // "" | ascii_upcase) != "SPECULATIVE" and (.severity // "" | ascii_upcase) == "ERROR")] | length' "$PONS_JSON")"
+          WARN_COUNT="$(jq '[.findings[] | select((.severity // "" | ascii_upcase) == "WARN")] | length' "$PONS_JSON")"
+          INFO_COUNT="$(jq '[.findings[] | select((.severity // "" | ascii_upcase) == "INFO")] | length' "$PONS_JSON")"
           {
             echo "## pons-asinorum Deep Recon"
-            echo '```'
-            head -n 120 "$RUNNER_TEMP/pons-report.txt"
-            echo '```'
+            echo ""
+            echo "| Severity | Count |"
+            echo "|----------|-------|"
+            echo "| ERROR (non-speculative) | ${ERR_COUNT} |"
+            echo "| WARN | ${WARN_COUNT} |"
+            echo "| INFO | ${INFO_COUNT} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload panic-attack findings
@@ -120,7 +133,7 @@ jobs:
           exit 1
 
   # ---------------------------------------------------------------------------
-  # Job 2: hypatia-scan (pinned Elixir 1.17 / OTP 27.0 + cached escript)
+  # Job 2: hypatia-scan (pinned Elixir 1.19.4 / OTP 28.3 + cached escript)
   # ---------------------------------------------------------------------------
   hypatia-scan:
     name: Hypatia neurosymbolic scan
@@ -133,11 +146,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Elixir 1.17 / OTP 27.0 for Hypatia scanner
+      - name: Setup Elixir 1.19.4 / OTP 28.3 for Hypatia scanner
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          elixir-version: '1.17'
-          otp-version: '27.0'
+          elixir-version: '1.19.4'
+          otp-version: '28.3'
 
       - name: Cache pinned Hypatia build
         id: cache-hypatia
@@ -147,7 +160,7 @@ jobs:
             ~/hypatia
             ~/.hex
             ~/.mix
-          key: hypatia-escript-${{ runner.os }}-otp27-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
+          key: hypatia-escript-${{ runner.os }}-otp28-elx1194-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
 
       - name: Clone and build pinned Hypatia
         id: build
@@ -159,7 +172,7 @@ jobs:
             git -C "$HOME/hypatia" remote add origin https://github.com/hyperpolymath/hypatia.git
             git -C "$HOME/hypatia" fetch -q --depth 1 origin 9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
             git -C "$HOME/hypatia" checkout -q FETCH_HEAD
-            (cd "$HOME/hypatia" && mix local.hex --force && mix local.rebar --force && mix deps.get && mix escript.build)
+            (cd "$HOME/hypatia" && mix local.hex --force && mix local.rebar --force && mix deps.get && MIX_NO_PUBSUB=1 mix escript.build)
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
 

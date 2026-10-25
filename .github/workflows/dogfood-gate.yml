@@ -561,11 +561,11 @@ jobs:
           ref: 9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
           path: _hypatia
           persist-credentials: false
-      - name: Setup Elixir 1.17 / OTP 27.0 for Hypatia oracle
+      - name: Setup Elixir 1.19.4 / OTP 28.3 for Hypatia oracle
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          elixir-version: '1.17'
-          otp-version: '27.0'
+          elixir-version: '1.19.4'
+          otp-version: '28.3'
       - name: Cache Hypatia Mix deps and build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -574,7 +574,7 @@ jobs:
             _hypatia/_build
             ~/.hex
             ~/.mix
-          key: hypatia-oracle-${{ runner.os }}-otp27-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
+          key: hypatia-oracle-${{ runner.os }}-otp28-elx1194-9a5db53f3b22bdd3e2a10f430ead5fd8a793711d
       - name: Compile the oracle
         working-directory: _hypatia
         run: mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile

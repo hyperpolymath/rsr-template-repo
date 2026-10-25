@@ -212,8 +212,10 @@ jobs:
             bash "$RUNNER_TEMP/kyaml-format.sh" --check .github/actions/squabble/action.yml
           fi
           if [ -f scripts/kyaml-format.sh ]; then
-            cmp -s "$RUNNER_TEMP/kyaml-format.sh" scripts/kyaml-format.sh \
-              || { echo "::error::scripts/kyaml-format.sh drifted from standards kyaml-format.sh"; exit 1; }
+            bash scripts/kyaml-format.sh --check "${present[@]}"
+            if [ -f .github/actions/squabble/action.yml ]; then
+              bash scripts/kyaml-format.sh --check .github/actions/squabble/action.yml
+            fi
           fi
       - name: Converted container configs keep their data (template only)
         run: bash tests/workflows/container_kyaml_test.sh

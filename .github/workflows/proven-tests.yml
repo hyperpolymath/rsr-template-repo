@@ -22,8 +22,11 @@ concurrency:
 jobs:
   proven-suite:
     name: Proven 3-outcome test & bench suite
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      NICKEL_VERSION: '1.18.0'
+      NICKEL_SHA256: '9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb'
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,6 +45,16 @@ jobs:
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Install verified Nickel 1.18.0 (K9 L2 semantics)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nickel-bin"
+          curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location \
+            "https://github.com/tweag/nickel/releases/download/${NICKEL_VERSION}/nickel-x86_64-linux" \
+            --output "$RUNNER_TEMP/nickel-bin/nickel"
+          echo "${NICKEL_SHA256}  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
+          echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
       - name: Install verified Zig 0.16.0 (matching mise.lock)
         run: |
           set -euo pipefail

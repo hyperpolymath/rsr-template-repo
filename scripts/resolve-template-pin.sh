@@ -122,6 +122,9 @@ if ! git clone -q --bare --no-tags "${FILTER[@]}" "$URL" "$TMPL" 2>"$SCRATCH/clo
     Set RSR_TEMPLATE_URL to a reachable clone of ${SLUG} (a local path works)."
 fi
 DEFAULT="$(git -C "$TMPL" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+if [ -n "$DEFAULT" ] && ! git -C "$TMPL" show-ref --verify --quiet "refs/heads/$DEFAULT"; then
+    DEFAULT=""
+fi
 # A detached source HEAD (a CI checkout of a pull request) is still history.
 git -C "$TMPL" rev-parse -q --verify HEAD >/dev/null 2>&1 \
     && git -C "$TMPL" update-ref refs/source/HEAD HEAD
