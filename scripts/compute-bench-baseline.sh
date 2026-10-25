@@ -107,5 +107,5 @@ elif command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; th
   printf '%s' "$RAW_JSON" | bun "$SCRIPT_DIR/ijson-jcs-cli.js" canon || die "ijson-jcs-cli.js failed to canonicalize baseline"
   printf '\n'
 else
-  printf '%s\n' "$RAW_JSON"
+  die "neither ijson-jcs nor bun is available to canonicalize baseline"
 fi

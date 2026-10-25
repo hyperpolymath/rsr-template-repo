@@ -122,6 +122,19 @@ if command -v jq >/dev/null 2>&1; then
 JSON
   done
 
+  # Keep the generator's dependencies available while hiding both serializers.
+  mkdir -p "$WORK/no-serializer-bin"
+  for tool in bash dirname basename jq realpath sed; do
+    ln -s "$(command -v "$tool")" "$WORK/no-serializer-bin/$tool"
+  done
+  baseline_without_serializer() {
+    PATH="$WORK/no-serializer-bin" bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" \
+      "$WORK"/runs/100*/run.json > "$WORK/no-serializer-baseline.json"
+  }
+  assert_rc 2 "Setup (exit 2): missing JCS serializer refused" baseline_without_serializer
+  assert_grep "neither ijson-jcs nor bun" "Setup: names missing JCS serializer"
+  assert_rc 0 "Setup: missing serializer writes no baseline" test ! -s "$WORK/no-serializer-baseline.json"
+
   assert_rc 2 "Setup (exit 2): fewer than 10 runs refused (BASELINE BOOTSTRAPPING)" \
     bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK/runs/1001/run.json" "$WORK/runs/1002/run.json"
   assert_grep "BASELINE BOOTSTRAPPING" "Setup: names BASELINE BOOTSTRAPPING"
