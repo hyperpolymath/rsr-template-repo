@@ -63,16 +63,16 @@ trap 'rm -f "$FIND_OUT"; rm -rf "$STRIP_DIR"' EXIT
 
 strip_idr_comments() {
   awk '
-    BEGIN { bs = sprintf("%c", 92); dq = sprintf("%c", 34) }
+    BEGIN { bs = sprintf("%c", 92); dq = sprintf("%c", 34); depth = 0 }
     depth == 0 && /^[[:space:]]*\|\|\|/ { print ""; next }
+    depth == 0 && index($0, "--") == 0 && index($0, "{-") == 0 { print; next }
     {
       out = ""; in_str = 0; n = length($0)
       for (i = 1; i <= n; i++) {
         c = substr($0, i, 1)
-        pair = substr($0, i, 2)
         if (depth > 0) {
-          if (pair == "{-") { depth++; i++ }
-          else if (pair == "-}") { depth--; i++ }
+          if (c == "{" && i < n && substr($0, i + 1, 1) == "-") { depth++; i++ }
+          else if (c == "-" && i < n && substr($0, i + 1, 1) == "}") { depth--; i++ }
           out = out " "
         } else if (in_str) {
           out = out c
@@ -83,7 +83,7 @@ strip_idr_comments() {
             in_str = 0
           }
         } else {
-          if (pair == "{-") {
+          if (c == "{" && i < n && substr($0, i + 1, 1) == "-") {
             depth++
             i++
             out = out " "
