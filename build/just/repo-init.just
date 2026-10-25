@@ -540,11 +540,19 @@ repo-init archetype="":
     # "resource-algebra"` (docs/man/resource_algebra.1, an image tagged with
     # the underscored name). The self-name pass below still rewrites the
     # template literal in these files; that is the edit they actually need.
+    is_text_file() {
+        if command -v file >/dev/null 2>&1; then
+            file --brief "$1" | grep -qi 'text\|ascii\|utf'
+        else
+            [ ! -s "$1" ] || LC_ALL=C grep -Iq . "$1"
+        fi
+    }
+
     mint_files | while IFS= read -r file; do
         case "${file##*/}" in
             MPL-2.0.txt|Justfile|*.just|*.png|*.jpg|*.gif|*.woff|*.woff2) continue ;;
         esac
-        if file --brief "$file" | grep -qi 'text\|ascii\|utf'; then
+        if is_text_file "$file"; then
             sed -i "${SED_ARGS[@]}" "$file"
         fi
     done
@@ -644,7 +652,7 @@ repo-init archetype="":
                 *.png|*.jpg|*.gif|*.woff|*.woff2) continue ;;
             esac
             grep -qF -- "$TEMPLATE_REPO" "$file" 2>/dev/null || continue
-            file --brief "$file" | grep -qi 'text\|ascii\|utf' || continue
+            is_text_file "$file" || continue
             # sed -i preserves the mode bit; rewriting via a temp file would not.
             sed -i -E "$SELF_NAME_SED" "$file"
         done

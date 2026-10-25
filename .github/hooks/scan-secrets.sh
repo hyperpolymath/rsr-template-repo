@@ -162,7 +162,7 @@ scan() {
 }
 
 if [ -n "${K9_PUSH_RANGES:-}" ]; then
-  while read -r local_ref local_sha remote_ref remote_sha; do
+  while read -r local_ref local_sha _remote_ref remote_sha; do
     [ -z "${local_sha:-}" ] && continue
     [ "$local_sha" = "$ZERO" ] && continue                 # branch deletion
     if [ "${remote_sha:-$ZERO}" = "$ZERO" ]; then

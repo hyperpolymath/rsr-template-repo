@@ -161,6 +161,27 @@ aspect:
 # declares some (e.g. a "bench" step in build.zig, [[bench]] in Cargo.toml).
 bench: provision::bench
 
+# Run the proven-tests-and-benches 3-outcome suite (0 pass / 1 fail / 2 setup)
+proven-tests *flags:
+    bash scripts/run-proven-suite.sh {{flags}}
+
+# Run the Idris2 proof escape-hatch & totality gate (proven-tests-and-benches)
+escape-hatches:
+    bash scripts/check-escape-hatches.sh
+
+# Run template benchmarks and check Six-Sigma leave-one-out regression vs baseline
+bench-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' EXIT
+    bash benches/template_bench.sh --json . > "$tmp"
+    bash scripts/check-bench-regression.sh "$tmp" benches/baseline.json
+
+# Check RFC 7493 (I-JSON) + RFC 8785 (JCS) canonical form across tracked JSON
+ijson-check:
+    bash scripts/check-ijson-jcs.sh --enforce .
+
 # Run readiness tests (Component Readiness Grade: D/C/B)
 readiness:
     # TODO: Replace with your readiness test command. Examples:

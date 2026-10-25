@@ -25,6 +25,14 @@ fn clearError() void {
     last_error = null;
 }
 
+/// Duplicate a byte slice as a NUL-terminated buffer across Zig 0.15/0.16/0.17
+/// (`Allocator.dupeZ` was removed in Zig 0.17).
+fn dupeZ(allocator: std.mem.Allocator, bytes: []const u8) ![:0]u8 {
+    const buf = try allocator.allocSentinel(u8, bytes.len, 0);
+    @memcpy(buf[0..bytes.len], bytes);
+    return buf;
+}
+
 //==============================================================================
 // Core Types (must match src/abi/Types.idr)
 //==============================================================================
@@ -123,7 +131,7 @@ export fn {{project}}_get_string(handle: ?*Handle) ?[*:0]const u8 {
     }
 
     // Example: allocate and return a string
-    const result = h.allocator.dupeZ(u8, "Example result") catch {
+    const result = dupeZ(h.allocator, "Example result") catch {
         setError("Failed to allocate string");
         return null;
     };
@@ -180,14 +188,13 @@ export fn {{project}}_process_array(
 // Error Handling
 //==============================================================================
 
-/// Get the last error message
-/// Returns null if no error
+/// Get the last error message.
+/// Caller must free a non-null returned string with `{{project}}_free_string`.
 export fn {{project}}_last_error() ?[*:0]const u8 {
     const err = last_error orelse return null;
 
-    // Return C string (static storage, no need to free)
     const allocator = std.heap.c_allocator;
-    const c_str = allocator.dupeZ(u8, err) catch return null;
+    const c_str = dupeZ(allocator, err) catch return null;
     return c_str.ptr;
 }
 
@@ -258,6 +265,10 @@ test "lifecycle" {
     defer {{project}}_free(handle);
 
     try std.testing.expect({{project}}_is_initialized(handle) == 1);
+
+    const str = {{project}}_get_string(handle) orelse return error.StringFailed;
+    defer {{project}}_free_string(str);
+    try std.testing.expectEqualStrings("Example result", std.mem.span(str));
 }
 
 test "error handling" {
@@ -265,6 +276,7 @@ test "error handling" {
     try std.testing.expectEqual(Result.null_pointer, result);
 
     const err = {{project}}_last_error();
+    defer {{project}}_free_string(err);
     try std.testing.expect(err != null);
 }
 

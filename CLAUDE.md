@@ -47,6 +47,14 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 | k9 | *Validation*. Kennel (data) / Yard (pure eval) / Hunt (guarded exec). |
 
 ## Canon pointers
+Estate data-format route: **kyq** handles exactly **TOML, Dhall, KYAML,
+I-JSON/JCS**. Preserve TOML/Dhall; migrate YAML/YML to KYAML and JSON variants
+through kyq using **hyperpolymath/ijson-jcs**, the actual estate implementation
+repository. **kyX** owns wider projection. DEED/K9/coordination keep their own
+grammars. Canon: `metadatastician/standards/3-practice/DATA-FORMAT-ROUTING.adoc`.
+Planned support is not operational evidence: retain explicit transitional
+checks until a pinned kyq executable passes positive and negative tests.
+
 - `hyperpolymath/standards` — the canon source. · `hyperpolymath/gv-clade-index` — the estate map (identity registry). · `hyperpolymath/manifesto` — this doctrine.
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
@@ -80,12 +88,28 @@ Put every question that needs the owner's decision through the selector (the Ask
 This estate enforces strict format standards. Failure to follow these causes
 estate drift and broken tooling. These rules are NOT optional.
 
+**Estate route (owner clarification, 2026-10-25):** `metadatastician/kyq`
+handles repository gates, queries and migration for exactly **TOML, Dhall,
+KYAML and I-JSON/JCS**. Preserve TOML and Dhall. YAML/YML content migrates to
+KYAML; JSON variants, including NDJSON/JSONL and JSON-LD, use the profile in
+**`hyperpolymath/ijson-jcs`** through kyq. That name means the owner's actual
+repository, which must track standards through tested update proposals.
+Preserve framing, consumer filenames and JSON-LD semantics. Wider projection
+belongs to **kyX**, not extra kyq formats. DEED, K9 and coordination retain
+their own grammars/contracts. Canon:
+`metadatastician/standards/3-practice/DATA-FORMAT-ROUTING.adoc`.
+
+kyq's build and validation are still incomplete at `4370c76`; never claim a
+placeholder is a working gate. The yq/ijson-jcs commands below are explicit
+transitional enforcement until a pinned kyq executable passes the applicable
+positive and negative tests. They are not the destination architecture.
+
 **KYAML (KEP-5295, owner rulings D280/D307):** YAML content is KYAML.
 - Estate-owned config uses the `.kyaml` extension.
 - `.yml`/`.yaml` only where a tool demands the name: GitHub workflows,
   dependabot. Workflows migrate to KYAML content only once the lock-coverage
   shim is a required context (D280); leave them alone until then.
-- Use `yq` (Go version) and the estate scripts `kyaml-format.sh`,
+- Transitional tooling: use `yq` (Go version) and the estate scripts `kyaml-format.sh`,
   `kyaml-migrate.sh`. No Python YAML parsers (D293).
 - KYAML format: `{}` for maps, `[]` for lists, double-quoted strings,
   unquoted keys where unambiguous, trailing commas OK, 2-space indent.
@@ -93,9 +117,10 @@ estate drift and broken tooling. These rules are NOT optional.
 
 **JSON (owner ruling D306):** every `.json`/`.jsonl` is I-JSON (RFC 7493),
 serialised by JCS (RFC 8785), one record per line for JSON Lines. Extensions
-do not change. Tool: `hyperpolymath/ijson-jcs`. Rule and gate:
+do not change. Tool: `hyperpolymath/ijson-jcs` (`scripts/check-ijson-jcs.sh --enforce`,
+wired in `estate-rules.yml`). Rule and gate:
 `standards/3-practice/JSON-POLICY.adoc`. Tool-demanded JSONC
-(`devcontainer.json`) is carved out.
+(`devcontainer.json`, `.vscode/*.json`) is carved out.
 
 **UUIDv8 (owner ruling D305, standards ADR-008):** mint every new identifier
 as UUIDv8 in the ADR-008 layout. Do not rewrite existing v4/v7 identifiers by

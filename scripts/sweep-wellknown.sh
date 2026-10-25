@@ -57,7 +57,6 @@ TREES_DIR=""
 WORK=""
 BRANCH="chore/well-known-to-www"
 MIGRATOR=""
-SUITE=""
 
 usage() {
     cat <<'EOF'
@@ -204,12 +203,12 @@ fi
 
 if [ -n "$BATCH" ]; then
     start=$(( (BATCH - 1) * BATCH_SIZE ))
-    REPOS=(${REPOS[@]:$start:$BATCH_SIZE})
+    REPOS=("${REPOS[@]:$start:$BATCH_SIZE}")
     [ ${#REPOS[@]} -gt 0 ] || die "batch $BATCH is empty"
     note "batch $BATCH of size $BATCH_SIZE: ${#REPOS[@]} repository(ies)"
 fi
 if [ -n "$LIMIT" ] && [ "$LIMIT" -lt ${#REPOS[@]} ]; then
-    REPOS=(${REPOS[@]:0:$LIMIT})
+    REPOS=("${REPOS[@]:0:$LIMIT}")
 fi
 note "selected ${#REPOS[@]} repository(ies) from $OWNER; work dir $WORK"
 
@@ -287,11 +286,11 @@ classify_repo() { # repo -> "class|root_wk|www_wk|notes"; paths cached in $WORK/
 
     local class
     if [ "$pages" = yes ]; then
-        class=review-pages
+        class="review-pages"
     elif [ "$rsr" = yes ]; then
-        class=sweep
+        class="sweep"
     else
-        class=review-other
+        class="review-other"
         notes="${notes:+$notes; }no RSR marker found"
     fi
     [ -n "$marker" ] && notes="${notes:+$notes; }marker: $marker"

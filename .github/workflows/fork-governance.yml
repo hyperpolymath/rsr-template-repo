@@ -1,0 +1,67 @@
+# This workflow is managed by gh actions-lock.
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# fork-governance.yml — single PR-time entry point for DEED syntax, K9-DEED
+# conformance, and Hypatia verdict grid, posting one unified, updated-in-place
+# summary comment per metadatastician/standards 3-practice/fork-governance/ADOPTION.adoc.
+name: Fork governance
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deed:
+    name: DEED syntax
+    uses: metadatastician/standards/.github/workflows/deed-conformance.yml@8e48b1caade08a552646adeab66558ac43b4360d
+    permissions:
+      contents: read
+    with:
+      require-files: true
+
+  k9:
+    name: K9-DEED conformance
+    uses: metadatastician/standards/.github/workflows/k9-conformance.yml@8e48b1caade08a552646adeab66558ac43b4360d
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      require-files: true
+      fail-on-indeterminate: false
+
+  hypatia:
+    name: Hypatia verdict grid
+    uses: metadatastician/standards/.github/workflows/hypatia-scan-reusable.yml@8e48b1caade08a552646adeab66558ac43b4360d
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    secrets:
+      HYPATIA_SCAN_PAT: ${{ secrets.HYPATIA_SCAN_PAT }}
+
+  verdict:
+    name: Post the fork governance summary
+    needs: [deed, k9, hypatia]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    uses: metadatastician/standards/.github/workflows/fork-governance-reusable.yml@8e48b1caade08a552646adeab66558ac43b4360d
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    with:
+      pr-number: ${{ github.event.pull_request.number }}
+      deed-result: ${{ needs.deed.result }}
+      k9-result: ${{ needs.k9.result }}
+      k9-verdict: ${{ needs.k9.outputs.verdict }}
+      hypatia-result: ${{ needs.hypatia.result }}
+      hypatia-verdict: ${{ needs.hypatia.outputs.verdict }}
+      hypatia-advisory: ${{ needs.hypatia.outputs.advisory }}
+      canon-ref: 8e48b1caade08a552646adeab66558ac43b4360d

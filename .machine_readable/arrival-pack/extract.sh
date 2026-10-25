@@ -98,7 +98,7 @@ anchor_clause="$(bash "$READ" --clause "$DEED" anchor)"
 h_deed="$(read_clauses | hash12)"
 h_anchor="$(printf '%s\n' "$anchor_clause" | hash12)"
 
-jq -n \
+jq -cnS \
   --arg canonical_name "$canonical_name" \
   --arg prefixed_name  "$prefixed_name" \
   --arg uuid           "$uuid" \

@@ -1,12 +1,15 @@
 # This workflow is managed by gh actions-lock.
 # SPDX-License-Identifier: MPL-2.0
-# This workflow is managed by gh actions-lock.
 name: Central Estate CI/CD Audit
 
 # The called reusable declares `permissions: contents: read`; a caller must grant
 # at least what the reusable declares, and this grants exactly that — no more.
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   push:

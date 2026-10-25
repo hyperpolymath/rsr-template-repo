@@ -51,7 +51,7 @@ else
     bad "shipped formatting command"
 fi
 
-cd "$SCRATCH"
+cd "$SCRATCH" || exit 1
 
 # ── 1. overlay copy (as repo-init does) ────────────────────────────────
 cp -a "$OVERLAY/." .
@@ -61,11 +61,9 @@ OWNER=hyperpolymath; REPO=mintcheck; PROJECT_NAME=MintCheck
 AUTHOR="Jonathan D.A. Jewell"; AUTHOR_EMAIL="owner@hyperpolymath.dev"
 FORGE=https://github.com; CURRENT_YEAR=$(date +%Y)
 LB='{{'; RB='}}'
-REPO_UUID=$(python3 -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, '${FORGE}/${OWNER}/${REPO}'))")
 # Execute the shipped rule rather than a copied UUID algorithm. The previous
 # v5 copy let this acceptance test pass while exercising the retired mint.
-ARCHETYPE=julia-library
-SED_ARGS=()
+export ARCHETYPE=julia-library
 UUID_RULE=$(awk '
     /^    if \[ "\$ARCHETYPE" = "julia-library" \]; then$/ { copying = 1 }
     copying { last = ($0 ~ /^    fi$/); sub(/^    /, ""); print; if (last) exit }

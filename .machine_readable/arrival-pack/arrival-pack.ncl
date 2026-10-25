@@ -65,6 +65,14 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 | k9 | *Validation*. Kennel (data) / Yard (pure eval) / Hunt (guarded exec). |
 
 ## Canon pointers
+Estate data-format route: **kyq** handles exactly **TOML, Dhall, KYAML,
+I-JSON/JCS**. Preserve TOML/Dhall; migrate YAML/YML to KYAML and JSON variants
+through kyq using **hyperpolymath/ijson-jcs**, the actual estate implementation
+repository. **kyX** owns wider projection. DEED/K9/coordination keep their own
+grammars. Canon: `metadatastician/standards/3-practice/DATA-FORMAT-ROUTING.adoc`.
+Planned support is not operational evidence: retain explicit transitional
+checks until a pinned kyq executable passes positive and negative tests.
+
 - `hyperpolymath/standards` — the canon source. · `hyperpolymath/gv-clade-index` — the estate map (identity registry). · `hyperpolymath/manifesto` — this doctrine.
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
