@@ -208,6 +208,15 @@ done
 echo "=== JSON Lines framing and scan scope ==="
 # Isolate this section from a host-installed binary and inherited overrides.
 export IJSON_JCS_FORCE_JS=1
+fresh; : > "$WORK/t/empty.jsonl"
+expect 0 'empty JSONL is a valid zero-record stream' --enforce
+names '1 canonical' 'empty JSONL is counted as canonical'
+fresh; : > "$WORK/t/empty.json"
+expect 1 'empty JSON is invalid rather than a zero-record stream' --enforce
+names 'INVALID t/empty.json' 'empty document is classified as invalid'
+fresh; printf '{"z":1,"a":2}\n{bad}\n' > "$WORK/t/records.jsonl"
+expect 1 'invalid JSONL record takes precedence over earlier formatting drift' --enforce
+names '0 not canonical, 1 invalid' 'JSONL invalid verdict is retained for the whole file'
 fresh; printf '{"a":1}\n{"b":2}' > "$WORK/t/records.jsonl"
 expect 1 'JSONL without final LF is noncanonical' --enforce
 names 'NOT CANONICAL t/records.jsonl' 'JSONL newline error is classified correctly'
@@ -228,6 +237,43 @@ names '1 file(s) checked, 1 canonical' 'only the selected file is counted'
 fresh; printf '// comment\n{}\n' > "$WORK/t/ordinary.json"
 expect 1 'JSONC carve-out does not exempt ordinary JSON' --enforce
 names 'INVALID t/ordinary.json' 'ordinary JSON comments are rejected'
+
+echo "=== Unicode validation applies to decoded keys and every noncharacter plane ==="
+bun run - "$REPO_DIR/scripts/ijson-jcs-cli.js" <<'JS'
+import assert from "node:assert/strict";
+const cli = process.argv[2];
+function run(command, input) {
+  return Bun.spawnSync(["bun", cli, command], { stdin: new TextEncoder().encode(input) });
+}
+// I-JSON excludes the entire FDD0..FDEF block and the last two code points
+// of all 17 Unicode planes, in object keys as well as string values.
+const forbidden = [
+  ...Array.from({ length: 32 }, (_, i) => 0xfdd0 + i),
+  ...Array.from({ length: 17 }, (_, plane) => [plane * 0x10000 + 0xfffe, plane * 0x10000 + 0xffff]).flat(),
+];
+for (const cp of forbidden) {
+  const char = String.fromCodePoint(cp);
+  for (const input of [JSON.stringify(char), JSON.stringify({ [char]: 1 })]) {
+    for (const command of ["canon", "check"]) {
+      const result = run(command, input);
+      assert.equal(result.exitCode, 2, `${command} must reject U+${cp.toString(16)} in ${input}`);
+      assert.equal(result.stdout.toString(), "", "invalid Unicode must emit no canonical bytes");
+      assert.match(result.stderr.toString(), /INVALID/);
+    }
+  }
+}
+for (const cp of [0xfdcf, 0xfdf0, 0xfffd, 0x10000, 0x1fffd, 0x10fffd]) {
+  const input = JSON.stringify({ [String.fromCodePoint(cp)]: String.fromCodePoint(cp) });
+  const result = run("canon", input);
+  assert.equal(result.exitCode, 0, `valid neighbor U+${cp.toString(16)} must be accepted`);
+  assert.equal(result.stdout.toString(), input);
+}
+// JCS preserves Unicode normalization; these are distinct, legal keys.
+const normalized = run("canon", '{"é":1,"e\\u0301":2}');
+assert.equal(normalized.exitCode, 0);
+assert.equal(normalized.stdout.toString(), '{"é":2,"é":1}');
+console.log("PASS: Unicode key/value exclusions, valid boundaries, and normalization preservation");
+JS
 
 echo "check_ijson_jcs_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

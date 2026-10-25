@@ -106,3 +106,21 @@ ln -s missing.kyaml "$work/dangling.kyaml"
 expect 2 "$work/dangling.kyaml"
 [[ -L "$work/dangling.kyaml" ]] || fail 'formatting replaced a dangling symlink'
 echo 'PASS: formatter refuses symlinks, preserves targets, and formats regular files'
+
+# A failure at the final rename must preserve the input and clean the staged
+# file. Inject only that process failure; parsing and rendering remain real.
+mkdir "$work/fail-rename-bin"
+cat > "$work/fail-rename-bin/mv" <<'SH'
+#!/usr/bin/env bash
+exit 75
+SH
+chmod +x "$work/fail-rename-bin/mv"
+printf 'name: rename-failure\n' > "$work/rename.kyaml"
+chmod 0640 "$work/rename.kyaml"
+cp -p "$work/rename.kyaml" "$work/rename-original"
+BASH_ENV=/dev/null PATH="$work/fail-rename-bin:$PATH" expect 2 "$work/rename.kyaml"
+grep -qF 'failed to atomically replace' "$work/out" || fail 'rename failure was not reported'
+cmp -s "$work/rename-original" "$work/rename.kyaml" || fail 'failed replacement changed input bytes'
+[[ "$(stat -c %a "$work/rename.kyaml")" == 640 ]] || fail 'failed replacement changed input permissions'
+[[ -z "$(find "$work" -name '.kyaml.*' -print)" ]] || fail 'failed replacement leaked a staging file'
+echo 'PASS: atomic replacement failure preserves original bytes and permissions and removes staging files'

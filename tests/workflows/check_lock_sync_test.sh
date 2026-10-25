@@ -93,3 +93,38 @@ expect 1 'INVALID VERSION' 'old lock format is refused'
 fresh
 rm "$work/current/actions.lock"
 expect 1 'no lockfile' 'missing lock is an explicit failure'
+
+# Check the immediate length boundaries of the POSIX replacement for {40}.
+for length in 39 41; do
+  fresh
+  printf -v ref '%*s' "$length" ''; ref=${ref// /a}
+  sed -i "s/ref: 'v1'/ref: '$ref'/" "$work/current/actions.lock"
+  expect 0 'OK' "a $length-character hexadecimal tag remains legal"
+done
+fresh
+sed -i "s/ref: 'v1'/ref: 'g123456789abcdef0123456789abcdef0123456789'/" "$work/current/actions.lock"
+expect 0 'OK' 'a 40-character tag containing nonhexadecimal text is legal'
+fresh
+sed -i '/^version:/d' "$work/current/actions.lock"
+expect 1 'INVALID VERSION (missing' 'a missing format version is an explicit failure'
+fresh
+sed -i "/^dependencies:/i\    '.github/workflows/deleted.yml': []" "$work/current/actions.lock"
+expect 1 'workflow file that does not exist' 'a removed workflow cannot leave an orphan lock key'
+
+# Coverage is per workflow, even when another workflow locks the same ref.
+fresh
+cp "$work/current/ci.yml" "$work/current/second.yaml"
+sed -i "/^dependencies:/i\    '.github/workflows/second.yaml': []" "$work/current/actions.lock"
+expect 1 'refs missing from the lockfile' 'another workflow pin cannot satisfy this workflow'
+sed -i "/'\.github\/workflows\/second.yaml':/c\    '.github/workflows/second.yaml':\n        - 'owner/repo@v1'" "$work/current/actions.lock"
+expect 0 'OK' 'both workflow keys can share one resolved dependency record'
+
+fresh
+cat >> "$work/current/actions.lock" <<'LOCK'
+    'unused/action@v2':
+        ref: 'v2'
+        commit: '2222222222222222222222222222222222222222'
+LOCK
+expect 0 'OK' 'an unreferenced leaf dependency is informational, not fatal'
+sed -i "s/ref: 'v2'/ref: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'/" "$work/current/actions.lock"
+expect 1 'SELF-SHA REFS' 'self-SHA refusal also covers unreferenced dependency records'

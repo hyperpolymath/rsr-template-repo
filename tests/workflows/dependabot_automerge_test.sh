@@ -81,5 +81,29 @@ expect manual_review 'missing advisory score fails closed'
 # Fail-closed means unreadable numeric data cannot qualify for auto-merge.
 make_advisory low '"not-a-score"'
 expect manual_review 'malformed advisory score fails closed'
+
+# Boundary values must retain numeric typing; text cannot qualify as a score.
+make_advisory medium 6.999
+expect automerge 'numeric CVSS immediately below 7 remains eligible'
+make_advisory low 0
+expect automerge 'zero is a numeric CVSS score, not missing metadata'
+for score in -1 7.001 10 true '"6.9"' '{}' '[]'; do
+  make_advisory low "$score"
+  expect manual_review "noneligible CVSS representation requires review: $score"
+done
+make_advisory low 2
+jq 'del(.severity)' "$ADVISORY_JSON" > "$work/changed-advisory.json"
+mv "$work/changed-advisory.json" "$ADVISORY_JSON"
+expect manual_review 'missing severity cannot inherit a prior eligible decision'
+make_advisory low 2
+for names in 'example' 'example-pkg-extra' ' , , '; do
+  DEP_NAMES="$names" expect manual_review "package matching requires a whole nonempty name: $names"
+done
+for vulnerabilities in '[]' 'null'; do
+  make_advisory low 2
+  jq --argjson values "$vulnerabilities" '.vulnerabilities = $values' "$ADVISORY_JSON" > "$work/changed-advisory.json"
+  mv "$work/changed-advisory.json" "$ADVISORY_JSON"
+  expect manual_review "no affected packages cannot qualify: $vulnerabilities"
+done
 printf 'dependabot_automerge_test: %d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]

@@ -77,5 +77,35 @@ test "get_string reports allocation failure on an initialized handle" {
     defer test_project_free_string(message);
     try std.testing.expectEqualStrings("Failed to allocate string", std.mem.span(message));
 }
+
+test "an empty C string still needs allocation for its sentinel" {
+    var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = 0 });
+    try std.testing.expectError(error.OutOfMemory, dupeZ(failing.allocator(), ""));
+}
+
+test "get_string refuses an uninitialized handle before allocating" {
+    var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .fail_index = 0 });
+    var handle = Handle{ .allocator = failing.allocator(), .initialized = false };
+    defer clearError();
+    try std.testing.expect(test_project_get_string(&handle) == null);
+    const message = test_project_last_error() orelse return error.ExpectedError;
+    defer test_project_free_string(message);
+    try std.testing.expectEqualStrings("Handle not initialized", std.mem.span(message));
+    try std.testing.expect(!failing.has_induced_failure);
+}
+
+test "freeing one error copy preserves the stored error and other copies" {
+    defer clearError();
+    try std.testing.expect(test_project_get_string(null) == null);
+    const first = test_project_last_error() orelse return error.ExpectedError;
+    test_project_free_string(first);
+    const second = test_project_last_error() orelse return error.ExpectedError;
+    defer test_project_free_string(second);
+    try std.testing.expectEqualStrings("Null handle", std.mem.span(second));
+    test_project_free_string(null);
+    const third = test_project_last_error() orelse return error.ExpectedError;
+    defer test_project_free_string(third);
+    try std.testing.expectEqualStrings("Null handle", std.mem.span(third));
+}
 ZIG
 (cd "$work/ffi" && "$zig_bin" build test)

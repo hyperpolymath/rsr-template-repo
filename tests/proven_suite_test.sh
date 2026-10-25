@@ -366,6 +366,45 @@ if command -v jq >/dev/null 2>&1; then
     jq -e '.window == 11 and .sources[-1].run_id == null
       and (.workloads.alpha.mean_median_ns - (120000000 / 11) | fabs) < 1e-6
       and (.workloads.alpha.mean_loo_ratio - 0.3535533905932738 | fabs) < 1e-10' "$WORK/varied-baseline.json"
+
+  # Validate shapes directly as units: every malformed shape must produce an
+  # error list, while still allowing the documented minimum of three workloads.
+  assert_rc 0 'benchmark shape validation rejects malformed containers and workload fields' \
+    jq -n -e -L "$REPO_ROOT/scripts" 'include "bench-stats";
+      {schema_version:1,suite:"proven-bench",results:[
+        {name:"a",median_ns:1,iterations:5,checksum:true},
+        {name:"b",median_ns:4,iterations:5,checksum:true},
+        {name:"c",median_ns:16,iterations:5,checksum:true}]} as $valid
+      | [null, [], "run", ($valid | .results = {}),
+         ($valid | .results[0] = null), ($valid | .results[0].name = ""),
+         ($valid | .results[0].name = 1), ($valid | .results[0].median_ns = null),
+         ($valid | .results[0].iterations = 0), ($valid | .results[0].iterations = -1),
+         ($valid | .results[0].iterations = "5")] as $invalid
+      | ($valid | bench_errors == []) and all($invalid[]; bench_errors | length > 0)'
+  assert_rc 0 'baseline shape validation rejects invalid statistics and container types' \
+    jq -e -L "$REPO_ROOT/scripts" 'include "bench-stats";
+      . as $valid
+      | [null, [], ($valid | .kind = "other"), ($valid | .schema_version = 2),
+         ($valid | .workloads = []), ($valid | del(.workloads.gamma)),
+         ($valid | .workloads.alpha = null),
+         ($valid | .workloads.alpha.mean_median_ns = "100"),
+         ($valid | .workloads.alpha.mean_loo_ratio = -1),
+         ($valid | .workloads.alpha.iterations = null)] as $invalid
+      | ($valid | baseline_errors == []) and all($invalid[]; baseline_errors | length > 0)' \
+      "$WORK/equal-baseline.json"
+
+  # A changed workload set cannot be averaged into a baseline, even with
+  # enough otherwise valid source runs and unchanged iteration counts.
+  jq '.results[0].name = "delta"' "$WORK/runs/1001/run.json" > "$WORK/renamed-workload.json"
+  reject_mixed_baseline() {
+    bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json "$WORK/renamed-workload.json" \
+      > "$WORK/rejected-mixed-baseline.json"
+  }
+  assert_rc 2 'baseline refuses mixed workload identities' reject_mixed_baseline
+  assert_grep 'different experiments' 'workload identity disagreement is named'
+  # Noncanonical output from a refused generation must not leak a partial baseline.
+  assert_rc 0 'refused baseline generation emits no JSON document' \
+    test ! -s "$WORK/rejected-mixed-baseline.json"
 fi
 
 echo "=== 6. Proof aggregation selection, deduplication, and failure folding ==="

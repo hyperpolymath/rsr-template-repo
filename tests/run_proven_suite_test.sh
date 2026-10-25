@@ -104,3 +104,34 @@ rm "$work/tree/scripts/check-escape-hatches.sh"
 run 2 "$bench" --json "$work/tree"
 [[ ! -s "$work/out" && ! -s "$LANE_CALLS" ]] || fail 'missing workload wrote timings or ran partial benchmark'
 echo 'PASS: benchmark outputs, warmups, failure checksums, and missing-workload refusal'
+
+# Exercise --bench at the runner boundary without running real repository
+# checks. The direct benchmark serialization is exercised above.
+cp "$work/lane" "$work/tree/scripts/check-escape-hatches.sh"
+run 2 "$runner" --bench
+grep -qF 'jq required for --bench' "$work/err" || fail 'missing benchmark dependency did not cause setup failure'
+grep -qFx 'run-all.sh' "$LANE_CALLS" || fail 'missing optional benchmark tool suppressed required lanes'
+ln -s "$(command -v jq)" "$work/bin/jq"
+printf '{}\n' > "$work/tree/benches/baseline.json"
+cat > "$work/tree/benches/template_bench.sh" <<'SH'
+#!/usr/bin/env bash
+[[ "$#" == 2 && "$1" == --json && "$2" == . ]] || exit 99
+printf 'benchmark\n' >> "$LANE_CALLS"
+printf '{"synthetic":true}\n'
+SH
+cat > "$work/tree/scripts/check-bench-regression.sh" <<'SH'
+#!/usr/bin/env bash
+[[ "$#" == 2 && -s "$1" && "$2" == benches/baseline.json ]] || exit 99
+printf '%s\n' "$1" > "$BENCH_CAPTURE"
+printf 'regression\n' >> "$LANE_CALLS"
+exit "${REGRESSION_STATUS:-0}"
+SH
+export BENCH_CAPTURE="$work/bench-path"
+run 0 "$runner" --bench
+grep -qxF 'benchmark' "$LANE_CALLS" || fail 'runner did not execute benchmark'
+grep -qxF 'regression' "$LANE_CALLS" || fail 'runner did not compare benchmark to baseline'
+[[ ! -e "$(cat "$BENCH_CAPTURE")" ]] || fail 'runner leaked its temporary benchmark report'
+REGRESSION_STATUS=1 run 1 "$runner" --bench
+grep -qF 'SUBJECT FAILURE (1 failing lane(s))' "$work/err" || fail 'regression did not fold into subject failure'
+[[ ! -e "$(cat "$BENCH_CAPTURE")" ]] || fail 'regression failure leaked benchmark report'
+echo 'PASS: optional benchmark dependency, dispatch, regression folding, and temporary report cleanup'

@@ -301,6 +301,90 @@ fresh_context
 rm -rf "$context_tree/.github/workflows"
 assert_rc 2 'missing workflow directory is setup failure' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 
+echo "=== 6. Installer verification order and publication boundaries (offline) ==="
+# Exercise main in a fresh Bash process so errexit is active even though
+# assert_rc captures failures. Only process boundaries are doubled; the real
+# digest/attestation guards and installation code still run. The synthetic
+# digest lets a harmless local executable stand in for the pinned release;
+# real hashing of tampered bytes is covered above.
+cat > "$WORK/install-driver" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+source "$INSTALL_SCRIPT"
+export SQUABBLE_TEST_VERSION="squabble ${SQUABBLE_TAG#v}"
+uname() { case "$1" in -s) echo Linux;; -m) echo x86_64;; esac; }
+gh() {
+  case "$1 $2" in
+    'release download')
+      printf 'download\n' >> "$INSTALL_TRACE"
+      [[ "$3" == "$SQUABBLE_TAG" && "$4" == --repo && "$5" == "$SQUABBLE_REPO" \
+        && "$6" == --pattern && "$7" == "$SQUABBLE_ASSET" && "$8" == --dir && "$#" == 9 ]] || return 99
+      [[ "$INSTALL_CASE" != download-failed ]] || return 8
+      mkdir -p "$9"
+      cat > "$9/$SQUABBLE_ASSET" <<'BIN'
+#!/usr/bin/env bash
+[[ "$#" == 1 && "$1" == --version ]] || exit 99
+printf 'execute\n' >> "$INSTALL_TRACE"
+[[ "$INSTALL_CASE" != binary-failed ]] || exit 9
+if [[ "$INSTALL_CASE" == wrong-version ]]; then echo 'squabble invalid-test-version'; else printf '%s\n' "$SQUABBLE_TEST_VERSION"; fi
+BIN
+      chmod 0644 "$9/$SQUABBLE_ASSET"
+      ;;
+    'attestation verify')
+      [[ -f "$3" && ! -x "$3" ]] || return 99
+      printf 'attestation\n' >> "$INSTALL_TRACE"
+      if [[ "$INSTALL_CASE" == attestation-failed ]]; then return 42; fi
+      if [[ "$INSTALL_CASE" == empty-attestation ]]; then printf '[]\n'; else cat "$INSTALL_ATTESTATION"; fi
+      ;;
+    *) return 99 ;;
+  esac
+}
+sha256sum() {
+  [[ "$#" == 2 && "$1" == -- && -f "$2" && ! -x "$2" ]] || return 99
+  printf 'digest\n' >> "$INSTALL_TRACE"
+  if [[ "$INSTALL_CASE" == bad-digest ]]; then printf 'wrong  %s\n' "$2";
+  else printf '%s  %s\n' "$SQUABBLE_SHA256" "$2"; fi
+}
+main
+SH
+export INSTALL_SCRIPT="$REPO_ROOT/.github/actions/squabble/install.sh" \
+  INSTALL_ATTESTATION="$WORK/good-att.json" INSTALL_TRACE="$WORK/install-trace"
+install_case() { # <exit> <case> <expected verification trace>
+  local want="$1" scenario="$2" trace="$3"
+  mkdir -p "$WORK/runner temp/$scenario"
+  printf 'existing-output=value\n' > "$WORK/install-output"
+  printf 'existing-path\n' > "$WORK/install-path"
+  : > "$INSTALL_TRACE"
+  assert_rc "$want" "installer: $scenario" env INSTALL_CASE="$scenario" \
+    RUNNER_TEMP="$WORK/runner temp/$scenario" GITHUB_OUTPUT="$WORK/install-output" \
+    GITHUB_PATH="$WORK/install-path" bash "$WORK/install-driver"
+  printf '%s' "$trace" > "$WORK/expected-trace"
+  assert_rc 0 "installer: $scenario runs only the permitted verification stages" \
+    cmp "$WORK/expected-trace" "$INSTALL_TRACE"
+  if [[ "$want" != 0 ]]; then
+    printf 'existing-output=value\n' > "$WORK/expected-install-output"
+    printf 'existing-path\n' > "$WORK/expected-install-path"
+    assert_rc 0 "installer: $scenario publishes no executable output" \
+      cmp "$WORK/expected-install-output" "$WORK/install-output"
+    assert_rc 0 "installer: $scenario publishes no PATH entry" \
+      cmp "$WORK/expected-install-path" "$WORK/install-path"
+  fi
+}
+install_case 0 verified $'download\ndigest\nattestation\nexecute\n'
+installed_bin=$(sed -n 's/^path=//p' "$WORK/install-output")
+assert_rc 0 'verified binary is executable at the published path, including spaces' test -x "$installed_bin"
+printf 'existing-output=value\npath=%s\n' "$installed_bin" > "$WORK/expected-install-output"
+assert_rc 0 'installation appends its output without discarding other step outputs' \
+  cmp "$WORK/expected-install-output" "$WORK/install-output"
+printf 'existing-path\n%s\n' "${installed_bin%/*}" > "$WORK/expected-install-path"
+assert_rc 0 'installation publishes the verified binary directory' cmp "$WORK/expected-install-path" "$WORK/install-path"
+install_case 8 download-failed $'download\n'
+install_case 1 bad-digest $'download\ndigest\n'
+install_case 1 attestation-failed $'download\ndigest\nattestation\n'
+install_case 1 empty-attestation $'download\ndigest\nattestation\n'
+install_case 1 wrong-version $'download\ndigest\nattestation\nexecute\n'
+install_case 9 binary-failed $'download\ndigest\nattestation\nexecute\n'
+
 assert_rc 0 'Dependabot severity and semver policy controls' bash "$REPO_ROOT/tests/workflows/dependabot_automerge_test.sh"
 echo "squabble_gate_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
