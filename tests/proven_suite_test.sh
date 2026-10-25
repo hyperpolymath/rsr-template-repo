@@ -112,6 +112,37 @@ printf 'module Bad\n\n%%default total\n\nsneaky : a -> (String, b)\nsneaky x = (
 assert_rc 1 "Firing: escape hatch after quoted \"--\" string literal exits 1" \
   bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_strhide"
 
+mkdir -p "$WORK/m_importcomment"
+cat > "$WORK/m_importcomment/Bad.idr" <<'IDR'
+module Bad
+import Data.Vect {-
+%default total
+-}
+idNat : Nat -> Nat
+idNat x = x
+IDR
+assert_rc 1 "Firing: directive in block comment after import does not count" \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_importcomment"
+assert_grep "missing '%default total'" "Firing: commented directive is missing"
+
+mkdir -p "$WORK/m_blockcomment"
+cat > "$WORK/m_blockcomment/Sound.idr" <<'IDR'
+module Sound
+import Data.Vect {- outer
+{- nested -}
+partial
+believe_me
+-} %default total
+idNat : Nat -> Nat
+idNat x = x
+IDR
+assert_rc 0 "Silence: nested comments removed and code after closing marker retained" \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_blockcomment"
+printf 'bad : Nat\nbad = ?hole\n' >> "$WORK/m_blockcomment/Sound.idr"
+assert_rc 1 "Firing: active hole after block comment still detected" \
+  bash "$REPO_ROOT/scripts/check-escape-hatches.sh" "$WORK/m_blockcomment"
+assert_grep 'Sound.idr:10:bad = ' "Firing: comment stripping preserves line numbers"
+
 echo "=== 2. compute-bench-baseline.sh & check-bench-regression.sh ==="
 if command -v jq >/dev/null 2>&1; then
   mkdir -p "$WORK/runs"
@@ -147,7 +178,25 @@ JSON
       "$WORK/runs/1009/run.json"
   assert_grep "duplicate source run" "Setup: names duplicate source run"
 
+  cp "$WORK/runs/1001/run.json" "$WORK/valid-run.json"
+  for shape in empty whitespace multiple; do
+    case "$shape" in
+      empty) : > "$WORK/runs/1001/run.json" ;;
+      whitespace) printf ' \n\t\n' > "$WORK/runs/1001/run.json" ;;
+      multiple) cat "$WORK/valid-run.json" "$WORK/valid-run.json" > "$WORK/runs/1001/run.json" ;;
+    esac
+    rejected_baseline() {
+      bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json > "$WORK/rejected-baseline.json"
+    }
+    assert_rc 2 "Setup: $shape benchmark source refused" rejected_baseline
+    assert_grep 'expected exactly one benchmark document' "Setup: names $shape source cardinality"
+    assert_rc 0 "Setup: $shape source writes no baseline" test ! -s "$WORK/rejected-baseline.json"
+  done
+  cp "$WORK/valid-run.json" "$WORK/runs/1001/run.json"
+
   bash "$REPO_ROOT/scripts/compute-bench-baseline.sh" "$WORK"/runs/100*/run.json > "$WORK/baseline.json"
+  assert_rc 0 "Silence: baseline retains one provenance entry per run" \
+    jq -e '.window == 10 and (.sources | length == 10) and all(.sources[]; .run_id != null)' "$WORK/baseline.json"
   assert_rc 0 "Silence: generated baseline is canonical I-JSON + JCS" \
     bash "$REPO_ROOT/scripts/check-ijson-jcs.sh" --enforce "$WORK/baseline.json"
 
@@ -182,7 +231,22 @@ JSON
 
 cat > "$WORK/mock-pa-ok" <<'SH'
 #!/usr/bin/env bash
-exit 0
+set -euo pipefail
+output=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = --output ]; then output=$2; shift; fi
+  shift
+done
+[ -n "$output" ]
+# A repeated output path would overwrite another proof report.
+[ ! -e "$output" ]
+case "${MOCK_VERDICT:-closed}" in
+  missing) exit 0 ;;
+  malformed) printf '{broken\n' > "$output" ;;
+  empty) printf '{"aggregated_proofs":[]}\n' > "$output" ;;
+  mixed) printf '{"aggregated_proofs":[{"verdict":"closed"},{"verdict":"holes"}]}\n' > "$output" ;;
+  *) printf '{"aggregated_proofs":[{"verdict":"%s"}]}\n' "${MOCK_VERDICT:-closed}" > "$output" ;;
+esac
 SH
 cat > "$WORK/mock-pa-holes" <<'SH'
 #!/usr/bin/env bash
@@ -196,6 +260,17 @@ assert_rc 0 "Silence: Closed proof-ladder verdict exits 0" \
 
 assert_rc 1 "Firing: Holes proof-ladder verdict exits 1" \
   bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/report.json" "$WORK/mock-pa-holes"
+
+for verdict in holes refuted indeterminate mixed missing malformed empty; do
+  assert_rc 1 "Firing: successful aggregate with $verdict report exits 1" \
+    env MOCK_VERDICT="$verdict" bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/report.json" "$WORK/mock-pa-ok"
+done
+
+# Same basename in different directories must still receive separate outputs.
+jq --arg f "$WORK/other/Sound.idr" '.entries[0].proof_ladder += [{proof_file: $f}]' \
+  "$WORK/report.json" > "$WORK/multi-report.json"
+assert_rc 0 "Silence: each proof receives a unique report output" \
+  bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/multi-report.json" "$WORK/mock-pa-ok"
 
 assert_rc 2 "Setup (exit 2): missing panic-attack binary on Actually-Proven report exits 2" \
   bash "$REPO_ROOT/scripts/emit-aggregate-inputs.sh" "$WORK/report.json" "$WORK/no-such-panic-attack"

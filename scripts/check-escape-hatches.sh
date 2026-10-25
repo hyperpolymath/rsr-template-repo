@@ -56,20 +56,25 @@ echo "Scanning ${#IDR_FILES[@]} Idris2 file(s) for proof escape hatches in: ${SC
 
 hits=0
 
-# Strip '--' line comments once per file (preserving quoted "--" inside Idris
-# string literals and exact line numbers) so all passes reuse one clean copy.
+# Strip line and nested block comments once per file (preserving quoted comment
+# markers inside Idris strings and exact line numbers) for all passes.
 STRIP_DIR="$(mktemp -d)"
 trap 'rm -f "$FIND_OUT"; rm -rf "$STRIP_DIR"' EXIT
 
 strip_idr_comments() {
   awk '
     BEGIN { bs = sprintf("%c", 92); dq = sprintf("%c", 34) }
-    /^[[:space:]]*\|\|\|/ { print ""; next }
+    depth == 0 && /^[[:space:]]*\|\|\|/ { print ""; next }
     {
       out = ""; in_str = 0; n = length($0)
       for (i = 1; i <= n; i++) {
         c = substr($0, i, 1)
-        if (in_str) {
+        pair = substr($0, i, 2)
+        if (depth > 0) {
+          if (pair == "{-") { depth++; i++ }
+          else if (pair == "-}") { depth--; i++ }
+          out = out " "
+        } else if (in_str) {
           out = out c
           if (c == bs && i < n) {
             i++
@@ -78,7 +83,11 @@ strip_idr_comments() {
             in_str = 0
           }
         } else {
-          if (c == dq) {
+          if (pair == "{-") {
+            depth++
+            i++
+            out = out " "
+          } else if (c == dq) {
             in_str = 1
             out = out c
           } else if (c == "-" && i < n && substr($0, i + 1, 1) == "-") {
@@ -156,11 +165,9 @@ done
 for f in "${IDR_FILES[@]}"; do
   status="$(awk '
     /^[[:space:]]*$/ { next }
-    /^[[:space:]]*\{-/ { in_blk = 1 }
-    in_blk { if ($0 ~ /-\}/) in_blk = 0; next }
     /^[[:space:]]*(module|import|namespace)[[:space:]]/ { next }
     /^[[:space:]]*%(hide|logging|unbound_implicits|auto_implicit_depth)([[:space:]]|$)/ { next }
-    /^%default total([[:space:]]|$)/ {
+    /^[[:space:]]*%default total([[:space:]]|$)/ {
       if (saw_decl) { print "after_decl"; printed = 1; exit }
       saw_total = 1
       next

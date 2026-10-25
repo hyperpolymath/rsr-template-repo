@@ -116,5 +116,51 @@ got=0; IJSON_JCS=ijson-jcs-not-installed bash "$SCRIPT" "$WORK/t" >"$WORK/out" 2
 if [ "$got" = 2 ]; then pass=$((pass + 1)); echo "  PASS: missing explicit IJSON_JCS binary exits 2"
 else fail=$((fail + 1)); echo "  FAIL: missing explicit IJSON_JCS binary exits 2 (got $got)"; fi
 
+got=0; IJSON_JCS=ijson-jcs-not-installed IJSON_JCS_FORCE_JS=1 bash "$SCRIPT" "$WORK/t" >"$WORK/out" 2>&1 || got=$?
+if [ "$got" = 2 ]; then pass=$((pass + 1)); echo "  PASS: explicit missing runner takes precedence over forced JS"
+else fail=$((fail + 1)); echo "  FAIL: explicit missing runner with forced JS (got $got)"; fi
+
+cat > "$WORK/explicit-runner" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$RUNNER_LOG"
+exit 0
+SH
+chmod +x "$WORK/explicit-runner"
+fresh; printf '{}\n' > "$WORK/t/a.json"
+IJSON_JCS="$WORK/explicit-runner" IJSON_JCS_FORCE_JS=1 RUNNER_LOG="$WORK/runner.log" \
+  expect 0 "Silence: explicit runner selected with forced JS" --enforce
+if grep -qF 'check t/a.json' "$WORK/runner.log"; then
+  pass=$((pass + 1)); echo "  PASS: explicit runner receives file argument"
+else
+  fail=$((fail + 1)); echo "  FAIL: explicit runner was bypassed"
+fi
+
+echo "=== Canon stdout and dispatch ==="
+bun run - "$REPO_DIR/scripts/ijson-jcs-cli.js" <<'JS'
+import assert from "node:assert/strict";
+const cli = process.argv[2];
+const expected = JSON.stringify({ a: "x".repeat(2 * 1024 * 1024) });
+const child = Bun.spawn(["bun", cli, "canon"], {
+  stdin: new TextEncoder().encode(expected), stdout: "pipe", stderr: "pipe",
+});
+const chunks = [];
+for await (const chunk of child.stdout) {
+  chunks.push(Buffer.from(chunk));
+  await Bun.sleep(1);
+}
+assert.equal(await child.exited, 0);
+assert.equal(Buffer.concat(chunks).toString(), expected, "canon must drain stdout to a slow pipe");
+assert.equal(await new Response(child.stderr).text(), "", "canon must not reach unknown-command handling");
+for (const [command, input, diagnostic] of [
+  ["canon", "{broken", "INVALID"], ["unknown", "{}", "unknown command"],
+]) {
+  const result = Bun.spawnSync(["bun", cli, command], { stdin: new TextEncoder().encode(input) });
+  assert.equal(result.exitCode, 2);
+  assert.equal(result.stdout.toString(), "");
+  assert.ok(result.stderr.toString().includes(diagnostic));
+}
+console.log("PASS: canon drains large output and preserves dispatch error statuses");
+JS
+
 echo "check_ijson_jcs_test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

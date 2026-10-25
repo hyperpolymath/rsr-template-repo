@@ -93,11 +93,34 @@ jobs:
           chmod +x "$RUNNER_TEMP/nickel"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: Run K9 validation hook
+        id: validate
         run: |
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/standards-k9"
           mv "$PWD/.standards-k9" "$RUNNER_TEMP/standards-k9"
           STANDARDS_DIR="$RUNNER_TEMP/standards-k9" bash .github/hooks/validate-k9.sh
+
+      - name: Generate K9 badge
+        if: always()
+        env:
+          K9_RESULT: ${{ steps.validate.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/k9-grid"
+          jq -cn --arg result "$K9_RESULT" '{
+            schemaVersion: 1,
+            label: "K9",
+            message: $result,
+            color: (if $result == "success" then "brightgreen" else "red" end)
+          }' > "$RUNNER_TEMP/k9-grid/badge.json"
+
+      - name: Upload K9 grid
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: k9-grid
+          path: ${{ runner.temp }}/k9-grid/badge.json
+          if-no-files-found: error
 
   # The live README badge: badge.json (shields endpoint schema) published to
   # the governance-badges branch on every push to main, through the contents
@@ -113,7 +136,6 @@ jobs:
     steps:
       - name: Download the grid
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        continue-on-error: true
         with:
           name: k9-grid
           path: ${{ runner.temp }}/k9-grid
@@ -127,8 +149,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -s "$BADGE" ]; then
-            echo "::warning::the k9-grid artifact holds no badge.json; nothing to publish"
-            exit 0
+            echo "::error::the k9-grid artifact holds no badge.json"
+            exit 1
           fi
           jq -e 'type == "object" and has("schemaVersion")' "$BADGE" >/dev/null
           content="$(base64 -w0 "$BADGE")"

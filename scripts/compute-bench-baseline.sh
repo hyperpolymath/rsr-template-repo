@@ -32,7 +32,9 @@ run_id_of() {
 validate_run() {
   local f="$1" errs
   [ -f "$f" ] || die "run file '$f' does not exist"
-  if ! errs="$(jq -L "$SCRIPT_DIR" -r 'include "bench-stats"; bench_errors[]' "$f")"; then
+  if ! errs="$(jq -L "$SCRIPT_DIR" -sr 'include "bench-stats";
+      if length != 1 then ["expected exactly one benchmark document"]
+      else .[0] | bench_errors end | .[]' "$f")"; then
     die "run file '$f' is not parseable JSON"
   fi
   if [ -n "$errs" ]; then
@@ -76,7 +78,7 @@ fi
 
 RAW_JSON="$(jq -L "$SCRIPT_DIR" -cS -s --argjson ids "$ids_json" '
   include "bench-stats";
-  . as $runs
+  (if length != ($ids | length) then error("expected one benchmark document per source file") else . end) as $runs
   | ($runs[0] | iterations_map) as $iters
   | ($runs | map(loo_ratios)) as $loo
   | ($runs | map(medians)) as $med

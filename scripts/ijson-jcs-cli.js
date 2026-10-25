@@ -367,6 +367,9 @@ if (rest.length > 0) {
   process.exit(EXIT_INVALID);
 }
 if (cmd === "check") process.exit(cmdCheckStdin());
-if (cmd === "canon") process.exit(cmdCanon());
-console.error(`ijson-jcs: unknown command '${cmd}'`);
-process.exit(EXIT_INVALID);
+if (cmd === "canon") {
+  process.exitCode = cmdCanon();
+} else {
+  console.error(`ijson-jcs: unknown command '${cmd}'`);
+  process.exitCode = EXIT_INVALID;
+}

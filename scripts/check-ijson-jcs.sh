@@ -34,15 +34,15 @@ fi
 #     fall back to the local Bun RFC 7493/8785 implementation when offline.
 RUNNER=()
 RUNNER_STDIN=0
-if [ "${IJSON_JCS_FORCE_JS:-0}" = "1" ] && command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; then
-  RUNNER=(bun "$SCRIPT_DIR/ijson-jcs-cli.js")
-  RUNNER_STDIN=1
-elif [ -n "${IJSON_JCS:-}" ]; then
+if [ -n "${IJSON_JCS:-}" ]; then
   if ! command -v "$IJSON_JCS" >/dev/null 2>&1; then
     printf '%s: not found; install hyperpolymath/ijson-jcs or set IJSON_JCS\n' "$IJSON_JCS" >&2
     exit 2
   fi
   RUNNER=("$IJSON_JCS")
+elif [ "${IJSON_JCS_FORCE_JS:-0}" = "1" ] && command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; then
+  RUNNER=(bun "$SCRIPT_DIR/ijson-jcs-cli.js")
+  RUNNER_STDIN=1
 elif command -v ijson-jcs >/dev/null 2>&1; then
   RUNNER=(ijson-jcs)
 elif command -v bun >/dev/null 2>&1 && [ -f "$SCRIPT_DIR/ijson-jcs-cli.js" ]; then
