@@ -66,17 +66,25 @@ proofs/
 │   │   ├── Foreign.idr     # FFI return type proofs
 │   │   └── Compliance.idr  # C ABI compliance
 │   └── Types.idr    # Core data type well-formedness
-├── agda/            # Theory: source of truth
+├── agda/            # Theory: the source of truth goes here
 │   └── Properties.agda
-├── coq/             # Theory: Rocq recheck leg of agda/
+├── coq/             # Theory: Rocq recheck legs of agda/ go here
 │   └── TypeSafety.v
-├── lean4/           # Theory: Lean recheck leg of agda/
+├── lean4/           # Theory: Lean recheck legs of agda/ go here
 │   └── ApiTypes.lean
 └── tlaplus/         # Recorded exception: protocol model checks (TESTED)
     └── StateMachine.tla
 ----
 
 Each prover directory carries a `MANIFEST` read by `scripts/check-proofs.sh`.
+
+The files the template ships in these directories (`Properties.agda`,
+`TypeSafety.v`, `ApiTypes.lean`, `Types.idr`, the `ABI/` modules,
+`StateMachine.tla`) are *layout examples, not evidence*. Several have never
+compiled and sit as `quarantine` in their `MANIFEST`; `TypeSafety.v` and
+`ApiTypes.lean` are not rechecks of `Properties.agda`. A repository created
+from the template replaces them with its own proofs or deletes them, and
+never counts them in `docs/status/PROOF-STATUS.adoc`.
 
 == Verification commands
 
