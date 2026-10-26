@@ -140,3 +140,21 @@ hand; that migration is done per repo (ADR-008 phase P3). In deed files use
 **ENFORCEMENT:** these rulings are recorded on `standards#787`. Some are
 ruled but not yet gated: check the gate on `standards` main before
 relying on it.
+
+<!-- Hand-authored (owner ruling 2026-10-26): kept below the generated region. -->
+## Proofs — which prover for which obligation
+
+Normative source: `3-practice/PROOF-POLICY.adoc` in `hyperpolymath/standards`.
+Read it there; `verification/proofs/README.adoc` maps it onto this repo.
+
+| Code or obligation | Verifier |
+|---|---|
+| Rust code | **Creusot**, on the code (Kani for `unsafe`/FFI seams and Aeneas for Rust that implements an Agda theorem run alongside, never instead) |
+| Ada code | **SPARK** |
+| APIs, ABIs, engineering properties | **Idris2** |
+| Theory | **Agda**, rechecked in **Rocq** and **Lean** (no Mathlib) |
+
+Third-party code (crates such as Bevy, libraries, forks) is **not** converted
+or re-proved. State what a proof relies on as an `ASSUMED` boundary
+specification, and when choosing between dependencies that fit equally well,
+prefer one that carries its own verification. A preference, not a gate.
