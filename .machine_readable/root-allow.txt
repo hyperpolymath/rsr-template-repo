@@ -58,6 +58,7 @@ mise.lock                  # makes "latest" concrete: version + per-platform che
 # ─── Directories ─────────────────────────────────────────────────────────────
 .git/
 .github/                 # community health + workflows (GitHub reads this path and no other) + versioned git hooks (.github/hooks/, wired via core.hooksPath)
+.gitbot-fleet/           # fleet enrolment manifest + report-backs/ (empty in git; filled per run by the fork-governance fleet job). Read by the Hypatia verdict grid at this path and no other
 www/                       # site-operations bundle; canonical .well-known/ lives at www/.well-known/ (issue #53)
 .machine_readable/          # manifests, contractiles, policies. Renamed back from machine-readable/ 2026-09-17 by owner ruling, for one canonical spelling estate-wide (census at the 2026-08 divergence: 48 dotted vs 9 hyphenated — the majority was already dotted). See docs/governance/TEMPLATE-LINEAGE-AUDIT.adoc
 docs/                      # human documentation
