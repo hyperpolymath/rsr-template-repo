@@ -1080,4 +1080,35 @@
     ;   api-service    — not a network daemon
     ;   published-package — a scaffold template, not itself a registry artifact
     :omitted-rationale "Declaring a capability this repo lacks would make the oracle score it against a module it does not carry — the over-scaffolding failure v2.0 fixes. See 0-canon/TEMPLATE-APPLICABILITY-POLICY.adoc."))
+  ; Egress attestation (standards ADR-009; grammar
+  ; 1-formats/deed/spec/abnf/clauses/egress.abnf). Every job that reads a real
+  ; secret (anything but GITHUB_TOKEN) is listed with exactly the secrets it
+  ; reads, the endpoints outside GitHub it reaches, and what holds it to them.
+  ; Hypatia RE001 accepts an entry here in place of step-security/harden-runner
+  ; and reports drift between an entry and its workflow. A minted repo inherits
+  ; these entries with the workflows; when you add secrets.* to a job, or
+  ; delete a workflow listed here, change this clause in the same commit.
+  (egress
+    :policy "standards ADR-009"
+    (job
+      :workflow ".github/workflows/push-email-notify.yml"
+      :job "notify"
+      :secrets ("SMTP_HOST" "SMTP_PORT" "SMTP_USER" "SMTP_PASS")
+      :endpoints ("secret:SMTP_HOST")
+      :enforcement none
+      :reason "Sends the push notification by SMTP submission to the org mail host, whose name is itself a secret.")
+    (job
+      :workflow ".github/workflows/sonarqube.yml"
+      :job "sonarqube"
+      :secrets ("SONAR_TOKEN")
+      :endpoints ("sonarcloud.io" "*.sonarcloud.io")
+      :enforcement none
+      :reason "Uploads the CI-based analysis to SonarQube Cloud. Skipped when SONAR_TOKEN is unset.")
+    (job
+      :workflow ".github/workflows/build-notification.yml"
+      :job "trigger-boj"
+      :secrets ("BOJ_SERVER_URL")
+      :endpoints ("secret:BOJ_SERVER_URL" "var:BOJ_SERVER_URL")
+      :enforcement none
+      :reason "Notifies the BoJ server of a push. The URL is the secret when set, else the variable that also gates the job."))
 )
