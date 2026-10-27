@@ -30,6 +30,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      vulnerability-alerts: read # Dependabot alerts, for Hypatia's DA rules
     env:
       HYPATIA_SHA: 'd73f76b5cb7a35e1aa1024c916aee7cb4f9b141e'
     steps:
@@ -79,7 +80,9 @@ jobs:
         env:
           # The API-backed rules (code-scanning, Dependabot, secret-scanning,
           # branch-protection, baseline-health) return no findings without a
-          # token. Scoped to this step; read-only beyond security-events.
+          # token. Scoped to this step. The job token reaches code-scanning
+          # (security-events) and Dependabot (vulnerability-alerts) alerts;
+          # it cannot read secret-scanning alerts, which need an App or PAT.
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
