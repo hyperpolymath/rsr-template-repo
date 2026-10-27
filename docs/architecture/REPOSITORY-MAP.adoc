@@ -45,6 +45,10 @@ predecessors did.
 | yes
 | -
 
+| `.gitbot-fleet/`
+| yes
+| fleet enrolment manifest + report-backs/ (empty in git; filled per run by the fork-governance fleet job). Read by the Hypatia verdict grid at this path and no other
+
 | `.github/`
 | yes
 | community health + workflows (GitHub reads this path and no other) + versioned git hooks (.github/hooks/, wired via core.hooksPath)
