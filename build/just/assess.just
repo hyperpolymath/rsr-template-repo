@@ -44,12 +44,13 @@ self-assess:
     echo ""
 
     # The licence may be LICENSE in any usual spelling (this template ships
-    # LICENSE.adoc) or a REUSE LICENSES/ directory.
+    # LICENSE.adoc) or a REUSE LICENSES/ directory holding a non-empty
+    # <SPDX-ID>.<ext> licence text (dotfiles and READMEs do not count).
     lic=""
     for cand in LICENSE LICENSE.txt LICENSE.md LICENSE.adoc; do
         [ -f "$cand" ] && { lic="$cand"; break; }
     done
-    if [ -z "$lic" ] && [ -n "$(find LICENSES -maxdepth 1 -type f 2>/dev/null | head -n 1)" ]; then
+    if [ -z "$lic" ] && [ -n "$(find LICENSES -maxdepth 1 -type f -size +0c -name '*.*' ! -name '.*' ! -iname 'README*' 2>/dev/null | head -n 1)" ]; then
         lic="LICENSES/"
     fi
     if [ -n "$lic" ]; then
@@ -263,7 +264,8 @@ verify:
 
     # The licence: a root licence file in any of the usual spellings (this
     # template ships LICENSE.adoc), or a REUSE LICENSES/ directory holding at
-    # least one licence text.
+    # least one licence text: a non-empty <SPDX-ID>.<ext> file, per the REUSE
+    # spec (dotfiles and READMEs do not count).
     check_licence() {
         local cand
         for cand in LICENSE LICENSE.txt LICENSE.md LICENSE.adoc; do
@@ -272,7 +274,7 @@ verify:
                 return 0
             fi
         done
-        if [ -n "$(find LICENSES -maxdepth 1 -type f 2>/dev/null | head -n 1)" ]; then
+        if [ -n "$(find LICENSES -maxdepth 1 -type f -size +0c -name '*.*' ! -name '.*' ! -iname 'README*' 2>/dev/null | head -n 1)" ]; then
             echo "  OK:   LICENSES/ (REUSE)"
             return 0
         fi
