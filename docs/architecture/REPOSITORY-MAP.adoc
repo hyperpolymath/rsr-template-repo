@@ -23,15 +23,11 @@ predecessors did.
 
 | `.clinerules`
 | yes
-| AI editor rules. Cline/Cursor/Windsurf read these from the project
+| AI editor rules. Cline reads them from the project ROOT, so the copies formerly under .machine_readable/ai/ were inert (.cursorrules and .windsurfrules were retired 2026-10-26)
 
 | `.coderabbit.yaml`
 | optional
 | CodeRabbit reads its config from the root only; pins Docstring Coverage to mode: warning (estate decision, not a vendor default). Optional: only the template and the repos whose rulesets require the CodeRabbit context carry it
-
-| `.cursorrules`
-| yes
-| ROOT, so the copies formerly under .machine_readable/ai/ were inert.
 
 | `.devcontainer/`
 | optional
@@ -77,10 +73,6 @@ predecessors did.
 | yes
 | git reads .mailmap from the worktree root only
 
-| `.windsurfrules`
-| yes
-| -
-
 | `CHANGELOG.adoc`
 | yes
 | AsciiDoc is the estate-standard documentation format
@@ -93,21 +85,21 @@ predecessors did.
 | yes
 | generated arrival pack; the generator, pre-commit and Claude Code all read it from the ROOT (do not hand-edit; edit the repo deed)
 
+| `CODE_OF_CONDUCT.adoc`
+| optional
+| community health file; GitHub accepts it at root, docs/ or .github/
+
 | `CONTRIBUTING.adoc`
 | optional
 | estate docs gate (standards scripts/check-docs-presence.sh) requires CONTRIBUTING at the ROOT; this is the copy it verifies
-
-| `GEMINI.md`
-| optional
-| pointer to CLAUDE.md for repos without AGENTS.md yet
 
 | `Justfile`
 | yes
 | thin; delegates phases to build/just/*.just
 
-| `LICENSE`
+| `LICENSE.adoc`
 | yes
-| -
+| the licence (MPL-2.0); renamed from LICENSE to the estate AsciiDoc format 2026-10-26
 
 | `LICENSES/`
 | yes
@@ -116,6 +108,10 @@ predecessors did.
 | `README.adoc`
 | yes
 | -
+
+| `SUPPORT.adoc`
+| optional
+| community health file; GitHub accepts it at root, docs/ or .github/
 
 | `archetypes/`
 | optional

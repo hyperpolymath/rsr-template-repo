@@ -28,7 +28,7 @@
 
 # ─── Baseline: every RSR repo has these ──────────────────────────────────────
 README.adoc
-LICENSE
+LICENSE.adoc               # the licence (MPL-2.0); renamed from LICENSE to the estate AsciiDoc format 2026-10-26
 LICENSES/                  # REUSE licence texts, dual-licence model (code MPL-2.0 / docs CC-BY-SA-4.0)
 CHANGELOG.adoc             # AsciiDoc is the estate-standard documentation format
 CITATION.cff               # citation metadata; GitHub reads it from the root of the default branch only
@@ -52,9 +52,7 @@ mise.toml                  # the toolchain: every tool at "latest" (PROVISIONING
 mise.lock                  # makes "latest" concrete: version + per-platform checksum; mise reads it beside mise.toml
 .hypatia-ignore            # the Hypatia scanner reads it from the repo root
 ?.coderabbit.yaml          # CodeRabbit reads its config from the root only; pins Docstring Coverage to mode: warning (estate decision, not a vendor default). Optional: only the template and the repos whose rulesets require the CodeRabbit context carry it
-.clinerules                # AI editor rules. Cline/Cursor/Windsurf read these from the project
-.cursorrules               # ROOT, so the copies formerly under .machine_readable/ai/ were inert.
-.windsurfrules
+.clinerules                # AI editor rules. Cline reads them from the project ROOT, so the copies formerly under .machine_readable/ai/ were inert (.cursorrules and .windsurfrules were retired 2026-10-26)
 ?.claude/                  # Claude Code project state (checkpoints, history) — created by the tool itself
 
 # ─── Directories ─────────────────────────────────────────────────────────────
@@ -81,6 +79,8 @@ tests/
 ?CONTRIBUTING.md           # accepted at root OR .github/; .github/ is the canonical estate location
 ?CONTRIBUTING.adoc          # estate docs gate (standards scripts/check-docs-presence.sh) requires CONTRIBUTING at the ROOT; this is the copy it verifies
 ?SECURITY.md               # accepted at root OR .github/; likewise
+?CODE_OF_CONDUCT.adoc      # community health file; GitHub accepts it at root, docs/ or .github/
+?SUPPORT.adoc              # community health file; GitHub accepts it at root, docs/ or .github/
 ?REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just repo-init` runs
 ?Project.toml              # julia-library archetype: Pkg reads the package manifest from the package root only
 ?test/                     # julia-library archetype: Pkg.test runs test/runtests.jl, a fixed path (the spine keeps tests/)
