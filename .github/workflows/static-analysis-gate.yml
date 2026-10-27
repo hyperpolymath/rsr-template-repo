@@ -160,7 +160,7 @@ jobs:
             ~/hypatia
             ~/.hex
             ~/.mix
-          key: hypatia-escript-${{ runner.os }}-otp28-elx1194-d73f76b5cb7a35e1aa1024c916aee7cb4f9b141e
+          key: hypatia-escript-${{ runner.os }}-otp28-elx1194-7c10e5d712af7178f8c175e10a21c5216216c198
 
       - name: Clone and build pinned Hypatia
         id: build
@@ -170,7 +170,7 @@ jobs:
             rm -rf "$HOME/hypatia"
             git init -q "$HOME/hypatia"
             git -C "$HOME/hypatia" remote add origin https://github.com/hyperpolymath/hypatia.git
-            git -C "$HOME/hypatia" fetch -q --depth 1 origin d73f76b5cb7a35e1aa1024c916aee7cb4f9b141e
+            git -C "$HOME/hypatia" fetch -q --depth 1 origin 7c10e5d712af7178f8c175e10a21c5216216c198
             git -C "$HOME/hypatia" checkout -q FETCH_HEAD
             (cd "$HOME/hypatia" && mix local.hex --force && mix local.rebar --force && mix deps.get && MIX_NO_PUBSUB=1 mix escript.build)
           fi

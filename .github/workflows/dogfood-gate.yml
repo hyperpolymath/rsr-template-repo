@@ -580,7 +580,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: hyperpolymath/hypatia
-          ref: d73f76b5cb7a35e1aa1024c916aee7cb4f9b141e
+          ref: 7c10e5d712af7178f8c175e10a21c5216216c198
           path: _hypatia
           persist-credentials: false
       - name: Setup Elixir 1.19.4 / OTP 28.3 for Hypatia oracle
@@ -596,7 +596,7 @@ jobs:
             _hypatia/_build
             ~/.hex
             ~/.mix
-          key: hypatia-oracle-${{ runner.os }}-otp28-elx1194-d73f76b5cb7a35e1aa1024c916aee7cb4f9b141e
+          key: hypatia-oracle-${{ runner.os }}-otp28-elx1194-7c10e5d712af7178f8c175e10a21c5216216c198
       - name: Compile the oracle
         working-directory: _hypatia
         run: mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile
