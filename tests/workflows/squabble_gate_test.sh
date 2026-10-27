@@ -123,6 +123,7 @@ on:
       - 'src/**'
 jobs:
   scan:
+    name: scan / gitleaks
     runs-on: ubuntu-latest
     steps:
       - run: echo hi
@@ -139,6 +140,7 @@ on:
   pull_request:
 jobs:
   scan:
+    name: scan / gitleaks
     runs-on: ubuntu-latest
     steps:
       - run: echo hi
@@ -175,6 +177,7 @@ name: Secret Scanner
 on: [push, pull_request]
 jobs:
   scan:
+    name: scan / gitleaks
     runs-on: ubuntu-latest
     steps:
       - run: echo hi
@@ -281,13 +284,17 @@ fresh_context() {
   rm -rf "$context_tree"
   mkdir -p "$context_tree/.github/workflows" "$context_tree/.machine_readable"
   printf '# mapping\r\n\r\n scan / gitleaks => .github/workflows/scan.yaml \r\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
-  printf 'name: Scan\non: pull_request\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+  printf 'name: Scan\non: pull_request\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 }
 fresh_context
 assert_rc 0 'scalar PR event, yaml extension, comments, CRLF, and whitespace are accepted' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
-printf 'name: Scan\non: pull_request_target\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+sed -i 's|name: scan / gitleaks|name: scan / renamed|' "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a renamed job no longer produces the required context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a PR-triggered workflow with no jobs produces no context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request_target\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'pull_request_target alone cannot produce a required PR check' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
-printf 'name: Scan\non:\n  pull_request:\n    paths-ignore: []\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
+printf 'name: Scan\non:\n  pull_request:\n    paths-ignore: []\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'paths-ignore is forbidden even when empty' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 for mapping in '# only comments' 'missing separator' ' => .github/workflows/scan.yaml' \
   'scan / gitleaks =>' 'scan => file => another'; do

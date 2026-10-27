@@ -7,7 +7,8 @@
 #      .machine_readable/required-contexts-allow.txt (and any non-empty
 #      required_status_checks context in .github/rulesets/*.json) resolves to
 #      an existing workflow under .github/workflows/ that runs on pull_request
-#      without path-filtering that could strand a PR (#219 defect class).
+#      without path-filtering that could strand a PR (#219 defect class), and
+#      that has a job whose check-run name is exactly that context.
 #   2. No workflow in .github/workflows/ invokes an admin bypass (`gh pr merge
 #      --admin`) — enforcing cicd-squabbler's core `squabble != bypass`
 #      invariant statically alongside the runtime binary.
@@ -122,6 +123,14 @@ for (const [ctx, relWf] of mapped.entries()) {
     if (Object.hasOwn(prCfg, "paths") || Object.hasOwn(prCfg, "paths-ignore")) {
       fail(`required context '${ctx}' producer '${relWf}' filters pull_request by paths — strands PRs that do not touch those paths`);
     }
+  }
+  // A job's check-run name is its `name:` (or its id when unnamed). Without a
+  // job of exactly that name the context is never produced, however the
+  // workflow is triggered.
+  const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
+  const checkNames = Object.entries(jobs).map(([id, job]) => String(job?.name ?? id));
+  if (!checkNames.includes(ctx)) {
+    fail(`required context '${ctx}' producer '${relWf}' has no job named '${ctx}' (jobs: ${checkNames.join(", ") || "none"})`);
   }
 }
 

@@ -58,6 +58,26 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    (27 controls) mints a Julia package and a Rust CLI and runs the gates on both.
    `.github/workflows/quality.yml` gained a `mint-gates` job that runs them.
 
+* Defects a child inherited, found porting this CI into resource-algebra
+  (resource-algebra#15, fixed there in resource-algebra#16):
+** Secret Scanner: a repository `.gitleaks.toml` replaced the estate
+   gitleaks baseline in all three passes, so a pull request could pass with
+   a weaker local config. The baseline now always runs; a local config adds
+   a second pass;
+** `scripts/check-required-contexts.sh` checked a mapped context's workflow
+   trigger but not that a job with that check-run name exists, so a renamed
+   job could strand pull requests behind an unproducible required check;
+** `container-init` filled the container tokens without reformatting the
+   KYAML, so a fresh child failed Estate Rules' "Converted YAML stays
+   KYAML". It now runs `scripts/kyaml-format.sh` on the three configs and
+   stops with the command to run when it cannot;
+** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or
+   `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
+   gate then rejected in a child;
+** `tests/ffi_strings_test.sh` named the template's export prefix, so in a
+   child it called functions that do not exist. It now maps the child's
+   prefix onto the fixture's.
+
 * `repo-init` minting a repository created with GitHub's "Use this
   template" (measured on metadatastician/lintel, 2026-10-14):
 ** provenance recorded the CHILD's own HEAD as the template commit. The
