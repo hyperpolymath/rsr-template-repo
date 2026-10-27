@@ -1101,9 +1101,9 @@
       :workflow ".github/workflows/sonarqube.yml"
       :job "sonarqube"
       :secrets ("SONAR_TOKEN")
-      :endpoints ("sonarcloud.io" "*.sonarcloud.io")
+      :endpoints ("sonarcloud.io" "*.sonarcloud.io" "binaries.sonarsource.com" "keyserver.ubuntu.com" "keys.openpgp.org")
       :enforcement none
-      :reason "Uploads the CI-based analysis to SonarQube Cloud. Skipped when SONAR_TOKEN is unset.")
+      :reason "Uploads the CI-based analysis to SonarQube Cloud. Skipped when SONAR_TOKEN is unset. SonarSource/sonarqube-scan-action v8.3.0 downloads the scanner from binaries.sonarsource.com and, with signature verification on (its default), fetches the signing key from keyserver.ubuntu.com, falling back to keys.openpgp.org.")
     (job
       :workflow ".github/workflows/build-notification.yml"
       :job "trigger-boj"
