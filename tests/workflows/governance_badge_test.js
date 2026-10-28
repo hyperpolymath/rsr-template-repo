@@ -254,8 +254,17 @@ function createApi(options = {}) {
 // ---------------------------------------------------------------------------
 
 function baseEnv(extra = {}) {
-    const env = { ...process.env, NO_COLOR: "1", GOVERNANCE_BADGE_RETRY_DELAY_MS: "0", ...extra };
+    const env = { ...process.env, NO_COLOR: "1", GOVERNANCE_BADGE_RETRY_DELAY_MS: "0" };
+    // Never inherit a real credential or API endpoint. The suite passed on a
+    // developer machine that had GH_TOKEN exported and failed in CI, where it
+    // does not: tests must not depend on, or be able to use, either.
     delete env.GITHUB_API_URL;
+    delete env.GITHUB_TOKEN;
+    delete env.GH_TOKEN;
+    Object.assign(env, extra);
+    if (!("GITHUB_TOKEN" in env) && !("GH_TOKEN" in env)) {
+        env.GITHUB_TOKEN = "governance-badge-test-token";
+    }
     return env;
 }
 
@@ -763,6 +772,16 @@ async function main() {
             });
             await api.close();
         }
+
+        await test("publish refuses to run without a token, and writes nothing", () => {
+            const result = spawnSync(RUNTIME, [HELPER, ...publishArgs("http://127.0.0.1:1", goodArtifact)], {
+                env: { PATH: process.env.PATH, GOVERNANCE_BADGE_RETRY_DELAY_MS: "0" },
+                encoding: "utf8",
+                timeout: 60000,
+            });
+            equal(result.status, 2, `expected exit 2, got ${result.status}: ${result.stderr}`);
+            check(/token/i.test(result.stderr), `stderr must name the missing token: ${result.stderr}`);
+        });
 
         await test("a missing --artifact is a usage error, not a silent success", () => {
             const out = runSync([
