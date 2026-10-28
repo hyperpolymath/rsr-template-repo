@@ -185,17 +185,23 @@ class UsageError extends Error {}
 class RefusedError extends Error {}
 
 class ApiError extends Error {
+    /** Record an HTTP status (0 when unavailable) and a failure classification. */
     constructor(message, { status = 0, kind = "unexpected" } = {}) {
         super(message);
         this.status = status;
         this.kind = kind;
     }
 
+    /** Whether this is a network or transient API failure eligible for retry. */
     get transient() {
         return this.kind === "transient" || this.kind === "network";
     }
 }
 
+/**
+ * Classify 401/403 as auth, 404 as missing, 409/422 as conflict, and 429/5xx
+ * as transient; all other statuses, including successful ones, are unexpected.
+ */
 function classifyStatus(status) {
     if (status === 401 || status === 403) return "auth";
     if (status === 404) return "missing";
@@ -223,12 +229,19 @@ const MAX_CONFLICT_ATTEMPTS = 3;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Return the string value with all trailing slashes removed. */
 function trimTrailingSlashes(value) {
     let base = String(value);
     while (base.endsWith("/")) base = base.slice(0, -1);
     return base;
 }
 
+/**
+ * Send an authenticated request to apiUrl + apiPath, encoding a supplied body
+ * as JSON. Resolve to { status, ok, text }, including for HTTP error statuses.
+ * No retries are performed here.
+ * @throws {ApiError} If serialization, fetch, or reading the response body fails.
+ */
 async function request(method, apiPath, { token, apiUrl, body } = {}) {
     const url = `${trimTrailingSlashes(apiUrl)}${apiPath}`;
     const headers = {
@@ -261,6 +274,10 @@ async function request(method, apiPath, { token, apiUrl, body } = {}) {
     return { status: response.status, ok: response.ok, text };
 }
 
+/**
+ * Build an ApiError from an HTTP response, preferring its JSON message over
+ * a shortened text body. Invalid JSON falls back to the text body.
+ */
 function apiError(method, apiPath, response) {
     const kind = classifyStatus(response.status);
     let detail = response.text.slice(0, 300).replace(/\s+/g, " ").trim();
@@ -276,9 +293,12 @@ function apiError(method, apiPath, response) {
     );
 }
 
-// getJSON - GET with bounded retries for transient states only. A 404 is NOT
-// retried and NOT swallowed: callers decide what a 404 means at their own
-// endpoint, and everything else is raised.
+/**
+ * GET and parse a 200 response as JSON, with up to three attempts for
+ * network failures and 429/5xx only. A 404 is neither retried nor swallowed.
+ * @throws {ApiError} For other statuses or exhausted network/transient retries.
+ * @throws {SyntaxError} If a 200 response is not valid JSON; parsing is not retried.
+ */
 async function getJSON(apiPath, http) {
     let lastError;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
@@ -319,8 +339,12 @@ async function getWithRetry(apiPath, http) {
     throw lastError;
 }
 
-// postJSON - a POST that must succeed. Transient failures are surfaced so the
-// publication loop can re-read and converge; every other status is fatal.
+/**
+ * POST JSON and return the parsed 200/201 response without retrying.
+ * Transient failures are surfaced so the publication loop can re-read and
+ * converge; every other status is fatal.
+ * @throws {ApiError} For network failures, other statuses, or invalid response JSON.
+ */
 async function postJSON(apiPath, body, http) {
     const response = await request("POST", apiPath, { ...http, body });
     if (response.status === 200 || response.status === 201) {
@@ -340,6 +364,11 @@ async function postJSON(apiPath, body, http) {
 // Argument handling and guards
 // ---------------------------------------------------------------------------
 
+/**
+ * Parse --key=value and --key value options, plus a bare --help flag.
+ * Return an option map with the last duplicate winning; names are not validated.
+ * @throws {UsageError} For positional arguments or options missing a value.
+ */
 function parseArgs(argv) {
     const opts = {};
     for (let i = 0; i < argv.length; i += 1) {
@@ -365,6 +394,11 @@ function parseArgs(argv) {
     return opts;
 }
 
+/**
+ * Return a trimmed label of 1-32 ASCII letters, digits, spaces, dots, underscores,
+ * or hyphens, starting with a letter or digit.
+ * @throws {UsageError} If the label does not match these restrictions.
+ */
 function requireLabel(raw) {
     const label = String(raw || "").trim();
     if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,31}$/.test(label)) {
@@ -377,6 +411,11 @@ function requireLabel(raw) {
 // that is the difference between a badge refresh and a merge into source.
 const FORBIDDEN_BRANCHES = new Set(["main", "master", "head"]);
 
+/**
+ * Return a trimmed branch name of 1-80 ASCII letters, digits, dots, underscores,
+ * or hyphens. The repository's default branch is checked separately by cmdPublish.
+ * @throws {UsageError} For other names or main/master/HEAD, ignoring case.
+ */
 function requireBranch(raw) {
     const branch = String(raw || "").trim();
     if (!/^[A-Za-z0-9._-]{1,80}$/.test(branch)) {
@@ -392,6 +431,11 @@ function requireBranch(raw) {
     return branch;
 }
 
+/**
+ * Return a trimmed badges/<name>.json path, where name has 1-80 ASCII letters,
+ * digits, dots, underscores, or hyphens and contains no directory separators.
+ * @throws {UsageError} If the destination does not match this shape.
+ */
 function requireDest(raw) {
     const dest = String(raw || "").trim();
     if (!/^badges\/[A-Za-z0-9._-]{1,80}\.json$/.test(dest)) {
@@ -402,6 +446,7 @@ function requireDest(raw) {
     return dest;
 }
 
+/** Encode each path segment for a URL while preserving directory separators. */
 function encodePath(p) {
     return p.split("/").map(encodeURIComponent).join("/");
 }
@@ -410,6 +455,12 @@ function encodePath(p) {
 // render
 // ---------------------------------------------------------------------------
 
+/**
+ * Write the canonical badge to opts.out (overwriting it) or stdout and return 0.
+ * Unknown states become unknown/lightgrey; output directories are not created.
+ * @throws {UsageError} For an invalid label or missing state.
+ * @throws {Error} Propagates filesystem errors when writing opts.out.
+ */
 function cmdRender(opts) {
     const label = requireLabel(opts.label);
     if (opts.state === undefined) throw new UsageError("render needs --state");
@@ -428,9 +479,14 @@ function cmdRender(opts) {
 // Intent: what badge SHOULD this run publish?
 // ---------------------------------------------------------------------------
 
-// resolveIntent - the lane result decides the state, EXCEPT that `success` is
-// only believed when the lane's artifact corroborates it. The artifact is a
-// witness, not the authority: an artifact cannot turn a failed lane green.
+/**
+ * Resolve the lane result to { state, bytes, faults }, with canonical UTF-8
+ * badge bytes. Only success reads artifact, a local file that must contain the
+ * canonical success badge for label; an artifact cannot turn a failed lane green.
+ * Missing/non-file, invalid, noncanonical, or contradictory evidence returns
+ * unavailable with a fault. Other lane states return no faults.
+ * @throws {Error} Propagates filesystem inspection and read errors.
+ */
 function resolveIntent({ label, laneResult, artifact }) {
     const laneState = normaliseState(laneResult);
     const faults = [];
@@ -474,6 +530,14 @@ function resolveIntent({ label, laneResult, artifact }) {
 // Remote state: present / file absent / branch absent - and nothing else
 // ---------------------------------------------------------------------------
 
+/**
+ * Read the published badge as { kind: "present", bytes, text, sha }, or return
+ * kind absent-file/absent-branch after a contents 404 and a ref 200/404.
+ * repo is owner/name; dest is the repository-relative badge path.
+ * @throws {ApiError} For failed reads, other statuses, invalid contents JSON,
+ * or missing encoding/content/sha fields.
+ * @throws {TypeError} If the decoded contents payload is null.
+ */
 async function readRemote({ repo, branch, dest, http }) {
     const contentsPath = `/repos/${repo}/contents/${encodePath(dest)}?ref=${encodeURIComponent(branch)}`;
     const response = await getWithRetry(contentsPath, http);
@@ -518,10 +582,17 @@ async function readRemote({ repo, branch, dest, http }) {
 // Publishing
 // ---------------------------------------------------------------------------
 
+/** Build the Contents API path for an owner/name repo and relative destination. */
 function contentsPathFor(repo, dest) {
     return `/repos/${repo}/contents/${encodePath(dest)}`;
 }
 
+/**
+ * Create or replace the badge through the Contents API. Supply the previously
+ * read blob sha for an update; omit it to create a file. A write may make a commit.
+ * Return the raw response without status validation or retries.
+ * @throws {ApiError} Propagates request failures, including unreadable responses.
+ */
 async function putFile({ repo, branch, dest, message, bytes, sha, http }) {
     const body = {
         message,
@@ -532,9 +603,13 @@ async function putFile({ repo, branch, dest, message, bytes, sha, http }) {
     return request("PUT", contentsPathFor(repo, dest), { ...http, body });
 }
 
-// createOrphanBranch - a commit with NO parents, then a ref to it. The tree is
-// built without a base_tree, so the branch starts with no ancestry at all: no
-// common ancestor with main, nothing mergeable, no PR.
+/**
+ * Create a branch containing only the badge, with no parent commits or base tree.
+ * Return { conflict: false, sha } on success, or { conflict: true } for a ref
+ * creation 409/422. Earlier Git objects are not rolled back on conflict or error.
+ * @throws {ApiError} For request failures, unexpected responses, or missing SHAs.
+ * @throws {RefusedError} If the returned commit explicitly has nonempty parents.
+ */
 async function createOrphanBranch({ repo, branch, dest, message, bytes, http }) {
     const blob = await postJSON(`/repos/${repo}/git/blobs`, {
         content: bytes.toString("base64"),
@@ -575,6 +650,10 @@ async function createOrphanBranch({ repo, branch, dest, message, bytes, http }) 
     throw apiError("POST", `/repos/${repo}/git/refs`, ref);
 }
 
+/**
+ * Append lines and a trailing newline to GITHUB_STEP_SUMMARY when set.
+ * Ignore an unset target and catch append errors without failing publication.
+ */
 function stepSummary(lines) {
     const target = process.env.GITHUB_STEP_SUMMARY;
     if (!target) return;
@@ -585,6 +664,10 @@ function stepSummary(lines) {
     }
 }
 
+/**
+ * Append a key=value line to GITHUB_OUTPUT when set. Catch append errors
+ * without failing publication; an unset target is a no-op.
+ */
 function setOutput(key, value) {
     const target = process.env.GITHUB_OUTPUT;
     if (!target) return;
@@ -595,6 +678,11 @@ function setOutput(key, value) {
     }
 }
 
+/**
+ * Record a publication decision in the Actions summary and state/action/colour/
+ * label outputs. Return 3 when faults is nonempty, even for unchanged content;
+ * otherwise return 0. This function does not publish or change the remote badge.
+ */
 function finish({ label, dest, branch, intent, action, commit, faults }) {
     const entry = STATE_TABLE[intent.state];
     const where = oneLine(`${dest} on ${branch}`);
@@ -649,6 +737,22 @@ function finish({ label, dest, branch, intent, action, commit, faults }) {
     return EXIT_OK;
 }
 
+/**
+ * Publish the lane's intended badge, leaving identical bytes unchanged and
+ * refusing invalid existing badges. Repository, token, and API URL options fall
+ * back to the environment; --source-sha contributes at most 12 characters to
+ * the default commit message. Missing branches are created without parents.
+ * Retry contents-write HTTP 409/422/429/5xx, ref-creation 409/422, and network/
+ * transient failures during orphan creation by re-reading remote state, for
+ * at most three publication attempts.
+ * Return 0 on publication/no-op, or 3 for unusable lane evidence, even on no-op.
+ * @throws {UsageError} For missing configuration, invalid arguments, or targeting
+ * main/master/HEAD (ignoring case) or the repository's default branch.
+ * @throws {RefusedError} For metadata read failures, invalid existing badges,
+ * non-orphan commits, or exhausted publication attempts.
+ * @throws {ApiError} Propagates other API failures, including PUT network errors.
+ * @throws {Error} Propagates artifact filesystem and unexpected payload errors.
+ */
 async function cmdPublish(opts) {
     const label = requireLabel(opts.label);
     const branch = requireBranch(opts.branch);
@@ -766,6 +870,10 @@ async function cmdPublish(opts) {
     );
 }
 
+/**
+ * Return the string at a dot-separated JSON path, or an empty string for invalid
+ * JSON, a missing path, or a non-string value.
+ */
 function readJsonPath(text, path) {
     try {
         const parsed = JSON.parse(text);
@@ -782,6 +890,7 @@ function readJsonPath(text, path) {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/** Print command usage, supported states, and exit codes to stdout. */
 function usage() {
     console.log(
         [
@@ -797,6 +906,12 @@ function usage() {
     );
 }
 
+/**
+ * Dispatch command-line arguments (excluding the runtime and script paths),
+ * returning 0 for help or the selected command's exit code.
+ * @throws {UsageError} For malformed options or an unknown command.
+ * @throws {Error} Propagates render/publication errors to the entry point's handler.
+ */
 async function main(argv) {
     const command = argv[0];
     const opts = parseArgs(argv.slice(1));
