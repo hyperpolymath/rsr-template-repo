@@ -9,9 +9,9 @@
 //
 // The GitHub REST API is replaced by an in-process mock (node:http) whose state
 // is a branch name, an optional file, and a per-route script of injected HTTP
-// statuses. The helper runs as a child process against `--api-url`, exactly as
-// it does in the workflow, so the tests exercise the real fetch/status paths
-// rather than a stubbed function.
+// statuses or explicit responses. The helper runs as a child process against
+// `--api-url`, exactly as it does in the workflow, so tests exercise the real
+// fetch/status paths rather than a stubbed function.
 //
 // Runtime-agnostic on purpose: CommonJS + node: builtins only, so it runs under
 // the estate's first-choice runtime (Bun) and under Node, which is what makes
@@ -34,6 +34,22 @@ const SUCCESS_BADGE = '{"schemaVersion":1,"label":"K9","message":"success","colo
 const FAILURE_BADGE = '{"schemaVersion":1,"label":"K9","message":"failure","color":"red"}\n';
 const SKIPPED_BADGE = '{"schemaVersion":1,"label":"K9","message":"skipped","color":"lightgrey"}\n';
 const GREY_BADGE = '{"schemaVersion":1,"label":"K9","message":"unavailable","color":"lightgrey"}\n';
+
+// Structural failures are invalid both as lane evidence and as existing
+// output. Keep the expected policy independent of the helper's validator.
+const INVALID_BADGES = [
+    ["JSON null", "null\n"],
+    ["JSON string", '"success"\n'],
+    ["string schemaVersion", '{"schemaVersion":"1","label":"K9","message":"success","color":"brightgreen"}\n'],
+    ["unsupported schemaVersion", '{"schemaVersion":2,"label":"K9","message":"success","color":"brightgreen"}\n'],
+    ["another lane's label", '{"schemaVersion":1,"label":"OTHER","message":"success","color":"brightgreen"}\n'],
+    ["missing label", '{"schemaVersion":1,"message":"success","color":"brightgreen"}\n'],
+    ["empty message", '{"schemaVersion":1,"label":"K9","message":"","color":"brightgreen"}\n'],
+    ["numeric message", '{"schemaVersion":1,"label":"K9","message":1,"color":"brightgreen"}\n'],
+    ["missing color", '{"schemaVersion":1,"label":"K9","message":"success"}\n'],
+    ["empty color", '{"schemaVersion":1,"label":"K9","message":"success","color":""}\n'],
+    ["numeric color", '{"schemaVersion":1,"label":"K9","message":"success","color":1}\n'],
+];
 
 // ---------------------------------------------------------------------------
 // Tiny test runner (the estate's Silence + Firing + Setup-error convention)
@@ -163,8 +179,12 @@ function createApi(options = {}) {
 
         const scripted = state.script.get(route);
         if (scripted && scripted.length) {
-            const status = scripted.shift();
-            if (status >= 400) return send(res, status, { message: `injected ${status}` });
+            const response = scripted.shift();
+            if (typeof response === "object") {
+                res.writeHead(response.status, { "Content-Type": "application/json" });
+                return res.end(response.text === undefined ? JSON.stringify(response.body) : response.text);
+            }
+            if (response >= 400) return send(res, response, { message: `injected ${response}` });
         }
 
         switch (route) {
@@ -270,6 +290,9 @@ function baseEnv(extra = {}) {
     delete env.GITHUB_API_URL;
     delete env.GITHUB_TOKEN;
     delete env.GH_TOKEN;
+    // Test children must not append to the surrounding Actions job's files.
+    delete env.GITHUB_OUTPUT;
+    delete env.GITHUB_STEP_SUMMARY;
     Object.assign(env, extra);
     if (!("GITHUB_TOKEN" in env) && !("GH_TOKEN" in env)) {
         env.GITHUB_TOKEN = "governance-badge-test-token";
@@ -315,6 +338,19 @@ function publishArgs(apiUrl, artifact, extra = []) {
         "--source-sha", "0123456789abcdef0123456789abcdef01234567",
         ...extra,
     ];
+}
+
+// Keep new cases isolated, including when an assertion or child process fails.
+async function testWithApi(name, options, fn) {
+    await test(name, async () => {
+        const api = createApi(options);
+        const url = await api.listen();
+        try {
+            await fn(api, url);
+        } finally {
+            await api.close();
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -366,7 +402,7 @@ async function main() {
             });
         }
 
-        for (const raw of ["timed_out", "neutral", "action_required", "", "SUCCEEDED", "green"]) {
+        for (const raw of ["timed_out", "neutral", "action_required", "", "SUCCEEDED", "green", "__proto__", "constructor", "toString"]) {
             await test(`unrecognised lane result ${JSON.stringify(raw)} becomes unknown/lightgrey`, () => {
                 const out = runSync(["render", "--label", LABEL, "--state", raw]);
                 equal(out.code, 0, "render must exit 0");
@@ -382,6 +418,38 @@ async function main() {
             equal(a.stdout, b.stdout, "same input must produce the same bytes");
             equal(a.stdout, SKIPPED_BADGE, "skipped badge bytes");
         });
+
+        for (const [raw, expected] of [[" SUCCESS \t", SUCCESS_BADGE], ["\nFaIlUrE\r", FAILURE_BADGE]]) {
+            await test(`render normalises surrounding whitespace and case in ${JSON.stringify(raw)}`, () => {
+                const out = runSync(["render", "--label", LABEL, "--state", raw]);
+                equal(out.code, 0, out.stderr);
+                equal(out.stdout, expected, "normalised states retain canonical bytes");
+            });
+        }
+
+        await test("render --out writes canonical bytes without mixing in its log", () => {
+            const target = join(work, "rendered.json");
+            const out = runSync(["render", "--label=K9", "--state=success", "--out", target]);
+            equal(out.code, 0, out.stderr);
+            equal(readFileSync(target, "utf8"), SUCCESS_BADGE, "file contains only the canonical badge");
+            check(out.stdout.includes("rendered"), "the log reports the file write");
+        });
+
+        for (const label of ["A", "A".repeat(32)]) {
+            await test(`render accepts the ${label.length}-character label boundary`, () => {
+                const out = runSync(["render", "--label", label, "--state", "success"]);
+                equal(out.code, 0, out.stderr);
+                equal(JSON.parse(out.stdout).label, label, "the label is preserved");
+            });
+        }
+
+        for (const label of ["", "A".repeat(33), "-K9", "K9\n::error::forged"]) {
+            await test(`render rejects unsafe label ${JSON.stringify(label)}`, () => {
+                const out = runSync(["render", "--label", label, "--state", "success"]);
+                equal(out.code, 2, "invalid labels are usage errors");
+                check(!out.stderr.split("\n").some((line) => line.startsWith("::error::")), "input cannot forge a diagnostic line");
+            });
+        }
 
         // ---------------------------------------------------------------- 2
         section("2. Identical bytes publish nothing");
@@ -403,6 +471,17 @@ async function main() {
             });
             await api.close();
         }
+
+        await testWithApi("unusable evidence still fails when unavailable is already published", {
+            branchExists: true, fileBytes: GREY_BADGE,
+        }, async (api, url) => {
+            const output = join(work, "grey-noop-output");
+            const out = await runAsync(publishArgs(url, missingArtifact), { GITHUB_OUTPUT: output });
+            equal(out.code, 3, `an unchanged grey badge must retain the evidence fault: ${out.stderr}`);
+            equal(api.writes().length, 0, "a grey fault must not create a no-op commit");
+            check(out.stdout.includes("::error::"), "the evidence fault remains visible");
+            equal(readFileSync(output, "utf8"), "state=unavailable\naction=unchanged\ncolour=lightgrey\nlabel=K9\n", "Actions outputs describe the no-op honestly");
+        });
 
         // ---------------------------------------------------------------- 3
         section("3. Changed bytes publish exactly once");
@@ -448,6 +527,23 @@ async function main() {
                 equal(api.puts().length, 1, "byte differences must publish even when the JSON means the same");
             });
             await api.close();
+        }
+
+        for (const [name, bytes, laneResult, expected] of [
+            ["pretty-printed JSON", JSON.stringify(JSON.parse(SUCCESS_BADGE), null, 2) + "\n", "success", SUCCESS_BADGE],
+            ["missing final newline", SUCCESS_BADGE.trimEnd(), "success", SUCCESS_BADGE],
+            ["legacy red skipped badge", '{"schemaVersion":1,"label":"K9","message":"skipped","color":"red"}\n', "skipped", SKIPPED_BADGE],
+            ["legacy unrecognised message", '{"schemaVersion":1,"label":"K9","message":"pending","color":"blue"}\n', "success", SUCCESS_BADGE],
+        ]) {
+            await testWithApi(`existing ${name} is updated to canonical bytes`, {
+                branchExists: true, fileBytes: bytes,
+            }, async (api, url) => {
+                const out = await runAsync(publishArgs(url, goodArtifact, ["--lane-result", laneResult]));
+                equal(out.code, 0, out.stderr);
+                equal(api.puts().length, 1, "different but valid bytes require exactly one update");
+                equal(api.puts()[0].body.sha, "sha-initial", "the update is sha-checked");
+                equal(api.state.file.bytes.toString(), expected, "the updated file is canonical");
+            });
         }
 
         // ---------------------------------------------------------------- 4
@@ -544,6 +640,53 @@ async function main() {
             await api.close();
         }
 
+        for (const [name, bytes] of [
+            ...INVALID_BADGES,
+            ["reordered keys", '{"label":"K9","schemaVersion":1,"message":"success","color":"brightgreen"}\n'],
+            ["pretty-printed JSON", JSON.stringify(JSON.parse(SUCCESS_BADGE), null, 2) + "\n"],
+            ["missing final newline", SUCCESS_BADGE.trimEnd()],
+            ["extra field", SUCCESS_BADGE.replace('"schemaVersion":1,', '"schemaVersion":1,"extra":true,')],
+            ["duplicate key", SUCCESS_BADGE.replace('"message":"success"', '"message":"failure","message":"success"')],
+            ["unknown state", '{"schemaVersion":1,"label":"K9","message":"pending","color":"brightgreen"}\n'],
+        ]) {
+            await testWithApi(`success with ${name} evidence publishes unavailable`, {
+                branchExists: true, fileBytes: SUCCESS_BADGE,
+            }, async (api, url) => {
+                const out = await runAsync(publishArgs(url, artifact("invalid.json", bytes)));
+                equal(out.code, 3, `untrustworthy evidence must fail visibly: ${out.stderr}`);
+                equal(api.puts().length, 1, "the stale green must be replaced");
+                equal(api.state.file.bytes.toString(), GREY_BADGE, "invalid evidence never publishes green");
+                check(out.stdout.includes("::error::"), "the evidence fault is annotated");
+            });
+        }
+
+        await testWithApi("a directory is not accepted as success evidence", {
+            branchExists: true, fileBytes: SUCCESS_BADGE,
+        }, async (api, url) => {
+            const out = await runAsync(publishArgs(url, artifactDir));
+            equal(out.code, 3, out.stderr);
+            equal(api.state.file.bytes.toString(), GREY_BADGE, "a non-file artifact produces unavailable");
+        });
+
+        for (const [laneResult, message, color] of [
+            ["failure", "failure", "red"],
+            ["skipped", "skipped", "lightgrey"],
+            ["cancelled", "cancelled", "lightgrey"],
+            ["timed_out", "unknown", "lightgrey"],
+        ]) {
+            await testWithApi(`a green artifact cannot override lane result ${laneResult}`, {
+                branchExists: true, fileBytes: SUCCESS_BADGE,
+            }, async (api, url) => {
+                const out = await runAsync(publishArgs(url, goodArtifact, ["--lane-result", laneResult]));
+                equal(out.code, 0, out.stderr);
+                equal(api.puts().length, 1, "the lane result must replace the stale green");
+                const badge = JSON.parse(api.state.file.bytes.toString());
+                equal(badge.message, message, "the lane job remains authoritative");
+                equal(badge.color, color, "the artifact cannot make the badge green");
+                check(!out.stdout.includes("::error::"), "a non-success lane needs no success witness");
+            });
+        }
+
         for (const laneResult of ["skipped", "cancelled", "timed_out", ""]) {
             const api = createApi({ branchExists: true, fileBytes: SUCCESS_BADGE });
             const url = await api.listen();
@@ -565,6 +708,7 @@ async function main() {
             ["JSON array", "[]\n"],
             ["missing schemaVersion", '{"label":"K9","message":"failure","color":"red"}\n'],
             ["null message", '{"schemaVersion":1,"label":"K9","message":null,"color":"red"}\n'],
+            ...INVALID_BADGES,
         ]) {
             const api = createApi({ branchExists: true, fileBytes: text });
             const url = await api.listen();
@@ -653,6 +797,87 @@ async function main() {
             });
         }
 
+        for (const route of ["repo", "contents-get", "ref-get"]) {
+            for (const status of [401, 403, 429, 502, 400]) {
+                await testWithApi(`${route} HTTP ${status} fails closed with bounded reads`, {
+                    branchExists: false,
+                }, async (api, url) => {
+                    const transient = status === 429 || status === 502;
+                    const attempts = transient ? 3 : 1;
+                    // Leave extra failures queued: the test must observe the
+                    // limit, rather than accidentally succeed on the mock's default.
+                    api.state.script.set(route, Array(4).fill(status));
+                    const out = await runAsync(publishArgs(url, goodArtifact));
+                    equal(out.code, 1, `HTTP ${status} must fail: ${out.stderr}`);
+                    equal(api.state.requests.filter((r) => r.route === route).length, attempts, "only transient failures are retried, at most three times");
+                    equal(api.writes().length, 0, "unknown remote state never permits any writes");
+                    equal(api.state.branchExists, false, "API errors cannot create the branch");
+                    check(out.stderr.includes(String(status)), "the diagnostic identifies the HTTP status");
+                    if (route === "repo") {
+                        equal(api.state.requests.length, attempts, "metadata failure stops before reading contents");
+                    } else if (route === "contents-get") {
+                        equal(api.state.requests.filter((r) => r.route === "ref-get").length, 0, "only a definitive file 404 permits a ref lookup");
+                    }
+                });
+            }
+        }
+
+        for (const route of ["repo", "contents-get", "ref-get"]) {
+            await testWithApi(`${route} recovers on its last allowed transient retry`, {
+                branchExists: false,
+            }, async (api, url) => {
+                api.state.script.set(route, [429, 503]);
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 0, out.stderr);
+                equal(api.state.requests.filter((r) => r.route === route).length, 3, "the third read is authoritative");
+                equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "recovery publishes the intended bytes");
+                equal(api.posts().filter((r) => r.route === "refs-post").length, 1, "only the confirmed absence creates a branch");
+            });
+        }
+
+        const contentsPayload = {
+            sha: "sha-initial", encoding: "base64", content: Buffer.from(SUCCESS_BADGE).toString("base64"),
+        };
+        for (const [name, response] of [
+            ["invalid response JSON", { status: 200, text: "{" }],
+            ["wrong encoding", { status: 200, body: { ...contentsPayload, encoding: "utf-8" } }],
+            ["missing sha", { status: 200, body: { ...contentsPayload, sha: undefined } }],
+            ["missing content", { status: 200, body: { ...contentsPayload, content: undefined } }],
+            ["non-string content", { status: 200, body: { ...contentsPayload, content: [] } }],
+        ]) {
+            await testWithApi(`contents API with ${name} is refused without writing`, {
+                branchExists: true, fileBytes: SUCCESS_BADGE,
+            }, async (api, url) => {
+                api.state.script.set("contents-get", [response]);
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 1, out.stderr);
+                equal(api.writes().length, 0, "an unreadable contents payload cannot authorise writes");
+                equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "existing bytes remain intact");
+                equal(api.state.requests.filter((r) => r.route === "contents-get").length, 1, "malformed successful responses are not transient");
+                equal(api.state.requests.filter((r) => r.route === "ref-get").length, 0, "bad payloads are never interpreted as absence");
+            });
+        }
+
+        for (const route of ["blobs-post", "trees-post", "commits-post"]) {
+            for (const [name, response] of [
+                ["invalid JSON", { status: 201, text: "not JSON" }],
+                ["missing sha", { status: 201, body: {} }],
+                ["non-string sha", { status: 201, body: { sha: 123 } }],
+            ]) {
+                await testWithApi(`orphan creation stops at ${route} with ${name}`, {
+                    branchExists: false,
+                }, async (api, url) => {
+                    api.state.script.set(route, [response]);
+                    const out = await runAsync(publishArgs(url, goodArtifact));
+                    equal(out.code, 1, out.stderr);
+                    equal(api.posts().at(-1).route, route, "no later creation step is attempted");
+                    equal(api.state.requests.filter((r) => r.route === route).length, 1, "invalid creation responses are not retried");
+                    equal(api.state.branchExists, false, "no ref can expose an unverified commit");
+                    equal(api.puts().length, 0, "an invalid orphan response cannot fall back to a contents write");
+                });
+            }
+        }
+
         // ---------------------------------------------------------------- 8
         section("8. Concurrent publications reconcile instead of overwriting");
 
@@ -738,6 +963,89 @@ async function main() {
             await api.close();
         }
 
+        for (const fileBytes of [undefined, SUCCESS_BADGE]) {
+            for (const status of [409, 422, 429, 503]) {
+                await testWithApi(`HTTP ${status} during ${fileBytes === undefined ? "file creation" : "file update"} exhausts bounded reconciliation`, {
+                    branchExists: true, fileBytes,
+                }, async (api, url) => {
+                    api.state.script.set("contents-put", Array(4).fill(status));
+                    const out = await runAsync(publishArgs(url, failureArtifact, ["--lane-result", "failure"]));
+                    equal(out.code, 1, out.stderr);
+                    equal(api.puts().length, 3, "publication stops after three failed writes");
+                    equal(api.state.requests.filter((r) => r.route === "contents-get").length, 3, "every write attempt re-reads current contents");
+                    equal(api.posts().length, 0, "contents conflicts never create an orphan branch");
+                    equal(api.state.file && api.state.file.bytes.toString(), fileBytes === undefined ? null : fileBytes, "failed writes preserve the original file state");
+                    check(out.stderr.includes("gave up after 3 attempts"), "exhaustion is diagnosed explicitly");
+                    for (const put of api.puts()) {
+                        equal(put.body.sha, fileBytes === undefined ? undefined : "sha-initial", "only an existing file supplies a sha");
+                    }
+                });
+            }
+        }
+
+        for (const status of [401, 403, 404]) {
+            await testWithApi(`a PUT returning ${status} is fatal without retries or branch creation`, {
+                branchExists: true, fileBytes: SUCCESS_BADGE,
+            }, async (api, url) => {
+                api.state.script.set("contents-put", [status]);
+                const out = await runAsync(publishArgs(url, failureArtifact, ["--lane-result", "failure"]));
+                equal(out.code, 1, out.stderr);
+                equal(api.writes().length, 1, "a fatal write response is not retried");
+                equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the original bytes are preserved");
+            });
+        }
+
+        await testWithApi("a creation race with different bytes re-reads and updates the winner's sha", {
+            branchExists: true,
+        }, async (api, url) => {
+            let injected = false;
+            api.state.hook = (request, state) => {
+                if (request.route === "contents-put" && !injected) {
+                    injected = true;
+                    state.file = { sha: "sha-winner", bytes: Buffer.from(SKIPPED_BADGE) };
+                    state.script.set("contents-put", [422]);
+                }
+            };
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 0, out.stderr);
+            equal(api.puts().length, 2, "the creation conflict is followed by one update");
+            check(!("sha" in api.puts()[0].body), "the initial create has no sha");
+            equal(api.puts()[1].body.sha, "sha-winner", "the update uses the competing file's sha");
+            equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the final content matches this run");
+        });
+
+        await testWithApi("an update conflict cannot overwrite a newly malformed remote file", {
+            branchExists: true, fileBytes: SUCCESS_BADGE,
+        }, async (api, url) => {
+            api.state.hook = (request, state) => {
+                if (request.route === "contents-put") {
+                    state.file = { sha: "sha-hand-edit", bytes: Buffer.from("hand edit\n") };
+                    state.script.set("contents-put", [409]);
+                }
+            };
+            const out = await runAsync(publishArgs(url, failureArtifact, ["--lane-result", "failure"]));
+            equal(out.code, 1, out.stderr);
+            equal(api.puts().length, 1, "the malformed re-read must prevent a second write");
+            equal(api.state.file.bytes.toString(), "hand edit\n", "the competing hand edit remains intact");
+            check(out.stderr.includes("refusing to overwrite"), "the refusal explains the invalid remote content");
+        });
+
+        for (const route of ["blobs-post", "trees-post", "commits-post", "refs-post"]) {
+            await testWithApi(`a transient ${route} failure restarts orphan creation safely`, {
+                branchExists: false,
+            }, async (api, url) => {
+                api.state.script.set(route, [503]);
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 0, out.stderr);
+                equal(api.state.requests.filter((r) => r.route === "contents-get").length, 2, "retry first verifies remote state again");
+                equal(api.posts().filter((r) => r.route === route).length, 2, "the transient step is retried once");
+                for (const commit of api.posts().filter((r) => r.route === "commits-post")) {
+                    equal(JSON.stringify(commit.body.parents), "[]", "each attempted commit remains an orphan");
+                }
+                equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "recovery publishes canonical bytes");
+            });
+        }
+
         // ---------------------------------------------------------------- 9
         section("9. Guards: the badge never touches a source branch");
 
@@ -806,7 +1114,31 @@ async function main() {
         });
 
         // --------------------------------------------------------------- 10
-        section("10. The helper is the only renderer; the workflow uses it");
+        section("10. Actions outputs, summaries and shared rendering");
+
+        for (const [action, options, evidence, state, color, code] of [
+            ["updated", { branchExists: true, fileBytes: FAILURE_BADGE }, goodArtifact, "success", "brightgreen", 0],
+            ["created", { branchExists: true }, goodArtifact, "success", "brightgreen", 0],
+            ["created-orphan-branch", { branchExists: false }, goodArtifact, "success", "brightgreen", 0],
+            ["updated", { branchExists: true, fileBytes: SUCCESS_BADGE }, missingArtifact, "unavailable", "lightgrey", 3],
+        ]) {
+            await testWithApi(`${action}/${state} appends truthful Actions outputs and a summary`, options, async (api, url) => {
+                const output = join(work, "actions-output");
+                const summary = join(work, "actions-summary");
+                writeFileSync(output, "existing=value\n");
+                writeFileSync(summary, "Earlier step\n");
+                const out = await runAsync(publishArgs(url, evidence), {
+                    GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary,
+                });
+                equal(out.code, code, out.stderr);
+                equal(readFileSync(output, "utf8"), `existing=value\nstate=${state}\naction=${action}\ncolour=${color}\nlabel=K9\n`, "outputs append the actual publication decision");
+                const text = readFileSync(summary, "utf8");
+                check(text.startsWith("Earlier step\n"), "summary preserves previous step content");
+                check(text.includes(`| ${state} | ${state} | ${color} | ${action}`), "summary records the actual state, color and action");
+                equal(text.includes("**Lane evidence was unusable:**"), code === 3, "only unusable evidence adds the fault explanation");
+                equal(JSON.parse(api.state.file.bytes.toString()).message, state, "outputs agree with the published file");
+            });
+        }
 
         await test("the workflow's artifact producer would render the same bytes", () => {
             const out = runSync(["render", "--label", "K9", "--state", "success"]);
