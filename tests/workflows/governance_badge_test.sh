@@ -21,6 +21,11 @@
 # Usage: bash tests/workflows/governance_badge_test.sh
 # Exit: 0 pass, 1 failure, 2 setup error (no Bun and no Node).
 
+# NB: GitHub runs a `run:` step as `bash -e`, and errexit set by the CALLER is
+# not cleared by `set -uo pipefail`. This script owns its exit status through
+# its own counters, so errexit is switched off explicitly; otherwise the first
+# non-zero status that is not inside an `if` aborts the run with no report.
+set +e
 set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -51,10 +56,13 @@ fi
 
 echo "=== 1. Behaviour: rendering, publication decisions, API errors ==="
 echo "runtime: $RUNTIME ($("$RUNTIME" --version 2>&1 | head -1))"
+echo "repo:    $REPO_DIR"
+echo "shell:   $BASH_VERSION (errexit $(case $- in *e*) echo on;; *) echo off;; esac))"
 if "$RUNTIME" "$JS_SUITE"; then
     echo "PASS: behaviour suite"
 else
     echo "FAIL: behaviour suite"
+    echo "::error::governance-badge behaviour suite failed (see the FAIL lines above)"
     fail=1
 fi
 
@@ -70,7 +78,11 @@ job_block() {
 
 WIRE_FAIL=0
 wire_pass() { echo "  PASS: $1"; }
-wire_fail() { echo "  FAIL: $1"; WIRE_FAIL=1; }
+wire_fail() {
+    echo "  FAIL: $1"
+    echo "::error::governance-badge wiring: $1"
+    WIRE_FAIL=1
+}
 
 has() { # has DESC PATTERN FILE
     if grep -Eq -- "$2" "$3"; then wire_pass "$1"; else wire_fail "$1 (no match for /$2/)"; fi

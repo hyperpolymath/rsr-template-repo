@@ -51,8 +51,13 @@ async function test(name, fn) {
     } catch (err) {
         failed += 1;
         failures.push({ name, err });
+        const detail = String(err && err.message ? err.message : err).replace(/\n/g, " ");
         console.log(`  FAIL: ${name}`);
         console.log(`        ${String(err && err.message ? err.message : err).replace(/\n/g, "\n        ")}`);
+        // Surface the failing check through the run's annotations: the log
+        // itself can be awkward to reach, and a bare "exit code 1" is not a
+        // report.
+        console.log(`::error::governance-badge test failed: ${name} - ${detail.slice(0, 400)}`);
     }
 }
 
@@ -299,6 +304,9 @@ function publishArgs(apiUrl, artifact, extra = []) {
 // ---------------------------------------------------------------------------
 
 async function main() {
+    const runtimeLabel = process.versions.bun ? `bun ${process.versions.bun}` : `node ${process.versions.node}`;
+    console.log(`runtime: ${runtimeLabel} (${RUNTIME})`);
+    console.log(`helper:  ${HELPER}`);
     const work = mkdtempSync(join(tmpdir(), "governance-badge-test-"));
     const artifactDir = join(work, "artifacts");
     mkdirSync(artifactDir, { recursive: true });
