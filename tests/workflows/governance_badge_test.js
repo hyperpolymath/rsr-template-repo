@@ -656,6 +656,8 @@ async function main() {
             ["reordered keys", '{"label":"K9","schemaVersion":1,"message":"success","color":"brightgreen"}\n'],
             ["pretty-printed JSON", JSON.stringify(JSON.parse(SUCCESS_BADGE), null, 2) + "\n"],
             ["missing final newline", SUCCESS_BADGE.trimEnd()],
+            ["CRLF newline", SUCCESS_BADGE.replace(/\n$/, "\r\n")],
+            ["UTF-8 byte order mark", "\uFEFF" + SUCCESS_BADGE],
             ["extra field", SUCCESS_BADGE.replace('"schemaVersion":1,', '"schemaVersion":1,"extra":true,')],
             ["duplicate key", SUCCESS_BADGE.replace('"message":"success"', '"message":"failure","message":"success"')],
             ["unknown state", '{"schemaVersion":1,"label":"K9","message":"pending","color":"brightgreen"}\n'],
@@ -809,7 +811,7 @@ async function main() {
         }
 
         for (const phase of ["headers", "body"]) {
-            for (const route of ["repo", "contents-get", "contents-put", "blobs-post", "refs-post"]) {
+            for (const route of ["repo", "contents-get", "ref-get", "contents-put", "blobs-post", "trees-post", "commits-post", "refs-post"]) {
                 const isPut = route === "contents-put";
                 const api = createApi(isPut ? { branchExists: true, fileBytes: FAILURE_BADGE } : {});
                 const attempts = isPut ? 1 : 3;
@@ -868,6 +870,18 @@ async function main() {
                 check(/GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS/.test(out.stderr), "stderr must name the setting");
             });
         }
+
+        await testWithApi("the maximum supported request timeout permits a no-op publication", {
+            branchExists: true, fileBytes: SUCCESS_BADGE,
+        }, async (api, url) => {
+            const out = await runAsync(publishArgs(url, goodArtifact), {
+                GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: "2147483647",
+            });
+            equal(out.code, 0, out.stderr);
+            equal(api.state.requests.map((r) => r.route).join(","), "repo,contents-get", "the upper boundary permits the normal read path");
+            equal(api.writes().length, 0, "the timeout setting cannot cause a no-op write");
+            check(out.stdout.includes("unchanged"), "the unchanged decision is preserved");
+        });
 
         for (const route of ["repo", "contents-get", "ref-get"]) {
             for (const status of [401, 403, 429, 502, 400]) {
@@ -1118,6 +1132,105 @@ async function main() {
             });
         }
 
+        // A write can land before the API returns an error. Reconciliation
+        // must inspect the resulting bytes before attempting another commit.
+        for (const fileBytes of [undefined, SUCCESS_BADGE]) {
+            const operation = fileBytes === undefined ? "creation" : "update";
+            await testWithApi(`a committed file ${operation} followed by HTTP 503 is not written twice`, {
+                branchExists: true, fileBytes,
+            }, async (api, url) => {
+                api.state.hook = (request, state) => {
+                    if (request.route === "contents-put") {
+                        state.file = { sha: "sha-applied", bytes: Buffer.from(FAILURE_BADGE) };
+                        state.script.set("contents-put", [503]);
+                    }
+                };
+                const out = await runAsync(publishArgs(url, failureArtifact, ["--lane-result", "failure"]));
+                equal(out.code, 0, out.stderr);
+                equal(api.puts().length, 1, "the applied write is never repeated");
+                equal(api.state.requests.filter((r) => r.route === "contents-get").length, 2, "the retry re-reads the applied content");
+                equal(api.posts().length, 0, "reconciliation cannot create another branch");
+                equal(api.state.file.sha, "sha-applied", "the committed file is left untouched");
+                equal(api.state.file.bytes.toString(), FAILURE_BADGE, "the applied bytes match the intended badge");
+                check(out.stdout.includes("unchanged"), "the second read reports no further change");
+            });
+
+            await testWithApi(`file ${operation} recovers after a conflict and a transient error`, {
+                branchExists: true, fileBytes,
+            }, async (api, url) => {
+                api.state.script.set("contents-put", [422, 503]);
+                const out = await runAsync(publishArgs(url, failureArtifact, ["--lane-result", "failure"]));
+                equal(out.code, 0, out.stderr);
+                equal(api.puts().length, 3, "the last allowed attempt succeeds");
+                equal(api.state.requests.filter((r) => r.route === "contents-get").length, 3, "each attempt starts with a fresh contents read");
+                equal(api.posts().length, 0, "file writes never fall back to orphan creation");
+                for (const put of api.puts()) {
+                    equal(put.body.sha, fileBytes === undefined ? undefined : "sha-initial", "each write uses the sha from its read, when present");
+                }
+                equal(api.state.file.bytes.toString(), FAILURE_BADGE, "recovery publishes the intended content");
+                check(out.stdout.includes(`action=${fileBytes === undefined ? "created" : "updated"}`), "the final action reflects the successful write");
+            });
+        }
+
+        await testWithApi("an applied orphan ref followed by HTTP 503 is not created twice", {
+            branchExists: false,
+        }, async (api, url) => {
+            api.state.hook = (request, state) => {
+                if (request.route === "refs-post") {
+                    state.branchExists = true;
+                    state.file = { sha: "sha-applied-ref", bytes: Buffer.from(SUCCESS_BADGE) };
+                    state.script.set("refs-post", [503]);
+                }
+            };
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 0, out.stderr);
+            equal(api.posts().map((r) => r.route).join(","), "blobs-post,trees-post,commits-post,refs-post", "no orphan objects or refs are retried after the ref lands");
+            equal(api.state.requests.filter((r) => r.route === "contents-get").length, 2, "the uncertain ref creation is resolved by reading contents");
+            equal(api.puts().length, 0, "identical content requires no follow-up write");
+            equal(api.state.file.sha, "sha-applied-ref", "the applied ref's file is preserved");
+            check(out.stdout.includes("unchanged"), "the existing applied content is acknowledged");
+        });
+
+        await testWithApi("a branch creation conflict with different bytes updates the winner's file sha", {
+            branchExists: false,
+        }, async (api, url) => {
+            api.state.hook = (request, state) => {
+                if (request.route === "refs-post") {
+                    state.branchExists = true;
+                    state.file = { sha: "sha-branch-winner", bytes: Buffer.from(SKIPPED_BADGE) };
+                    state.script.set("refs-post", [409]);
+                }
+            };
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 0, out.stderr);
+            equal(api.posts().filter((r) => r.route === "refs-post").length, 1, "the winner's ref is never forced or recreated");
+            equal(api.puts().length, 1, "one contents update replaces the competing badge");
+            equal(api.puts()[0].body.sha, "sha-branch-winner", "the update is checked against the winner's actual blob sha");
+            equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "this run's intended content is published");
+        });
+
+        const orphanRoutes = ["blobs-post", "trees-post", "commits-post", "refs-post"];
+        for (const [index, route] of orphanRoutes.entries()) {
+            for (const status of [401, 403, 503]) {
+                await testWithApi(`orphan ${route} HTTP ${status} cannot continue past the failed stage`, {
+                    branchExists: false,
+                }, async (api, url) => {
+                    const attempts = status === 503 ? 3 : 1;
+                    api.state.script.set(route, Array(4).fill(status));
+                    const out = await runAsync(publishArgs(url, goodArtifact));
+                    equal(out.code, 1, out.stderr);
+                    const expectedRoutes = Array(attempts).fill(orphanRoutes.slice(0, index + 1).join(",")).join(",");
+                    equal(api.posts().map((r) => r.route).join(","), expectedRoutes, "only transient failures may restart the orphan sequence, at most three times");
+                    equal(api.state.requests.filter((r) => r.route === "contents-get").length, attempts, "every restart must establish remote absence again");
+                    equal(api.state.requests.filter((r) => r.route === "ref-get").length, attempts, "every restart must confirm branch absence");
+                    equal(api.state.branchExists, false, "no failed stage may expose an orphan branch");
+                    equal(api.puts().length, 0, "a failed orphan stage cannot fall back to a contents write");
+                    check(out.stderr.includes(String(status)), "the failing status is diagnosed");
+                    check(!out.stdout.includes("governance-badge: published"), "failed publication is never reported as success");
+                });
+            }
+        }
+
         // ---------------------------------------------------------------- 9
         section("9. Guards: the badge never touches a source branch");
 
@@ -1193,6 +1306,8 @@ async function main() {
             ["created", { branchExists: true }, goodArtifact, "success", "brightgreen", 0],
             ["created-orphan-branch", { branchExists: false }, goodArtifact, "success", "brightgreen", 0],
             ["updated", { branchExists: true, fileBytes: SUCCESS_BADGE }, missingArtifact, "unavailable", "lightgrey", 3],
+            ["created", { branchExists: true }, missingArtifact, "unavailable", "lightgrey", 3],
+            ["created-orphan-branch", { branchExists: false }, missingArtifact, "unavailable", "lightgrey", 3],
         ]) {
             await testWithApi(`${action}/${state} appends truthful Actions outputs and a summary`, options, async (api, url) => {
                 const output = join(work, "actions-output");
@@ -1209,6 +1324,27 @@ async function main() {
                 check(text.includes(`| ${state} | ${state} | ${color} | ${action}`), "summary records the actual state, color and action");
                 equal(text.includes("**Lane evidence was unusable:**"), code === 3, "only unusable evidence adds the fault explanation");
                 equal(JSON.parse(api.state.file.bytes.toString()).message, state, "outputs agree with the published file");
+            });
+        }
+
+        for (const [name, fileBytes, evidence, code] of [
+            ["update", FAILURE_BADGE, goodArtifact, 0],
+            ["no-op", SUCCESS_BADGE, goodArtifact, 0],
+            ["unusable evidence", SUCCESS_BADGE, missingArtifact, 3],
+        ]) {
+            await testWithApi(`Actions reporting errors preserve the ${name} publication result`, {
+                branchExists: true, fileBytes,
+            }, async (api, url) => {
+                // Opening a directory for append fails even when tests run as
+                // root; permission bits alone would not be a reliable fixture.
+                const out = await runAsync(publishArgs(url, evidence), {
+                    GITHUB_OUTPUT: artifactDir, GITHUB_STEP_SUMMARY: artifactDir,
+                });
+                equal(out.code, code, "reporting failures cannot change the publication/evidence exit code");
+                equal(api.puts().length, name === "no-op" ? 0 : 1, "reporting cannot cause duplicate writes");
+                equal(api.state.file.bytes.toString(), code === 3 ? GREY_BADGE : SUCCESS_BADGE, "reporting errors preserve the correct remote badge");
+                check(out.stdout.includes("could not write the step summary"), "the summary failure is visible");
+                check(out.stdout.includes("could not write $GITHUB_OUTPUT"), "the output failure is visible");
             });
         }
 
