@@ -155,6 +155,15 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # The README badge is generated output on an orphan branch. This proves
+      # the state -> colour table (grey, never a stale green), the byte-equal
+      # no-op, the orphan commit, the API-error classification and the workflow
+      # wiring - against a mock API, so no experiment is pushed to any branch.
+      # Behaviour tests run under the same Bun the step above installed, with a
+      # Node fallback; the wiring checks also run against a mutated workflow so
+      # they are proven able to fail.
+      - name: Governance badge contract (state mapping, no-op, orphan, errors)
+        run: bash tests/workflows/governance_badge_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The

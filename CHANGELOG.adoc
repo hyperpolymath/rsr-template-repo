@@ -40,8 +40,51 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    upstream source, so the self-name pass leaves it alone.
 * `tests/e2e/use_template_mint_test.sh` (wired into estate-rules): the first
   CI job to run a full mint, with a negative control beside each check.
+* The published governance badge could lie. `dogfood-gate.yml` mapped every
+  non-`success` K9 outcome to RED, so `skipped`, `cancelled` and `timed_out`
+  all rendered a red "failure" that never happened; worse, the `badges` job
+  skipped publication entirely when its lane was skipped, so an earlier green
+  badge stayed on display. Badge publication is now owned by
+  `scripts/governance-badge.js`, which renders `success`/brightgreen,
+  `failure`/red, and skipped/cancelled/unavailable/unrecognised as explicit
+  lightgrey states, and which publishes on a skipped lane instead of leaving
+  the old badge alone.
+* Badge publication treated every GitHub API error as "the branch is missing":
+  `gh api … >/dev/null 2>&1` fell through to branch creation on a 401, a 429 or
+  a network failure, and a failed file read produced a PUT with no `sha` that
+  could never converge. Only a 404 on both the file and the ref may now create
+  a branch; auth, rate-limit, 5xx and network failures fail the run without
+  writing anything.
+* Every push to `main` wrote a badge commit even when the badge was unchanged.
+  The publisher now fetches the published file, compares it byte for byte with
+  the newly rendered badge, and exits with an "unchanged" notice and no commit
+  when they are identical - and it never re-serialises the JSON to make the
+  comparison succeed. Publications are serialised per repository (job-level
+  `concurrency`), and the sha-checked contents call turns a race into a
+  re-read instead of a silent overwrite.
 
 ==== Added
+
+* `scripts/governance-badge.js` — the single implementation of the badge
+  scheme: the state -> (message, colour) table, canonical rendering, the
+  publication decision (create orphan branch / add file / update / no-op),
+  API-error classification, and guards that refuse `main`, `master`, a
+  repository default branch, or a path outside `badges/`. Runtime-agnostic
+  (Bun or Node, `node:` builtins only), so it is unit testable.
+* `tests/workflows/governance_badge_test.sh` and
+  `tests/workflows/governance_badge_test.js` — hermetic tests wired into
+  Estate Rules: the state table, byte-equal no-op, changed-bytes publication,
+  orphan-branch creation with `parents: []`, grey states for missing/malformed
+  lane evidence, malformed existing content, 404-vs-outage classification,
+  conflict reconciliation and the source-branch guards, plus wiring checks run
+  against a mutated workflow so they are proven able to fail. They supersede
+  `tests/workflows/dogfood_badge_test.sh`, which asserted the old mapping and
+  was never wired into CI.
+* `README.adoc` and `.github/workflows/README.adoc` now state the operational
+  contract of the generated `governance-badges` branch: it is an orphan with no
+  common ancestor with `main`, it is never merged and has no pull request,
+  recent pushes are normal refreshes, identical content makes no commit, and a
+  grey badge means the lane produced no trustworthy result.
 
 * `www/` site-operations bundle (issue #53): canonical `.well-known/`
   metadata, publishable content, policy sources, error bodies,
