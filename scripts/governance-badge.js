@@ -512,7 +512,21 @@ function resolveIntent({ label, laneResult, artifact }) {
         return grey(`the lane artifact ${artifact} is missing, so a "success" lane cannot be trusted`);
     }
 
-    const text = readFileSync(artifact, "utf8");
+    // A file that exists, is regular, and still cannot be read (EACCES, a
+    // TOCTOU deletion between the stat above and here, an I/O error) is not a
+    // crash: it is evidence that cannot be checked, so the badge goes grey and
+    // the errno is named. Throwing here would exit 1 with a stack trace and no
+    // badge, which reads as "the publisher is broken" rather than "the lane
+    // evidence is unreadable" - and grey is the honest state either way.
+    let text;
+    try {
+        text = readFileSync(artifact, "utf8");
+    } catch (err) {
+        return grey(
+            `the lane artifact ${artifact} could not be read (${err && err.code ? err.code : String(err)}),` +
+                ` so a "success" lane cannot be trusted`,
+        );
+    }
     const verdict = inspectBadge(text, label);
     if (!verdict.ok) {
         return grey(`the lane artifact ${artifact} is not a valid shield badge: ${verdict.errors.join("; ")}`);

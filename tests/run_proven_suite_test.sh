@@ -27,7 +27,9 @@ exit 0
 SH
 for file in scripts/check-escape-hatches.sh scripts/emit-aggregate-inputs.sh \
   scripts/check-root-shape.sh scripts/check-ijson-jcs.sh scripts/check-lock-sync.sh \
-  scripts/check-required-contexts.sh .github/hooks/validate-deed.sh .github/hooks/validate-k9.sh \
+  scripts/check-required-contexts.sh scripts/check-workflow-edges.sh scripts/check-hypatia-ignore.sh \
+  scripts/check-hypatia-rule-order.sh \
+  .github/hooks/validate-deed.sh .github/hooks/validate-k9.sh \
   tests/proven_suite_test.sh tests/workflows/check_ijson_jcs_test.sh \
   tests/workflows/squabble_gate_test.sh tests/shape/check_root_shape_test.sh www/tests/run-all.sh; do
   mkdir -p "$work/tree/$(dirname "$file")"
@@ -47,7 +49,7 @@ grep -qF 'ALL LANES PASSED' "$work/out" || fail 'missing success outcome'
 jq -e '.schema_version == 1 and .entries[0].provenance == "Static-Checked"
   and .entries[0].proof_ladder == [{proof_file:"src/Proof.idr"}]' \
   "$work/reports with spaces/run.json" >/dev/null || fail 'static report overclaims or loses proof files'
-[[ "$(wc -l < "$LANE_CALLS")" -eq 13 ]] || fail 'clean run did not dispatch all required lanes'
+[[ "$(wc -l < "$LANE_CALLS")" -eq 16 ]] || fail 'clean run did not dispatch all required lanes'
 echo 'PASS: clean runner executes all lanes and emits an honest report at a path with spaces'
 
 FAIL_GATE=check-root-shape.sh run 1 "$runner"

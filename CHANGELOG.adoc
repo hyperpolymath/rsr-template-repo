@@ -63,6 +63,39 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   `concurrency`), and the sha-checked contents call turns a race into a
   re-read instead of a silent overwrite.
 
+* **The Hypatia verdict grid was described in three places and produced in
+  none.** `.github/workflows/README.adoc` said a `verdict` job posted the grid,
+  `.gitbot-fleet/report-backs/README.md` said the Hypatia lane downloaded the
+  report-backs, and `fork-governance.yml` produced a `fleet-report-backs`
+  artifact "for the grid" — while no workflow rendered a grid, and
+  `hypatia-scan.yml` uploaded no findings file at all. `fork-governance.yml`'s
+  verdict job now collects the producers' artifacts for one commit, renders the
+  findings-family grid with the standards renderer (pinned commit, verified
+  sha256, never a copy in this tree), uploads `verdict-grid` and maintains one
+  `<!-- verdict-grid:hypatia … -->` comment per pull request. It is triggered by
+  `pull_request` *and* by `workflow_run` on the two producer workflows, so it
+  re-renders when a scanner finishes instead of showing "not yet" forever.
+* **Hypatia ran twice per pull request.** `hypatia-scan.yml` and a
+  `hypatia-scan` job of `static-analysis-gate.yml` each built the same scanner
+  at the same pin, with separate caches and two independent "fail on critical"
+  gates over two differently-shaped JSON files. Hypatia now runs once, in
+  `hypatia-scan.yml`, which also uploads `hypatia-findings.relativized.json`
+  (repo-relative paths, so the grid's delta column can match
+  `git diff --name-only`) as `hypatia-scan-findings`. `static-analysis-gate.yml`
+  keeps what is specific to it and uploads `static-analysis-findings`.
+* **A failed fleet job was reported and then ignored.** The verdict job printed
+  the fleet result in a table and never failed on it, so a fleet failure was
+  invisible where a reader looked; its `jq '… | .findings | length'` loop could
+  also abort the whole summary on one malformed envelope and skip the final
+  check. The verdict now fails on DEED/K9 only (each producer owns its own
+  gate), states that the fleet's failure is orange rows plus its own red check,
+  and never parses fields it does not own.
+* **`.hypatia-ignore` carried a dangling cross-reference**: `panicbot` was left
+  unenrolled because "the Hypatia lane's direct panic-attack row" would cover
+  it, and no such row existed. The grid now renders that row from
+  `static-analysis-gate.yml` evidence, and the enrolment reason states the rule
+  it is an instance of (one scanner, one row).
+
 ==== Added
 
 * `scripts/governance-badge.js` — the single implementation of the badge
@@ -79,7 +112,11 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   conflict reconciliation and the source-branch guards, plus wiring checks run
   against a mutated workflow so they are proven able to fail. They supersede
   `tests/workflows/dogfood_badge_test.sh`, which asserted the old mapping and
-  was never wired into CI.
+  was never wired into CI. A present but *unreadable* artifact (EACCES, or a
+  TOCTOU deletion between the stat and the read) is now evidence that cannot be
+  checked rather than an uncaught exception: it renders grey, names the errno,
+  and exits 3. The assertion is skipped, with the reason printed, when the
+  suite runs as root, where `chmod 000` cannot deny a read.
 * `README.adoc` and `.github/workflows/README.adoc` now state the operational
   contract of the generated `governance-badges` branch: it is an orphan with no
   common ancestor with `main`, it is never merged and has no pull request,
@@ -116,6 +153,61 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   (wired into estate-rules) checks the merged lock with
   `check-lock-sync.sh`, and checks that the old clobber, a missing record
   and a conflicting record all fail.
+
+* `scripts/verdict-grid-lane.sh` — collect / validate / render / previous /
+  comment for the verdict grid lane. It refuses to execute a renderer whose
+  sha256 does not match the recorded digest, renders an explicit **orange
+  "indeterminate"** grid (never green) when the renderer or the evidence is
+  unavailable, refuses a bare panic/pons findings array (a bare array cannot
+  distinguish "ran clean" from "never ran"), and updates the comment it posted
+  last time instead of adding one per run.
+* `scripts/check-workflow-edges.sh` — the intra-repository half of the CICD
+  Squabbler gate, run in both `squabble.yml` and `estate-rules.yml`. It fails
+  when a `workflow_run.workflows` entry names no workflow's `name:`, when two
+  workflows share a `name:`, when the verdict job reads an artifact its named
+  producer never uploads, when a producer stops running on `pull_request`, when
+  the verdict job's `--hypatia-ref`/`--panic-ref`/`--pons-ref` disagree with the
+  producer's pin, or when one tool is pinned at two different commits.
+* `scripts/check-hypatia-ignore.sh` — the meta-rules for `.hypatia-ignore`:
+  every fragment must end on a path boundary (a substring fragment silences
+  more than it names), no entry may be subsumed by a broader one for the same
+  module, the path it names must exist, and it must belong to a commented
+  reason block.
+* `docs/HYPATIA-RULE-ORDER.adoc` — the ordered statement of Hypatia's exemption
+  layers (total ban, universal excludes, built-in defaults, `.hypatia-ignore`,
+  inline directives, baseline, grid normalisation), the eight clashes found
+  between them, the rule that resolves each, the e/r (evidence/reason)
+  contract per reporter, the GitBot design rules, what is deliberately *not*
+  enforced, and the refusals that make the order a checked contract.
+* `tests/workflows/verdict_grid_test.sh` (70 checks), `workflow_edges_test.sh`
+  (21) and `hypatia_ignore_test.sh` (22) — behaviour, wiring and firing controls
+  for the three scripts above, with stub `gh`/renderer and mutated workflow
+  copies, so every check is proven able to fail.
+* `.machine_readable/policies/hypatia-rule-order.json` — the rule order as a
+  contract rather than prose: the seven layers with their rank, scope, owner and
+  what each may override; the eight concerns with exactly one owning workflow or
+  file each; the eight clashes with the rule that resolves each; the modules
+  `.hypatia-ignore` currently exempts and the layer each exemption lives in; and
+  the scanner, grid, renderer and jq-library pins the order was written against.
+* `scripts/check-hypatia-rule-order.sh` — refuses a duplicate or gapped rank, a
+  layer that states no scope or no override, an owner outside the four declared
+  parties, a concern owned by a path that does not exist, a clash with no
+  resolution, a module exempted but unclassified (or classified but no longer
+  exempted), an exemption filed under a layer this repository may not change,
+  and any pin or digest that disagrees with `hypatia-scan.yml` or the lane
+  script. Exit 0 clean, 1 violation, 2 setup error.
+* `tests/workflows/hypatia_rule_order_test.sh` (44 checks) — one mutation per
+  refusal above, run against a copy of the real policy. Two of its own first-draft
+  defects are documented in `docs/HYPATIA-RULE-ORDER.adoc`: `@tsv` collapses an
+  empty field (a missing `overrides` was reported as a missing `scope`), and
+  `grep` under `set -e` exits before a missing pin can be diagnosed.
+* `.machine_readable/policies/README.adoc` — the registry now says what each
+  policy states, what checks it, and that adding a policy means adding the
+  checker and its lane.
+* `scripts/run-proven-suite.sh` gains the lane *Hypatia rule order & clash
+  resolution*, so the policy cannot drift from the four files it describes
+  without a red run; `tests/run_proven_suite_test.sh` asserts the lane is
+  dispatched (16).
 
 ==== Changed
 

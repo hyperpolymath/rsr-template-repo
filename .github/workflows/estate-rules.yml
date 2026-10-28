@@ -232,6 +232,36 @@ jobs:
           set -euo pipefail
           bash tests/workflows/check_ijson_jcs_test.sh
           bash scripts/check-ijson-jcs.sh --enforce .
+      # ── The scanner/reporting pipeline's own rules ────────────────────────
+      # docs/HYPATIA-RULE-ORDER.adoc states the exemption layers, the clashes
+      # between them and what resolves each. These four steps are the parts of
+      # that document a machine can check; the rest is stated there as review.
+      - name: Hypatia exemption meta-rules (.hypatia-ignore)
+        run: |
+          set -euo pipefail
+          bash tests/workflows/hypatia_ignore_test.sh
+          bash scripts/check-hypatia-ignore.sh .
+      # The layer order, the ownership table and the clash resolutions are a
+      # contract (.machine_readable/policies/hypatia-rule-order.json), not a
+      # description: this step refuses a duplicate or gapped rank, an owner that
+      # does not exist, an unclassified exemption, and any pin that disagrees
+      # with the workflow that uses it. The suite proves each refusal fires.
+      - name: Hypatia rule order & clash resolution
+        run: |
+          set -euo pipefail
+          bash tests/workflows/hypatia_rule_order_test.sh
+          bash scripts/check-hypatia-rule-order.sh .
+      - name: Workflow edges (producer -> verdict grid) resolve
+        run: |
+          set -euo pipefail
+          bash tests/workflows/workflow_edges_test.sh
+          bash scripts/check-workflow-edges.sh .
+      # The grid itself is rendered by the pinned standards renderer, which the
+      # tests stub: this proves the lane's evidence collection, digest refusal,
+      # orange-not-green fallback and one-comment-per-PR behaviour, and that the
+      # workflow wiring is what the checks expect (mutated copies included).
+      - name: Verdict grid lane (collect, verify, render, comment)
+        run: bash tests/workflows/verdict_grid_test.sh
       - name: Required status contexts & squabble anti-bypass gate
         run: |
           set -euo pipefail

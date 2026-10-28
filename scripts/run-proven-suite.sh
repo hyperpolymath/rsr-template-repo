@@ -134,6 +134,19 @@ require_file scripts/check-lock-sync.sh && \
   run_lane "Workflow actions.lock integrity" bash scripts/check-lock-sync.sh .github/workflows
 require_file scripts/check-required-contexts.sh && \
   run_lane "Required status contexts producibility gate" bash scripts/check-required-contexts.sh .
+# The verdict grid's edges: a workflow_run that names no workflow's `name:`, an
+# artifact the named producer never uploads, a pin the producer moved without
+# the reporter, or one tool pinned at two commits. Each fails silently in
+# production, so it is checked here as well as in the CICD Squabbler gate.
+require_file scripts/check-workflow-edges.sh && \
+  run_lane "Workflow edges (producer -> verdict grid)" bash scripts/check-workflow-edges.sh .
+require_file scripts/check-hypatia-ignore.sh && \
+  run_lane "Hypatia exemption meta-rules (.hypatia-ignore)" bash scripts/check-hypatia-ignore.sh .
+# The layer order, the ownership table and the clash resolutions are stated in
+# .machine_readable/policies/hypatia-rule-order.json and implemented across four
+# files. This lane is what keeps that statement from drifting away from them.
+require_file scripts/check-hypatia-rule-order.sh && \
+  run_lane "Hypatia rule order & clash resolution" bash scripts/check-hypatia-rule-order.sh .
 require_file .github/hooks/validate-deed.sh && \
   run_lane "CHORA deed validation & retired .a2ml refusal" bash .github/hooks/validate-deed.sh
 require_file .github/hooks/validate-k9.sh && \

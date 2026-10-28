@@ -18,7 +18,7 @@
 // the suite runnable outside CI. Spawn as: bun <this file> | node <this file>.
 
 const { spawn, spawnSync } = require("node:child_process");
-const { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
+const { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
 const http = require("node:http");
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
@@ -680,6 +680,31 @@ async function main() {
             equal(out.code, 3, out.stderr);
             equal(api.state.file.bytes.toString(), GREY_BADGE, "a non-file artifact produces unavailable");
         });
+
+        // A present, regular, unreadable artifact is evidence that cannot be
+        // checked: grey and exit 3, not an uncaught EACCES with a stack trace.
+        // chmod 000 does not deny root, and a supervisor that runs CI as root
+        // would turn this assertion into a false failure, so the case is
+        // reported as skipped with the reason rather than silently passing.
+        if (typeof process.getuid === "function" && process.getuid() === 0) {
+            console.log("  SKIP: an unreadable artifact is grey (running as root, chmod cannot deny)");
+        } else {
+            await testWithApi("an unreadable artifact is grey, not a crash", {
+                branchExists: true, fileBytes: SUCCESS_BADGE,
+            }, async (api, url) => {
+                const file = artifact("unreadable.json", SUCCESS_BADGE);
+                chmodSync(file, 0o000);
+                try {
+                    const out = await runAsync(publishArgs(url, file));
+                    equal(out.code, 3, out.stderr);
+                    check(!/\n\s+at .*\(node:/.test(`${out.stdout}${out.stderr}`), "an unreadable artifact must not produce a stack trace");
+                    check(/could not be read \(EACCES\)/.test(out.stdout), `the errno is named: ${out.stdout}`);
+                    equal(api.state.file.bytes.toString(), GREY_BADGE, "unreadable evidence never publishes green");
+                } finally {
+                    chmodSync(file, 0o600);
+                }
+            });
+        }
 
         for (const [laneResult, message, color] of [
             ["failure", "failure", "red"],
