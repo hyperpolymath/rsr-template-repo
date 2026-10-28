@@ -76,7 +76,7 @@ what the canon says (standards `docs/CONTRACTILE-DESCRIPTILE-VALIDATION.adoc`).
   downloads that artifact and posts `report.md` to the pull request under
   `<!-- verdict-grid:k9 regenerated on every run -->`, one comment per PR,
   updated in place. `badges` publishes `badges/k9.json` to the
-  `governance-badges` branch on every push to `main`; the README badge reads it
+  `governance-badges` branch on eligible pushes to `main`; the README badge reads it
   through the shields endpoint; the section "The README badges are
   generated output" below states the contract that branch operates under.
 * `hypatia-scan.yml` -> `verdict` job posts the Hypatia grid the same way
@@ -102,7 +102,7 @@ file per validation lane, on a *separate orphan branch* named
 
 | K9 conformance
 | `badges/k9.json`
-| `dogfood-gate.yml` -> `badges` job, on every push to `main`
+| `dogfood-gate.yml` -> `badges` job, on eligible pushes to `main`
 
 |===
 
@@ -127,10 +127,10 @@ helper against a mock of the GitHub API and checks this directory's wiring.
   it would show unrelated histories. Do not open one, do not merge one, do not
   rebase it onto `main`. Merging it would import a badges-only tree over the
   repository's real content.
-* *Recent pushes are normal.* Every push to `main` republishes the badge. A run
+* *Recent pushes are normal.* Eligible pushes to `main` republish the badge. A run
   whose badge is unchanged makes *no commit at all*, so the branch is quiet
   when the lane result is stable and moves only when the state changes.
-* It is safe to delete. The next push to `main` recreates it, with no parent,
+* It is safe to delete. The next eligible push to `main` recreates it, with no parent,
   from scratch.
 * It carries no workflows, no code and nothing that runs. Treat it like a
   generated site deployment, not like a branch of the repository.
@@ -190,7 +190,7 @@ green; it can only stop a green one being published.
 [NOTE]
 ====
 *Known limit.* If the whole workflow run is cancelled, GitHub does not start
-the publisher at all, so the badge keeps its previous value until the next push
+the publisher at all, so the badge keeps its previous value until the next eligible push
 to `main`. No job can publish a state for a run it was not allowed to execute.
 Because the run that cancels a superseded one is itself publishing, the badge
 converges on the newest run's result rather than staying stuck.

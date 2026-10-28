@@ -135,7 +135,9 @@ maintainers can brief an AI with `just ai-warmup dev` / `just ai-warmup maintain
 
 == Governance badges
 
-The *K9 conformance* badge in the row at the top is live. It is published by
+The *K9 conformance* badge in the row at the top becomes live after
+`just repo-init` replaces the `{{OWNER}}` and `{{REPO}}` placeholders in its URL
+and an eligible push to `main` publishes it. It is published by
 `.github/workflows/dogfood-gate.yml` to a generated *orphan* branch called
 `governance-badges`, and read back through the shields endpoint.
 

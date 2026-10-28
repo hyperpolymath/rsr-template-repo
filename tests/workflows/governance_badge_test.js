@@ -9,7 +9,7 @@
 //
 // The GitHub REST API is replaced by an in-process mock (node:http) whose state
 // is a branch name, an optional file, and a per-route script of injected HTTP
-// statuses. The helper runs as a child process against `--api-url`, exactly as
+// statuses or stalled responses. The helper runs as a child process against `--api-url`, exactly as
 // it does in the workflow, so the tests exercise the real fetch/status paths
 // rather than a stubbed function.
 //
@@ -164,6 +164,12 @@ function createApi(options = {}) {
         const scripted = state.script.get(route);
         if (scripted && scripted.length) {
             const status = scripted.shift();
+            if (status === "stall-headers") return;
+            if (status === "stall-body") {
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.write('{"incomplete":');
+                return;
+            }
             if (status >= 400) return send(res, status, { message: `injected ${status}` });
         }
 
@@ -263,7 +269,12 @@ function createApi(options = {}) {
 // ---------------------------------------------------------------------------
 
 function baseEnv(extra = {}) {
-    const env = { ...process.env, NO_COLOR: "1", GOVERNANCE_BADGE_RETRY_DELAY_MS: "0" };
+    const env = {
+        ...process.env,
+        NO_COLOR: "1",
+        GOVERNANCE_BADGE_RETRY_DELAY_MS: "0",
+        GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: "30000",
+    };
     // Never inherit a real credential or API endpoint. The suite passed on a
     // developer machine that had GH_TOKEN exported and failed in CI, where it
     // does not: tests must not depend on, or be able to use, either.
@@ -286,13 +297,13 @@ function runSync(args, extraEnv = {}) {
     return { code: result.status, stdout: result.stdout || "", stderr: result.stderr || "" };
 }
 
-function runAsync(args, extraEnv = {}) {
+function runAsync(args, extraEnv = {}, timeoutMs = 60000) {
     return new Promise((resolvePromise) => {
         const child = spawn(RUNTIME, [HELPER, ...args], { env: baseEnv(extraEnv) });
         let stdout = "";
         let stderr = "";
         // A hung helper must fail the test, not hang CI.
-        const timer = setTimeout(() => child.kill("SIGKILL"), 60000);
+        const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
         child.stdout.on("data", (d) => (stdout += d.toString()));
         child.stderr.on("data", (d) => (stderr += d.toString()));
         child.on("close", (code) => {
@@ -650,6 +661,67 @@ async function main() {
                 const out = await runAsync(publishArgs(deadUrl, goodArtifact));
                 equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
                 check(/could not be reached|failed:/.test(out.stderr), `stderr must name the network failure: ${out.stderr}`);
+            });
+        }
+
+        for (const phase of ["headers", "body"]) {
+            for (const route of ["repo", "contents-get", "contents-put", "blobs-post", "refs-post"]) {
+                const isPut = route === "contents-put";
+                const api = createApi(isPut ? { branchExists: true, fileBytes: FAILURE_BADGE } : {});
+                const attempts = isPut ? 1 : 3;
+                api.state.script.set(route, Array(attempts).fill(`stall-${phase}`));
+                const url = await api.listen();
+                try {
+                    await test(`${route} with stalled ${phase} times out and fails closed`, async () => {
+                        const out = await runAsync(publishArgs(url, goodArtifact), {
+                            GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: "200",
+                        }, 5000);
+                        equal(out.code, 1, `expected timeout failure, got ${out.code}: ${out.stderr}`);
+                        equal(api.state.requests.filter((r) => r.route === route).length, attempts,
+                            "GET and orphan retries are preserved; a direct PUT is attempted once");
+                        check(/failed:|response body unreadable:/.test(out.stderr),
+                            `stderr must name the transport failure: ${out.stderr}`);
+                        if (isPut) {
+                            equal(api.state.file.bytes.toString(), FAILURE_BADGE, "no badge was changed");
+                        } else {
+                            equal(api.state.branchExists, false, "no branch was created");
+                        }
+                        if (route === "repo" || route === "contents-get") {
+                            equal(api.writes().length, 0, "an unreadable remote state must not cause writes");
+                        }
+                    });
+                } finally {
+                    await api.close();
+                }
+            }
+
+            for (const route of ["repo", "contents-get"]) {
+                const api = createApi({ branchExists: true, fileBytes: SUCCESS_BADGE });
+                api.state.script.set(route, [`stall-${phase}`]);
+                const url = await api.listen();
+                try {
+                    await test(`${route} recovers after a ${phase} timeout`, async () => {
+                        const out = await runAsync(publishArgs(url, goodArtifact), {
+                            GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: "200",
+                        }, 5000);
+                        equal(out.code, 0, `expected successful GET retry, got ${out.code}: ${out.stderr}`);
+                        equal(api.state.requests.filter((r) => r.route === route).length, 2, "the GET was retried");
+                        equal(api.writes().length, 0, "identical bytes still produce no writes");
+                        check(/unchanged/.test(out.stdout), "the retry sees the existing badge");
+                    });
+                } finally {
+                    await api.close();
+                }
+            }
+        }
+
+        for (const timeout of ["", "0", "-1", "1.5", "invalid", "2147483648"]) {
+            await test(`invalid request timeout ${JSON.stringify(timeout)} is a usage error`, () => {
+                const out = runSync(publishArgs("http://127.0.0.1:1", goodArtifact), {
+                    GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: timeout,
+                });
+                equal(out.code, 2, `expected usage error, got ${out.code}: ${out.stderr}`);
+                check(/GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS/.test(out.stderr), "stderr must name the setting");
             });
         }
 

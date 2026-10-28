@@ -60,6 +60,8 @@
 //
 //   --repo defaults to GITHUB_REPOSITORY, --token to GITHUB_TOKEN/GH_TOKEN,
 //   --api-url to GITHUB_API_URL (set by Actions), else https://api.github.com.
+//   GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS bounds each request, including reading
+//   its response body (default 30000 ms; positive integer up to 2147483647).
 //
 // EXIT CODES
 //
@@ -229,7 +231,7 @@ function trimTrailingSlashes(value) {
     return base;
 }
 
-async function request(method, apiPath, { token, apiUrl, body } = {}) {
+async function request(method, apiPath, { token, apiUrl, body, timeoutMs = 30000 } = {}) {
     const url = `${trimTrailingSlashes(apiUrl)}${apiPath}`;
     const headers = {
         Authorization: `Bearer ${token}`,
@@ -245,6 +247,7 @@ async function request(method, apiPath, { token, apiUrl, body } = {}) {
             method,
             headers,
             body: body === undefined ? undefined : JSON.stringify(body),
+            signal: AbortSignal.timeout(timeoutMs),
         });
     } catch (err) {
         throw new ApiError(`${method} ${apiPath} failed: ${err.message}`, { kind: "network" });
@@ -666,7 +669,11 @@ async function cmdPublish(opts) {
     const token = opts.token || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
     if (!token) throw new UsageError("GITHUB_TOKEN (or GH_TOKEN) is required");
     const apiUrl = opts["api-url"] || process.env.GITHUB_API_URL || "https://api.github.com";
-    const http = { token, apiUrl };
+    const timeoutMs = Number(process.env.GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS ?? 30000);
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2147483647) {
+        throw new UsageError("GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS must be an integer from 1 to 2147483647");
+    }
+    const http = { token, apiUrl, timeoutMs };
 
     const intent = resolveIntent({ label, laneResult, artifact: opts.artifact });
     const sourceSha = String(opts["source-sha"] || "").slice(0, 12);
