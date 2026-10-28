@@ -43,13 +43,13 @@ fail=0
 # outside CI (where Bun is installed by estate-rules, verified by sha256).
 RUNTIME=""
 for candidate in "${GOVERNANCE_BADGE_TEST_RUNTIME:-}" bun node; do
-    [ -n "$candidate" ] || continue
+    [[ -n "$candidate" ]] || continue
     if command -v "$candidate" >/dev/null 2>&1; then
         RUNTIME="$candidate"
         break
     fi
 done
-if [ -z "$RUNTIME" ]; then
+if [[ -z "$RUNTIME" ]]; then
     echo "FAIL: neither bun nor node is available to run the badge tests" >&2
     exit 2
 fi
@@ -61,34 +61,50 @@ echo "shell:   $BASH_VERSION (errexit $(case $- in *e*) echo on;; *) echo off;; 
 if "$RUNTIME" "$JS_SUITE"; then
     echo "PASS: behaviour suite"
 else
-    echo "FAIL: behaviour suite"
+    echo "FAIL: behaviour suite" >&2
+    # Workflow commands are only interpreted on stdout.  # NOSONAR
     echo "::error::governance-badge behaviour suite failed (see the FAIL lines above)"
     fail=1
 fi
 
 # --- static wiring ---------------------------------------------------------
 # job_block FILE JOB -> the YAML block of a top-level job (2-space indent).
-job_block() {
-    awk -v name="$2" '
+job_block() { # job_block FILE JOB
+    local file="$1" name="$2"
+    awk -v name="$name" '
         $0 == "  " name ":" { inside = 1 }
         inside && $0 ~ /^  [A-Za-z0-9_-]+:$/ && $0 != "  " name ":" { exit }
         inside { print }
-    ' "$1"
+    ' "$file"
 }
 
 WIRE_FAIL=0
 wire_pass() { echo "  PASS: $1"; }
 wire_fail() {
-    echo "  FAIL: $1"
-    echo "::error::governance-badge wiring: $1"
+    local message="$1"
+    echo "  FAIL: $message" >&2
+    # Workflow commands are only interpreted on stdout, so this line cannot
+    # follow the "errors go to stderr" rule.  # NOSONAR
+    echo "::error::governance-badge wiring: $message"
     WIRE_FAIL=1
 }
 
 has() { # has DESC PATTERN FILE
-    if grep -Eq -- "$2" "$3"; then wire_pass "$1"; else wire_fail "$1 (no match for /$2/)"; fi
+    local desc="$1" pattern="$2" file="$3"
+    if grep -Eq -- "$pattern" "$file"; then
+        wire_pass "$desc"
+    else
+        wire_fail "$desc (no match for /$pattern/)"
+    fi
 }
+
 hasnt() { # hasnt DESC PATTERN FILE
-    if grep -Eq -- "$2" "$3"; then wire_fail "$1 (unexpected match for /$2/)"; else wire_pass "$1"; fi
+    local desc="$1" pattern="$2" file="$3"
+    if grep -Eq -- "$pattern" "$file"; then
+        wire_fail "$desc (unexpected match for /$pattern/)"
+    else
+        wire_pass "$desc"
+    fi
 }
 
 # wiring_checks WORKFLOW -> 0 if every wiring rule holds, 1 otherwise.
@@ -118,7 +134,11 @@ wiring_checks() {
          inside { print }' "$workflow" > "$generate_step"
 
     echo "  --- badges job exists and is wired to the lane ---"
-    if [ -s "$badge_job" ]; then wire_pass "the badges job exists"; else wire_fail "the badges job is missing"; fi
+    if [[ -s "$badge_job" ]]; then
+        wire_pass "the badges job exists"
+    else
+        wire_fail "the badges job is missing"
+    fi
     has "the badges job needs the K9 lane" '^    needs: k9-validate$' "$badge_job"
     has "the badges job always runs, even after a failed or cancelled lane" 'if: always\(\)' "$badge_job"
     has "the badges job only publishes from main" "github\.ref == 'refs/heads/main'" "$badge_job"
@@ -138,7 +158,7 @@ wiring_checks() {
         wire_fail "workflow-wide permissions must stay 'contents: read'"
     fi
     has "only the badges job asks for contents: write" '^      contents: write$' "$badge_job"
-    if [ "$(grep -c 'contents: write' "$workflow")" = "1" ]; then
+    if [[ "$(grep -c 'contents: write' "$workflow")" = "1" ]]; then
         wire_pass "contents: write appears exactly once in the workflow"
     else
         wire_fail "contents: write must appear exactly once (scoped to the badges job)"
@@ -169,20 +189,20 @@ wiring_checks() {
     echo "  --- actions stay pinned ---"
     local unpinned
     unpinned="$(grep -E '^\s+-? ?uses:' "$badge_job" | grep -Ev '@[a-f0-9]{40}( |$)' || true)"
-    if [ -z "$unpinned" ]; then
+    if [[ -z "$unpinned" ]]; then
         wire_pass "every action in the badges job is pinned to a 40-hex SHA"
     else
         wire_fail "unpinned action(s) in the badges job: $unpinned"
     fi
     local uses unlocked=0
     while IFS= read -r uses; do
-        [ -n "$uses" ] || continue
+        [[ -n "$uses" ]] || continue
         if ! grep -Fq "'$uses'" "$LOCK"; then
             wire_fail "action $uses is missing from actions.lock"
             unlocked=1
         fi
     done < <(grep -E '^\s+-? ?uses:' "$badge_job" | sed -E 's/^\s+-? ?uses: //; s/\s+#.*$//' | sort -u)
-    if [ "$unlocked" -eq 0 ]; then
+    if [[ "$unlocked" -eq 0 ]]; then
         wire_pass "actions.lock records the badges job's actions"
     fi
 
@@ -214,13 +234,17 @@ fire_case() {
     copy="$tmp/dogfood-gate.yml"
     sed -E "$mutation" "$WORKFLOW" > "$copy"
     if cmp -s "$WORKFLOW" "$copy"; then
-        echo "  FAIL: mutation had no effect: $label"
+        echo "  FAIL: mutation had no effect: $label" >&2
+        # Workflow commands are only interpreted on stdout.  # NOSONAR
+        echo "::error::governance-badge firing control: mutation had no effect: $label"
         fail=1
         rm -rf "$tmp"
         return
     fi
     if wiring_checks "$copy" >/dev/null 2>&1; then
-        echo "  FAIL: $label was not caught by the wiring checks"
+        echo "  FAIL: $label was not caught by the wiring checks" >&2
+        # Workflow commands are only interpreted on stdout.  # NOSONAR
+        echo "::error::governance-badge firing control: $label was not caught"
         fail=1
     else
         echo "  PASS: $label is caught"
@@ -240,8 +264,8 @@ fire_case "pointing the publisher back at inline gh api" \
     "s/bun scripts\/governance-badge\.js publish/gh api repos\/\$GITHUB_REPOSITORY\/contents\/\$DEST/"
 
 echo ""
-if [ "$fail" -ne 0 ]; then
-    echo "FAIL: governance badge suite"
+if [[ "$fail" -ne 0 ]]; then
+    echo "FAIL: governance badge suite" >&2
     exit 1
 fi
 echo "PASS: governance badge suite (behaviour + wiring + firing controls)"

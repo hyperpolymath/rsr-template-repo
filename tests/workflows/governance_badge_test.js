@@ -51,13 +51,16 @@ async function test(name, fn) {
     } catch (err) {
         failed += 1;
         failures.push({ name, err });
-        const detail = String(err && err.message ? err.message : err).replace(/\n/g, " ");
+        const detail = String(err && err.message ? err.message : err)
+            .replace(/[\r\n]+/g, " ")
+            .slice(0, 400);
         console.log(`  FAIL: ${name}`);
         console.log(`        ${String(err && err.message ? err.message : err).replace(/\n/g, "\n        ")}`);
         // Surface the failing check through the run's annotations: the log
         // itself can be awkward to reach, and a bare "exit code 1" is not a
         // report.
-        console.log(`::error::governance-badge test failed: ${name} - ${detail.slice(0, 400)}`);
+        // Workflow commands are only interpreted on stdout.  // NOSONAR
+        console.log(`::error::governance-badge test failed: ${name} - ${detail}`);
     }
 }
 
@@ -82,7 +85,10 @@ function equal(actual, expected, message) {
 function wrapBase64(buffer) {
     // GitHub wraps base64 payloads at 60 characters with newlines; decoding must
     // tolerate that, so the mock reproduces it.
-    return buffer.toString("base64").replace(/(.{60})/g, "$1\n");
+    const encoded = buffer.toString("base64");
+    const lines = [];
+    for (let i = 0; i < encoded.length; i += 60) lines.push(encoded.slice(i, i + 60));
+    return lines.join("\n");
 }
 
 function createApi(options = {}) {
@@ -103,7 +109,10 @@ function createApi(options = {}) {
         hook: options.hook || null,
     };
 
-    const nextSha = (prefix) => `${prefix}-${(state.counter += 1)}`;
+    function nextSha(prefix) {
+        state.counter += 1;
+        return `${prefix}-${state.counter}`;
+    }
 
     function routeOf(method, pathname) {
         if (pathname === `/repos/${state.repo}`) return "repo";

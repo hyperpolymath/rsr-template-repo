@@ -102,10 +102,18 @@ const STATE_TABLE = Object.freeze({
 
 const MESSAGES = new Set(Object.values(STATE_TABLE).map((s) => s.message));
 
+// oneLine - anything that reaches a log line is flattened first. The step log
+// is evidence, and a value that comes from an argument, an artifact path or an
+// API response must not be able to forge a line in it or to terminate a
+// `::error::` workflow command early.
+function oneLine(value) {
+    return String(value).replace(/[\r\n\u0000-\u001f\u007f]/g, " ");
+}
+
 // normaliseState - anything not in the table becomes `unknown`, never success.
 function normaliseState(raw) {
     const key = String(raw === undefined || raw === null ? "" : raw).trim().toLowerCase();
-    return Object.prototype.hasOwnProperty.call(STATE_TABLE, key) ? key : "unknown";
+    return Object.hasOwn(STATE_TABLE, key) ? key : "unknown";
 }
 
 // renderBadge - the canonical bytes. Key order and spacing are fixed here and
@@ -215,8 +223,14 @@ const MAX_CONFLICT_ATTEMPTS = 3;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function trimTrailingSlashes(value) {
+    let base = String(value);
+    while (base.endsWith("/")) base = base.slice(0, -1);
+    return base;
+}
+
 async function request(method, apiPath, { token, apiUrl, body } = {}) {
-    const url = `${String(apiUrl).replace(/\/+$/, "")}${apiPath}`;
+    const url = `${trimTrailingSlashes(apiUrl)}${apiPath}`;
     const headers = {
         Authorization: `Bearer ${token}`,
         Accept: "application/vnd.github+json",
@@ -403,7 +417,7 @@ function cmdRender(opts) {
     const text = renderBadge(label, state);
     if (opts.out) {
         writeFileSync(opts.out, text);
-        console.log(`governance-badge: rendered ${opts.out} state=${state}`);
+        console.log(`governance-badge: rendered ${oneLine(opts.out)} state=${state}`);
     } else {
         process.stdout.write(text);
     }
@@ -583,7 +597,8 @@ function setOutput(key, value) {
 
 function finish({ label, dest, branch, intent, action, commit, faults }) {
     const entry = STATE_TABLE[intent.state];
-    const where = `${dest} on ${branch}`;
+    const where = oneLine(`${dest} on ${branch}`);
+    const commitId = oneLine(commit || "");
 
     if (action === "unchanged") {
         console.log(
@@ -592,15 +607,16 @@ function finish({ label, dest, branch, intent, action, commit, faults }) {
                 `unchanged - no commit made`,
         );
     } else {
+        const commitNote = commitId ? `, commit=${commitId}` : "";
         console.log(
             `governance-badge: published ${where} ` +
                 `(state=${intent.state}, message=${entry.message}, colour=${entry.color}, ` +
-                `action=${action}${commit ? `, commit=${commit}` : ""})`,
+                `action=${action}${commitNote})`,
         );
     }
 
     for (const fault of faults) {
-        console.log(`::error::${fault}`);
+        console.log(`::error::${oneLine(fault)}`);
     }
 
     stepSummary([
@@ -609,7 +625,7 @@ function finish({ label, dest, branch, intent, action, commit, faults }) {
         "",
         "| file | branch | state | message | colour | action |",
         "|---|---|---|---|---|---|",
-        `| \`${dest}\` | \`${branch}\` | ${intent.state} | ${entry.message} | ${entry.color} | ${action}${commit ? ` (\`${String(commit).slice(0, 12)}\`)` : ""} |`,
+        `| \`${dest}\` | \`${branch}\` | ${intent.state} | ${entry.message} | ${entry.color} | ${action}${commitId ? ` (\`${oneLine(String(commitId).slice(0, 12))}\`)` : ""} |`,
         "",
         action === "unchanged"
             ? "The published badge already carried these exact bytes, so no commit was made."
@@ -755,7 +771,7 @@ function readJsonPath(text, path) {
         const parsed = JSON.parse(text);
         const parts = path.split(".");
         let cursor = parsed;
-        for (const part of parts) cursor = cursor && cursor[part];
+        for (const part of parts) cursor = cursor?.[part];
         return typeof cursor === "string" ? cursor : "";
     } catch {
         return "";
@@ -802,18 +818,18 @@ main(process.argv.slice(2))
     })
     .catch((err) => {
         if (err instanceof UsageError) {
-            console.error(`governance-badge: ${err.message}`);
+            console.error(`governance-badge: ${oneLine(err.message)}`);
             usage();
             process.exitCode = EXIT_USAGE;
             return;
         }
         if (err instanceof RefusedError) {
-            console.error(`governance-badge: refused: ${err.message}`);
+            console.error(`governance-badge: refused: ${oneLine(err.message)}`);
             process.exitCode = EXIT_REFUSED;
             return;
         }
         if (err instanceof ApiError) {
-            console.error(`governance-badge: ${err.message}`);
+            console.error(`governance-badge: ${oneLine(err.message)}`);
             console.error(
                 "governance-badge: no write was attempted for an unknown remote state; " +
                     "an API error is never treated as a missing branch or file",
@@ -821,6 +837,6 @@ main(process.argv.slice(2))
             process.exitCode = EXIT_REFUSED;
             return;
         }
-        console.error(`governance-badge: ${err && err.stack ? err.stack : err}`);
+        console.error(`governance-badge: ${oneLine((err && err.stack) || err)}`);
         process.exitCode = EXIT_REFUSED;
     });
