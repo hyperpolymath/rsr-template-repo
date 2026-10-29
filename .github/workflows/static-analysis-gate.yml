@@ -74,7 +74,7 @@ jobs:
         if: steps.cache-recon.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          cargo install --locked \
+          cargo install --locked --force \
             --git https://github.com/hyperpolymath/panic-attack.git \
             --rev "$PANIC_ATTACK_SHA"
           cargo install --locked \
@@ -227,13 +227,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Cache pinned panic-attack binary
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/panic-attack
-          key: panic-attack-${{ runner.os }}-${{ env.PANIC_ATTACK_SHA }}
-
-      - name: Build pinned panic-attack when uncached
+      # One cache namespace only. Restoring the legacy binary without Cargo's
+      # install metadata made the subsequent pinned install abort rather than
+      # replace it, leaving patch-bridge permanently red on cache misses.
+      - name: Restore pinned patch-bridge scanner
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: cache-pa
         with:
