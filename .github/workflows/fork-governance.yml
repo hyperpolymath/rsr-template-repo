@@ -58,20 +58,12 @@ name: Fork governance
 on:
   pull_request:
   workflow_dispatch:
-  # Re-render the grid when a producer finishes. The names must match the
-  # `name:` of the producing workflow exactly; .github/e2e/… has no equivalent
-  # check, so scripts/verdict-grid-lane.sh test asserts the pairing.
-  workflow_run:
-    workflows:
-      - Hypatia Security Scan
-      - Static Analysis Gate
-    types: [completed]
 
 concurrency:
   # Keyed on the commit under test, not on github.ref: a workflow_run event
   # reports the DEFAULT branch as its ref, so two pulls' grid renders would
   # otherwise cancel each other.
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   # A superseded render is waste, not evidence: the newer run re-collects both
   # producers' artifacts. A cancelled comment write is repeated by the next
   # workflow_run.
@@ -317,7 +309,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-      pull-requests: write
+      pull-requests: read
     env:
       DEED_RESULT: ${{ needs.deed.result }}
       K9_RESULT: ${{ needs.k9.result }}
@@ -330,7 +322,7 @@ jobs:
       - name: Checkout trusted default-branch lane policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           sparse-checkout: |
             scripts/verdict-grid-lane.sh
@@ -449,16 +441,9 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Post the verdict grid comment
-        if: ${{ always() && env.TARGET_PR != '' }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          bash scripts/verdict-grid-lane.sh comment \
-            --repo "$GITHUB_REPOSITORY" --pr "$TARGET_PR" \
-            --report "$RUNNER_TEMP/verdict-grid"
+      # Publishing is deliberately handled by a separate default-branch
+      # workflow_run consumer. This PR-time workflow is read-only, so its
+      # untrusted head scripts never receive a write-scoped token.
 
       - name: Summarise the lanes and gate on conformance only
         if: ${{ always() }}
