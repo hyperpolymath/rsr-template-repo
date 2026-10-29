@@ -34,6 +34,7 @@ fresh() {
     cp "$REPO_DIR/.github/workflows/hypatia-scan.yml" "$WORK/repo/.github/workflows/"
     cp "$REPO_DIR/.github/workflows/static-analysis-gate.yml" "$WORK/repo/.github/workflows/"
     cp "$REPO_DIR/.github/workflows/fork-governance.yml" "$WORK/repo/.github/workflows/"
+    cp "$REPO_DIR/.github/workflows/verdict-grid-publish.yml" "$WORK/repo/.github/workflows/"
     cp "$REPO_DIR/scripts/verdict-grid-lane.sh" "$WORK/repo/scripts/"
     cp "$REPO_DIR/.hypatia-ignore" "$WORK/repo/.hypatia-ignore"
 }
