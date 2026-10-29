@@ -132,6 +132,9 @@ if [[ "${STUB_MODE:-ok}" == "usage" ]]; then
 fi
 state="${STUB_STATE:-yellow}"
 printf '%s\n' '{"state": "'"$state"'", "identity": {"lane": "hypatia"}, "reporters": []}' > "$out/report.json"
+if [[ "${STUB_MODE:-ok}" == "bad-report" ]]; then
+    printf '%s\n' '{"state": 0}' > "$out/report.json"
+fi
 printf '%s\n' '<!-- verdict-grid:hypatia regenerated on every run -->' '🟡 yellow · rendered by the stub' > "$out/report.md"
 if [[ "${STUB_MODE:-ok}" == "bad-badge" ]]; then
     printf '%s\n' '{"label": "no schema"}' > "$out/badge.json"
@@ -159,7 +162,9 @@ case "${1:-}" in
   run)
     case "${2:-}" in
       list)
-        if [[ "${GH_MODE:-found}" == "no-run" ]]; then
+        if [[ -n "${GH_RUNS_FILE:-}" ]]; then
+            cat "$GH_RUNS_FILE"
+        elif [[ "${GH_MODE:-found}" == "no-run" ]]; then
             echo '[]'
         else
             echo '[{"databaseId": 42, "status": "completed", "conclusion": "success"}]'
@@ -179,7 +184,7 @@ case "${1:-}" in
                 *) shift ;;
             esac
         done
-        if [[ "${GH_MODE:-found}" == "no-artifact" ]]; then
+        if [[ "${GH_MODE:-found}" == "no-artifact" || "$name" == "${GH_MISSING_ARTIFACT:-}" ]]; then
             echo "no valid artifacts found" >&2
             exit 1
         fi
@@ -190,7 +195,24 @@ case "${1:-}" in
     esac
     ;;
   api)
-    if [[ "${GH_MODE:-none}" == "existing" ]]; then
+    # Capture the actual API payload, including newlines and JSON escaping.
+    # A log of argv alone cannot prove that the report body was preserved.
+    if [[ "${2:-}" == "-X" ]]; then
+        method="$3"
+        while [[ $# -gt 0 ]]; do
+            if [[ "$1" == "--input" ]]; then cp "$2" "$here/comment-payload.json"; break; fi
+            shift
+        done
+        [[ "${GH_MODE:-}" != "post-error" || "$method" != POST ]] || exit 1
+        [[ "${GH_MODE:-}" != "patch-error" || "$method" != PATCH ]] || exit 1
+        echo '{}'
+        exit 0
+    fi
+    if [[ -n "${GH_COMMENTS_FILE:-}" ]]; then
+        cat "$GH_COMMENTS_FILE"
+        exit 0
+    fi
+    if [[ "${GH_MODE:-none}" == "existing" || "${GH_MODE:-none}" == "patch-error" ]]; then
         echo '[[{"id": 9001, "user": {"login": "github-actions[bot]"}, "body": "<!-- verdict-grid:hypatia regenerated on every run -->\nold grid"}]]'
     elif [[ "${GH_MODE:-none}" == "forged" ]]; then
         echo '[[{"id": 9002, "user": {"login": "untrusted-contributor"}, "body": "<!-- verdict-grid:hypatia regenerated on every run -->\\nforged grid"}]]'
@@ -225,6 +247,23 @@ expect 0 "a valid enrolment manifest validates" -- lane validate --enrolment "$F
 expect 1 "an unreadable enrolment manifest is rejected" -- lane validate --enrolment "$FX/enrolment-broken.json"
 expect 2 "validate with no arguments is a usage error" -- lane validate
 expect 2 "an unknown subcommand is a usage error" -- lane frobnicate
+
+for tool in panic pons; do
+    for body in '{}' '{"status":1}' '{"status":"ran","report":[]}' '{"status":"ran","report":null}'; do
+        printf '%s\n' "$body" > "$FX/invalid-envelope.json"
+        expect 1 "$tool rejects an incomplete or incorrectly typed status envelope: $body" -- \
+            lane validate "--$tool" "$FX/invalid-envelope.json"
+    done
+    for status in not_run error not_applicable; do
+        printf '{"status":"%s"}\n' "$status" > "$FX/advisory-envelope.json"
+        expect 0 "$tool reports $status without inventing a scanner failure" -- \
+            lane validate "--$tool" "$FX/advisory-envelope.json"
+        contains "missing $tool/$status reason is explained" 'without a reason' "$WORK/out"
+    done
+done
+printf '%s\n' '[{},null]' > "$FX/invalid-hypatia.json"
+expect 1 "a single non-object invalidates the Hypatia findings array" -- \
+    lane validate --hypatia "$FX/invalid-hypatia.json"
 
 echo "=== 2. Collecting another workflow's evidence ==="
 out="$WORK/collect-found"
@@ -265,6 +304,22 @@ jq -e '.[0].found == false and (.[0].reason | test("gh is not available"))' "$ou
 expect 2 "collect without --source is a usage error" -- \
     lane collect --out "$WORK/nope" --sha 0123456789abcdef0123456789abcdef01234567
 
+out="$WORK/collect mixed sources"
+printf '%s\n' '[{"databaseId":8},{"databaseId":73},{"databaseId":12}]' > "$FX/runs.json"
+: > "$FX/gh.log"
+: > "$FX/outputs"
+GH_RUNS_FILE="$FX/runs.json" GH_MISSING_ARTIFACT=hypatia-scan-findings GITHUB_OUTPUT="$FX/outputs" \
+    expect 0 "collection isolates a missing artifact and selects the newest run" -- \
+    lane collect --out "$out" --sha 0123456789abcdef0123456789abcdef01234567 \
+    --source hypatia-scan.yml:hypatia-scan-findings \
+    --source static-analysis-gate.yml:static-analysis-findings
+jq -e 'length == 2 and all(.[]; .run_id == 73)
+    and .[0].found == false and .[1].found == true and .[1].reason == null' "$out/collection.json" >/dev/null \
+    && ok "each source records its own outcome at the newest run" || bad "collection mixed up source outcomes or run order"
+contains "collection queries the requested commit" "--commit 0123456789abcdef0123456789abcdef01234567" "$FX/gh.log"
+contains "only absent evidence is exposed to Actions" 'evidence_missing=hypatia-scan-findings (hypatia-scan.yml)' "$FX/outputs"
+[[ ! -e "$out/collection.jsonl" ]] && ok "the intermediate JSONL manifest is removed" || bad "collection leaked its intermediate manifest"
+
 echo "=== 3. Rendering through the verified renderer ==="
 render_args=(render --out "$WORK/grid" --renderer-dir "$FX/renderer"
     --renderer-sha256 "$RENDERER_SHA" --lib-sha256 "$LIB_SHA"
@@ -301,6 +356,7 @@ expect 0 "an absent renderer still produces a report" -- lane "${absent[@]}"
 jq -e '.message == "indeterminate" and .color == "orange"' "$WORK/grid-absent/badge.json" >/dev/null 2>&1 \
     && ok "an absent renderer renders orange" || bad "an absent renderer must render orange"
 contains "the orange report says why" "missing or did not match" "$WORK/grid-absent/report.md"
+contains "the fallback text agrees with its orange badge" '🟠 **indeterminate**' "$WORK/grid-absent/report.md"
 
 # 4b. digest mismatch, and the renderer must not have executed
 : > "$FX/argv.log"
@@ -333,6 +389,22 @@ STUB_MODE=bad-badge expect 0 "a malformed badge still produces a report" -- \
     --sha 0123456789abcdef0123456789abcdef01234567 --repo example/template
 jq -e '.schemaVersion == 1 and .color == "orange"' "$WORK/grid-badbadge/badge.json" >/dev/null 2>&1 \
     && ok "a malformed badge is replaced by the orange endpoint badge" || bad "a malformed badge must be replaced"
+
+: > "$FX/argv.log"
+STUB_ARGV_LOG="$FX/argv.log" expect 0 "the library digest is checked independently of the renderer" -- \
+    lane render --out "$WORK/grid-badlib" --renderer-dir "$FX/renderer" \
+    --renderer-sha256 "$RENDERER_SHA" --lib-sha256 "$(printf '0%.0s' {1..64})" \
+    --sha 0123456789abcdef0123456789abcdef01234567 --repo example/template
+[[ ! -s "$FX/argv.log" ]] && ok "a corrupt library prevents renderer execution" || bad "a corrupt library was executed"
+jq -e '.state == "orange" and .identity.sha == "0123456789abcdef0123456789abcdef01234567"' "$WORK/grid-badlib/report.json" >/dev/null \
+    && ok "library verification failure retains the target commit in its fallback" || bad "library fallback lost state or identity"
+
+STUB_MODE=bad-report expect 0 "a successful renderer with an invalid report falls back to orange" -- \
+    lane render --out "$WORK/grid-badreport" --renderer-dir "$FX/renderer" \
+    --renderer-sha256 "$RENDERER_SHA" --lib-sha256 "$LIB_SHA" \
+    --sha 0123456789abcdef0123456789abcdef01234567 --repo example/template
+jq -e '.state == "orange" and (.reason | contains("no readable report.json"))' "$WORK/grid-badreport/report.json" >/dev/null \
+    && ok "an invalid report cannot expose the renderer's successful badge" || bad "invalid renderer report did not produce an honest fallback"
 
 echo "=== 5. One comment per lane per pull request ==="
 : > "$FX/gh.log"
@@ -375,6 +447,52 @@ expect 0 "previous without a pull request is a no-op" -- \
     lane previous --repo example/template --out "$WORK/prev-push.md"
 [[ -s "$WORK/prev-push.md" ]] && bad "a push run must not read a comment" || ok "a push run reads no comment"
 
+echo "=== 6b. Comment pagination, payloads and API failures ==="
+marker='<!-- verdict-grid:hypatia regenerated on every run -->'
+jq -n --arg marker "$marker" '[[
+    {id:1,user:{login:"github-actions[bot]"},body:($marker + "\nolder grid")},
+    {id:2,user:{login:"github-actions[bot]"},body:null}
+], [
+    {id:3,user:{login:"github-actions[bot]"},body:($marker + "\nlatest grid")},
+    {id:4,user:{login:"contributor"},body:($marker + "\nforged newer grid")},
+    {id:5,user:{login:"github-actions[bot]"},body:"an unrelated bot comment"}
+]]' > "$FX/comments.json"
+: > "$FX/gh.log"
+GH_COMMENTS_FILE="$FX/comments.json" expect 0 "the last owned marker across pages is updated" -- \
+    lane comment --report "$WORK/grid" --pr 7 --repo example/template
+contains "pagination selects the latest authentic comment" "-X PATCH repos/example/template/issues/comments/3" "$FX/gh.log"
+not_contains "pagination does not add another comment" "-X POST" "$FX/gh.log"
+GH_COMMENTS_FILE="$FX/comments.json" expect 0 "previous uses the same authentic paginated baseline" -- \
+    lane previous --repo example/template --pr 7 --out "$WORK/prev-paged.md"
+printf '%s\n' "$marker" 'latest grid' > "$WORK/expected-prev.md"
+cmp -s "$WORK/expected-prev.md" "$WORK/prev-paged.md" && ok "previous excludes forged and unrelated later comments" \
+    || bad "pagination chose the wrong baseline"
+
+mkdir -p "$WORK/report with spaces"
+printf '%s\n' 'A "quoted" finding at C:\source' '' 'second paragraph' > "$WORK/report with spaces/report.md"
+GH_MODE=none expect 0 "a report without a marker is posted with its full body" -- \
+    lane comment --report "$WORK/report with spaces" --pr 7 --repo example/template
+jq -r '.body' "$FX/comment-payload.json" > "$WORK/posted-body.md"
+{ printf '%s\n' "$marker"; cat "$WORK/report with spaces/report.md"; } > "$WORK/expected-body.md"
+cmp -s "$WORK/expected-body.md" "$WORK/posted-body.md" && ok "JSON payload preserves quotes, backslashes, blank lines and one marker" \
+    || bad "comment payload altered report bytes"
+
+for mode in post-error patch-error; do
+    : > "$FX/gh.log"
+    GH_MODE="$mode" expect 1 "a $mode is surfaced to the caller" -- \
+        lane comment --report "$WORK/grid" --pr 7 --repo example/template
+    contains "the failed write is explained" "could not" "$WORK/out"
+    if [[ "$mode" == patch-error ]]; then
+        not_contains "a failed PATCH cannot create a duplicate comment" "-X POST" "$FX/gh.log"
+    fi
+done
+
+: > "$FX/gh.log"
+expect 0 "dry-run prints a marked body without any API calls" -- \
+    lane comment --report "$WORK/report with spaces" --pr 7 --repo example/template --dry-run
+[[ ! -s "$FX/gh.log" ]] && ok "dry-run leaves the comment API untouched" || bad "dry-run called the API"
+cmp -s "$WORK/expected-body.md" "$WORK/out" && ok "dry-run shows the exact proposed comment" || bad "dry-run body differs from publication"
+
 echo "=== 7. Wiring: fork-governance owns the grid ==="
 WIRE_FAIL=0
 wire_ok() { ok "wiring: $1"; }
@@ -391,9 +509,9 @@ wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
         || wire_bad "the PR verdict must collect scanner evidence"
     grep -Fq "render --out" "$workflow" && wire_ok "the PR grid is rendered by the lane script" \
         || wire_bad "the PR grid must be rendered by the lane script"
-    grep -Eq '^\\s+actions: read$' "$verdict_block" && wire_ok "the PR verdict has actions:read" \
+    grep -Eq '^[[:space:]]+actions: read$' "$verdict_block" && wire_ok "the PR verdict has actions:read" \
         || wire_bad "the PR verdict requires actions:read"
-    if ! grep -Eq '^\\s+pull-requests: write$' "$verdict_block"; then
+    if ! grep -Eq '^[[:space:]]+pull-requests: write$' "$verdict_block"; then
         wire_ok "PR-time renderer has no pull-request write token"
     else
         wire_bad "untrusted PR-time renderer must not have pull-requests:write"
@@ -441,10 +559,13 @@ fire_case() { # fire_case LABEL SED-EXPR FILE
         else ok "firing control: '$label' is caught"; fi
     fi
 }
-fire_case "dropping trusted comment posting" 's/verdict-grid-lane\\.sh comment/true/' "$PUBLISHER"
-fire_case "dropping publisher pull-requests: write" 's/^([[:space:]]+)pull-requests: write$/\\1pull-requests: read/' "$PUBLISHER"
+fire_case "dropping trusted comment posting" 's/verdict-grid-lane\.sh comment/true/' "$PUBLISHER"
+fire_case "dropping publisher pull-requests: write" 's/^([[:space:]]+)pull-requests: write$/\1pull-requests: read/' "$PUBLISHER"
 fire_case "dropping trusted workflow_run trigger" 's/workflow_run:/workflow_dispatch_x:/' "$PUBLISHER"
 fire_case "dropping PR grid artifact" 's/name: verdict-grid$/name: grid/' "$FORK_GOV"
+
+expect 0 "producer envelopes and publisher authentication satisfy their contracts" -- \
+    bash "$REPO_DIR/tests/workflows/workflow_evidence_test.sh"
 
 echo ""
 if [[ "$fail" -ne 0 ]]; then

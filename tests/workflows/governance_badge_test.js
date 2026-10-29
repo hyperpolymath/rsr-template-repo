@@ -465,6 +465,23 @@ async function main() {
         // ---------------------------------------------------------------- 2
         section("2. Identical bytes publish nothing");
 
+        for (const [state, color] of [
+            ["failure", "red"], ["skipped", "lightgrey"], ["cancelled", "lightgrey"],
+            ["unavailable", "lightgrey"], ["unknown", "lightgrey"],
+        ]) {
+            const bytes = `{"schemaVersion":1,"label":"K9","message":"${state}","color":"${color}"}\n`;
+            await testWithApi(`unchanged ${state} needs no success artifact or commit`, {
+                branchExists: true, fileBytes: bytes,
+            }, async (api, url) => {
+                const out = await runAsync(publishArgs(url, missingArtifact, ["--lane-result", state]));
+                equal(out.code, 0, out.stderr);
+                equal(api.writes().length, 0, "unchanged non-success states never write");
+                equal(api.state.file.bytes.toString(), bytes, "the existing bytes are preserved");
+                check(out.stdout.includes("unchanged"), "the no-op decision is reported");
+                check(!out.stdout.includes("::error::"), "non-success states need no witness");
+            });
+        }
+
         {
             const api = createApi({ branchExists: true, fileBytes: SUCCESS_BADGE });
             const url = await api.listen();
@@ -991,6 +1008,36 @@ async function main() {
 
         // ---------------------------------------------------------------- 8
         section("8. Concurrent publications reconcile instead of overwriting");
+
+        for (const deleted of ["file", "branch"]) {
+            await testWithApi(`an update conflict re-creates a concurrently deleted ${deleted}`, {
+                branchExists: true, fileBytes: FAILURE_BADGE,
+            }, async (api, url) => {
+                let injected = false;
+                api.state.hook = (request, state) => {
+                    if (request.route === "contents-put" && !injected) {
+                        injected = true;
+                        state.file = null;
+                        state.branchExists = deleted !== "branch";
+                        state.script.set("contents-put", [409]);
+                    }
+                };
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 0, out.stderr);
+                equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "recovery publishes intended bytes");
+                equal(api.puts()[0].body.sha, "sha-initial", "initial update uses the read sha");
+                equal(api.state.requests.filter((r) => r.route === "ref-get").length, 1, "deletion is confirmed by a new ref read");
+                if (deleted === "file") {
+                    equal(api.puts().length, 2, "a missing file is created once after the conflict");
+                    check(!("sha" in api.puts()[1].body), "recreation cannot reuse the deleted file's sha");
+                    equal(api.posts().length, 0, "the existing branch needs no Git objects");
+                } else {
+                    equal(api.puts().length, 1, "a missing branch cannot use a contents create");
+                    equal(api.posts().map((r) => r.route).join(","), "blobs-post,trees-post,commits-post,refs-post", "only confirmed branch absence permits orphan creation");
+                    equal(api.posts().find((r) => r.route === "commits-post").body.parents.length, 0, "recovery still creates an orphan");
+                }
+            });
+        }
 
         {
             const api = createApi({ branchExists: true, fileBytes: SUCCESS_BADGE });

@@ -171,6 +171,36 @@ expect_rc 2 "a missing repository directory is a setup error" "$WORK/does-not-ex
 root="$(fixture no-ignore)"; rm -f "$root/.hypatia-ignore"
 expect_rc 2 "a missing .hypatia-ignore is a setup error" "$root"
 
+echo "=== 5. Parsing and exemption boundaries ==="
+root="$(fixture 'repo with spaces')"
+# CRLF and an unterminated final line occur in hand-edited ignore files.
+printf '# shared reason\r\nstructural_drift/SD022:lib/rules/\r\nstructural_drift/SD001:docs/page.adoc' > "$root/.hypatia-ignore"
+expect_rc 0 "CRLF, a shared reason, spaces in the root and no final LF are accepted" "$root"
+
+root="$(fixture final-line)"
+printf '# reason\nstructural_drift/SD022:lib/gone/' > "$root/.hypatia-ignore"
+expect_rc 1 "an unterminated invalid final entry is still checked" "$root"
+says "the final-line diagnostic identifies the stale path" "path 'lib/gone/' does not exist"
+
+root="$(fixture same-type-subsumption)"
+printf '# reason\nworkflow_audit/WF013:.github/workflows/\nworkflow_audit/WF013:.github/workflows/release.yml\n' > "$root/.hypatia-ignore"
+expect_rc 1 "a directory subsumes a narrower entry of the same type" "$root"
+says "same-type subsumption identifies the broad entry" "already covered by workflow_audit/WF013:.github/workflows/"
+
+root="$(fixture separate-selectors)"
+printf '# independent rules\nworkflow_audit/WF001:.github/workflows/\nworkflow_audit/WF013:.github/workflows/release.yml\nresearch_extensions/*:.github/workflows/release.yml\n' > "$root/.hypatia-ignore"
+expect_rc 0 "a broader path cannot suppress another type or module" "$root"
+
+root="$(fixture wildcard-narrower)"
+printf '# distinct scopes\nworkflow_audit/WF013:.github/workflows/\nworkflow_audit/*:.github/workflows/release.yml\n' > "$root/.hypatia-ignore"
+expect_rc 0 "one broad rule type does not subsume a narrower all-types exemption" "$root"
+
+root="$(fixture substring-subsummation)"
+mkdir -p "$root/nested/lib/rules"
+printf '# Hypatia matches substrings rather than rooted prefixes\nstructural_drift/SD022:lib/rules/\nstructural_drift/SD022:nested/lib/rules/\n' > "$root/.hypatia-ignore"
+expect_rc 1 "subsumption includes an embedded path fragment" "$root"
+says "embedded fragment is reported as already covered" "already covered by structural_drift/SD022:lib/rules/"
+
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: hypatia-ignore meta-rule suite (${pass} passed, ${fail} failed)" >&2

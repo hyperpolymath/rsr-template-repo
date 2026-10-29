@@ -69,6 +69,24 @@ grep -qF 'missing required gate script' "$work/err" || fail 'missing gate did no
 mv "$work/saved-lane" "$work/tree/scripts/check-lock-sync.sh"
 echo 'PASS: failures fold to 1/2, setup takes precedence, options and missing gates fail explicitly'
 
+# The PR adds these required lanes. A total dispatch count alone cannot prove
+# each is wired, or that its failure participates in the runner's outcome.
+for gate in check-workflow-edges.sh check-hypatia-ignore.sh check-hypatia-rule-order.sh; do
+  run 0 "$runner"
+  [[ "$(grep -cFx "$gate" "$LANE_CALLS")" -eq 1 ]] || fail "$gate must run exactly once"
+  FAIL_GATE="$gate" run 1 "$runner"
+  grep -qF 'SUBJECT FAILURE (1 failing lane(s))' "$work/err" || fail "$gate failure was not folded"
+  grep -qxF 'run-all.sh' "$LANE_CALLS" || fail "$gate failure stopped later lanes"
+  SETUP_GATE="$gate" run 2 "$runner"
+  grep -qF 'SETUP/INERT FAILURE (1 setup, 0 subject)' "$work/err" || fail "$gate setup error was not folded"
+  mv "$work/tree/scripts/$gate" "$work/saved-lane"
+  run 2 "$runner"
+  grep -qF "missing required gate script: scripts/$gate" "$work/err" || fail "$gate absence was silent"
+  grep -qxF 'run-all.sh' "$LANE_CALLS" || fail "$gate absence stopped later lanes"
+  mv "$work/saved-lane" "$work/tree/scripts/$gate"
+done
+echo 'PASS: all three new governance lanes dispatch once, propagate failures, and require their scripts'
+
 cat > "$work/bin/idris2" <<'SH'
 #!/usr/bin/env bash
 [[ "$1" == --check && "$2" == src/Proof.idr ]] || exit 99
