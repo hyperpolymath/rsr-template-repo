@@ -167,7 +167,7 @@ case "${1:-}" in
         elif [[ "${GH_MODE:-found}" == "no-run" ]]; then
             echo '[]'
         else
-            echo '[{"databaseId": 42, "status": "completed", "conclusion": "success"}]'
+            echo '[{"databaseId": 42, "event": "pull_request", "status": "completed", "conclusion": "success"}]'
         fi
         ;;
       view)
@@ -276,6 +276,18 @@ jq -e '.[0].found == true and .[0].run_id == 42' "$out/collection.json" >/dev/nu
 [[ -f "$out/static-analysis-findings/static-analysis-findings.json" ]] \
     && ok "the artifact lands in <out>/<artifact>/" || bad "the artifact was not downloaded into <out>/<artifact>/"
 contains "the download names the workflow" "--workflow static-analysis-gate.yml" "$FX/gh.log"
+contains "the source lookup filters PR events" "--event pull_request" "$FX/gh.log"
+cat > "$FX/runs-mixed.json" <<'JSON'
+[{"databaseId": 42, "event": "pull_request", "status": "completed", "conclusion": "success"},
+ {"databaseId": 99, "event": "workflow_dispatch", "status": "completed", "conclusion": "success"}]
+JSON
+out="$WORK/collect-mixed"
+GH_RUNS_FILE="$FX/runs-mixed.json" expect 0 "collect ignores newer workflow-dispatch runs for same commit" -- \
+    lane collect --out "$out" --sha 0123456789abcdef0123456789abcdef01234567 \
+    --source static-analysis-gate.yml:static-analysis-findings
+jq -e '.[0].run_id == 42' "$out/collection.json" >/dev/null 2>&1 \
+    && ok "selected scan came from a PR event" || bad "non-PR run could override PR evidence"
+
 contains "the download names the artifact" "--name static-analysis-findings" "$FX/gh.log"
 contains "the download is scoped to the artifact directory" "--dir " "$FX/gh.log"
 
