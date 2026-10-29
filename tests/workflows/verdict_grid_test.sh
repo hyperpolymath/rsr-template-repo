@@ -190,7 +190,9 @@ case "${1:-}" in
     ;;
   api)
     if [[ "${GH_MODE:-none}" == "existing" ]]; then
-        echo '[[{"id": 9001, "body": "<!-- verdict-grid:hypatia regenerated on every run -->\nold grid"}]]'
+        echo '[[{"id": 9001, "user": {"login": "github-actions[bot]"}, "body": "<!-- verdict-grid:hypatia regenerated on every run -->\nold grid"}]]'
+    elif [[ "${GH_MODE:-none}" == "forged" ]]; then
+        echo '[[{"id": 9002, "user": {"login": "untrusted-contributor"}, "body": "<!-- verdict-grid:hypatia regenerated on every run -->\\nforged grid"}]]'
     else
         echo '[[]]'
     fi
@@ -344,6 +346,12 @@ contains "an existing run PATCHes its own comment" "-X PATCH repos/example/templ
 not_contains "an existing run does not POST a second comment" "-X POST" "$FX/gh.log"
 
 : > "$FX/gh.log"
+GH_MODE=forged expect 0 "a forged user marker does not suppress posting" -- \
+    lane comment --report "$WORK/grid" --pr 7 --repo example/template
+contains "the forged marker is ignored" "-X POST repos/example/template/issues/7/comments" "$FX/gh.log"
+not_contains "a contributor comment is never patched" "-X PATCH repos/example/template/issues/comments/9002" "$FX/gh.log"
+
+: > "$FX/gh.log"
 expect 0 "a push run posts nothing" -- lane comment --report "$WORK/grid" --repo example/template
 [[ -s "$FX/gh.log" ]] && bad "a push run must not call the comment API" || ok "a push run makes no comment API call"
 
@@ -357,6 +365,10 @@ GH_MODE=none expect 0 "previous with no existing comment writes an empty file" -
 GH_MODE=existing expect 0 "previous reads the marker comment's body" -- \
     lane previous --repo example/template --pr 7 --out "$WORK/prev.md"
 contains "the previous body is what the renderer compares against" "old grid" "$WORK/prev.md"
+
+GH_MODE=forged expect 0 "forged prior grid cannot become delta baseline" -- \
+    lane previous --repo example/template --pr 7 --out "$WORK/prev-forged.md"
+[[ -s "$WORK/prev-forged.md" ]] && bad "forged prior grid must not be trusted" || ok "forged prior grid excluded"
 
 expect 0 "previous without a pull request is a no-op" -- \
     lane previous --repo example/template --out "$WORK/prev-push.md"
