@@ -317,7 +317,7 @@ expect 2 "collect without --source is a usage error" -- \
     lane collect --out "$WORK/nope" --sha 0123456789abcdef0123456789abcdef01234567
 
 out="$WORK/collect mixed sources"
-printf '%s\n' '[{"databaseId":8},{"databaseId":73},{"databaseId":12}]' > "$FX/runs.json"
+printf '%s\n' '[{"databaseId":8,"event":"pull_request","status":"completed"},{"databaseId":73,"event":"pull_request","status":"completed"},{"databaseId":12,"event":"pull_request","status":"completed"}]' > "$FX/runs.json"
 : > "$FX/gh.log"
 : > "$FX/outputs"
 GH_RUNS_FILE="$FX/runs.json" GH_MISSING_ARTIFACT=hypatia-scan-findings GITHUB_OUTPUT="$FX/outputs" \
