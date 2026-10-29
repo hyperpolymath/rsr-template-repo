@@ -865,7 +865,9 @@ async function main() {
             for (const route of ["repo", "contents-get", "ref-get", "contents-put", "blobs-post", "trees-post", "commits-post", "refs-post"]) {
                 const isPut = route === "contents-put";
                 const api = createApi(isPut ? { branchExists: true, fileBytes: FAILURE_BADGE } : {});
-                const attempts = isPut ? 1 : 3;
+                // PUT transport failures now reconcile against remote state.
+                // Three consecutive timeouts are needed to prove exhaustion.
+                const attempts = 3;
                 api.state.script.set(route, Array(attempts).fill(`stall-${phase}`));
                 const url = await api.listen();
                 try {
@@ -875,7 +877,7 @@ async function main() {
                         }, 5000);
                         equal(out.code, 1, `expected timeout failure, got ${out.code}: ${out.stderr}`);
                         equal(api.state.requests.filter((r) => r.route === route).length, attempts,
-                            "GET and orphan retries are preserved; a direct PUT is attempted once");
+                            "GET, orphan and PUT transport failures exhaust three bounded attempts");
                         check(/failed:|response body unreadable:/.test(out.stderr),
                             `stderr must name the transport failure: ${out.stderr}`);
                         if (isPut) {
