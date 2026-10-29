@@ -334,7 +334,6 @@ jobs:
       # scripts/verdict-grid-lane.sh. A copy would be a second implementation of
       # the estate's grid that could drift from the tested one.
       - name: Checkout the verdict grid renderer at the pinned standards commit
-        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
@@ -397,9 +396,8 @@ jobs:
 
       - name: Check the evidence shapes before rendering
         if: ${{ always() }}
-        continue-on-error: true
         run: |
-          set +e
+          set -euo pipefail
           bash scripts/verdict-grid-lane.sh validate \
             --hypatia "$RUNNER_TEMP/evidence/hypatia-scan-findings/hypatia-findings.relativized.json" \
             --panic "$RUNNER_TEMP/evidence/static-analysis-findings/panic-attack-findings.json" \
