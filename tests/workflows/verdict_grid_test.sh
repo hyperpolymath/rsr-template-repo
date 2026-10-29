@@ -107,7 +107,7 @@ JSON
 
 # Stub renderer: records its argv, then writes the three outputs the real one
 # writes. Real digest is computed for it so verification still runs.
-cat > "$FX/renderer/scripts/verdict-grid.sh" <<'STUB'
+cat > "$FX/renderer/scripts/verdict-grid.sh" <<'RENDERER_FIXTURE'
 #!/usr/bin/env bash
 set -euo pipefail
 args_copy=("$@")
@@ -138,7 +138,7 @@ if [[ "${STUB_MODE:-ok}" == "bad-badge" ]]; then
 else
     printf '%s\n' '{"schemaVersion": 1, "label": "Hypatia grid", "message": "yellow", "color": "yellow"}' > "$out/badge.json"
 fi
-STUB
+RENDERER_FIXTURE
 chmod +x "$FX/renderer/scripts/verdict-grid.sh"
 printf '%s\n' '# stub jq lib' > "$FX/renderer/scripts/lib/verdict-grid.jq"
 RENDERER_SHA="$(sha256sum "$FX/renderer/scripts/verdict-grid.sh" | cut -d' ' -f1)"
@@ -147,7 +147,7 @@ LIB_SHA="$(sha256sum "$FX/renderer/scripts/lib/verdict-grid.jq" | cut -d' ' -f1)
 # ─────────────────────────────────────────────────────────────────────────────
 # Stub gh
 # ─────────────────────────────────────────────────────────────────────────────
-cat > "$FX/bin/gh" <<'STUB'
+cat > "$FX/bin/gh" <<'GH_FIXTURE'
 #!/usr/bin/env bash
 # Stub gh: records every invocation, answers only what the lane asks for.
 set -uo pipefail
@@ -200,7 +200,7 @@ case "${1:-}" in
     ;;
   *) exit 1 ;;
 esac
-STUB
+GH_FIXTURE
 chmod +x "$FX/bin/gh"
 
 lane() { # lane SUBCOMMAND [args...]
