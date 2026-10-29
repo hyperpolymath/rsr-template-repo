@@ -1213,6 +1213,30 @@ async function main() {
             });
         }
 
+        // A dropped response body after an applied PUT is indeterminate.
+        // Reconciliation must read the new file instead of issuing a second
+        // blind write or leaving a stale green badge behind.
+        for (const fileBytes of [undefined, SUCCESS_BADGE]) {
+            await testWithApi(`a committed ${fileBytes ? "update" : "creation"} with a lost response is not duplicated`, {
+                branchExists: true, fileBytes,
+            }, async (api, url) => {
+                api.state.hook = (request, state) => {
+                    if (request.route === "contents-put") {
+                        state.file = { sha: "sha-network-applied", bytes: Buffer.from(FAILURE_BADGE) };
+                        state.script.set("contents-put", ["stall-body"]);
+                    }
+                };
+                const out = await runAsync(
+                    publishArgs(url, failureArtifact, ["--lane-result", "failure"]),
+                    { GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: "250" },
+                );
+                equal(out.code, 0, `applied PUT with lost response should reconcile: ${out.stderr}`);
+                equal(api.puts().length, 1, "a lost response cannot cause a second commit when bytes already match");
+                equal(api.state.requests.filter((r) => r.route === "contents-get").length, 2, "uncertain write is re-read");
+                equal(api.state.file.bytes.toString(), FAILURE_BADGE, "reconciliation retains the applied badge");
+            });
+        }
+
         // A write can land before the API returns an error. Reconciliation
         // must inspect the resulting bytes before attempting another commit.
         for (const fileBytes of [undefined, SUCCESS_BADGE]) {
