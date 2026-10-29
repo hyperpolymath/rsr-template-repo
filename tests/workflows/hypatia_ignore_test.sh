@@ -201,6 +201,27 @@ printf '# Hypatia matches substrings rather than rooted prefixes\nstructural_dri
 expect_rc 1 "subsumption includes an embedded path fragment" "$root"
 says "embedded fragment is reported as already covered" "already covered by structural_drift/SD022:lib/rules/"
 
+echo "=== 6. Reason blocks and selector identity ==="
+root="$(fixture reason-reset)"
+printf '# first block only\nstructural_drift/SD022:lib/rules/\n\nworkflow_audit/WF013:.github/workflows/release.yml\n' > "$root/.hypatia-ignore"
+expect_rc 1 "a reason cannot carry over a blank line into the next block" "$root"
+says "the unexplained entry is identified by line and selector" "line 4: 'workflow_audit/WF013:.github/workflows/release.yml' has no stated reason"
+
+root="$(fixture reason-renewed)"
+printf '# first block\nstructural_drift/SD022:lib/rules/\n\n# second block\nworkflow_audit/WF013:.github/workflows/release.yml\n' > "$root/.hypatia-ignore"
+expect_rc 0 "a new reason after a blank line opens an independent block" "$root"
+
+root="$(fixture same-path-selectors)"
+printf '# Independent rules may exempt the same file\nworkflow_audit/WF013:docs/page.adoc\nworkflow_audit/WF014:docs/page.adoc\nstructural_drift/SD022:docs/page.adoc\n' > "$root/.hypatia-ignore"
+expect_rc 0 "duplicate detection includes both the module and the rule type" "$root"
+
+for selector in Workflow_audit/WF013 workflow_audit/ workflow_audit/WF-013; do
+    root="$(fixture invalid-selector)"
+    printf '# reason\n%s:docs/page.adoc\n' "$selector" > "$root/.hypatia-ignore"
+    expect_rc 1 "an invalid selector is refused: $selector" "$root"
+    says "the invalid selector is named precisely" "selector '$selector' is not"
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: hypatia-ignore meta-rule suite (${pass} passed, ${fail} failed)" >&2

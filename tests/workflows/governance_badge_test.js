@@ -1365,6 +1365,104 @@ async function main() {
         });
 
 
+        for (const sha of [SOURCE_SHA.slice(1), `${SOURCE_SHA}0`, SOURCE_SHA.toUpperCase(), "g".repeat(40), `${SOURCE_SHA}\n`]) {
+            await testWithApi(`invalid source revision ${JSON.stringify(sha)} is refused before contacting the API`, {}, async (api, url) => {
+                const out = await runAsync(publishArgs(url, goodArtifact, ["--source-sha", sha]));
+                equal(out.code, 2, out.stderr);
+                check(out.stderr.includes("complete 40-character Git commit SHA"), "the diagnostic explains the required revision identity");
+                equal(api.state.requests.length, 0, "invalid revision identities cannot authorise remote reads or writes");
+            });
+        }
+
+        await testWithApi("source freshness requires the repository to identify its default branch", {
+            branchExists: true, fileBytes: FAILURE_BADGE,
+        }, async (api, url) => {
+            api.state.script.set("repo", [{ status: 200, body: { full_name: "example/template" } }]);
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 1, out.stderr);
+            check(out.stderr.includes("cannot establish source freshness"), "missing metadata is diagnosed");
+            equal(api.state.requests.map((r) => r.route).join(","), "repo", "no badge access is allowed without a source branch identity");
+        });
+
+        for (const body of [{}, { object: {} }, { object: { sha: SOURCE_SHA.slice(0, 12) } }]) {
+            await testWithApi(`an incomplete source ref ${JSON.stringify(body)} cannot prove freshness`, {
+                branchExists: true, fileBytes: FAILURE_BADGE,
+            }, async (api, url) => {
+                api.state.script.set("source-ref-get", [{ status: 200, body }]);
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 1, out.stderr);
+                equal(api.state.requests.map((r) => r.route).join(","), "repo,source-ref-get", "a partial ref never permits a badge read or write");
+                check(out.stderr.includes("refusing stale badge publication"), "the unverifiable revision is refused explicitly");
+            });
+        }
+
+        for (const status of [403, 404, 429, 503]) {
+            await testWithApi(`source-head HTTP ${status} cannot authorise badge publication`, {
+                branchExists: true, fileBytes: FAILURE_BADGE,
+            }, async (api, url) => {
+                api.state.script.set("source-ref-get", Array(4).fill(status));
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 1, out.stderr);
+                equal(api.state.requests.filter((r) => r.route === "source-ref-get").length, status >= 429 ? 3 : 1, "only transient source-ref failures are retried");
+                equal(api.writes().length, 0, "an unavailable source ref never permits writes");
+                equal(api.state.requests.filter((r) => r.route === "contents-get").length, 0, "freshness failure stops before reading badges");
+                check(out.stderr.includes("cannot establish current main head"), "the failing prerequisite is named");
+            });
+        }
+
+        await testWithApi("source freshness can recover on the final allowed read", {
+            branchExists: true, fileBytes: SUCCESS_BADGE,
+        }, async (api, url) => {
+            api.state.script.set("source-ref-get", [429, 503]);
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 0, out.stderr);
+            equal(api.state.requests.filter((r) => r.route === "source-ref-get").length, 3, "the last read confirms the full source revision");
+            equal(api.writes().length, 0, "recovery preserves the byte-identical no-op");
+            check(out.stdout.includes("unchanged"), "a verified source may finish unchanged");
+        });
+
+        for (const branchExists of [true, false]) {
+            await testWithApi(`a source change after confirming ${branchExists ? "file" : "branch"} absence prevents creation`, {
+                branchExists,
+                hook: (entry, state) => {
+                    if (entry.route === "ref-get") state.sourceHead = "f".repeat(40);
+                },
+            }, async (api, url) => {
+                const out = await runAsync(publishArgs(url, goodArtifact));
+                equal(out.code, 1, out.stderr);
+                equal(api.state.requests.filter((r) => r.route === "source-ref-get").length, 2, "freshness is checked again after establishing absence");
+                equal(api.writes().length, 0, "a stale run cannot create a file, Git objects or a ref");
+                equal(api.state.branchExists, branchExists, "the generated branch remains as it was");
+                equal(api.state.file, null, "the stale run publishes no file");
+            });
+        }
+
+        await testWithApi("a source change during a PUT conflict stops reconciliation before another write", {
+            branchExists: true, fileBytes: FAILURE_BADGE,
+            hook: (entry, state) => {
+                if (entry.route === "contents-put") {
+                    state.sourceHead = "f".repeat(40);
+                    state.script.set("contents-put", [409]);
+                }
+            },
+        }, async (api, url) => {
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 1, out.stderr);
+            equal(api.puts().length, 1, "the initial conflict is the only attempted write");
+            equal(api.state.requests.filter((r) => r.route === "contents-get").length, 1, "reconciliation checks source freshness before another badge read");
+            equal(api.state.file.bytes.toString(), FAILURE_BADGE, "the original badge remains intact");
+            check(out.stderr.includes("superseded source commit"), "the newer source revision explains the refusal");
+        });
+
+        await testWithApi("an API error cannot forge workflow commands through its message", {}, async (api, url) => {
+            api.state.script.set("repo", [{ status: 403, body: { message: "denied\r\n::error::forged\u0000\tend" } }]);
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 1, out.stderr);
+            check(out.stderr.includes("denied  ::error::forged  end"), "control characters are flattened while preserving the error detail");
+            check(!out.stderr.split("\n").some((line) => line.startsWith("::error::")), "remote text cannot start a new workflow command");
+            equal(api.writes().length, 0, "the permission failure never attempts a write");
+        });
+
         for (const branch of ["main", "master", "HEAD"]) {
             await test(`--branch ${branch} is refused before any API call`, () => {
                 const out = runSync(publishArgs("http://127.0.0.1:1", goodArtifact, ["--branch", branch]));

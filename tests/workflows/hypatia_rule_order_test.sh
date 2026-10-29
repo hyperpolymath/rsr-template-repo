@@ -203,6 +203,34 @@ for invalid in '{broken' '[]' 'null'; do
     says "the invalid policy shape is explained" "policy is not a JSON object"
 done
 
+echo "=== 9. Missing declarations retain actionable diagnostics ==="
+fresh; edit_policy '.layers = .layers[:3] | .observed_modules = []'
+printf '# No repository exemptions\n' > "$WORK/repo/.hypatia-ignore"
+expect_rc 1 "three otherwise complete layers do not meet the minimum policy size"
+says "the minimum layer count is explained" "policy declares fewer than four layers"
+
+fresh; edit_policy '.concerns = []'
+expect_rc 1 "a policy without any concerns is refused"
+says "an empty ownership table is explained" "policy declares no concerns"
+
+# This is the original TSV regression: neither field may stand in for the
+# other when both are absent from a layer.
+fresh; edit_policy 'del(.layers[1].scope, .layers[1].overrides)'
+expect_rc 1 "simultaneously missing scope and overrides are both diagnosed"
+says "a missing scope remains visible alongside missing overrides" "layer 2 (universal-excludes) has no scope"
+says "missing overrides remain visible alongside a missing scope" "does not say what it overrides"
+
+for declaration in STANDARDS_SHA RENDERER_SHA256 JQ_LIB_SHA256; do
+    fresh
+    sed -i "/^${declaration}=/d" "$WORK/repo/scripts/verdict-grid-lane.sh"
+    expect_rc 1 "a removed $declaration cannot verify the policy pin"
+    if [ "$declaration" = STANDARDS_SHA ]; then
+        says "the missing grid commit pin is explained" "names no STANDARDS_SHA"
+    else
+        says "the missing $declaration is explained" "declares no $declaration"
+    fi
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: hypatia rule-order suite (${pass} passed, ${fail} failed)" >&2

@@ -171,7 +171,11 @@ case "${1:-}" in
         fi
         ;;
       view)
-        echo '{"status": "completed", "conclusion": "success"}'
+        if [[ -n "${GH_RUNS_FILE:-}" ]]; then
+            jq -c --argjson id "$3" '.[] | select(.databaseId == $id) | {status, conclusion}' "$GH_RUNS_FILE"
+        else
+            echo '{"status": "completed", "conclusion": "success"}'
+        fi
         ;;
       download)
         # Copy a fixture into --dir, unless the stub is told the artifact is gone.
@@ -265,6 +269,24 @@ printf '%s\n' '[{},null]' > "$FX/invalid-hypatia.json"
 expect 1 "a single non-object invalidates the Hypatia findings array" -- \
     lane validate --hypatia "$FX/invalid-hypatia.json"
 
+printf '%s\n' '[]' > "$FX/empty-hypatia.json"
+expect 0 "an empty Hypatia array is valid evidence of a clean scan" -- \
+    lane validate --hypatia "$FX/empty-hypatia.json"
+expect 0 "absent evidence is advisory for all four input families" -- \
+    lane validate --hypatia "$FX/missing-hypatia.json" --panic "$FX/missing-panic.json" \
+    --pons "$FX/missing-pons.json" --enrolment "$FX/missing-enrolment.json"
+for warning in 'no Hypatia findings' 'no panic-attack evidence' 'no pons-asinorum evidence' 'no enrolment manifest'; do
+    contains "missing input is explained: $warning" "$warning" "$WORK/out"
+done
+
+# A rejected first input must not hide diagnostics for the remaining sources.
+expect 1 "validation checks every supplied input after an earlier failure" -- \
+    lane validate --hypatia "$FX/hypatia-object.json" --panic "$FX/panic-bare-array.json" \
+    --pons "$FX/panic-ran-no-report.json" --enrolment "$FX/enrolment-broken.json"
+for diagnostic in 'not one JSON array' 'not a panic-attack status envelope' 'no report object' 'not an enrolment manifest'; do
+    contains "validation retains the independent diagnostic: $diagnostic" "$diagnostic" "$WORK/out"
+done
+
 echo "=== 2. Collecting another workflow's evidence ==="
 out="$WORK/collect-found"
 : > "$FX/gh.log"
@@ -332,6 +354,44 @@ contains "collection queries the requested commit" "--commit 0123456789abcdef012
 contains "only absent evidence is exposed to Actions" 'evidence_missing=hypatia-scan-findings (hypatia-scan.yml)' "$FX/outputs"
 [[ ! -e "$out/collection.jsonl" ]] && ok "the intermediate JSONL manifest is removed" || bad "collection leaked its intermediate manifest"
 
+echo "=== 2b. Only completed PR runs can supply evidence ==="
+cat > "$FX/runs-filtered.json" <<'JSON'
+[{"databaseId":17,"event":"pull_request","status":"completed","conclusion":"success"},
+ {"databaseId":95,"event":"pull_request","status":"in_progress"},
+ {"databaseId":71,"event":"pull_request","status":"completed","conclusion":"failure"},
+ {"databaseId":99,"event":"push","status":"completed","conclusion":"success"},
+ {"databaseId":94,"event":"pull_request","status":"queued"},
+ {"databaseId":98,"event":"workflow_dispatch","status":"completed","conclusion":"success"}]
+JSON
+: > "$FX/gh.log"
+GH_RUNS_FILE="$FX/runs-filtered.json" expect 0 "collection prefers the newest completed PR even when its scanner failed" -- \
+    lane collect --out "$WORK/collect-filtered" --sha 0123456789abcdef0123456789abcdef01234567 \
+    --source hypatia-scan.yml:hypatia-scan-findings
+jq -e '.[0].found == true and .[0].run_id == 71 and .[0].state == "completed/failure"
+    and .[0].reason == null' "$WORK/collect-filtered/collection.json" >/dev/null \
+    && ok "failed completed scans retain their findings instead of borrowing an older clean run" \
+    || bad "collection selected an incomplete, unrelated or older clean run"
+contains "the artifact is downloaded from the authenticated run id" 'run download 71 ' "$FX/gh.log"
+not_contains "a running scan is never downloaded" 'run download 95 ' "$FX/gh.log"
+
+for records in \
+    '[{"databaseId":99,"event":"pull_request","status":"in_progress"}]' \
+    '[{"databaseId":99,"event":"pull_request","status":"queued"}]' \
+    '[{"databaseId":99,"event":"push","status":"completed"}]' \
+    '[{"databaseId":99,"status":"completed"}]' \
+    '[{"databaseId":99,"event":"pull_request"}]' \
+    '{broken'; do
+    printf '%s\n' "$records" > "$FX/runs-ineligible.json"
+    : > "$FX/gh.log"
+    GH_RUNS_FILE="$FX/runs-ineligible.json" expect 0 "ineligible or unreadable runs remain missing evidence: $records" -- \
+        lane collect --out "$WORK/collect-ineligible" --sha 0123456789abcdef0123456789abcdef01234567 \
+        --source hypatia-scan.yml:hypatia-scan-findings
+    jq -e '.[0].found == false and .[0].run_id == null and (.[0].reason | contains("no run of hypatia-scan.yml"))' \
+        "$WORK/collect-ineligible/collection.json" >/dev/null \
+        && ok "ineligible runs produce an explicit absence record" || bad "ineligible run was accepted as evidence"
+    not_contains "ineligible runs never reach artifact download" 'run download' "$FX/gh.log"
+done
+
 echo "=== 3. Rendering through the verified renderer ==="
 render_args=(render --out "$WORK/grid" --renderer-dir "$FX/renderer"
     --renderer-sha256 "$RENDERER_SHA" --lib-sha256 "$LIB_SHA"
@@ -359,6 +419,40 @@ grep -Fq -- "--changed" "$WORK/grid/argv.txt" && ok "delta scope is passed when 
     || bad "delta scope must be passed"
 grep -Fq -- "--panic-ref" "$WORK/grid/argv.txt" && ok "the tool commits are passed for the profile hash" \
     || bad "tool commits must be passed"
+
+# Empty and missing optional paths must not become renderer arguments. Quoted
+# paths and repeated scope exclusions must remain separate argument values.
+printf '%s\n' 'previous grid' > "$WORK/previous grid.md"
+expect 0 "render forwards a previous baseline and each non-empty exclusion intact" -- \
+    lane render --out "$WORK/grid optional paths" --renderer-dir "$FX/renderer" \
+    --renderer-sha256 "$RENDERER_SHA" --lib-sha256 "$LIB_SHA" \
+    --sha 0123456789abcdef0123456789abcdef01234567 --repo example/template \
+    --previous "$WORK/previous grid.md" --exclude-prefix 'generated files/' --exclude-prefix '' \
+    --exclude-prefix '9-archive/' --hypatia "$FX/absent.json" --panic "$FX/absent.json" \
+    --pons "$FX/absent.json" --enrolment "$FX/absent.json" --report-backs "$FX/absent-dir" \
+    --changed "$FX/absent.txt"
+printf '%s\n' --previous "$WORK/previous grid.md" --exclude-prefix 'generated files/' --exclude-prefix '9-archive/' > "$WORK/expected-optional-args"
+sed -n '/^--previous$/,$p' "$WORK/grid optional paths/argv.txt" > "$WORK/actual-optional-args"
+cmp -s "$WORK/expected-optional-args" "$WORK/actual-optional-args" \
+    && ok "baseline paths and repeated exclusions preserve argument boundaries" || bad "optional argument values changed"
+for flag in --hypatia --panic --pons --enrolment --report-backs --changed; do
+    if grep -Fxq -- "$flag" "$WORK/grid optional paths/argv.txt"; then
+        bad "missing optional input $flag was forwarded"
+    else
+        ok "missing optional input $flag is omitted"
+    fi
+done
+
+: > "$FX/outputs"
+printf 'Earlier summary\n' > "$FX/summary"
+GITHUB_OUTPUT="$FX/outputs" GITHUB_STEP_SUMMARY="$FX/summary" \
+    expect 0 "render appends its state and report to Actions files" -- lane "${render_args[@]}"
+printf 'Earlier summary\n' > "$WORK/expected-summary"
+cat "$WORK/grid/report.md" >> "$WORK/expected-summary"
+cmp -s "$WORK/expected-summary" "$FX/summary" && ok "the summary preserves earlier steps and the complete report" \
+    || bad "the rendered report was not appended to the summary"
+contains "Actions receives the rendered state" 'state=yellow' "$FX/outputs"
+contains "Actions receives the shields badge as one output line" 'badge={"schemaVersion":1,"label":"Hypatia grid","message":"yellow","color":"yellow"}' "$FX/outputs"
 
 echo "=== 4. An unusable renderer is orange, never green ==="
 # 4a. absent
@@ -417,6 +511,20 @@ STUB_MODE=bad-report expect 0 "a successful renderer with an invalid report fall
     --sha 0123456789abcdef0123456789abcdef01234567 --repo example/template
 jq -e '.state == "orange" and (.reason | contains("no readable report.json"))' "$WORK/grid-badreport/report.json" >/dev/null \
     && ok "an invalid report cannot expose the renderer's successful badge" || bad "invalid renderer report did not produce an honest fallback"
+
+# Reusing an output directory must replace all earlier successful artifacts,
+# including the Markdown report that a later comment step will publish.
+GITHUB_OUTPUT="$FX/fallback-outputs" expect 0 "an unavailable renderer replaces every stale successful output" -- \
+    lane render --out "$WORK/grid" --renderer-dir "$WORK/no-renderer" \
+    --sha fedcba9876543210fedcba9876543210fedcba98 --repo example/template
+jq -e '.schemaVersion == 1 and .message == "indeterminate" and .color == "orange"' "$WORK/grid/badge.json" >/dev/null \
+    && ok "the stale badge becomes indeterminate" || bad "a stale successful badge survived"
+jq -e '.state == "orange" and .identity.sha == "fedcba9876543210fedcba9876543210fedcba98"
+    and .reporters == [] and .sources == []' "$WORK/grid/report.json" >/dev/null \
+    && ok "the fallback report identifies this revision without stale evidence" || bad "fallback report retained old evidence"
+contains "the replacement Markdown identifies the new revision" 'fedcba987654' "$WORK/grid/report.md"
+not_contains "the replacement Markdown discards the earlier renderer report" 'rendered by the stub' "$WORK/grid/report.md"
+contains "the fallback state is exported to Actions" 'state=orange' "$FX/fallback-outputs"
 
 echo "=== 5. One comment per lane per pull request ==="
 : > "$FX/gh.log"
