@@ -56,6 +56,12 @@ expect_rc 1 "renaming a producer is caught (workflow_run matches name:, not the 
 says "the failure names the dead edge" "Hypatia Security Scan"
 says "the failure says what it breaks" "never re-render"
 
+echo "=== 2b. A workflow name with the old name as a prefix is NOT a match ==="
+fresh >/dev/null
+sed -i 's/^name: Hypatia Security Scan$/name: Hypatia Security Scan v2/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a renamed producer with the old name as a prefix is caught"
+says "the mismatch names the exact old workflow" "Hypatia Security Scan"
+
 echo "=== 3. Firing: a producer that stops running on pull_request ==="
 fresh >/dev/null
 python3 - "$WORK/repo/.github/workflows/static-analysis-gate.yml" <<'PY'
