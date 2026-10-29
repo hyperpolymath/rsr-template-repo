@@ -419,7 +419,7 @@ marker_comment_id() {
     gh="$(gh_bin)"
     "$gh" api --paginate --slurp "repos/${repo}/issues/${pr}/comments" 2>/dev/null \
         | jq -r --arg marker "$MARKER" '
-            [.[][] | select(.body | contains($marker))] | last | .id // empty' 2>/dev/null || true
+            [.[][] | select(.user.login == "github-actions[bot]" and ((.body // "") | contains($marker)))] | last | .id // empty' 2>/dev/null || true
 }
 
 cmd_previous() {
@@ -443,7 +443,7 @@ cmd_previous() {
     body_tmp="$(mktemp)"
     "$gh" api --paginate --slurp "repos/${REPO}/issues/${PR}/comments" 2>/dev/null \
         | jq -r --arg marker "$MARKER" '
-            [.[][] | select(.body | contains($marker))] | last | .body // ""' > "$body_tmp" 2>/dev/null \
+            [.[][] | select(.user.login == "github-actions[bot]" and ((.body // "") | contains($marker)))] | last | .body // ""' > "$body_tmp" 2>/dev/null \
         || : > "$body_tmp"
     # An empty JSON string renders as a bare newline: a blank body is no body.
     if [[ -n "$(tr -d '[:space:]' < "$body_tmp")" ]]; then
