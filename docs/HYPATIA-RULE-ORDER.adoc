@@ -311,7 +311,7 @@ decision rather than an omission
 |a `concern` with no owner, or owned by a path that does not exist
 |this is exactly how Hypatia came to be run by two workflows (C1)
 
-|an `owner` outside `hypatia | this-repository | the-gate | the-grid`
+|an `owner` outside `hypatia \| this-repository \| the-gate \| the-grid`
 |the four parties are the whole vocabulary; a fifth name means the model has
 changed and this document has not
 
