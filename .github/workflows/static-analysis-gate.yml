@@ -141,6 +141,10 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           jq -e '.status | type == "string"' "$out" >/dev/null
+          if [ "$(jq -r .status "$out")" != "ran" ]; then
+            echo "::error::Blocking scanner did not produce trustworthy results"
+            exit 1
+          fi
 
       - name: Run pons-asinorum deep recon audit
         id: pons
@@ -191,6 +195,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the scanner envelopes
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: static-analysis-findings
