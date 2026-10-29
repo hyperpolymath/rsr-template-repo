@@ -858,9 +858,21 @@ async function cmdPublish(opts) {
                 return finish({ label, dest, branch, intent, action: "unchanged", commit: null, faults: intent.faults });
             }
             await assertSourceCurrent();
-            const response = await putFile({
-                repo, branch, dest, message, bytes: intent.bytes, sha: remote.sha, http,
-            });
+            let response;
+            try {
+                response = await putFile({
+                    repo, branch, dest, message, bytes: intent.bytes, sha: remote.sha, http,
+                });
+            } catch (err) {
+                // A lost response is not proof that the PUT failed. Re-read
+                // remote bytes before another write, exactly as for HTTP 409.
+                if (err instanceof ApiError && err.transient) {
+                    lastConflict = err;
+                    await sleep(RETRY_DELAY_MS * attempt);
+                    continue;
+                }
+                throw err;
+            }
             if (response.status === 200 || response.status === 201) {
                 const sha = readJsonPath(response.text, "commit.sha");
                 return finish({ label, dest, branch, intent, action: "updated", commit: sha, faults: intent.faults });
@@ -876,7 +888,17 @@ async function cmdPublish(opts) {
 
         if (remote.kind === "absent-file") {
             await assertSourceCurrent();
-            const response = await putFile({ repo, branch, dest, message, bytes: intent.bytes, http });
+            let response;
+            try {
+                response = await putFile({ repo, branch, dest, message, bytes: intent.bytes, http });
+            } catch (err) {
+                if (err instanceof ApiError && err.transient) {
+                    lastConflict = err;
+                    await sleep(RETRY_DELAY_MS * attempt);
+                    continue;
+                }
+                throw err;
+            }
             if (response.status === 200 || response.status === 201) {
                 const sha = readJsonPath(response.text, "commit.sha");
                 return finish({ label, dest, branch, intent, action: "created", commit: sha, faults: intent.faults });
