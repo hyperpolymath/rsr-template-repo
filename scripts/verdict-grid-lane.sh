@@ -102,9 +102,9 @@ collect_source() {
         # run that is still in progress has no artifact yet; it is reported as
         # "not yet", never silently treated as a clean scan.
         if ! run_id="$("$gh" run list --repo "$REPO" --workflow "$workflow" \
-                --commit "$sha" --limit 5 \
-                --json databaseId,status,conclusion 2>/dev/null \
-                | jq -r 'sort_by(.databaseId) | last | .databaseId // empty')"; then
+                --commit "$sha" --event pull_request --limit 20 \
+                --json databaseId,status,conclusion,event 2>/dev/null \
+                | jq -r '[.[] | select(.event == "pull_request" and .status == "completed")] | sort_by(.databaseId) | last | .databaseId // empty')"; then
             run_id=""
         fi
         if [[ -z "$run_id" ]]; then
