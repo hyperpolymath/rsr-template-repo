@@ -359,6 +359,8 @@ jobs:
       # never turns "not yet" into "clean".
       - name: Collect the producers' evidence
         id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           bash scripts/verdict-grid-lane.sh collect \
