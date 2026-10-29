@@ -929,7 +929,7 @@ async function main() {
                 GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS: "2147483647",
             });
             equal(out.code, 0, out.stderr);
-            equal(api.state.requests.map((r) => r.route).join(","), "repo,contents-get", "the upper boundary permits the normal read path");
+            equal(api.state.requests.map((r) => r.route).join(","), "repo,source-ref-get,contents-get", "the upper boundary verifies the current source ref before the ordinary read path");
             equal(api.writes().length, 0, "the timeout setting cannot cause a no-op write");
             check(out.stdout.includes("unchanged"), "the unchanged decision is preserved");
         });
