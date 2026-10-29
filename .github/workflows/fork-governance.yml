@@ -315,11 +315,11 @@ jobs:
       K9_RESULT: ${{ needs.k9.result }}
       FLEET_RESULT: ${{ needs.fleet.result }}
     steps:
-      # This job has pull-requests: write, including when workflow_run fires.
-      # ALWAYS execute the reviewed default-branch lane script: even a
-      # same-repository PR head is untrusted until merged. Changes to the lane
-      # implementation need isolated, read-only tests before integration.
-      - name: Checkout trusted default-branch lane policy
+      # This job is read-only (actions/contents/pull-requests: read). It runs
+      # the PR-head lane script, which is untrusted, so it must never receive a
+      # write-scoped token. Publishing lives in verdict-grid-publish.yml, which
+      # checks out the default branch.
+      - name: Checkout the lane script under test (read-only token)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
