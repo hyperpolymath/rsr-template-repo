@@ -138,10 +138,14 @@ if [ -n "$dupes" ]; then
 fi
 
 # ── 2. every evidence source is produced by the workflow it names ──────────
-sources="$(awk '/--source[[:space:]]/ { for (i = 1; i <= NF; i++) if ($i == "--source") { print $(i + 1); break } }' "$REPORTER" "$PUBLISHER" | sort -u)"
-if [ -z "$sources" ]; then
-  fail "fork-governance.yml collects no evidence (--source <workflow>:<artifact>) — the grid would have no rows"
-fi
+source_scan() {
+  awk '/--source[[:space:]]/ { for (i = 1; i <= NF; i++) if ($i == "--source") { print $(i + 1); break } }' "$1"
+}
+sources_pr="$(source_scan "$REPORTER")"
+sources_pub="$(source_scan "$PUBLISHER")"
+[ -n "$sources_pr" ] || fail "fork-governance.yml collects no evidence (--source <workflow>:<artifact>) — the grid would have no rows"
+[ -n "$sources_pub" ] || fail "verdict-grid-publish.yml collects no evidence (--source <workflow>:<artifact>) — published grid would have no rows"
+sources="$(printf '%s\n%s\n' "$sources_pr" "$sources_pub" | sed '/^$/d' | sort -u)"
 
 while IFS= read -r src; do
   [ -n "$src" ] || continue
