@@ -95,9 +95,9 @@ jobs:
           # Fleet evidence lives in the read-only Fork governance PR run,
           # not in this privileged publisher's own workflow_run.
           fleet_run=$(gh run list --repo "$GITHUB_REPOSITORY" \
-            --workflow fork-governance.yml --commit "$TARGET_SHA" --limit 20 \
-            --json databaseId,status | jq -r \
-            '[.[] | select(.status == "completed")] | sort_by(.databaseId) | last | .databaseId // empty')
+            --workflow fork-governance.yml --commit "$TARGET_SHA" --event pull_request --limit 20 \
+            --json databaseId,status,event | jq -r \
+            '[.[] | select(.event == "pull_request" and .status == "completed")] | sort_by(.databaseId) | last | .databaseId // empty')
           if [ -n "$fleet_run" ]; then
             mkdir -p "$RUNNER_TEMP/evidence/fleet-report-backs"
             gh run download "$fleet_run" --repo "$GITHUB_REPOSITORY" \
@@ -106,14 +106,26 @@ jobs:
               echo "::warning::Fleet evidence unavailable; fleet rows will remain orange"
           fi
           ev="$RUNNER_TEMP/evidence"
-          bash scripts/verdict-grid-lane.sh validate \
+          evidence_ok=1
+          if ! bash scripts/verdict-grid-lane.sh validate \
             --hypatia "$ev/hypatia-scan-findings/hypatia-findings.relativized.json" \
             --panic "$ev/static-analysis-findings/panic-attack-findings.json" \
             --pons "$ev/static-analysis-findings/pons-findings.json" \
-            --enrolment .gitbot-fleet/enrolment.json
-          bash scripts/verdict-grid-lane.sh previous \
+            --enrolment .gitbot-fleet/enrolment.json; then
+            echo "::warning::Producer evidence is malformed; publishing an indeterminate (orange) report, never a stale green result."
+            evidence_ok=0
+          fi
+          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$TARGET_PR/files?per_page=100" \
+            --jq '.[].filename' > "$RUNNER_TEMP/changed-files.txt"; then
+            echo "::warning::Changed-file scope could not be established; refusing a misleading scoped verdict."
+            evidence_ok=0
+          fi
+          if ! bash scripts/verdict-grid-lane.sh previous \
             --repo "$GITHUB_REPOSITORY" --pr "$TARGET_PR" \
-            --out "$RUNNER_TEMP/previous.md"
+            --out "$RUNNER_TEMP/previous.md"; then
+            echo "::warning::No trustworthy previous grid is available for a delta."
+            : > "$RUNNER_TEMP/previous.md"
+          fi
           args=(render --out "$RUNNER_TEMP/verdict-grid" \
             --renderer-dir .standards-grid \
             --repo "$GITHUB_REPOSITORY" \
@@ -128,7 +140,26 @@ jobs:
             --pons-ref 51b8920f541782ceb9465ea3f0d33c96104fc1fb)
           [ ! -d "$ev/fleet-report-backs" ] || args+=(--report-backs "$ev/fleet-report-backs")
           [ ! -s "$RUNNER_TEMP/previous.md" ] || args+=(--previous "$RUNNER_TEMP/previous.md")
-          bash scripts/verdict-grid-lane.sh "${args[@]}"
+          args+=(--changed "$RUNNER_TEMP/changed-files.txt")
+          if [ "$evidence_ok" -eq 1 ]; then
+            if ! bash scripts/verdict-grid-lane.sh "${args[@]}"; then
+              echo "::warning::Verdict rendering failed; replacing the report with an explicit indeterminate state."
+              evidence_ok=0
+            fi
+          fi
+          if [ "$evidence_ok" -ne 1 ]; then
+            mkdir -p "$RUNNER_TEMP/verdict-grid"
+            cat > "$RUNNER_TEMP/verdict-grid/report.md" <<'REPORT'
+<!-- verdict-grid:hypatia regenerated on every run -->
+### Verdict grid: indeterminate
+
+Producer evidence was malformed, unreadable or could not be rendered.
+No green result or comparative delta can be asserted for this revision.
+See the trusted publisher workflow run for details.
+REPORT
+            printf '%s\n' '{"schemaVersion":1,"label":"Hypatia grid","message":"indeterminate","color":"orange"}' > "$RUNNER_TEMP/verdict-grid/badge.json"
+            printf '%s\n' '{"state":"orange","reason":"unverified producer evidence"}' > "$RUNNER_TEMP/verdict-grid/report.json"
+          fi
           # Recheck freshness immediately before the write; do not publish
           # a completed scan from a now-superseded head.
           gh api "repos/$GITHUB_REPOSITORY/pulls/$TARGET_PR" |
