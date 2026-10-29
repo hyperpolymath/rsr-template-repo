@@ -140,6 +140,39 @@ expect_rc 2 "a missing repository directory is a setup error" "$WORK/nope"
 rm -rf "$WORK/repo"; mkdir -p "$WORK/repo/.github/workflows"
 expect_rc 2 "a missing reporter workflow is a setup error" "$WORK/repo"
 
+echo "=== 11. Publisher edges and exact artifact identity ==="
+fresh >/dev/null
+sed -i 's/--source hypatia-scan.yml:/--source absent-scanner.yml:/' "$WORK/repo/.github/workflows/verdict-grid-publish.yml"
+expect_rc 1 "a publisher source naming a missing workflow is refused"
+says "the missing producer is identified" "absent-scanner.yml"
+
+fresh >/dev/null
+sed -i 's/--hypatia-ref [0-9a-f]*/--hypatia-ref 1111111111111111111111111111111111111111/' "$WORK/repo/.github/workflows/verdict-grid-publish.yml"
+expect_rc 1 "a stale publisher pin fails even when the PR reporter pin is correct"
+says "the diagnostic identifies the publisher" "--hypatia-ref in verdict-grid-publish.yml"
+
+fresh >/dev/null
+sed -i 's/--source \(hypatia-scan\|static-analysis-gate\)\.yml:[a-z-]*/--quiet/g' "$WORK/repo/.github/workflows/verdict-grid-publish.yml"
+expect_rc 1 "a publisher with no evidence sources is refused"
+says "the publisher-specific diagnostic explains the missing rows" "published grid would have no rows"
+
+fresh >/dev/null
+# A different step's name cannot stand in for an upload-artifact output name.
+sed -i 's/name: hypatia-scan-findings$/name: hypatia-scan-findings-backup/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+printf '\n      - name: hypatia-scan-findings\n        run: true\n' >> "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "an artifact prefix or unrelated step name cannot satisfy the source edge"
+says "the diagnostic requires an actual artifact upload" "never uploads"
+
+fresh >/dev/null
+sed -i 's/^name: Hypatia Security Scan$/name: "Hypatia Security Scan"/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+sed -i "s/^name: Static Analysis Gate$/name: 'Static Analysis Gate'/" "$WORK/repo/.github/workflows/static-analysis-gate.yml"
+expect_rc 0 "quoted producer names preserve their workflow_run edges"
+
+fresh >/dev/null
+rm "$WORK/repo/.github/workflows/verdict-grid-publish.yml"
+expect_rc 2 "a missing trusted publisher is a setup error"
+says "the missing publisher is named" "publisher workflow"
+
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: workflow edges suite (${pass} passed, ${fail} failed)" >&2

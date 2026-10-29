@@ -156,6 +156,52 @@ fresh; rm -f "$WORK/repo/.machine_readable/policies/hypatia-rule-order.json"
 bash "$CHECK" "$WORK/repo" >"$WORK/out" 2>&1
 [ $? -eq 2 ] && ok "a missing policy is a setup error" || bad "missing policy must exit 2"
 
+echo "=== 8. Independent schema, ordering and field failures ==="
+# An empty exemption set is valid when there are no observed modules. The
+# checker must still reach its verdict instead of exiting from an empty grep.
+for contents in '' '# No repository-specific exemptions'; do
+    fresh; edit_policy '.observed_modules = []'
+    printf '%s\n' "$contents" > "$WORK/repo/.hypatia-ignore"
+    expect_rc 0 "an empty or comment-only ignore file can describe no exemptions"
+    says "the checker reaches its summary with zero modules" "0 module(s) classified"
+done
+fresh
+: > "$WORK/repo/.hypatia-ignore"
+expect_rc 1 "removing all exemptions exposes stale module classifications"
+says "empty exemptions still produce an actionable policy diagnostic" "the policy describes a file that has moved on"
+
+fresh; edit_policy '.schema = "hypatia-rule-order/2"'
+expect_rc 1 "an unsupported policy schema is refused"
+says "the schema diagnostic names the supported version" "policy schema is not hypatia-rule-order/1"
+
+fresh; edit_policy '.layers |= reverse'
+expect_rc 1 "complete unique ranks still fail when written in reverse order"
+says "the sequence diagnostic explains document order" "not written in ascending rank order"
+
+fresh; edit_policy 'del(.layers[1].scope)'
+expect_rc 1 "a missing scope is refused independently of overrides"
+says "the missing field is named accurately" "has no scope"
+
+fresh; edit_policy 'del(.layers[1].overrides)'
+expect_rc 1 "a missing overrides field cannot shift the scope field"
+says "the absent overrides field is named accurately" "does not say what it overrides"
+
+fresh; edit_policy '.clashes += [.clashes[0]]'
+expect_rc 1 "a duplicated clash with a valid resolution is still refused"
+says "the duplicate clash is named" "appears twice"
+
+for missing in .github/workflows/hypatia-scan.yml scripts/verdict-grid-lane.sh .hypatia-ignore; do
+    fresh; rm "$WORK/repo/$missing"
+    expect_rc 2 "missing $missing is a setup error"
+    says "the missing-input diagnostic identifies $missing" "missing $(basename "$missing")"
+done
+for invalid in '{broken' '[]' 'null'; do
+    fresh
+    printf '%s\n' "$invalid" > "$WORK/repo/.machine_readable/policies/hypatia-rule-order.json"
+    expect_rc 2 "non-object policy $invalid is a setup error"
+    says "the invalid policy shape is explained" "policy is not a JSON object"
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: hypatia rule-order suite (${pass} passed, ${fail} failed)" >&2
