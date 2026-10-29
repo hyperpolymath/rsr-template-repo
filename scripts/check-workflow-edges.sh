@@ -171,7 +171,7 @@ done <<< "$sources"
 check_pin() { # check_pin REPORTER REPORT_FLAG PRODUCER VAR
   local report="$1" flag="$2" producer="$3" var="$4"
   local in_reporter in_producer
-  in_reporter="$(grep -o -- "${flag}[[:space:]]\\+[0-9a-f]\\{40\\}" "$report" | awk '{print $2}' | head -n1)"
+  in_reporter="$({ grep -o -- "${flag}[[:space:]]\\+[0-9a-f]\\{40\\}" "$report" || true; } | awk '{print $2}' | head -n1)"
   in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$var" | head -n1)"
   if [ -z "$in_reporter" ]; then
     fail "$(basename "$report") names no ${flag}; its findings would carry no tool identity"
