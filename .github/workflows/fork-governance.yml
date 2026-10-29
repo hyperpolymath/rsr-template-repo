@@ -323,16 +323,14 @@ jobs:
       K9_RESULT: ${{ needs.k9.result }}
       FLEET_RESULT: ${{ needs.fleet.result }}
     steps:
-      # The lane script and the enrolment manifest are repository POLICY, so
-      # they are taken from the default branch whenever the head is not trusted
-      # (a fork's pull request). Running head code in a job that holds
-      # `pull-requests: write` is how a pull request gets to edit the thing that
-      # grades it. Same-repository pull requests — the maintainers' own branches
-      # — check out their head so a lane change can be exercised before merge.
-      - name: Checkout the lane policy (never a fork's head)
+      # This job has pull-requests: write, including when workflow_run fires.
+      # ALWAYS execute the reviewed default-branch lane script: even a
+      # same-repository PR head is untrusted until merged. Changes to the lane
+      # implementation need isolated, read-only tests before integration.
+      - name: Checkout trusted default-branch lane policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha) || github.event.repository.default_branch }}
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
           sparse-checkout: |
             scripts/verdict-grid-lane.sh
