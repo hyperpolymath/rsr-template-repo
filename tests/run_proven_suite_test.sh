@@ -27,7 +27,9 @@ exit 0
 SH
 for file in scripts/check-escape-hatches.sh scripts/emit-aggregate-inputs.sh \
   scripts/check-root-shape.sh scripts/check-ijson-jcs.sh scripts/check-lock-sync.sh \
-  scripts/check-required-contexts.sh .github/hooks/validate-deed.sh .github/hooks/validate-k9.sh \
+  scripts/check-required-contexts.sh scripts/check-workflow-edges.sh scripts/check-hypatia-ignore.sh \
+  scripts/check-hypatia-rule-order.sh \
+  .github/hooks/validate-deed.sh .github/hooks/validate-k9.sh \
   tests/proven_suite_test.sh tests/workflows/check_ijson_jcs_test.sh \
   tests/workflows/squabble_gate_test.sh tests/shape/check_root_shape_test.sh www/tests/run-all.sh; do
   mkdir -p "$work/tree/$(dirname "$file")"
@@ -47,7 +49,7 @@ grep -qF 'ALL LANES PASSED' "$work/out" || fail 'missing success outcome'
 jq -e '.schema_version == 1 and .entries[0].provenance == "Static-Checked"
   and .entries[0].proof_ladder == [{proof_file:"src/Proof.idr"}]' \
   "$work/reports with spaces/run.json" >/dev/null || fail 'static report overclaims or loses proof files'
-[[ "$(wc -l < "$LANE_CALLS")" -eq 13 ]] || fail 'clean run did not dispatch all required lanes'
+[[ "$(wc -l < "$LANE_CALLS")" -eq 16 ]] || fail 'clean run did not dispatch all required lanes'
 echo 'PASS: clean runner executes all lanes and emits an honest report at a path with spaces'
 
 FAIL_GATE=check-root-shape.sh run 1 "$runner"
@@ -66,6 +68,24 @@ run 2 "$runner"
 grep -qF 'missing required gate script' "$work/err" || fail 'missing gate did not cause setup error'
 mv "$work/saved-lane" "$work/tree/scripts/check-lock-sync.sh"
 echo 'PASS: failures fold to 1/2, setup takes precedence, options and missing gates fail explicitly'
+
+# The PR adds these required lanes. A total dispatch count alone cannot prove
+# each is wired, or that its failure participates in the runner's outcome.
+for gate in check-workflow-edges.sh check-hypatia-ignore.sh check-hypatia-rule-order.sh; do
+  run 0 "$runner"
+  [[ "$(grep -cFx "$gate" "$LANE_CALLS")" -eq 1 ]] || fail "$gate must run exactly once"
+  FAIL_GATE="$gate" run 1 "$runner"
+  grep -qF 'SUBJECT FAILURE (1 failing lane(s))' "$work/err" || fail "$gate failure was not folded"
+  grep -qxF 'run-all.sh' "$LANE_CALLS" || fail "$gate failure stopped later lanes"
+  SETUP_GATE="$gate" run 2 "$runner"
+  grep -qF 'SETUP/INERT FAILURE (1 setup, 0 subject)' "$work/err" || fail "$gate setup error was not folded"
+  mv "$work/tree/scripts/$gate" "$work/saved-lane"
+  run 2 "$runner"
+  grep -qF "missing required gate script: scripts/$gate" "$work/err" || fail "$gate absence was silent"
+  grep -qxF 'run-all.sh' "$LANE_CALLS" || fail "$gate absence stopped later lanes"
+  mv "$work/saved-lane" "$work/tree/scripts/$gate"
+done
+echo 'PASS: all three new governance lanes dispatch once, propagate failures, and require their scripts'
 
 cat > "$work/bin/idris2" <<'SH'
 #!/usr/bin/env bash

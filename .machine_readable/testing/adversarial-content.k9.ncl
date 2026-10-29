@@ -32,6 +32,10 @@ K9!
       purpose = "Plants admin-override strings, continue-on-error masks, and phantom ruleset contexts into ephemeral workflow fixtures to prove cicd-squabbler and check-required-contexts.sh fire.",
     },
     {
+      path = "tests/workflows/governance_badge_test.js",
+      purpose = "Feeds malformed lane artifacts, malformed existing badge files, 401/403/429/5xx responses, a dead API and 409 sha conflicts into scripts/governance-badge.js against a mock GitHub API, and runs the workflow-wiring checks against a mutated workflow, to prove the publisher never publishes a false green and never dedupes a changed badge.",
+    },
+    {
       path = "www/tests/controls",
       purpose = "Planted open-recursion BIND9, over-broad Caddyfile, and invalid AIBDP status controls.",
     },
