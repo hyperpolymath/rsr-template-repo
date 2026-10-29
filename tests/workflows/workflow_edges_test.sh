@@ -99,7 +99,7 @@ says "the failure says the pin is in two places" "different commits"
 
 echo "=== 7. Firing: no workflow_run at all ==="
 fresh >/dev/null
-python3 - "$WORK/repo/.github/workflows/fork-governance.yml" <<'PY'
+python3 - "$WORK/repo/.github/workflows/verdict-grid-publish.yml" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p).read()
