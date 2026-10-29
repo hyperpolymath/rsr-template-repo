@@ -18,10 +18,11 @@
 #     matches hypatia-scan-reusable.yml's, so adopting that reusable later needs
 #     no change in fork-governance.yml.
 #
-# `name:` is a cross-workflow EDGE: verdict-grid-publish.yml names "Hypatia Security
-# Scan" in its `workflow_run.workflows`. Renaming this workflow without renaming
-# it there silently stops the grid re-rendering; scripts/check-workflow-edges.sh
-# fails the CICD Squabbler gate when the two disagree.
+# `name:` is a cross-workflow EDGE: verdict-grid-publish.yml names "Hypatia
+# Security Scan" in its `workflow_run.workflows`. Renaming this workflow without
+# renaming it there silently stops the grid re-rendering;
+# scripts/check-workflow-edges.sh fails the CICD Squabbler gate when the two
+# disagree.
 name: Hypatia Security Scan
 
 on:
