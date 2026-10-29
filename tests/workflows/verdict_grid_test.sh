@@ -107,7 +107,7 @@ JSON
 
 # Stub renderer: records its argv, then writes the three outputs the real one
 # writes. Real digest is computed for it so verification still runs.
-cat > "$FX/renderer/scripts/verdict-grid.sh" <<'STUB'
+cat > "$FX/renderer/scripts/verdict-grid.sh" <<'RENDERER_FIXTURE'
 #!/usr/bin/env bash
 set -euo pipefail
 args_copy=("$@")
@@ -138,7 +138,7 @@ if [[ "${STUB_MODE:-ok}" == "bad-badge" ]]; then
 else
     printf '%s\n' '{"schemaVersion": 1, "label": "Hypatia grid", "message": "yellow", "color": "yellow"}' > "$out/badge.json"
 fi
-STUB
+RENDERER_FIXTURE
 chmod +x "$FX/renderer/scripts/verdict-grid.sh"
 printf '%s\n' '# stub jq lib' > "$FX/renderer/scripts/lib/verdict-grid.jq"
 RENDERER_SHA="$(sha256sum "$FX/renderer/scripts/verdict-grid.sh" | cut -d' ' -f1)"
@@ -147,7 +147,7 @@ LIB_SHA="$(sha256sum "$FX/renderer/scripts/lib/verdict-grid.jq" | cut -d' ' -f1)
 # ─────────────────────────────────────────────────────────────────────────────
 # Stub gh
 # ─────────────────────────────────────────────────────────────────────────────
-cat > "$FX/bin/gh" <<'STUB'
+cat > "$FX/bin/gh" <<'GH_FIXTURE'
 #!/usr/bin/env bash
 # Stub gh: records every invocation, answers only what the lane asks for.
 set -uo pipefail
@@ -200,7 +200,7 @@ case "${1:-}" in
     ;;
   *) exit 1 ;;
 esac
-STUB
+GH_FIXTURE
 chmod +x "$FX/bin/gh"
 
 lane() { # lane SUBCOMMAND [args...]
@@ -391,9 +391,9 @@ wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
         || wire_bad "the PR verdict must collect scanner evidence"
     grep -Fq "render --out" "$workflow" && wire_ok "the PR grid is rendered by the lane script" \
         || wire_bad "the PR grid must be rendered by the lane script"
-    grep -Eq '^\\s+actions: read$' "$verdict_block" && wire_ok "the PR verdict has actions:read" \
+    grep -Eq '^[[:space:]]+actions: read$' "$verdict_block" && wire_ok "the PR verdict has actions:read" \
         || wire_bad "the PR verdict requires actions:read"
-    if ! grep -Eq '^\\s+pull-requests: write$' "$verdict_block"; then
+    if ! grep -Eq '^[[:space:]]+pull-requests: write$' "$verdict_block"; then
         wire_ok "PR-time renderer has no pull-request write token"
     else
         wire_bad "untrusted PR-time renderer must not have pull-requests:write"
@@ -441,8 +441,9 @@ fire_case() { # fire_case LABEL SED-EXPR FILE
         else ok "firing control: '$label' is caught"; fi
     fi
 }
-fire_case "dropping trusted comment posting" 's/verdict-grid-lane\\.sh comment/true/' "$PUBLISHER"
-fire_case "dropping publisher pull-requests: write" 's/^([[:space:]]+)pull-requests: write$/\\1pull-requests: read/' "$PUBLISHER"
+fire_case "dropping trusted comment posting" 's/verdict-grid-lane\.sh comment/true/' "$PUBLISHER"
+fire_case "dropping publisher pull-requests: write" 's/^([[:space:]]+)pull-requests: write$/\1pull-requests: read/' "$PUBLISHER"
+fire_case "granting PR verdict pull-requests: write" '/^  verdict:/,$ s/^([[:space:]]+)pull-requests: read$/\1pull-requests: write/' "$FORK_GOV"
 fire_case "dropping trusted workflow_run trigger" 's/workflow_run:/workflow_dispatch_x:/' "$PUBLISHER"
 fire_case "dropping PR grid artifact" 's/name: verdict-grid$/name: grid/' "$FORK_GOV"
 

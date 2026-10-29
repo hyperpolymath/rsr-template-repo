@@ -139,8 +139,7 @@ done
 [ -z "$(jq -r '.clashes[].id' "$POLICY" | sort | uniq -d)" ] || errors=$((errors + 1))
 
 # ── the ignore file and the policy must describe the same modules ───────────
-ignore_modules="$(grep -v '^[[:space:]]*#' "$IGNORE" | grep -v '^[[:space:]]*$' \
-  | grep -o '^[a-z][a-z0-9_]*/' | tr -d '/' | sort -u)"
+ignore_modules="$(sed -nE 's@^([a-z][a-z0-9_]*)/.*@\1@p' "$IGNORE" | sort -u)"
 policy_modules="$(jq -r '.observed_modules[].module' "$POLICY" | sort -u)"
 
 while read -r m; do

@@ -30,16 +30,13 @@
 #      producers' artifacts for one commit, renders the findings-family verdict
 #      grid (metadatastician/standards docs/VERDICT-GRID-SPEC.adoc) over Hypatia,
 #      panic-attack, pons and every enrolled gitbot-fleet member, uploads it as
-#      `verdict-grid`, and posts it as ONE comment per pull request, updating the
-#      comment it posted last time.
+#      `verdict-grid`, and writes a job summary with read-only permissions.
 #
-#   3. SEQUENCING — the grid has to render after the producers, so it is also
-#      triggered by `workflow_run` when a producer finishes. A pull-request run
-#      of this file therefore usually renders an orange row for a scanner that
-#      has not reported yet (orange, never green), and the `workflow_run`
-#      re-render replaces it with the graded version. Rendering only on
-#      `pull_request` would show "not yet" forever; rendering only on
-#      `workflow_run` would show nothing until every scanner had finished.
+#   3. SEQUENCING — this workflow runs on `pull_request` and `workflow_dispatch`.
+#      A pull-request run may render an orange row for a scanner that has not
+#      reported yet (orange, never green). verdict-grid-publish.yml runs on
+#      `workflow_run` when a producer finishes, re-renders with a trusted
+#      default-branch lane script, and maintains one comment per pull request.
 #
 # Two deliberate non-decisions:
 #
@@ -60,34 +57,23 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Keyed on the commit under test, not on github.ref: a workflow_run event
-  # reports the DEFAULT branch as its ref, so two pulls' grid renders would
-  # otherwise cancel each other.
+  # Group by workflow and github.ref, keeping each pull request's runs separate.
   group: ${{ github.workflow }}-${{ github.ref }}
-  # A superseded render is waste, not evidence: the newer run re-collects both
-  # producers' artifacts. A cancelled comment write is repeated by the next
-  # workflow_run.
+  # The newer run re-collects the producers' artifacts for this ref.
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
-  # The commit the grid is about: the pull request head where there is one, the
-  # producer run's head otherwise (workflow_run), the checked-out commit last.
-  TARGET_SHA: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.sha }}
-  # Empty when the run cannot name a pull request (a fork's workflow_run
-  # carries no pull_requests entries): the grid then stays in the summary and
-  # the artifact instead of guessing which PR to comment on.
-  TARGET_PR: ${{ github.event.pull_request.number || (github.event.workflow_run.pull_requests[0].number || '') }}
+  # The pull request head, or the selected commit for a manual dispatch.
+  TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  # A manual dispatch has no pull request; its grid stays in the summary/artifact.
+  TARGET_PR: ${{ github.event.pull_request.number || '' }}
 
 jobs:
   deed:
     name: DEED syntax
-    # Producers only run for the events that produce evidence. On workflow_run
-    # the conformance lanes are already decided; re-running them would report a
-    # second, differently-timed result for an unchanged commit.
-    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -123,7 +109,6 @@ jobs:
 
   k9:
     name: K9-DEED conformance
-    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -177,7 +162,6 @@ jobs:
   # a repository that later adopts the standards reusable needs no change here.
   fleet:
     name: Fleet report-backs
-    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -296,10 +280,9 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  # The one place the verdict grid is rendered and posted. Permissions are the
-  # three this job actually needs and nothing else: `actions: read` to download
-  # the producers' artifacts, `contents: read` for the checkout, and
-  # `pull-requests: write` for the single comment. No secrets.
+  # Render and upload the PR-time grid with read-only permissions: actions for
+  # artifacts, contents for checkout, pull-requests for the previous comment.
+  # verdict-grid-publish.yml owns comment publication.
   verdict:
     name: Fork governance verdict
     needs: [deed, k9, fleet]
@@ -319,7 +302,7 @@ jobs:
       # the PR-head lane script, which is untrusted, so it must never receive a
       # write-scoped token. Publishing lives in verdict-grid-publish.yml, which
       # checks out the default branch.
-      - name: Checkout the lane script under test (read-only token)
+      - name: Checkout the PR-head lane script (read-only token)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -461,18 +444,12 @@ jobs:
             echo "| Verdict grid | \`${GRID_STATE:-missing}\` | no — see the producers for each scanner's gate |"
             echo ""
             echo "The grid itself is in the \`verdict-grid\` artifact and, on a pull request, in the"
-            echo "comment this lane maintains. A grid state of red or purple is reporting: Hypatia"
+            echo "comment maintained by verdict-grid-publish.yml. A grid state of red or purple is reporting: Hypatia"
             echo "and panic-attack gate on critical in their own workflows."
           } >> "$GITHUB_STEP_SUMMARY"
           failed=""
-          # A workflow_run render exists only to refresh the grid for a commit
-          # the conformance lanes already decided. Gating there would fail every
-          # refresh on a `skipped` need, so the gate is scoped to the events that
-          # actually ran the lanes.
-          if [ "${{ github.event_name }}" != "workflow_run" ]; then
-            [ "$DEED_RESULT" = "success" ] || failed="${failed} deed=${DEED_RESULT}"
-            [ "$K9_RESULT" = "success" ] || failed="${failed} k9=${K9_RESULT}"
-          fi
+          [ "$DEED_RESULT" = "success" ] || failed="${failed} deed=${DEED_RESULT}"
+          [ "$K9_RESULT" = "success" ] || failed="${failed} k9=${K9_RESULT}"
           if [ -n "$failed" ]; then
             echo "::error::Fork governance failed (${failed# })"
             exit 1

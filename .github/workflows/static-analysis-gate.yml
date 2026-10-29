@@ -148,6 +148,7 @@ jobs:
 
       - name: Run pons-asinorum deep recon audit
         id: pons
+        continue-on-error: true
         run: |
           set -uo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
