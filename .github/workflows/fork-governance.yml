@@ -409,9 +409,9 @@ jobs:
         run: |
           set +e
           bash scripts/verdict-grid-lane.sh validate \
-            --hypatia "$RUNNER_TEMP/evidence/evidence/hypatia-scan-findings/hypatia-findings.relativized.json" \
-            --panic "$RUNNER_TEMP/evidence/evidence/static-analysis-findings/panic-attack-findings.json" \
-            --pons "$RUNNER_TEMP/evidence/evidence/static-analysis-findings/pons-findings.json" \
+            --hypatia "$RUNNER_TEMP/evidence/hypatia-scan-findings/hypatia-findings.relativized.json" \
+            --panic "$RUNNER_TEMP/evidence/static-analysis-findings/panic-attack-findings.json" \
+            --pons "$RUNNER_TEMP/evidence/static-analysis-findings/pons-findings.json" \
             --enrolment .gitbot-fleet/enrolment.json
 
       - name: Render the verdict grid
@@ -421,7 +421,7 @@ jobs:
           PREVIOUS: ${{ runner.temp }}/previous.md
         run: |
           set -euo pipefail
-          ev="$RUNNER_TEMP/evidence/evidence"
+          ev="$RUNNER_TEMP/evidence"
           args=(
             render --out "$RUNNER_TEMP/verdict-grid"
             --renderer-dir .standards-grid
