@@ -296,7 +296,7 @@ fallback_report() {
     printf '%s\n' "$ORANGE_BADGE" > "$out/badge.json"
     {
         printf '%s\n' "$MARKER"
-        printf '🔴 **indeterminate** · the verdict grid could not be rendered · `%s`\n' "${SHA:0:12}"
+        printf '🟠 **indeterminate** · the verdict grid could not be rendered · `%s`\n' "${SHA:0:12}"
         printf '\n%s\n' "$reason"
         printf '\n_Orange means the evidence for this lane was unavailable, not that the repository passed._\n'
     } > "$out/report.md"
