@@ -794,7 +794,11 @@ async function cmdPublish(opts) {
     const http = { token, apiUrl, timeoutMs };
 
     const intent = resolveIntent({ label, laneResult, artifact: opts.artifact });
-    const sourceSha = String(opts["source-sha"] || "").slice(0, 12);
+    const sourceRevision = String(opts["source-sha"] || "");
+    if (sourceRevision && !/^[a-f0-9]{40}$/.test(sourceRevision)) {
+        throw new UsageError("--source-sha must be a complete 40-character Git commit SHA");
+    }
+    const sourceSha = sourceRevision.slice(0, 12);
     const message =
         opts["commit-message"] ||
         `badges: ${label} lane ${intent.state}${sourceSha ? ` (source ${sourceSha})` : ""}`;
@@ -814,8 +818,31 @@ async function cmdPublish(opts) {
         );
     }
 
+    // Badge content belongs to one source revision, not merely one runner.
+    // Older push jobs can finish after newer ones despite concurrency and
+    // cannot overwrite the current revision's published badge.
+    const assertSourceCurrent = async () => {
+        if (!sourceRevision) return;
+        if (!defaultBranch) {
+            throw new RefusedError("repository does not identify its default branch; cannot establish source freshness");
+        }
+        let head;
+        try {
+            head = await getJSON(`/repos/${repo}/git/ref/heads/${encodeURIComponent(defaultBranch)}`, http);
+        } catch (err) {
+            throw new RefusedError(`cannot establish current ${defaultBranch} head: ${err.message}`);
+        }
+        const currentSha = head?.object?.sha;
+        if (currentSha !== sourceRevision) {
+            throw new RefusedError(
+                `superseded source commit ${sourceRevision.slice(0, 12)}: ${defaultBranch} is at ${String(currentSha || "<unknown>").slice(0, 12)}; refusing stale badge publication`,
+            );
+        }
+    };
+
     let lastConflict = null;
     for (let attempt = 1; attempt <= MAX_CONFLICT_ATTEMPTS; attempt += 1) {
+        await assertSourceCurrent();
         const remote = await readRemote({ repo, branch, dest, http });
 
         if (remote.kind === "present") {
@@ -830,6 +857,7 @@ async function cmdPublish(opts) {
             if (remote.bytes.equals(intent.bytes)) {
                 return finish({ label, dest, branch, intent, action: "unchanged", commit: null, faults: intent.faults });
             }
+            await assertSourceCurrent();
             const response = await putFile({
                 repo, branch, dest, message, bytes: intent.bytes, sha: remote.sha, http,
             });
@@ -847,6 +875,7 @@ async function cmdPublish(opts) {
         }
 
         if (remote.kind === "absent-file") {
+            await assertSourceCurrent();
             const response = await putFile({ repo, branch, dest, message, bytes: intent.bytes, http });
             if (response.status === 200 || response.status === 201) {
                 const sha = readJsonPath(response.text, "commit.sha");
@@ -864,6 +893,7 @@ async function cmdPublish(opts) {
         // remote.kind === "absent-branch": create an orphan branch.
         let created;
         try {
+            await assertSourceCurrent();
             created = await createOrphanBranch({ repo, branch, dest, message, bytes: intent.bytes, http });
         } catch (err) {
             if (err instanceof ApiError && err.transient) {
