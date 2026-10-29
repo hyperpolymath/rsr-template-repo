@@ -150,13 +150,13 @@ jobs:
           if [ "$evidence_ok" -ne 1 ]; then
             mkdir -p "$RUNNER_TEMP/verdict-grid"
             cat > "$RUNNER_TEMP/verdict-grid/report.md" <<'REPORT'
-<!-- verdict-grid:hypatia regenerated on every run -->
-### Verdict grid: indeterminate
+          <!-- verdict-grid:hypatia regenerated on every run -->
+          ### Verdict grid: indeterminate
 
-Producer evidence was malformed, unreadable or could not be rendered.
-No green result or comparative delta can be asserted for this revision.
-See the trusted publisher workflow run for details.
-REPORT
+          Producer evidence was malformed, unreadable or could not be rendered.
+          No green result or comparative delta can be asserted for this revision.
+          See the trusted publisher workflow run for details.
+          REPORT
             printf '%s\n' '{"schemaVersion":1,"label":"Hypatia grid","message":"indeterminate","color":"orange"}' > "$RUNNER_TEMP/verdict-grid/badge.json"
             printf '%s\n' '{"state":"orange","reason":"unverified producer evidence"}' > "$RUNNER_TEMP/verdict-grid/report.json"
           fi

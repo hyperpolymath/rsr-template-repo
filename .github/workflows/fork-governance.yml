@@ -66,8 +66,10 @@ permissions:
   contents: read
 
 env:
-  # The pull request head, or the selected commit for a manual dispatch.
-  TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  # The merge revision scanned by the fleet and producers, or the dispatch commit.
+  TARGET_SHA: ${{ github.sha }}
+  # Actions run discovery filters by the PR head rather than the merge revision.
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   # A manual dispatch has no pull request; its grid stays in the summary/artifact.
   TARGET_PR: ${{ github.event.pull_request.number || '' }}
 
@@ -299,13 +301,13 @@ jobs:
       FLEET_RESULT: ${{ needs.fleet.result }}
     steps:
       # This job is read-only (actions/contents/pull-requests: read). It runs
-      # the PR-head lane script, which is untrusted, so it must never receive a
+      # the merge-revision lane script, which is untrusted, so it must never receive a
       # write-scoped token. Publishing lives in verdict-grid-publish.yml, which
       # checks out the default branch.
-      - name: Checkout the PR-head lane script (read-only token)
+      - name: Checkout the scanned revision's lane script (read-only token)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.TARGET_SHA }}
           persist-credentials: false
           sparse-checkout: |
             scripts/verdict-grid-lane.sh
@@ -328,7 +330,8 @@ jobs:
             scripts/lib/verdict-grid.jq
           sparse-checkout-cone-mode: false
 
-      # Evidence for TARGET_SHA only. A scanner that has no run, or a run with
+      # Discover producer runs by PR_HEAD_SHA; their default checkouts scan the
+      # merge revision reported as TARGET_SHA. A scanner with no run, or a run with
       # no artifact, is recorded with its reason and renders orange — this step
       # never turns "not yet" into "clean".
       - name: Collect the producers' evidence
@@ -339,7 +342,7 @@ jobs:
           set -euo pipefail
           bash scripts/verdict-grid-lane.sh collect \
             --repo "$GITHUB_REPOSITORY" \
-            --sha "$TARGET_SHA" \
+            --sha "$PR_HEAD_SHA" \
             --out "$RUNNER_TEMP/evidence" \
             --source hypatia-scan.yml:hypatia-scan-findings \
             --source static-analysis-gate.yml:static-analysis-findings
@@ -435,6 +438,9 @@ jobs:
           set -euo pipefail
           {
             echo "## Fork governance"
+            echo ""
+            echo "PR head (producer run lookup): \`$PR_HEAD_SHA\`"
+            echo "Scanned revision (merge revision for PRs): \`$TARGET_SHA\`"
             echo ""
             echo "| Lane | Result | Gates a merge? |"
             echo "|------|--------|----------------|"
