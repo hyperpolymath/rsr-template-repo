@@ -29,6 +29,7 @@ const RUNTIME = process.execPath;
 const LABEL = "K9";
 const BRANCH = "governance-badges";
 const DEST = "badges/k9.json";
+const SOURCE_SHA = "0123456789abcdef0123456789abcdef01234567";
 
 const SUCCESS_BADGE = '{"schemaVersion":1,"label":"K9","message":"success","color":"brightgreen"}\n';
 const FAILURE_BADGE = '{"schemaVersion":1,"label":"K9","message":"failure","color":"red"}\n';
@@ -111,6 +112,7 @@ function createApi(options = {}) {
     const state = {
         repo: options.repo || "example/template",
         defaultBranch: options.defaultBranch || "main",
+        sourceHead: options.sourceHead || SOURCE_SHA,
         branchExists: Boolean(options.branchExists),
         file: options.fileBytes === undefined
             ? null
@@ -133,6 +135,7 @@ function createApi(options = {}) {
     function routeOf(method, pathname) {
         if (pathname === `/repos/${state.repo}`) return "repo";
         if (pathname.includes("/contents/")) return method === "PUT" ? "contents-put" : "contents-get";
+        if (pathname === `/repos/${state.repo}/git/ref/heads/${state.defaultBranch}`) return "source-ref-get";
         if (/\/git\/ref\/heads\//.test(pathname)) return "ref-get";
         if (/\/git\/refs$/.test(pathname)) return "refs-post";
         if (/\/git\/blobs$/.test(pathname)) return "blobs-post";
@@ -209,6 +212,12 @@ function createApi(options = {}) {
                     content: wrapBase64(state.file.bytes),
                 });
             }
+
+            case "source-ref-get":
+                return send(res, 200, {
+                    ref: `refs/heads/${state.defaultBranch}`,
+                    object: { sha: state.sourceHead, type: "commit" },
+                });
 
             case "ref-get": {
                 if (!state.branchExists) return send(res, 404, { message: "Not Found" });
@@ -346,7 +355,7 @@ function publishArgs(apiUrl, artifact, extra = []) {
         "--path", DEST,
         "--repo", "example/template",
         "--api-url", apiUrl,
-        "--source-sha", "0123456789abcdef0123456789abcdef01234567",
+        "--source-sha", SOURCE_SHA,
         ...extra,
     ];
 }
@@ -1305,6 +1314,30 @@ async function main() {
 
         // ---------------------------------------------------------------- 9
         section("9. Guards: the badge never touches a source branch");
+
+        await testWithApi("superseded source run cannot overwrite the latest badge", {
+            branchExists: true, fileBytes: FAILURE_BADGE,
+            sourceHead: "ffffffffffffffffffffffffffffffffffffffff",
+        }, async (api, url) => {
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 1, `stale source must refuse publication: ${out.stderr}`);
+            check(/superseded source commit/.test(out.stderr), "stale revision is identified");
+            equal(api.writes().length, 0, "stale run never writes badge or source");
+        });
+
+        await testWithApi("head changing after reading badge still refuses a stale PUT", {
+            branchExists: true, fileBytes: FAILURE_BADGE,
+            hook: (entry, state) => {
+                if (entry.route === "contents-get") {
+                    state.sourceHead = "ffffffffffffffffffffffffffffffffffffffff";
+                }
+            },
+        }, async (api, url) => {
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 1, `race must refuse publication: ${out.stderr}`);
+            equal(api.puts().length, 0, "freshness is rechecked immediately before PUT");
+        });
+
 
         for (const branch of ["main", "master", "HEAD"]) {
             await test(`--branch ${branch} is refused before any API call`, () => {
