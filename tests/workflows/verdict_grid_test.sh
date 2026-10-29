@@ -538,6 +538,14 @@ wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
         || wire_bad "only trusted publisher may write PR grid comments"
     grep -Fq 'pull-requests: write' "$publisher" && wire_ok "publisher has comment permission" \
         || wire_bad "publisher needs pull-requests:write"
+    grep -Fq -- '--event pull_request' "$publisher" && wire_ok "publisher refuses non-PR fleet artifacts" \
+        || wire_bad "publisher fleet evidence must come from a PR run"
+    grep -Fq 'if ! bash scripts/verdict-grid-lane.sh validate' "$publisher" && wire_ok "publisher handles malformed producer evidence" \
+        || wire_bad "invalid evidence must not leave a stale green comment"
+    grep -Fq '"message":"indeterminate"' "$publisher" && wire_ok "publisher emits an orange fallback" \
+        || wire_bad "publisher must surface invalid evidence as indeterminate"
+    grep -Fq 'args+=(--changed "$RUNNER_TEMP/changed-files.txt")' "$publisher" && wire_ok "publisher uses changed-file scope" \
+        || wire_bad "publisher must not claim a full-tree delta on unscoped evidence"
     if grep -Fq 'verdict-grid-lane.sh comment' "$workflow"; then
         wire_bad "PR-time workflow must not publish comments"
     else
@@ -576,6 +584,9 @@ fire_case "dropping publisher pull-requests: write" 's/^([[:space:]]+)pull-reque
 fire_case "granting PR verdict pull-requests: write" '/^  verdict:/,$ s/^([[:space:]]+)pull-requests: read$/\1pull-requests: write/' "$FORK_GOV"
 fire_case "dropping trusted workflow_run trigger" 's/workflow_run:/workflow_dispatch_x:/' "$PUBLISHER"
 fire_case "dropping PR grid artifact" 's/name: verdict-grid$/name: grid/' "$FORK_GOV"
+fire_case "allowing non-PR fleet evidence" 's/--event pull_request/--event workflow_dispatch/' "$PUBLISHER"
+fire_case "dropping orange fallback" 's/"message":"indeterminate"/"message":"success"/' "$PUBLISHER"
+fire_case "removing changed-file scope" 's/args\+=\(--changed/args+=(--unused-changed/' "$PUBLISHER"
 
 expect 0 "producer envelopes and publisher authentication satisfy their contracts" -- \
     bash "$REPO_DIR/tests/workflows/workflow_evidence_test.sh"
