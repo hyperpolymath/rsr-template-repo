@@ -125,7 +125,7 @@ done
 
 while IFS= read -r edge; do
   [ -n "$edge" ] || continue
-  if ! grep -qF "$edge	" "$names_file" && ! grep -qF "$edge" <(cut -f1 "$names_file"); then
+  if ! cut -f1 "$names_file" | grep -qxF "$edge"; then
     fail "workflow_run edge '${edge}' names no workflow's name: — the grid will never re-render for it"
   fi
 done <<< "$edges"
