@@ -43,6 +43,7 @@ if [ ! -d "$REPO_ROOT" ]; then
 fi
 WORKFLOWS_DIR="$REPO_ROOT/.github/workflows"
 REPORTER="$WORKFLOWS_DIR/fork-governance.yml"
+PUBLISHER="$WORKFLOWS_DIR/verdict-grid-publish.yml"
 
 if [ ! -d "$WORKFLOWS_DIR" ]; then
   echo "check-workflow-edges: workflows directory '$WORKFLOWS_DIR' does not exist" >&2
@@ -50,6 +51,10 @@ if [ ! -d "$WORKFLOWS_DIR" ]; then
 fi
 if [ ! -f "$REPORTER" ]; then
   echo "check-workflow-edges: reporter workflow '$REPORTER' does not exist" >&2
+  exit 2
+fi
+if [ ! -f "$PUBLISHER" ]; then
+  echo "check-workflow-edges: publisher workflow '$PUBLISHER' does not exist" >&2
   exit 2
 fi
 
@@ -103,10 +108,10 @@ edges="$(awk '
     sub(/^[[:space:]]*-[[:space:]]*/, ""); gsub(/["'"'"']/, ""); print; next
   }
   in_list && !/^[[:space:]]+- / { in_list = 0; in_wr = 0 }
-' "$REPORTER")"
+' "$PUBLISHER")"
 
 if [ -z "$edges" ]; then
-  fail "fork-governance.yml declares no workflow_run trigger: the verdict grid would never re-render after a scanner finishes"
+  fail "verdict-grid-publish.yml declares no workflow_run trigger: the verdict grid would never re-render after a scanner finishes"
 fi
 
 names_file="$(mktemp)"
@@ -133,7 +138,7 @@ if [ -n "$dupes" ]; then
 fi
 
 # ── 2. every evidence source is produced by the workflow it names ──────────
-sources="$(awk '/--source[[:space:]]/ { for (i = 1; i <= NF; i++) if ($i == "--source") { print $(i + 1); break } }' "$REPORTER")"
+sources="$(awk '/--source[[:space:]]/ { for (i = 1; i <= NF; i++) if ($i == "--source") { print $(i + 1); break } }' "$REPORTER" "$PUBLISHER" | sort -u)"
 if [ -z "$sources" ]; then
   fail "fork-governance.yml collects no evidence (--source <workflow>:<artifact>) — the grid would have no rows"
 fi
@@ -159,26 +164,28 @@ done <<< "$sources"
 # Tool pin in the reporter (grid identity) vs the pin in the workflow that
 # actually runs that tool. A mismatch makes the profile hash disagree with the
 # binary that produced the findings.
-check_pin() { # check_pin REPORT_FLAG PRODUCER VAR
-  local flag="$1" producer="$2" var="$3"
+check_pin() { # check_pin REPORTER REPORT_FLAG PRODUCER VAR
+  local report="$1" flag="$2" producer="$3" var="$4"
   local in_reporter in_producer
-  in_reporter="$(grep -o -- "${flag}[[:space:]]\+[0-9a-f]\{40\}" "$REPORTER" | awk '{print $2}' | head -n1)"
+  in_reporter="$(grep -o -- "${flag}[[:space:]]\\+[0-9a-f]\\{40\\}" "$report" | awk '{print $2}' | head -n1)"
   in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$var" | head -n1)"
   if [ -z "$in_reporter" ]; then
-    fail "the verdict job names no ${flag}; its findings would carry no tool identity"
+    fail "$(basename "$report") names no ${flag}; its findings would carry no tool identity"
     return
   fi
   if [ -z "$in_producer" ]; then
-    fail "'${producer}' pins no ${var}, but the verdict job claims ${flag} ${in_reporter:0:12}"
+    fail "'${producer}' pins no ${var}, but the verdict claims ${flag} ${in_reporter:0:12}"
     return
   fi
   if [ "$in_reporter" != "$in_producer" ]; then
-    fail "${flag} in fork-governance.yml (${in_reporter:0:12}) does not match ${var} in ${producer} (${in_producer:0:12})"
+    fail "${flag} in $(basename "$report") (${in_reporter:0:12}) does not match ${var} in ${producer} (${in_producer:0:12})"
   fi
 }
-check_pin --hypatia-ref hypatia-scan.yml HYPATIA_SHA
-check_pin --panic-ref static-analysis-gate.yml PANIC_ATTACK_SHA
-check_pin --pons-ref static-analysis-gate.yml PONS_SHA
+for report in "$REPORTER" "$PUBLISHER"; do
+  check_pin "$report" --hypatia-ref hypatia-scan.yml HYPATIA_SHA
+  check_pin "$report" --panic-ref static-analysis-gate.yml PANIC_ATTACK_SHA
+  check_pin "$report" --pons-ref static-analysis-gate.yml PONS_SHA
+done
 
 # ── 4. no tool pinned at two commits in this repository ────────────────────
 # panic-attack is pinned once for its scan and once for patch-bridge triage; the
