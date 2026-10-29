@@ -25,6 +25,7 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LANE="$REPO_DIR/scripts/verdict-grid-lane.sh"
 FORK_GOV="$REPO_DIR/.github/workflows/fork-governance.yml"
+PUBLISHER="$REPO_DIR/.github/workflows/verdict-grid-publish.yml"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -379,58 +380,71 @@ WIRE_FAIL=0
 wire_ok() { ok "wiring: $1"; }
 wire_bad() { bad "wiring: $1"; WIRE_FAIL=1; }
 
-wiring_checks() { # wiring_checks WORKFLOW
-    local workflow="$1" verdict_block
+wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
+    local workflow="$1" publisher="$2" verdict_block
     WIRE_FAIL=0
     verdict_block="$WORK/verdict-block.yml"
     awk '/^  verdict:/ { inside = 1 }
          inside && /^  [a-z0-9-]+:$/ && $0 != "  verdict:" { exit }
          inside { print }' "$workflow" > "$verdict_block"
-
-    grep -Eq 'collect .*--source|--source ' "$workflow" && wire_ok "the verdict job collects scanner evidence" \
-        || wire_bad "the verdict job must collect scanner evidence"
-    grep -Fq "render --out" "$workflow" && wire_ok "the grid is rendered by the lane script" \
-        || wire_bad "the grid must be rendered by scripts/verdict-grid-lane.sh"
-    grep -Fq "verdict-grid-lane.sh comment" "$workflow" && wire_ok "the comment is posted by the lane script" \
-        || wire_bad "the comment must be posted by the lane script"
-    grep -Eq '^\s+actions: read$' "$verdict_block" && wire_ok "the verdict job may read other runs' artifacts" \
-        || wire_bad "the verdict job needs actions: read"
-    grep -Eq '^\s+pull-requests: write$' "$verdict_block" && wire_ok "the verdict job may post its comment" \
-        || wire_bad "the verdict job needs pull-requests: write"
-    grep -Fq 'name: verdict-grid' "$workflow" && wire_ok "the grid is uploaded as the verdict-grid artifact" \
-        || wire_bad "the verdict-grid artifact must be uploaded"
-    grep -Fq 'workflow_run' "$workflow" && wire_ok "the grid re-renders when a scanner finishes" \
-        || wire_bad "the grid must re-render on workflow_run completion (sequencing)"
-    # Exactly one workflow may own the marker, or two jobs fight over one comment.
-    local owners
-    owners="$(grep -Fl "verdict-grid:hypatia" "$REPO_DIR"/.github/workflows/*.yml 2>/dev/null | wc -l)"
-    [[ "$owners" -le 1 ]] && wire_ok "one workflow owns the grid comment marker" \
-        || wire_bad "more than one workflow names the verdict-grid:hypatia marker"
+    grep -Eq 'collect .*--source|--source ' "$workflow" && wire_ok "the PR verdict collects scanner evidence" \
+        || wire_bad "the PR verdict must collect scanner evidence"
+    grep -Fq "render --out" "$workflow" && wire_ok "the PR grid is rendered by the lane script" \
+        || wire_bad "the PR grid must be rendered by the lane script"
+    grep -Eq '^\\s+actions: read$' "$verdict_block" && wire_ok "the PR verdict has actions:read" \
+        || wire_bad "the PR verdict requires actions:read"
+    if ! grep -Eq '^\\s+pull-requests: write$' "$verdict_block"; then
+        wire_ok "PR-time renderer has no pull-request write token"
+    else
+        wire_bad "untrusted PR-time renderer must not have pull-requests:write"
+    fi
+    grep -Fq 'name: verdict-grid' "$workflow" && wire_ok "the PR verdict artifact is uploaded" \
+        || wire_bad "the PR verdict artifact must be uploaded"
+    grep -Fq 'name: Publish verdict grid' "$publisher" && wire_ok "trusted publisher exists" \
+        || wire_bad "trusted publisher is missing"
+    grep -Fq 'workflow_run:' "$publisher" && wire_ok "trusted publisher reacts to producer completion" \
+        || wire_bad "trusted publisher must run on completed workflows"
+    grep -Fq 'verdict-grid-lane.sh comment' "$publisher" && wire_ok "trusted publisher owns comment publication" \
+        || wire_bad "only trusted publisher may write PR grid comments"
+    grep -Fq 'pull-requests: write' "$publisher" && wire_ok "publisher has comment permission" \
+        || wire_bad "publisher needs pull-requests:write"
+    if grep -Fq 'verdict-grid-lane.sh comment' "$workflow"; then
+        wire_bad "PR-time workflow must not publish comments"
+    else
+        wire_ok "PR-time workflow does not post comments"
+    fi
+    if grep -Fq 'workflow_run:' "$workflow"; then
+        wire_bad "PR-time workflow must not run as privileged workflow_run"
+    else
+        wire_ok "workflow_run handled only by publisher"
+    fi
     return "$WIRE_FAIL"
 }
 
-if wiring_checks "$FORK_GOV"; then ok "fork-governance wiring"; else bad "fork-governance wiring"; fi
+if wiring_checks "$FORK_GOV" "$PUBLISHER"; then ok "fork-governance/publisher trust split"; else bad "fork-governance/publisher trust split"; fi
 
 echo "=== 8. Firing: the wiring checks catch a broken workflow ==="
-fire_case() { # fire_case LABEL SED-EXPR
-    local label="$1" expr="$2" copy="$WORK/mutant.yml"
-    sed -E "$expr" "$FORK_GOV" > "$copy"
-    if cmp -s "$FORK_GOV" "$copy"; then
+fire_case() { # fire_case LABEL SED-EXPR FILE
+    local label="$1" expr="$2" source="$3" copy="$WORK/mutant.yml"
+    sed -E "$expr" "$source" > "$copy"
+    if cmp -s "$source" "$copy"; then
         bad "firing control '$label': the mutation changed nothing"
         return
     fi
-    # A subshell: wiring_checks reports through bad(), whose counter would
-    # otherwise add the mutant's failures to the real suite's score.
-    if (wiring_checks "$copy") >/dev/null 2>&1; then
-        bad "firing control '$label' was not caught"
+    if [[ "$source" == "$FORK_GOV" ]]; then
+        if (wiring_checks "$copy" "$PUBLISHER") >/dev/null 2>&1; then
+            bad "firing control '$label' was not caught"
+        else ok "firing control: '$label' is caught"; fi
     else
-        ok "firing control: '$label' is caught"
+        if (wiring_checks "$FORK_GOV" "$copy") >/dev/null 2>&1; then
+            bad "firing control '$label' was not caught"
+        else ok "firing control: '$label' is caught"; fi
     fi
 }
-fire_case "dropping the comment posting" 's/verdict-grid-lane\.sh comment/true/'
-fire_case "dropping pull-requests: write" 's/^(\s+)pull-requests: write$/\1pull-requests: read/'
-fire_case "dropping the workflow_run re-render" 's/workflow_run/workflow_dispatch_x/'
-fire_case "dropping the artifact upload name" 's/name: verdict-grid$/name: grid/'
+fire_case "dropping trusted comment posting" 's/verdict-grid-lane\\.sh comment/true/' "$PUBLISHER"
+fire_case "dropping publisher pull-requests: write" 's/^([[:space:]]+)pull-requests: write$/\\1pull-requests: read/' "$PUBLISHER"
+fire_case "dropping trusted workflow_run trigger" 's/workflow_run:/workflow_dispatch_x:/' "$PUBLISHER"
+fire_case "dropping PR grid artifact" 's/name: verdict-grid$/name: grid/' "$FORK_GOV"
 
 echo ""
 if [[ "$fail" -ne 0 ]]; then
