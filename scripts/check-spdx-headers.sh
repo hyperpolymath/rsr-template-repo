@@ -162,13 +162,14 @@ list_files() {
                         */tests/controls/*) continue ;;
                     esac
                     # The index is not the work tree. `just repo-init` deletes
-                    # template-only paths (archetypes/, build/templates/) and
-                    # gates the tree BEFORE it commits, so git still lists files
-                    # that are already gone — every one of them then "has no
-                    # header", because head cannot read a path that does not
-                    # exist. Measured on a minted tree: 3 phantom findings,
-                    # archetypes/julia-library/overlay/*.
-                    [ -f "$f" ] || continue
+        git -C "$ROOT" ls-files -z --cached --others --exclude-standard \
+            | while IFS= read -r -d '' f; do printf '%s\n' "$ROOT/$f"; done | {
+                while IFS= read -r f; do
+                    case "$f" in
+                        */node_modules/*|*/target/*|*/_build/*|*/deps/*|*/vendor/*) continue ;;
+                        */tests/controls/*) continue ;;
+                    esac
+                    [ -f "$f" ] || continue   # tracked but deleted from the work tree
                     printf '%s\n' "$f"
                 done
             }
