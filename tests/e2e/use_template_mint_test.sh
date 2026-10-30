@@ -31,7 +31,15 @@ repo=$(git rev-parse --show-toplevel)
 work=$(mktemp -d)
 if [ "${1:-}" = "--keep" ]; then echo "keeping $work"; else trap 'rm -rf "$work"' EXIT; fi
 
-fail() { echo "FAIL: $*" >&2; exit 1; }
+fail() {
+    echo "FAIL: $*" >&2
+    # One annotation per failure, so the reason reaches the check list and the
+    # API and not only the raw log.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        printf '::error title=use-this-template mint::%s\n' "$(printf '%s' "$*" | tr '\n' ' ')"
+    fi
+    exit 1
+}
 pass() { echo "PASS: $*"; }
 g() { git -c user.name=t -c user.email=t@example.org -c commit.gpgsign=false "$@"; }
 
@@ -132,7 +140,14 @@ grep -q 'stale entry' "$work/stale.log" || { cat "$work/stale.log" >&2; fail 'th
 pass "(b-) a stale mint-verbatim entry stops the mint before it writes"
 
 # ── 5. The mint ─────────────────────────────────────────────────────────────
-mint "$C" "$work/mint.log" || { cat "$work/mint.log" >&2; fail 'just repo-init failed on a Use-this-template child'; }
+mint "$C" "$work/mint.log" || {
+    cat "$work/mint.log" >&2
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        printf '::error title=just repo-init failed::%s\n' \
+            "$(tail -n 12 "$work/mint.log" | awk '{printf "%s%%0A", $0}')"
+    fi
+    fail 'just repo-init failed on a Use-this-template child'
+}
 pass "the non-interactive mint completes on a Use-this-template child"
 DEED="$C/mint-check_chora.deed"
 [ -f "$DEED" ] || fail 'the child deed was not renamed to mint-check_chora.deed'
