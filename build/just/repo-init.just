@@ -1242,7 +1242,12 @@ repo-init archetype="":
         [ -f "scripts/${_gate}.sh" ] || continue
         echo ""
         echo "  ${_gate}.sh"
-        bash "scripts/${_gate}.sh" --root . || GATE_FAIL=1
+        if bash "scripts/${_gate}.sh" --root .; then
+            echo "  ${_gate}: OK"
+        else
+            echo "  ${_gate}: FAILED"
+            GATE_FAIL=1
+        fi
     done
     if [ "$GATE_FAIL" -ne 0 ]; then
         echo ""

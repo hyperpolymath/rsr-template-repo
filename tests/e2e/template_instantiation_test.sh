@@ -214,7 +214,7 @@ if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | env "${PIN_EN
     # summary), not only to whoever downloads the raw log.
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
         printf '::error title=just repo-init failed::%s\n' \
-            "$(tail -n 12 "$TEST_DIR/init.log" | awk '{printf "%s%%0A", $0}')"
+            "$(tail -n 40 "$TEST_DIR/init.log" | awk '{printf "%s%%0A", $0}')"
     fi
     exit 1
 fi

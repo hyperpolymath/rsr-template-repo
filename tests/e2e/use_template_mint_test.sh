@@ -144,7 +144,7 @@ mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
         printf '::error title=just repo-init failed::%s\n' \
-            "$(tail -n 12 "$work/mint.log" | awk '{printf "%s%%0A", $0}')"
+            "$(tail -n 40 "$work/mint.log" | awk '{printf "%s%%0A", $0}')"
     fi
     fail 'just repo-init failed on a Use-this-template child'
 }

@@ -308,4 +308,12 @@ else
     note "  toml / yaml / ncl:           # SPDX-License-Identifier: MPL-2.0"
 fi
 
-[ ${#MISSING[@]} -eq 0 ] && [ ${#BANNED_HITS[@]} -eq 0 ]
+# An explicit exit, not a trailing test. A script whose exit status comes from
+# its last expression returns whatever that expression happened to be in some
+# branch — this one returned 1 in a minted tree while printing PASS, which made
+# `just repo-init` abort with "the minted tree fails a gate" and no failing gate
+# in the log above it.
+if [ ${#MISSING[@]} -eq 0 ] && [ ${#BANNED_HITS[@]} -eq 0 ]; then
+    exit 0
+fi
+exit 1
