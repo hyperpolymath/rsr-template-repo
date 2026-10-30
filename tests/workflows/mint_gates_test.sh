@@ -94,6 +94,18 @@ printf '# SPDX-License-Identifier: MPL-2.0\nmodule Demo\nend\n' > "$OK/src/Demo.
 printf '#!/usr/bin/env bash\n# SPDX-License-Identifier: MPL-2.0\ntrue\n' > "$OK/run.sh"
 expect_pass "SPDX passes on a well-formed Julia fixture" spdx --root "$OK"
 
+# Negative 5: a tracked file that no longer exists must not be counted as a
+# finding. `just repo-init` prunes paths and gates the tree BEFORE committing, so
+# the index still lists them; reading those paths made the gate report "3 files
+# carry no header" for files that were already gone, and the mint aborted.
+D="$WORK/deleted"; mkdir -p "$D/src"
+printf '# SPDX-License-Identifier: MPL-2.0\nmodule Keep\nend\n' > "$D/src/keep.jl"
+printf 'module Gone\nend\n' > "$D/src/gone.jl"
+( cd "$D" && git init -q && git add -A \
+    && git -c user.name=t -c user.email=t@example.org -c commit.gpgsign=false commit -qm x ) >/dev/null 2>&1
+rm -f "$D/src/gone.jl"
+expect_pass "SPDX ignores a tracked file that has been deleted" spdx --root "$D"
+
 echo ""
 echo "── Container image pins ───────────────────────────────────"
 
@@ -102,6 +114,16 @@ D64="$(printf 'a%.0s' $(seq 1 64))"
 C="$WORK/container"; mkdir -p "$C"
 printf 'FROM cgr.dev/chainguard/wolfi-base:latest\n' > "$C/Containerfile"
 expect_fail "pin gate fails on a floating :latest" pins --root "$C"
+
+# …and it must find it from a FOREIGN cwd too. `git -C DIR ls-files` emits paths
+# relative to DIR, so a fixture that is a git repository only worked while the
+# caller's cwd was inside it; the mint runs these gates from the template's cwd
+# against the child tree, which is exactly the case that slipped through.
+G="$WORK/container-git"; mkdir -p "$G"
+printf 'FROM cgr.dev/chainguard/wolfi-base:latest\n' > "$G/Containerfile"
+( cd "$G" && git init -q && git add -A \
+    && git -c user.name=t -c user.email=t@example.org -c commit.gpgsign=false commit -qm x ) >/dev/null 2>&1
+expect_fail "pin gate fails on a floating :latest in a git tree, from a foreign cwd" pins --root "$G"
 
 printf 'FROM cgr.dev/chainguard/wolfi-base:2026.10.30\n' > "$C/Containerfile"
 expect_fail "pin gate fails on a tag without a digest" pins --root "$C"

@@ -161,6 +161,14 @@ list_files() {
                         */node_modules/*|*/target/*|*/_build/*|*/deps/*|*/vendor/*) continue ;;
                         */tests/controls/*) continue ;;
                     esac
+                    # The index is not the work tree. `just repo-init` deletes
+                    # template-only paths (archetypes/, build/templates/) and
+                    # gates the tree BEFORE it commits, so git still lists files
+                    # that are already gone — every one of them then "has no
+                    # header", because head cannot read a path that does not
+                    # exist. Measured on a minted tree: 3 phantom findings,
+                    # archetypes/julia-library/overlay/*.
+                    [ -f "$f" ] || continue
                     printf '%s\n' "$f"
                 done
             }
@@ -174,6 +182,7 @@ list_files() {
             # because that is what the control proves is catchable.
             */tests/controls/*) continue ;;
         esac
+        [ -f "$f" ] || continue
         printf '%s\n' "$f"
     done
 }

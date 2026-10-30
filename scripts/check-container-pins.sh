@@ -58,13 +58,22 @@ ok()   { [ "$QUIET" -eq 1 ] || printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
 bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; }
 note() { [ "$QUIET" -eq 1 ] || printf '        %s\n' "$1"; }
 
+# Absolute paths, whichever source they came from. `git -C DIR ls-files` emits
+# paths relative to DIR, so a relative result only resolved while the caller's
+# cwd happened to BE the repository: `--root /elsewhere` silently found no
+# Containerfiles at all and reported "nothing to pin". Measured while minting,
+# where the gate runs from the template's cwd against a child tree.
 list_files() {
     if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        git -C "$ROOT" ls-files -z --cached --others --exclude-standard
+        git -C "$ROOT" ls-files -z --cached --others --exclude-standard \
+            | while IFS= read -r -d '' f; do printf '%s\0' "$ROOT/$f"; done
     else
         find "$ROOT" -type f -print0
     fi | while IFS= read -r -d '' f; do
         case "$f" in */.git/*|*/node_modules/*|*/target/*|*/_build/*|*/deps/*) continue ;; esac
+        # The index is not the work tree: the mint gates a tree it has already
+        # pruned but not yet committed, so git still lists paths that are gone.
+        [ -f "$f" ] || continue
         printf '%s\n' "$f"
     done
 }
@@ -76,10 +85,12 @@ mapfile -t FILES < <(list_files | sort -u)
 #     environment, not an artifact that ships, so it is out of this gate's
 #     remit — the same scope the estate's own Trustfile probe has (it reads the
 #     ROOT Containerfile only). It is named here so the exclusion is visible;
-#   * the SPINE's build/container/ is CARRIER data: the template ships it so a
-#     container-capable archetype can take it, and prunes it from every
-#     archetype that declares no `container` capability. While this tree is the
-#     template (archetypes/ present), that path is not deployed from it.
+#   * build/container/Containerfile, if a repository has one, is CARRIER data
+#     carried over from the template's container module: the template ships the
+#     module (not the Containerfile — see build/container/README.adoc), and
+#     prunes it from every archetype that declares no `container` capability.
+#     While this tree is the template (archetypes/ present), that path is not
+#     deployed from it.
 IS_TEMPLATE=0
 [ -d "$ROOT/archetypes" ] && IS_TEMPLATE=1
 
