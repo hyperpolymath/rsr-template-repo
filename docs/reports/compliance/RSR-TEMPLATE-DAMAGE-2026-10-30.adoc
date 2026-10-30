@@ -437,6 +437,7 @@ JuliaPackageSpitter.jl  mise:  banned tool(s) declared: black go isort java jest
 The template is fixed here; the 111 repositories are not. Each needs a
 per-repository change, and the shape of it is now mechanical:
 
+. Copy `scripts/render-mise.sh` and `build/just/provision-lib.sh` into the repository from the same revision of `hyperpolymath/rsr-template-repo`. Older mints do not contain `scripts/render-mise.sh`, and the renderer exits with an error when `build/just/provision-lib.sh` is missing.
 . Re-render the toolchain: `scripts/render-mise.sh --root .` in the repository,
    then delete the `[alias]` block (it routes `build`/`test`/`lint` to
    cargo/npm/go/ruff/prettier/black, which is how a Julia package came to have a
