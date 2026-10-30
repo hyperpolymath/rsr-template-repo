@@ -74,10 +74,9 @@ that will never build an image.
 So an archetype may ship a `prune.txt` beside its contract: one path per line,
 relative to the minted root, `#` for comments, trailing `/` for a directory.
 `just repo-init` reads it *after* it has recorded what the overlay wrote and
-*before* it renames any `.in` file, and refuses to continue if a listed path
-does not exist (a stale entry is a silent no-op, and silent no-ops are how the
-minted tree and the archetype drift apart). The paths it removed are then
-deleted from the tree the mint commits.
+*before* it renames any `.in` file. It removes each listed path that exists
+and warns on stderr when an entry is stale. The removed paths are recorded in
+`MINT_REMOVES` and written to the minted variant provenance.
 
 Removal is a declaration: a line in `prune.txt` says "this preset does not
 carry this capability", and the preset in
