@@ -161,14 +161,6 @@ list_files() {
                         */node_modules/*|*/target/*|*/_build/*|*/deps/*|*/vendor/*) continue ;;
                         */tests/controls/*) continue ;;
                     esac
-                    # The index is not the work tree. `just repo-init` deletes
-        git -C "$ROOT" ls-files -z --cached --others --exclude-standard \
-            | while IFS= read -r -d '' f; do printf '%s\n' "$ROOT/$f"; done | {
-                while IFS= read -r f; do
-                    case "$f" in
-                        */node_modules/*|*/target/*|*/_build/*|*/deps/*|*/vendor/*) continue ;;
-                        */tests/controls/*) continue ;;
-                    esac
                     [ -f "$f" ] || continue   # tracked but deleted from the work tree
                     printf '%s\n' "$f"
                 done
