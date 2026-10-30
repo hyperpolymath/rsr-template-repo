@@ -352,28 +352,61 @@ separate query, so the populations overlap and none is a subset of another):
 
 The 55 repositories carrying all four, in full:
 
-[cols="1,1,1"]
-|===
-| `InvestigativeJournalism.jl` | `JuliaKids.jl` | `JuliaPackageSpitter.jl` |
-| `aerie` | `alloyiser` | `boinc-boinc` |
-| `bunsenite` | `cafescripto` | `cicd-squabbler` |
-| `cloud-sync-tuner` | `conative-gating` | `conflow` |
-| `cookie-rebound` | `dafniser` | `deed-core` |
-| `deed-ecosystem` | `developer-ecosystem` | `echidna` |
-| `excel-economic-numbers-tool` | `filesoup` | `formatrix-docs` |
-| `fraying-model-computational-testbed` | `gnpl` | `gv-clade-index` |
-| `http-capability-gateway` | `ideas-to-alphas` | `idrisiser` |
-| `iseriser` | `jtv-lang` | `julia-ecosystem` |
-| `k9-ecosystem` | `kitchenspeak` | `lithoglyph` |
-| `lucidscript` | `lustreiser` | `natsci-studio` |
-| `nesy-solver` | `otpiser` | `panll` |
-| `patallm-gallery` | `patch-bridge` | `polyglot-i18n` |
-| `proof-burrower` | `proven-tests-and-benches` | `pseudoscript` |
-| `rattlescript` | `scaffoldia` | `session-sentinel` |
-| `snifs` | `somethings-fishy` | `squeakwell` |
-| `trigger` | `ubicity` | `vocarium` |
-| `wokelang` | | |
-|===
+* `InvestigativeJournalism.jl`
+* `JuliaKids.jl`
+* `JuliaPackageSpitter.jl`
+* `aerie`
+* `alloyiser`
+* `boinc-boinc`
+* `bunsenite`
+* `cafescripto`
+* `cicd-squabbler`
+* `cloud-sync-tuner`
+* `conative-gating`
+* `conflow`
+* `cookie-rebound`
+* `dafniser`
+* `deed-core`
+* `deed-ecosystem`
+* `developer-ecosystem`
+* `echidna`
+* `excel-economic-numbers-tool`
+* `filesoup`
+* `formatrix-docs`
+* `fraying-model-computational-testbed`
+* `gnpl`
+* `gv-clade-index`
+* `http-capability-gateway`
+* `ideas-to-alphas`
+* `idrisiser`
+* `iseriser`
+* `jtv-lang`
+* `julia-ecosystem`
+* `k9-ecosystem`
+* `kitchenspeak`
+* `lithoglyph`
+* `lucidscript`
+* `lustreiser`
+* `natsci-studio`
+* `nesy-solver`
+* `otpiser`
+* `panll`
+* `patallm-gallery`
+* `patch-bridge`
+* `polyglot-i18n`
+* `proof-burrower`
+* `proven-tests-and-benches`
+* `pseudoscript`
+* `rattlescript`
+* `scaffoldia`
+* `session-sentinel`
+* `snifs`
+* `somethings-fishy`
+* `squeakwell`
+* `trigger`
+* `ubicity`
+* `vocarium`
+* `wokelang`
 
 These are the repositories where the four defects coexist, which is the
 signature of a single mint from the damaged template. The remaining 56
