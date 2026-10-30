@@ -64,10 +64,19 @@ run_lane() {
     2)
       printf '    INERT/SETUP (2): %s\n' "$label" >&2
       setup_failures=$((setup_failures + 1))
+      # A workflow annotation, because the lane table is printed at the end of a
+      # 200-line log: a red job whose only account of itself is "Process
+      # completed with exit code 1" cannot be triaged without the raw log, and
+      # the annotations endpoint is the one part of that failure GitHub exposes
+      # to the API.
+      [ "${GITHUB_ACTIONS:-}" = "true" ] && \
+        printf '::warning title=proven-suite lane could not run::%s (exit 2)\n' "$label"
       ;;
     *)
       printf '    FAIL (%d): %s\n' "$rc" "$label" >&2
       subject_failures=$((subject_failures + 1))
+      [ "${GITHUB_ACTIONS:-}" = "true" ] && \
+        printf '::error title=proven-suite lane failed::%s (exit %d)\n' "$label" "$rc"
       ;;
   esac
 }

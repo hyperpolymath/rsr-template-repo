@@ -1072,26 +1072,6 @@ repo-init archetype="":
         bash scripts/migrate-wellknown-to-www.sh
     fi
 
-    # ── Regenerate what is DERIVED from the deed and the tree ───────────────
-    # CLAUDE.md's arrival pack and the repository map are generated files, and
-    # until now the mint left both describing the TEMPLATE. The self-name pass
-    # swaps the slug inside them, which is worse than leaving them alone: the
-    # pack then states the template's uuid and clade, maturity `production`,
-    # and pipeline position `foundation` with chain "standards -> <this repo>
-    # -> (every estate repo)", under the child's name. Measured 2026-10-14 on
-    # resource-algebra. The map also kept the archetypes/ root entry,
-    # which this recipe deletes, so Estate Rules' map-freshness step failed in
-    # every minted child. Both are regenerated here, after every deed clause
-    # above is written and every template-only path is gone. Fail-closed: a
-    # generator that cannot run (no nickel on PATH) stops the mint rather than
-    # shipping a pack that names the wrong repository.
-    #
-    # This is the LAST step that writes the tree; everything after it only
-    # checks (tests/e2e/use_template_mint_test.sh commits the result and runs
-    # the freshness check on it). The map is read from the work tree
-    # (--worktree), not the index: the mint runs before the first commit, so
-    # the index still lists archetypes/ and the template's deed name, which is
-    # how lintel shipped a map that failed Estate Rules from birth.
     # ── Toolchain (mise.toml) ───────────────────────────────────────────────
     # The provisioning standard says mise.toml is MINTED per repository (canon's
     # mise.toml.tmpl carries __MISE_TOOLS_TOML__ for exactly that). Until now the
@@ -1113,6 +1093,26 @@ repo-init archetype="":
         }
     fi
 
+    # ── Regenerate what is DERIVED from the deed and the tree ───────────────
+    # CLAUDE.md's arrival pack and the repository map are generated files, and
+    # until now the mint left both describing the TEMPLATE. The self-name pass
+    # swaps the slug inside them, which is worse than leaving them alone: the
+    # pack then states the template's uuid and clade, maturity `production`,
+    # and pipeline position `foundation` with chain "standards -> <this repo>
+    # -> (every estate repo)", under the child's name. Measured 2026-10-14 on
+    # resource-algebra. The map also kept the archetypes/ root entry,
+    # which this recipe deletes, so Estate Rules' map-freshness step failed in
+    # every minted child. Both are regenerated here, after every deed clause
+    # above is written and every template-only path is gone. Fail-closed: a
+    # generator that cannot run (no nickel on PATH) stops the mint rather than
+    # shipping a pack that names the wrong repository.
+    #
+    # This is the LAST step that writes the tree; everything after it only
+    # checks (tests/e2e/use_template_mint_test.sh commits the result and runs
+    # the freshness check on it). The map is read from the work tree
+    # (--worktree), not the index: the mint runs before the first commit, so
+    # the index still lists archetypes/ and the template's deed name, which is
+    # how lintel shipped a map that failed Estate Rules from birth.
     if [ -f .machine_readable/arrival-pack/generate.sh ]; then
         bash .machine_readable/arrival-pack/generate.sh
         echo "  arrival pack: CLAUDE.md regenerated from ${DEED_OUT}"
