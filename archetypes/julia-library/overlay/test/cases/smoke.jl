@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
+#
 # smoke.jl — the archetype's load-check case.
 #
 # This case proves the package LOADS (module resolution, no parse/load

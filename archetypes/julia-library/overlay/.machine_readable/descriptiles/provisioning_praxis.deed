@@ -1,0 +1,38 @@
+;; SPDX-License-Identifier: MPL-2.0
+;; SPDX-FileCopyrightText: {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
+;;
+;; provisioning_praxis.deed: the repo-specific facts behind `just setup/doctor/run/…`.
+;; build/just/provision-lib.sh reads each `:key "value"` field below. Rules:
+;;   * one key per line, value in double quotes, and no double quote inside a value;
+;;   * an empty value "" means "use the per-language default";
+;;   * a verb key (build test bench lint fmt fmt-check run deps) replaces the default.
+;;
+;; Written by the julia-library archetype at mint. The three overrides below are
+;; the point: the engine has no Julia formatter or linter, so fmt, fmt-check and
+;; lint were N/A, exited 0, and `just quality` printed a pass having run nothing
+;; but `Pkg.test()` (measured in every Julia repo minted from this template
+;; before 2026-10-30). scripts/julia-quality.jl supplies them.
+;;
+;; Canon: hyperpolymath/standards 3-practice/provisioning/PROVISIONING-STANDARD.adoc
+(praxis-deed
+  :schema-version "1.0.0"
+  :canonical-name "{{PROJECT_NAME}}-provisioning"
+  :repo         "{{OWNER}}/{{REPO}}"
+  :archetype    "library"             ; app | library | tool | theory | docs
+  :languages    "julia"               ; detected; informational
+  ;; Contract-verb overrides ("" = per-language default, which `just langs` shows)
+  :build        ""
+  :test         ""
+  :bench        ""
+  :lint         "julia --project=. scripts/julia-quality.jl lint"
+  :fmt          "julia --project=. scripts/julia-quality.jl fmt"
+  :fmt-check    "julia --project=. scripts/julia-quality.jl fmt-check"
+  :run          ""
+  :deps         ""
+  ;; Facts shown by `just config-show` and checked by `just doctor`
+  :config       ""
+  :ports        ""
+  :system-deps  "julia"
+  ;; What `just ai-setup` and `just opsm` print ("" = the generic line)
+  :ai-say-it    ""
+  :opsm-note    "")

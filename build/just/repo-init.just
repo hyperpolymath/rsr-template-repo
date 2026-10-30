@@ -108,6 +108,20 @@ repo-init archetype="":
     for _v in "${MINT_VERBATIM[@]}"; do
         [ -f "$_v" ] || { echo "Error: $VERBATIM_LIST names $_v, which does not exist (stale entry)."; exit 1; }
     done
+
+    # ── Can the template be minted at all? ──────────────────────────────────
+    # A brace token the recipe below has no answer for is a file that cannot be
+    # minted: it either survives into the child as a literal (measured: five
+    # files in every Julia repo minted before 2026-10-30) or trips the
+    # placeholder gate at the END of a mint that has already written the tree.
+    # Both are cheaper to refuse here, before a single byte is written.
+    if [ -f scripts/check-mint-tokens.sh ]; then
+        if ! bash scripts/check-mint-tokens.sh; then
+            echo "ERROR: mint aborted before writing anything — the template ships a"
+            echo "       token this recipe cannot fill. See the findings above."
+            exit 1
+        fi
+    fi
     mint_files() {
         git ls-files -z --cached --others --exclude-standard \
             | while IFS= read -r -d '' _f; do
@@ -346,9 +360,20 @@ repo-init archetype="":
 
     # Apply archetype overlay files (if any) BEFORE substitution, so overlay
     # files are rendered along with the rest of the tree.
+    #
+    # The overlay's file list is recorded first: the .in rename below must touch
+    # ONLY the files this archetype added. The spine ships .in templates of its
+    # own (build/templates/, the k9 examples) whose .in suffix is meaningful and
+    # must survive, and a blanket `find . -name '*.in' -exec mv` would rename
+    # them into broken files.
+    OVERLAY_FILES=()
     if [ -n "$ARCHETYPE" ] && [ -d "archetypes/${ARCHETYPE}/overlay" ]; then
+        mapfile -t OVERLAY_FILES < <(
+            cd "archetypes/${ARCHETYPE}/overlay" && find . -type f ! -name '*.orig' \
+                | sed 's|^\./||' | sort
+        )
         cp -a "archetypes/${ARCHETYPE}/overlay/." .
-        echo "  applied overlay: archetypes/${ARCHETYPE}/overlay/"
+        echo "  applied overlay: archetypes/${ARCHETYPE}/overlay/ (${#OVERLAY_FILES[@]} file(s))"
     fi
 
     # An archetype's workflows bring their lock records as a fragment beside
@@ -358,6 +383,22 @@ repo-init archetype="":
     if [ -n "$ARCHETYPE" ] && [ -f "archetypes/${ARCHETYPE}/actions.lock" ]; then
         bash scripts/rust-tool.sh merge-actions-lock \
             .github/workflows/actions.lock "archetypes/${ARCHETYPE}/actions.lock"
+    fi
+
+    # ── Archetype prune (ADR-0003) ───────────────────────────────────────────
+    # The spine is polyglot on purpose: it carries the container module and the
+    # dev container so that SOME child can use them. A child carrying a module
+    # whose capability its preset does not declare is drift, and one of those
+    # modules is not harmless: `build/container/` is a DEPLOYED artifact, so a
+    # Julia package shipped it and failed `container-images-pinned` from birth
+    # over a container it does not need. The archetype says what it drops in
+    # archetypes/<name>/prune.txt; the removals are recorded in the child's
+    # (variant (paths :removed …)) so the drift gate does not report them.
+    if [ -n "$ARCHETYPE" ] && [ -f "archetypes/${ARCHETYPE}/prune.txt" ]; then
+        while IFS= read -r _pruned; do
+            [ -n "$_pruned" ] && MINT_REMOVES+=("$_pruned")
+        done < <(bash scripts/prune-archetype-modules.sh "archetypes/${ARCHETYPE}" .)
+        echo "  pruned: archetypes/${ARCHETYPE}/prune.txt applied"
     fi
 
     # Seed docs/ from the documentation seed, BEFORE substitution so the seed's
@@ -978,17 +1019,25 @@ repo-init archetype="":
     rm -rf archetypes
     rm -rf build/docs-seed          # template-only; its content now lives in docs/
 
-    # Overlay .in rule (julia-library archetype; the convention any future
-    # overlay can adopt): the overlay ships content templates as *.in so a
-    # substitution token never survives in a file with a final name. Rename
-    # the known set now that substitution has rendered them, before the
-    # placeholder gate below.
-    if [ "$ARCHETYPE" = "julia-library" ]; then
-        # the name is read from Project.toml.in until the loop below renames
-        # it - order matters.
+    # Overlay .in rule (every archetype): an overlay ships content templates as
+    # *.in so a substitution token never survives in a file whose final name is
+    # already the real one — a half-rendered `Project.toml` is a file `Pkg`
+    # reads, while a half-rendered `Project.toml.in` is obviously unfinished.
+    # Only files THIS overlay added are renamed: the spine's own .in templates
+    # (build/templates/, the k9 examples) keep their suffix.
+    #
+    # src/PACKAGE.jl.in is the one exception, handled after the loop: the Julia
+    # convention names the module file after the package, and the package name
+    # is only known once Project.toml.in has been rendered and renamed.
+    for _of in "${OVERLAY_FILES[@]}"; do
+        case "$_of" in
+            src/PACKAGE.jl.in) continue ;;
+            *.in) [ -f "$_of" ] && { mv "$_of" "${_of%.in}"; echo "  overlay: ${_of%.in}"; } ;;
+        esac
+    done
+    if [ "$ARCHETYPE" = "julia-library" ] && [ -f src/PACKAGE.jl.in ]; then
         TOML_FILE=Project.toml
-        [ -f "$TOML_FILE" ] || TOML_FILE=Project.toml.in
-        if [ -f src/PACKAGE.jl.in ] && [ -f "$TOML_FILE" ]; then
+        if [ -f "$TOML_FILE" ]; then
             PKG_NAME=$(sed -n 's/^name = "\([^"]*\)".*/\1/p' "$TOML_FILE" | head -1)
             if [ -n "$PKG_NAME" ] && [ "$PKG_NAME" != "UNASSIGNED" ]; then
                 mv "src/PACKAGE.jl.in" "src/${PKG_NAME}.jl"
@@ -999,11 +1048,6 @@ repo-init archetype="":
                 echo "      mv src/PACKAGE.jl.in src/<PackageName>.jl"
             fi
         fi
-        for f in Project.toml.in \
-                 .github/workflows/julia-ci.yml.in \
-                 .github/workflows/julia-docs.yml.in; do
-            [ -f "$f" ] && { mv "$f" "${f%.in}"; echo "  overlay: ${f%.in}"; }
-        done
     fi
 
     # ── www/ site-operations bundle (issue #53, stage 5) ──────────────────
@@ -1048,6 +1092,27 @@ repo-init archetype="":
     # (--worktree), not the index: the mint runs before the first commit, so
     # the index still lists archetypes/ and the template's deed name, which is
     # how lintel shipped a map that failed Estate Rules from birth.
+    # ── Toolchain (mise.toml) ───────────────────────────────────────────────
+    # The provisioning standard says mise.toml is MINTED per repository (canon's
+    # mise.toml.tmpl carries __MISE_TOOLS_TOML__ for exactly that). Until now the
+    # mint copied the spine's file verbatim, so every child declared the
+    # TEMPLATE's toolchain: the spine once declared nine runtimes (python, node,
+    # rust, go, zig, java, bun, denojs, npm, pip, cargo, black, ruff, pytest …)
+    # and a minted Julia package therefore installed Python — banned estate-wide
+    # — declared no Julia, and ran `cargo build` from `just build`.
+    #
+    # Rendered here, after the overlay's manifests have their final names (so
+    # detection can see Project.toml / Cargo.toml) and after the archetype prune
+    # (so a dropped module does not keep its toolchain).
+    if [ -f scripts/render-mise.sh ]; then
+        echo ""
+        echo "── Toolchain ────────────────────────────────────"
+        bash scripts/render-mise.sh --root . || {
+            echo "ERROR: mise.toml could not be rendered from this tree's languages."
+            exit 1
+        }
+    fi
+
     if [ -f .machine_readable/arrival-pack/generate.sh ]; then
         bash .machine_readable/arrival-pack/generate.sh
         echo "  arrival pack: CLAUDE.md regenerated from ${DEED_OUT}"
@@ -1157,6 +1222,34 @@ repo-init archetype="":
         echo "Un-deleted TEMPLATE INSTRUCTIONS block in:"
         echo "$LEFTOVER_BLOCKS" | sed 's/^/  /'
         echo "ERROR: the instruction-block pass should have removed these."
+        exit 1
+    fi
+
+    # ── The gates the template enforces on children, run on the child ────────
+    # Each of these was once a check the template shipped that could not fail:
+    #   * the SPDX check globbed one language's extensions, so in a Julia repo it
+    #     examined nothing and reported PASS;
+    #   * the container check asked "is cgr.dev named anywhere" and passed on a
+    #     floating :latest, so a template shipping two of them passed itself;
+    #   * the toolchain check did not exist, and the spine's mise.toml declared
+    #     nine runtimes for repositories that use none of them.
+    # Running them HERE means a mint that would fail them fails at mint, in the
+    # template's own CI, instead of in N children after the fact.
+    echo ""
+    echo "── Language, licence and container gates ────────"
+    GATE_FAIL=0
+    for _gate in check-spdx-headers check-mise-language check-container-pins; do
+        [ -f "scripts/${_gate}.sh" ] || continue
+        echo ""
+        echo "  ${_gate}.sh"
+        bash "scripts/${_gate}.sh" --root . || GATE_FAIL=1
+    done
+    if [ "$GATE_FAIL" -ne 0 ]; then
+        echo ""
+        echo "ERROR: the minted tree fails a gate this template enforces on children."
+        echo "       The tree above is complete but not conforming; fix it before"
+        echo "       committing. (A mint that ships a failing tree teaches the child"
+        echo "       that the gate is noise.)"
         exit 1
     fi
 

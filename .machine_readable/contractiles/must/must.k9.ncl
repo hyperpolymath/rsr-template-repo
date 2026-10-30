@@ -148,6 +148,27 @@ let base    = import "../_base.ncl" in
         severity = 'critical,
       },
       {
+        # The SPDX gate used to be a fixed glob (*.rs, *.res, *.gleam) with a
+        # `head -20` cap. In a Julia/Elixir/Idris2/Zig/OCaml/shell repository it
+        # matched NOTHING, counted 0 missing, and reported PASS — a check that
+        # examined nothing, reporting coverage. scripts/check-spdx-headers.sh
+        # derives the extension set from the languages the repository declares
+        # and fails when it matched zero files, so this probe can only pass by
+        # actually inspecting the tree.
+        id = "spdx-headers",
+        section = "Licensing",
+        description = "Every source file of every declared language carries an SPDX header",
+        probe = "bash scripts/check-spdx-headers.sh --quiet",
+        severity = 'critical,
+      },
+      {
+        id = "toolchain-matches-language",
+        section = "Toolchain",
+        description = "mise.toml declares the detected languages' tools, and no banned or foreign tool",
+        probe = "bash scripts/check-mise-language.sh --quiet",
+        severity = 'critical,
+      },
+      {
         id = "security-policy",
         section = "File Presence",
         description = "SECURITY.md must exist",

@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# Spine modules this archetype does NOT carry, one repository-relative path per
+# line. `container-images-pinned` means an unpinned Containerfile cannot ship;
+# a CLI library has nothing to deploy, so the deployed-container module is
+# dropped rather than shipped floating. The dev container stays (it is a
+# development environment, not an artifact, and the pin gate scopes it out).
+build/container/

@@ -63,6 +63,27 @@ Regenerate it in the same PR as any `uses:` change in the overlay.
 `tests/workflows/archetype_lock_merge_test.sh` mints each archetype's
 workflow set and runs `scripts/check-lock-sync.sh` on the merged lock.
 
+== Removing modules the preset does not declare (`prune.txt`)
+
+The spine is polyglot on purpose: it carries modules that some archetypes need
+and others must not have. An overlay adds files; it cannot subtract them — and
+a Julia package that ships `build/container/` inherits a `Containerfile` built
+for a service, which then fails `trust-container-images-pinned` in a repository
+that will never build an image.
+
+So an archetype may ship a `prune.txt` beside its contract: one path per line,
+relative to the minted root, `#` for comments, trailing `/` for a directory.
+`just repo-init` reads it *after* it has recorded what the overlay wrote and
+*before* it renames any `.in` file, and refuses to continue if a listed path
+does not exist (a stale entry is a silent no-op, and silent no-ops are how the
+minted tree and the archetype drift apart). The paths it removed are then
+deleted from the tree the mint commits.
+
+Removal is a declaration: a line in `prune.txt` says "this preset does not
+carry this capability", and the preset in
+`.machine_readable/template-capability-gates.toml [presets]` should agree. It
+is not a place to hide files that fail a gate.
+
 == Current archetypes
 
 - `julia-library` — reference instance, harvested from
@@ -70,7 +91,19 @@ workflow set and runs `scripts/check-lock-sync.sh` on the merged lock.
   dormant scaffoldia registry's `julia/package.ncl`. The variant repo
   remains the full hand-maintained reference until the scaffoldia
   inversion; this archetype covers the `just repo-init` path.
+  Ships `overlay/scripts/julia-quality.jl` (the `fmt`, `fmt-check` and `lint`
+  verbs, run in a private Julia tools environment so Aqua and JuliaFormatter
+  never enter the package's own dependency set) and its
+  `provisioning_praxis.deed` override; prunes `build/container/`.
+- `rust-cli` — the preset `rust-cli` from the canon. Ships `Cargo.toml.in`,
+  `src/{lib,main}.rs.in` and `tests/cli.rs.in`, so a minted CLI has a real
+  library-plus-binary split and one integration test rather than a
+  `println!` stub that no test can fail. Prunes `build/container/` for the same
+  reason as `julia-library`: a CLI that publishes no image should not ship a
+  `Containerfile`.
 
 Declared, content to follow (presets already reserved in the canon):
-`wordpress-plugin`, `zotero-plugin`, `userscript`. Do not stub them empty —
-an archetype exists when its contract and overlay are real.
+`wordpress-plugin`, `zotero-plugin`, `userscript`, `rust-ffi-lib`,
+`rust-service`, `formal-proof-lib`, `docs-site`, `affinescript-app`, `canon`.
+Do not stub them empty — an archetype exists when its contract and overlay are
+real.

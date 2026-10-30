@@ -10,6 +10,49 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **The template's gates could not fail, and the toolchain was not minted.**
+  Reported from JuliaPackageSpitter.jl and traced here; see
+  `docs/reports/compliance/RSR-TEMPLATE-DAMAGE-2026-10-30.adoc` for the full
+  investigation and the estate inventory.
+** `spdx-headers` globbed `*.rs`/`*.res`/`*.gleam` and capped the scan at 20
+   files, so it examined nothing and passed in every Julia, Idris2, Zig, Elixir,
+   OCaml and shell repository. `scripts/check-spdx-headers.sh` derives the
+   extension set from the languages the repository declares, scans every match,
+   and fails when a declared language has no files or when it matched nothing;
+** `container-images-pinned` asked whether `cgr.dev` appeared in the
+   Containerfile, which `FROM cgr.dev/chainguard/wolfi-base:latest` satisfies.
+   `scripts/check-container-pins.sh` requires a 64-hex digest on every `FROM`;
+   `scripts/pin-container-digests.sh` writes the pins and refuses a placeholder;
+** `mise.toml` was copied from the spine, not rendered, so every mint declared
+   the template's own toolchain — nine runtimes including Python, which is
+   banned estate-wide, and not the language of the repository. It is now
+   rendered from the detected languages by `scripts/render-mise.sh`, and
+   `scripts/check-mise-language.sh` fails a repository whose declared toolchain
+   is not the one its languages need;
+** `just quality` printed "All quality checks passed!" over verbs that reported
+   `N/A` and exited 0. It now fails when a verb runs nothing, and the
+   `julia-library` archetype wires `fmt`, `fmt-check` and `lint` to
+   `scripts/julia-quality.jl`;
+** `archetypes/*/prune.txt` and `scripts/prune-archetype-modules.sh`: an
+   archetype can remove spine modules its preset does not declare, so a Julia
+   library no longer inherits a `Containerfile`;
+** the mint's `.in` rename covered a hardcoded three-file list; it now covers
+   the files the applied overlay actually added, so the spine's own `.in`
+   templates survive;
+** `check-no-placeholders.sh` died with exit 1 and no output in a repository
+   with no `origin` remote (a fresh mint, before the first push): `git config`
+   exited 1 and `set -e` took the script with it;
+** `validate-template.sh` referenced an unset `SCRIPT_DIR` (aborting at Phase 6
+   under `set -u`) and demanded `CONTRIBUTING.md` in an estate that writes
+   `.adoc`. There is now a root `LICENSE` (MPL-2.0), so the Mustfile's
+   `license-present` and every minted `link:LICENSE[LICENSE]` resolve;
+** a pre-write token gate in `repo-init` refuses a mint the recipe cannot answer
+   for, and four gates now run against the minted tree before handoff;
+** `tests/workflows/mint_gates_test.sh` (30 controls) asserts that every gate
+   fails on a fixture built to fail it; `tests/e2e/language_profiles_mint_test.sh`
+   (27 controls) mints a Julia package and a Rust CLI and runs the gates on both.
+   `.github/workflows/quality.yml` gained a `mint-gates` job that runs them.
+
 * `repo-init` minting a repository created with GitHub's "Use this
   template" (measured on metadatastician/lintel, 2026-10-14):
 ** provenance recorded the CHILD's own HEAD as the template commit. The

@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# mint_gates_test.sh — every gate the template ships must be able to FAIL, and
+# the failure must be demonstrated on a fixture.
+#
+# The estate has been bitten repeatedly by gates that read as coverage while
+# changing no outcome: the SPDX check that globbed one language's extensions and
+# passed in every other language; the container check that passed on
+# `FROM …:latest` because it only asked whether `cgr.dev` appeared; a `quality`
+# recipe that echoed "All quality checks passed!" over verbs that ran nothing.
+# Each of those is a check with no failing input, and a check with no failing
+# input cannot be reviewed by reading it.
+#
+# So each gate gets a POSITIVE fixture (must exit 0) and a NEGATIVE fixture (must
+# exit 1). A gate that stops failing turns this test red — which is the only way
+# a gate stays a gate.
+#
+# Usage: bash tests/workflows/mint_gates_test.sh
+# Exit: 0 all controls hold; 1 a control failed.
+
+set -uo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+CHECKS=0
+FAILED=0
+
+pass() { CHECKS=$((CHECKS + 1)); printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
+bad()  { CHECKS=$((CHECKS + 1)); FAILED=$((FAILED + 1)); printf '  \033[31mFAIL\033[0m  %s\n' "$1"; }
+
+# expect_pass LABEL CMD… — the command must exit 0.
+expect_pass() {
+    local label="$1"; shift
+    if "$@" >"$WORK/out" 2>&1; then pass "$label"; else
+        bad "$label (expected exit 0, got $?)"
+        sed 's/^/        /' "$WORK/out" | tail -20
+    fi
+}
+# expect_fail LABEL CMD… — the command must exit NON-zero (any non-zero counts;
+# 2 is a usage/environment error and would be a test bug, so it is called out).
+expect_fail() {
+    local label="$1"; shift
+    local st=0
+    "$@" >"$WORK/out" 2>&1 || st=$?
+    if [ "$st" -eq 0 ]; then
+        bad "$label (expected a failure, got exit 0)"
+        sed 's/^/        /' "$WORK/out" | tail -10
+    elif [ "$st" -eq 2 ]; then
+        bad "$label (exit 2 is a usage or environment error, not a finding)"
+        sed 's/^/        /' "$WORK/out" | tail -10
+    else
+        pass "$label"
+    fi
+}
+
+spdx() { bash "$REPO_DIR/scripts/check-spdx-headers.sh" --quiet "$@"; }
+pins() { bash "$REPO_DIR/scripts/check-container-pins.sh" --quiet "$@"; }
+mise() { bash "$REPO_DIR/scripts/check-mise-language.sh" --quiet "$@"; }
+
+echo "── SPDX (language-derived) ────────────────────────────────"
+
+# Positive: the template itself.
+expect_pass "SPDX passes on the template tree" spdx --root "$REPO_DIR"
+
+# Negative 1: a Julia package whose only source has no header.
+J="$WORK/jl-nohdr"; mkdir -p "$J/src"
+printf 'name = "Demo"\n' > "$J/Project.toml"
+printf 'module Demo\nend\n' > "$J/src/Demo.jl"
+expect_fail "SPDX fails on a Julia file with no header" spdx --root "$J"
+
+# Negative 2: the language is declared but no source of it exists — the exact
+# shape the old fixed glob produced in a Julia repo (nothing scanned, PASS).
+E="$WORK/jl-empty"; mkdir -p "$E"
+printf 'name = "Demo"\n' > "$E/Project.toml"
+expect_fail "SPDX fails when a declared language has no files" spdx --root "$E"
+
+# Negative 3: nothing to scan at all — a gate that examined nothing is not a pass.
+Z="$WORK/empty"; mkdir -p "$Z"
+expect_fail "SPDX fails when it matches zero files" spdx --root "$Z" --langs docs
+
+# Negative 4: a banned language present (Python), header or not.
+P="$WORK/py"; mkdir -p "$P"
+printf '# SPDX-License-Identifier: MPL-2.0\nprint(1)\n' > "$P/tool.py"
+expect_fail "SPDX fails on banned-language source (.py)" spdx --root "$P" --langs docs
+
+# Positive 2: header present → pass, and every declared extension is scanned.
+OK="$WORK/jl-ok"; mkdir -p "$OK/src" "$OK/test"
+printf 'name = "Demo"\n' > "$OK/Project.toml"
+printf '# SPDX-License-Identifier: MPL-2.0\nmodule Demo\nend\n' > "$OK/src/Demo.jl"
+printf '#!/usr/bin/env bash\n# SPDX-License-Identifier: MPL-2.0\ntrue\n' > "$OK/run.sh"
+expect_pass "SPDX passes on a well-formed Julia fixture" spdx --root "$OK"
+
+echo ""
+echo "── Container image pins ───────────────────────────────────"
+
+D64="$(printf 'a%.0s' $(seq 1 64))"
+
+C="$WORK/container"; mkdir -p "$C"
+printf 'FROM cgr.dev/chainguard/wolfi-base:latest\n' > "$C/Containerfile"
+expect_fail "pin gate fails on a floating :latest" pins --root "$C"
+
+printf 'FROM cgr.dev/chainguard/wolfi-base:2026.10.30\n' > "$C/Containerfile"
+expect_fail "pin gate fails on a tag without a digest" pins --root "$C"
+
+printf 'FROM cgr.dev/chainguard/wolfi-base@sha256:%s\n' "$D64" > "$C/Containerfile"
+expect_pass "pin gate passes on a digest-pinned image" pins --root "$C"
+
+printf 'ARG BASE\nFROM ${BASE}\n' > "$C/Containerfile"
+expect_fail "pin gate fails when the pin lives in a build argument" pins --root "$C"
+
+printf 'FROM cgr.dev/chainguard/wolfi-base@sha256:deadbeef\n' > "$C/Containerfile"
+expect_fail "pin gate fails on a truncated digest" pins --root "$C"
+
+printf 'FROM cgr.dev/chainguard/wolfi-base@sha256:%s AS build\nFROM scratch\n' "$D64" > "$C/Containerfile"
+expect_pass "pin gate allows a stage name and scratch" pins --root "$C"
+
+printf 'FROM cgr.dev/chainguard/wolfi-base@sha256:%s\n' "$D64" > "$C/Dockerfile"
+printf 'FROM cgr.dev/chainguard/wolfi-base@sha256:%s\n' "$D64" > "$C/Containerfile"
+expect_fail "pin gate fails on a Dockerfile" pins --root "$C"
+rm -f "$C/Dockerfile"
+
+rm -f "$C/Containerfile"
+expect_pass "pin gate passes when no Containerfile ships" pins --root "$C"
+
+# The pinner: refuses to invent a digest, and rewrites a real one.
+PI="$WORK/pinme"; mkdir -p "$PI"
+printf 'FROM cgr.dev/chainguard/wolfi-base:latest AS builder\nFROM cgr.dev/chainguard/static:latest\n' > "$PI/Containerfile"
+expect_fail "pinner refuses without a digest" \
+    bash "$REPO_DIR/scripts/pin-container-digests.sh" --root "$PI" Containerfile
+expect_pass "pinner rewrites both FROM lines" \
+    bash "$REPO_DIR/scripts/pin-container-digests.sh" --root "$PI" --base "$D64" --runtime "$D64" Containerfile
+expect_pass "pin gate passes after the pinner ran" pins --root "$PI"
+if grep -q ':latest' "$PI/Containerfile"; then
+    bad "pinner left a floating tag behind"
+else
+    pass "pinner removed the floating tag"
+fi
+
+echo ""
+echo "── mise.toml matches the declared languages ───────────────"
+
+M="$WORK/mise"; mkdir -p "$M"
+printf '[tools]\njulia = "latest"\njust = "latest"\n' > "$M/mise.toml"
+expect_pass "mise gate passes when the toolchain matches" mise --root "$M" --langs julia --tools "julia just"
+
+printf '[tools]\njulia = "latest"\njust = "latest"\npython = "latest"\n' > "$M/mise.toml"
+expect_fail "mise gate fails on a banned tool" mise --root "$M" --langs julia --tools "julia just"
+
+printf '[tools]\njust = "latest"\n' > "$M/mise.toml"
+expect_fail "mise gate fails when the language tool is missing" mise --root "$M" --langs julia --tools "julia just"
+
+printf '[tools]\njulia = "latest"\njust = "latest"\nzig = "latest"\n' > "$M/mise.toml"
+expect_fail "mise gate fails on a tool no language needs" mise --root "$M" --langs julia --tools "julia just"
+
+printf '[tools]\n' > "$M/mise.toml"
+expect_fail "mise gate fails on an empty [tools] table" mise --root "$M" --langs julia --tools "julia just"
+
+rm -f "$M/mise.toml"
+expect_fail "mise gate fails when mise.toml is missing" mise --root "$M" --langs julia --tools "julia just"
+
+# The template's own toolchain must match its own languages.
+expect_pass "mise gate passes on the template tree" mise --root "$REPO_DIR"
+
+echo ""
+echo "── Mint tokens ────────────────────────────────────────────"
+
+expect_pass "token gate passes on the template" \
+    bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$REPO_DIR"
+
+T="$WORK/tokens"; mkdir -p "$T/scripts" "$T/build/just" "$T/.machine_readable"
+cp "$REPO_DIR/build/just/repo-init.just" "$T/build/just/"
+: > "$T/.machine_readable/mint-verbatim.txt"
+printf '# SPDX-License-Identifier: MPL-2.0\nproject := "{{PROJECT_NAME}}"\n' > "$T/Justfile"
+expect_pass "token gate ignores just's own interpolation" \
+    bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$T"
+
+printf '# SPDX-License-Identifier: MPL-2.0\nname: {{PROJECT_NAME}}\nport: {{NOT_ANSWERED}}\n' > "$T/settings.yml"
+expect_fail "token gate fails on a token with no answer" \
+    bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$T"
+
+echo ""
+echo "── Archetype prune ────────────────────────────────────────"
+
+PR="$WORK/prune"; mkdir -p "$PR/arch/build/container" "$PR/tree/build/container"
+printf '# SPDX-License-Identifier: MPL-2.0\nbuild/container/\n' > "$PR/arch/prune.txt"
+: > "$PR/tree/build/container/Containerfile"
+expect_pass "prune script runs" \
+    bash "$REPO_DIR/scripts/prune-archetype-modules.sh" "$PR/arch" "$PR/tree"
+if [ -e "$PR/tree/build/container" ]; then
+    bad "prune left a listed path behind"
+else
+    pass "prune removed the listed path"
+fi
+
+echo ""
+echo "── Summary ────────────────────────────────────────────────"
+if [ "$FAILED" -eq 0 ]; then
+    printf 'mint gates: \033[32m%d/%d controls hold\033[0m\n' "$CHECKS" "$CHECKS"
+    exit 0
+fi
+printf 'mint gates: \033[31m%d of %d controls failed\033[0m\n' "$FAILED" "$CHECKS"
+exit 1
