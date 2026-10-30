@@ -67,11 +67,20 @@ info() { [ "$QUIET" -eq 1 ] || printf '  \033[34minfo\033[0m  %s\n' "$1"; }
 
 RECIPE="$ROOT/build/just/repo-init.just"
 MINTED_TREE=0
-if [ ! -f "$RECIPE" ]; then
-    # A minted repository has no repo-init: the mint does not copy its own
-    # generator into its output. That is not a usage error — it is the state in
-    # which every downstream repository lives, and it is exactly where unfilled
-    # tokens get found, because nothing can ever answer them there.
+if [ ! -d "$ROOT/archetypes" ]; then
+    # "Minted" is the absence of archetypes/, NOT the absence of the generator.
+    # The mint carries build/just/repo-init.just into every child verbatim
+    # (.machine_readable/mint-verbatim.txt) and the child's Justfile imports it,
+    # so testing for the recipe never fired: children looked like the template,
+    # every token they carried counted as "the generator will answer this", and
+    # an unfilled {{PROJECT_NAME}} passed — in the gate and in
+    # survey-template-damage.sh, which reads it.
+    #
+    # archetypes/ is the marker because the mint deletes it (repo-init's prune
+    # step) and nothing else recreates it: a template checkout has it, a minted
+    # repository cannot. Where the generator IS present in a child, its answers
+    # are listed below but never used, which is the point: nothing can answer a
+    # token in a tree that has already been minted.
     MINTED_TREE=1
 fi
 
@@ -100,7 +109,7 @@ ANSWERS=""
 # them a half-written list — measured as an intermittent "the mint cannot
 # answer {{PROJECT_NAME}}" on a tree where it demonstrably can.
 if [ "$MINTED_TREE" -eq 1 ]; then
-    info "no build/just/repo-init.just — minted tree; no token has an answer here"
+    info "no archetypes/ — minted tree; no token has an answer here"
 else
     COUNT_ANSWERS=$(printf '%s\n' "$ANSWERS" | grep -c . || true)
     [ "$COUNT_ANSWERS" -gt 0 ] || { bad "could not read any answered token from repo-init"; exit 2; }
@@ -185,7 +194,7 @@ if [ ${#UNKNOWN[@]} -eq 0 ]; then
 fi
 
 if [ "$MINTED_TREE" -eq 1 ]; then
-    bad "${#UNKNOWN[@]} unfilled token(s) in a tree that has no generator left:"
+    bad "${#UNKNOWN[@]} unfilled token(s) in a minted tree (no archetypes/, so nothing can answer them):"
 else
     bad "${#UNKNOWN[@]} token reference(s) the mint cannot answer:"
 fi

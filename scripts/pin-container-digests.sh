@@ -70,25 +70,68 @@ fi
 hex64 "$RUNTIME" || { echo "FAIL: --runtime must be 64 lowercase hex characters" >&2; exit 1; }
 
 rewrite_one() {
-    local path="$1" idx=0 tmp
+    local path="$1" idx=0 tmp stages=" " head rest flag ref after base stage
     [ -f "$path" ] || { echo "pin-container-digests: no such file: $path" >&2; return 1; }
     tmp="$(mktemp)"
     while IFS= read -r line || [ -n "$line" ]; do
         stripped="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//')"
         case "$stripped" in
-            [Ff][Rr][Oo][Mm][[:space:]]*)
-                idx=$((idx + 1))
-                d="$BASE"; [ "$idx" -eq 1 ] || d="$RUNTIME"
-                if printf '%s' "$line" | grep -q '@sha256:[0-9a-f]\{64\}'; then
-                    printf '%s\n' "$line" >> "$tmp"; continue
-                fi
-                # drop an existing tag-only suffix (`:latest`) and any partial digest
-                printf '%s\n' "$line" | sed -E "s#(:[A-Za-z0-9_.-]+)?(@sha256:[0-9a-f]*)?([[:space:]]+(AS|as)[[:space:]]+.*)?\$#@sha256:${d}\\3#" >> "$tmp"
-                ;;
-            *)
-                printf '%s\n' "$line" >> "$tmp"
-                ;;
+            [Ff][Rr][Oo][Mm][[:space:]]*) ;;
+            *) printf '%s\n' "$line" >> "$tmp"; continue ;;
         esac
+        idx=$((idx + 1))
+        # Split the instruction into FROM + flags + reference + whatever follows,
+        # so only the reference is ever rewritten. The previous sed replaced the
+        # tail of the whole line, which turned `FROM build` and `FROM scratch`
+        # into `build@sha256:…` / `scratch@sha256:…` — corrupting exactly the
+        # multi-stage files it should leave alone — and rewrote `AS <stage>`
+        # whenever its spacing differed from the two forms the regex knew.
+        head="${stripped%%[[:space:]]*}"
+        rest="${stripped#"$head"}"
+        rest="${rest#"${rest%%[![:space:]]*}"}"
+        while :; do
+            case "$rest" in
+                --*) flag="${rest%%[[:space:]]*}"
+                     head="$head $flag"
+                     rest="${rest#"$flag"}"
+                     rest="${rest#"${rest%%[![:space:]]*}"}" ;;
+                *) break ;;
+            esac
+        done
+        ref="${rest%%[[:space:]]*}"
+        after="${rest#"$ref"}"
+        stage=""
+        case "$after" in
+            [[:space:]]*[Aa][Ss][[:space:]]*) stage="${after##*[[:space:]]}" ;;
+        esac
+        # `FROM scratch` builds from nothing, and `FROM <earlier stage>` builds
+        # from a stage: neither names a remote image, so neither takes a digest.
+        case "$ref" in
+            scratch) printf '%s\n' "$line" >> "$tmp"; continue ;;
+        esac
+        case "$stages" in
+            *" $ref "*) printf '%s\n' "$line" >> "$tmp"; continue ;;
+        esac
+        [ -n "$stage" ] && stages="$stages$stage "
+        # A build-time variable is the file telling us the pin lives elsewhere.
+        case "$ref" in
+            *'$'*) printf '%s\n' "$line" >> "$tmp"; continue ;;
+        esac
+        if printf '%s' "$ref" | grep -q '@sha256:[0-9a-f]\{64\}$'; then
+            printf '%s\n' "$line" >> "$tmp"; continue
+        fi
+        base="${ref%%@sha256:*}"
+        case "${base##*:}" in
+            *[!0-9]*) base="${base%:*}" ;;   # a tag, not a registry port
+        esac
+        case "${ref##*@}" in
+            sha256:*) : ;;                    # partial/malformed digest: drop it
+        esac
+        if [ "$idx" -eq 1 ]; then
+            printf '%s %s@sha256:%s%s\n' "$head" "$base" "$BASE" "$after" >> "$tmp"
+        else
+            printf '%s %s@sha256:%s%s\n' "$head" "$base" "$RUNTIME" "$after" >> "$tmp"
+        fi
     done < "$path"
     if ! cmp -s "$tmp" "$path"; then
         cp "$tmp" "$path"

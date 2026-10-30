@@ -66,14 +66,35 @@ end
 if CMD == "fmt" || CMD == "fmt-check"
     ensure("JuliaFormatter")
     @eval using JuliaFormatter
-    # overwrite=false both PREDICTS and reports: it returns true when the file
-    # would be (or was) rewritten.
-    changed = format(ROOT; overwrite = (CMD == "fmt"), verbose = false)
-    if CMD == "fmt-check" && changed
-        println(stderr, "FAIL: JuliaFormatter would rewrite files — run: just fmt")
-        exit(1)
+
+    # Judge by content, not by JuliaFormatter's return value. Its `format`
+    # documents the return as "was the tree already formatted" in some releases
+    # and "did it write" in others, so `changed` inverted this check on at least
+    # one: a clean scaffold failed and an unformatted one passed. Formatting a
+    # COPY and diffing the bytes cannot be ambiguous.
+    jl_files(root) = [joinpath(d, f) for (d, _, fs) in walkdir(root)
+                      for f in fs if endswith(f, ".jl")]
+
+    if CMD == "fmt"
+        n = length(jl_files(ROOT))
+        format(ROOT; overwrite = true, verbose = false)
+        println("PASS: formatted ", n, " Julia file(s) in place")
+    else
+        tmp = mktempdir()
+        copy_root = joinpath(tmp, "tree")
+        cp(ROOT, copy_root; force = true)
+        before = Dict(f => read(f) for f in jl_files(copy_root))
+        format(copy_root; overwrite = true, verbose = false)
+        dirty = sort!([relpath(f, copy_root) for (f, bytes) in before if read(f) != bytes])
+        rm(tmp; recursive = true, force = true)
+        if !isempty(dirty)
+            println(stderr, "FAIL: JuliaFormatter would rewrite ", length(dirty),
+                    " file(s) — run: just fmt")
+            foreach(f -> println(stderr, "  ", f), dirty)
+            exit(1)
+        end
+        println("PASS: Julia formatting is clean")
     end
-    CMD == "fmt-check" && println("PASS: Julia formatting is clean")
 else
     ensure("Aqua")
     # Aqua checks a LOADED package: develop this one into the tools environment
@@ -95,7 +116,10 @@ else
     end
     modname = Symbol(m.captures[1])
     try
-        Base.eval(Main, Expr(:using, Expr(:(:), modname)))
+        # `using Pkg` parses to Expr(:using, Expr(:., :Pkg)); a colon node is the
+        # `using A: b` form. Building the colon expression loads nothing, so the
+        # check failed for every package it was meant to validate.
+        Base.eval(Main, Meta.parse("using " * String(modname)))
     catch err
         println(stderr, "FAIL: the package does not load: ", err)
         exit(1)

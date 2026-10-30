@@ -125,6 +125,13 @@ make_tree() { # $1 dir, $2 repo slug, $3 archetype
 substitute() { # $1 dir, $2 repo slug
     local dir="$1" slug="$2" f tok
     V[REPO]="$slug"
+    # DERIVE the identifier tokens from the slug, exactly as repo-init does
+    # (`tr '[:lower:]-.' '[:upper:]__'` and its lowercase twin). They were fixed
+    # to demo_package, so the Rust fixture generated `demo_package::about()` in a
+    # crate named demo_rust — a scaffold that cannot compile, reported as a pass
+    # because this harness never compiles.
+    V[PROJECT]="$(printf '%s' "$slug" | tr '[:lower:]-.' '[:upper:]__')"
+    V[project]="$(printf '%s' "$slug" | tr '[:upper:]-.' '[:lower:]__')"
     local args=()
     for tok in "${ANSWER_TOKENS[@]}"; do
         args+=(-e "s|{{${tok}}}|${V[$tok]}|g")
@@ -160,6 +167,13 @@ else
 fi
 [ -f "$J/scripts/julia-quality.jl" ] && pass "Julia: quality verbs wired (scripts/julia-quality.jl)" \
     || bad "Julia: quality script missing"
+[ -e "$J/src/interface" ] && bad "Julia: src/interface/ (Idris2/Zig seam) survived prune.txt" \
+    || pass "Julia: src/interface/ pruned — a Julia package needs no Idris2 or Zig"
+if grep -qE '^(idris2|zig) =' "$J/mise.toml"; then
+    bad "Julia: mise installs a toolchain the preset never declared"
+else
+    pass "Julia: mise installs only the detected language's toolchain"
+fi
 grep -q ':fmt-check' "$J/.machine_readable/descriptiles/provisioning_praxis.deed" \
     && pass "Julia: fmt/fmt-check/lint overrides shipped in the provisioning deed" \
     || bad "Julia: provisioning deed has no verb overrides"
@@ -185,6 +199,18 @@ else
 fi
 [ -e "$R/build/container" ] && bad "Rust: build/container/ survived prune.txt" \
     || pass "Rust: build/container/ pruned"
+[ -e "$R/src/interface" ] && bad "Rust: src/interface/ (Idris2/Zig seam) survived prune.txt" \
+    || pass "Rust: src/interface/ pruned — a Rust CLI needs no Idris2 or Zig"
+if grep -qE '^(idris2|zig) =' "$R/mise.toml"; then
+    bad "Rust: mise installs a toolchain the preset never declared"
+else
+    pass "Rust: mise installs only the detected language's toolchain"
+fi
+# The identifier tokens are derived from the slug, so the generated code must name
+# the crate the slug produces (demo-rust -> demo_rust). Fixing {{project}} to a
+# constant made this scaffold reference a crate that cannot exist.
+grep -q 'demo_rust' "$R/src/main.rs" && pass "Rust: generated code uses the slug-derived crate name" \
+    || bad "Rust: generated code does not use the slug-derived crate name (demo_rust)"
 
 echo ""
 echo "── Gates on both scaffolds ────────────────────────────────"

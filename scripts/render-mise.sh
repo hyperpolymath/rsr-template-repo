@@ -67,7 +67,12 @@ LIB="$ROOT/build/just/provision-lib.sh"
 lib() { ( cd "$ROOT" && PROVISION_ROOT="$ROOT" bash "$LIB" "$@" 2>/dev/null ); }
 [ -n "$LANGS" ] || LANGS="$(lib langs | tr '\n' ' ')"
 LANGS="$(echo "$LANGS" | xargs)"
-TOOLS="$(lib mise-tools | tr '\n' ' ' | xargs)"
+# Pass the language list explicitly: `mise-tools` without arguments re-detects
+# from the tree, which is what made --langs cosmetic — it relabelled the file
+# 'the toolchain for this repository (julia)' while installing the docs
+# toolchain, so a fixture that asked for julia got just/shellcheck/lychee.
+# shellcheck disable=SC2086
+TOOLS="$(lib mise-tools $LANGS | tr '\n' ' ' | xargs)"
 if [ -z "$TOOLS" ]; then
     echo "render-mise: the engine returned no tools for languages '${LANGS}'" >&2
     exit 2
@@ -115,7 +120,34 @@ if [ "$NEW" = "$CURRENT" ]; then
 fi
 
 if [ "$CHECK_ONLY" -eq 1 ]; then
-    echo "mise.toml does NOT match the declared languages (${LANGS})" >&2
+    # --check compares the TOOLCHAIN, not the prose. Comparing the whole rendered
+    # file made the check impossible to pass on any repository that wrote its own
+    # header — the template itself included — so it was a permanently red light
+    # rather than a finding, and a permanently red light is not a check.
+    # It still fails, which is the part that matters: a missing tool, a foreign
+    # tool, or a toolchain rendered for the wrong language all differ as a SET.
+    declare_tools() {
+        awk '
+            /^[[:space:]]*\[tools\][[:space:]]*$/ { t = 1; next }
+            /^[[:space:]]*\[/                    { t = 0 }
+            t && /^[[:space:]]*("[^"]*"|\047[^\047]*\047|[A-Za-z0-9_.-]+)[[:space:]]*=/ {
+                line = $0
+                sub(/[[:space:]]*=.*/, "", line)
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+                gsub(/^["\047]|["\047]$/, "", line)
+                print line
+            }' "$1"
+    }
+    HAVE="$(declare_tools "$ROOT/mise.toml" 2>/dev/null | sort -u | xargs)"
+    WANT="$(printf '%s\n' $TOOLS | sort -u | xargs)"
+    if [ "$HAVE" = "$WANT" ]; then
+        echo "mise.toml declares exactly this tree's toolchain (${LANGS}) — ok"
+        exit 0
+    fi
+    echo "mise.toml does NOT declare this tree's toolchain (${LANGS})" >&2
+    echo "  is:   ${HAVE:-<nothing>}" >&2
+    echo "  want: ${WANT}" >&2
+    echo "  rewrite it with: scripts/render-mise.sh --root ." >&2
     exit 1
 fi
 

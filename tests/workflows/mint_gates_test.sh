@@ -106,6 +106,14 @@ printf 'module Gone\nend\n' > "$D/src/gone.jl"
 rm -f "$D/src/gone.jl"
 expect_pass "SPDX ignores a tracked file that has been deleted" spdx --root "$D"
 
+# A language whose mapping lists ALTERNATIVE extensions is present when any one
+# of them is: an Elixir tree with .ex and no .exs was failed for a language it is
+# written in, because emptiness was judged per extension instead of per language.
+E="$WORK/elixir"; mkdir -p "$E/lib"
+printf '# SPDX-License-Identifier: MPL-2.0\ndefmodule A do\nend\n' > "$E/lib/a.ex"
+expect_pass "SPDX accepts any alternative extension of a declared language" \
+    spdx --root "$E" --langs elixir --exts ex
+
 echo ""
 echo "── Container image pins ───────────────────────────────────"
 
@@ -162,6 +170,26 @@ else
     pass "pinner removed the floating tag"
 fi
 
+# The pinner must not rewrite what is not a remote image: `FROM scratch` and
+# `FROM <earlier stage>` take no digest, and rewriting them produced
+# `build@sha256:…` — a Containerfile the companion gate then accepted.
+RT="$WORK/pin-roundtrip"; mkdir -p "$RT"
+B64="$(printf 'a%.0s' $(seq 1 64))"; R64="$(printf 'b%.0s' $(seq 1 64))"
+cat > "$RT/Containerfile" <<'OLD'
+FROM --platform=$BUILDPLATFORM cgr.dev/chainguard/wolfi-base:latest AS build
+RUN true
+FROM scratch
+COPY --from=build /x /x
+FROM build AS test
+FROM cgr.dev/chainguard/static:latest
+OLD
+bash "$REPO_DIR/scripts/pin-container-digests.sh" --root "$RT" --base "$B64" --runtime "$R64" "$RT/Containerfile" >/dev/null 2>&1
+grep -qx 'FROM scratch' "$RT/Containerfile" && pass "pinner leaves FROM scratch alone" \
+    || bad "pinner rewrote FROM scratch"
+grep -qx 'FROM build AS test' "$RT/Containerfile" && pass "pinner leaves a stage reference alone" \
+    || bad "pinner rewrote a stage reference"
+expect_pass "the pinned round-trip passes the pin gate" pins --root "$RT"
+
 echo ""
 echo "── mise.toml matches the declared languages ───────────────"
 
@@ -187,6 +215,27 @@ expect_fail "mise gate fails when mise.toml is missing" mise --root "$M" --langs
 # The template's own toolchain must match its own languages.
 expect_pass "mise gate passes on the template tree" mise --root "$REPO_DIR"
 
+# A backend-qualified tool MUST be a quoted TOML key ("npm:prettier"), so a
+# parser that only read bare keys could never see the banned tool this gate
+# exists to catch.
+Q="$WORK/quoted"; mkdir -p "$Q"
+printf '[tools]\njust = "latest"\nshellcheck = "latest"\ntrivy = "latest"\nrust = "latest"\ncargo = "latest"\nrustc = "latest"\n"npm:prettier" = "latest"\n' > "$Q/mise.toml"
+printf '[package]\nname = "x"\n' > "$Q/Cargo.toml"
+expect_fail "mise gate reads a quoted backend-qualified key" \
+    mise --root "$Q" --langs rust --tools "just shellcheck trivy rust cargo rustc"
+
+# --detect must look where provision-lib.sh looks. The template's own seam puts
+# Idris2 at src/interface/abi.ipkg and Zig at src/interface/ffi/build.zig; a
+# root-only mirror called such a tree `docs` and graded it against the wrong
+# toolchain (this is the state every pre-engine repository is surveyed in).
+DD="$WORK/detect-depth"; mkdir -p "$DD/src/interface/ffi"
+printf '[package]\nname = "x"\n' > "$DD/Cargo.toml"
+printf 'package x\n' > "$DD/src/interface/abi.ipkg"
+printf 'x\n' > "$DD/src/interface/ffi/build.zig"
+printf '[tools]\njust = "latest"\nshellcheck = "latest"\ntrivy = "latest"\nrust = "latest"\nidris2 = "latest"\nzig = "latest"\n' > "$DD/mise.toml"
+expect_pass "--detect finds markers below the root, as provision-lib does" \
+    mise --root "$DD" --detect
+
 echo ""
 echo "── Mint tokens ────────────────────────────────────────────"
 
@@ -203,6 +252,17 @@ expect_pass "token gate ignores just's own interpolation" \
 printf '# SPDX-License-Identifier: MPL-2.0\nname: {{PROJECT_NAME}}\nport: {{NOT_ANSWERED}}\n' > "$T/settings.yml"
 expect_fail "token gate fails on a token with no answer" \
     bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$T"
+
+# A MINTED tree keeps the generator: repo-init.just is carried verbatim into every
+# child (.machine_readable/mint-verbatim.txt) and the child's Justfile imports it.
+# "Minted" is therefore the absence of archetypes/, not of the recipe — testing
+# for the recipe made every child look like the template, and an unfilled
+# {{PROJECT_NAME}} they could never answer passed this gate.
+M2="$WORK/minted-with-recipe"; mkdir -p "$M2/build/just"
+cp "$REPO_DIR/build/just/repo-init.just" "$M2/build/just/"
+printf '# SPDX-License-Identifier: MPL-2.0\nname: {{PROJECT_NAME}}\n' > "$M2/README.adoc"
+expect_fail "token gate fails on an answerable token in a minted tree that still carries the generator" \
+    bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$M2"
 
 echo ""
 echo "── Archetype prune ────────────────────────────────────────"

@@ -130,6 +130,13 @@ if [ "$QUIET" -eq 0 ] && [ ${#SKIPPED[@]} -gt 0 ]; then
 fi
 
 if [ ${#CONTAINERFILES[@]} -eq 0 ]; then
+    # FAILS is already non-zero when a Dockerfile was found above. Taking the
+    # "nothing to pin" success path there reported PASS for the one repository
+    # shape this branch exists to catch.
+    if [ "$FAILS" -ne 0 ]; then
+        note "Why: TRUST-DEFAULTS-POLICY §containers, Trustfile check container-images-pinned."
+        exit 1
+    fi
     ok "no shipped Containerfile — nothing to pin (shipping one is optional)"
     exit 0
 fi
@@ -170,6 +177,11 @@ for cf in "${CONTAINERFILES[@]}"; do
         ref="${1:-}"
         stage=""
         if [ "${2:-}" = "AS" ] || [ "${2:-}" = "as" ]; then stage="${3:-}"; fi
+        # Register the stage name FIRST: `FROM image@sha256:… AS build` is a
+        # pinned line, so it `continue`s below, and a later `FROM build` then
+        # looked like an unpinned remote image because its stage had never been
+        # recorded. Measured on the ordinary multi-stage shape.
+        [ -n "$stage" ] && STAGES="$STAGES$stage "
         if [ -z "$ref" ]; then
             bad "$cf: FROM with no image reference"
             FAILS=$((FAILS + 1))
@@ -199,7 +211,6 @@ for cf in "${CONTAINERFILES[@]}"; do
                 bad "$cf: base image '$ref' has no tag and no digest (implicit :latest)"
                 note "add @sha256:<digest>" ;;
         esac
-        if [ -n "$stage" ]; then STAGES="$STAGES$stage "; fi
         FAILS=$((FAILS + 1))
     done < "$ROOT/$cf"
     if [ "$HAD_FROM" -eq 0 ]; then

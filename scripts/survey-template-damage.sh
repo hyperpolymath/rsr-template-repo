@@ -89,5 +89,8 @@ for repo in "${REPOS[@]}"; do
     c="$(gate check-container-pins.sh "$dir")"
     t="$(gate check-mint-tokens.sh "$dir")"
     printf '%s\t%s\t%s\t%s\t%s\n' "$repo" "$m" "$s" "$c" "$t"
-    rm -rf "$dir"
+    # --keep exists so an operator can open the checkout behind a verdict. This
+    # line deleted it anyway, leaving an empty directory and no way to reproduce
+    # what the gate saw.
+    [ "$KEEP" -eq 1 ] || rm -rf "$dir"
 done

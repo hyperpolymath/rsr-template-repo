@@ -25,12 +25,21 @@ validate-rsr:
     for f in docs/legal/EXHIBIT-A-ETHICAL-USE.txt docs/legal/EXHIBIT-B-QUANTUM-SAFE.txt LICENSES/MPL-2.0.txt; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done
-    if [ ! -d "src/interface/abi" ] && [ ! -d "src/interface/Abi" ]; then
-        MISSING="$MISSING src/interface/abi"
+    # The polyglot seam (Idris2 ABI over a Zig FFI) is INHERITED from the
+    # template's spine, not required of every repository: an archetype whose
+    # preset declares neither the abi nor the ffi capability prunes src/interface/
+    # at mint (ADR-0003, archetypes/<name>/prune.txt). A minted Rust CLI is not
+    # incomplete for lacking a seam it did not ask for. So: a tree that carries
+    # the seam must carry all of it; a tree that carries none of it is complete
+    # without it. Deleting one part of a present seam still fails.
+    if [ -d src/interface ]; then
+        if [ ! -d "src/interface/abi" ] && [ ! -d "src/interface/Abi" ]; then
+            MISSING="$MISSING src/interface/abi"
+        fi
+        for f in src/interface/ffi src/interface/generated; do
+            [ -d "$f" ] || MISSING="$MISSING $f"
+        done
     fi
-    for f in src/interface/ffi src/interface/generated; do
-        [ -d "$f" ] || MISSING="$MISSING $f"
-    done
     for f in docs/governance/MAINTENANCE-CHECKLIST.adoc docs/governance/SOFTWARE-DEVELOPMENT-APPROACH.adoc; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done

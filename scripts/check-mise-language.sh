@@ -91,31 +91,47 @@ fi
 # per-language binaries. It is NOT the source of truth; when provision-lib.sh is
 # present its answer wins, and a disagreement is a bug in the mirror.
 if [ -z "$LANGS" ] && [ "$DETECT" -eq 1 ]; then
+    # Same depths as provision-lib.sh's `first`, not root-only: the template's own
+    # seam puts Idris2 at src/interface/abi.ipkg and Zig at
+    # src/interface/ffi/build.zig, so a root-only mirror called those trees
+    # `docs` and graded them against the wrong toolchain. Depths are copied from
+    # detect_langs(), including its defaults (2 for the unmarked ones).
+    _find() { find "$ROOT" -maxdepth "${2:-2}" -not -path '*/.git/*' \
+                -not -path '*/node_modules/*' -not -path '*/target/*' \
+                -name "$1" -print -quit 2>/dev/null; }
     _l=()
-    [ -f "$ROOT/Cargo.toml" ] && _l+=(rust)
-    ls "$ROOT"/*.ipkg >/dev/null 2>&1 && _l+=(idris2)
-    [ -f "$ROOT/Project.toml" ] && _l+=(julia)
-    [ -f "$ROOT/build.zig" ] && _l+=(zig)
-    [ -f "$ROOT/mix.exs" ] && _l+=(elixir)
-    [ -f "$ROOT/gleam.toml" ] && _l+=(gleam)
-    [ -f "$ROOT/dune-project" ] && _l+=(ocaml)
-    { ls "$ROOT"/*.cabal >/dev/null 2>&1 || [ -f "$ROOT/stack.yaml" ]; } && _l+=(haskell)
-    [ -f "$ROOT/package.json" ] && _l+=(bun)
+    [ -n "$(_find Cargo.toml)" ]      && _l+=(rust)
+    [ -n "$(_find '*.ipkg' 3)" ]      && _l+=(idris2)
+    [ -n "$(_find Project.toml 1)" ]  && _l+=(julia)
+    [ -n "$(_find build.zig 4)" ]     && _l+=(zig)
+    [ -n "$(_find mix.exs)" ]         && _l+=(elixir)
+    [ -n "$(_find gleam.toml)" ]      && _l+=(gleam)
+    [ -n "$(_find dune-project)" ]    && _l+=(ocaml)
+    { [ -n "$(_find '*.cabal')" ] || [ -n "$(_find stack.yaml 1)" ]; } && _l+=(haskell)
+    [ -n "$(_find package.json)" ]    && _l+=(bun)
     [ "${#_l[@]}" -eq 0 ] && _l+=(docs)
     LANGS="${_l[*]}"
     info "languages (detected from markers; provision-lib.sh absent): $LANGS"
 fi
 if [ -z "$TOOLS" ] && [ "$DETECT" -eq 1 ]; then
+    # MISE_BASE + RECIPE_TOOLS + lang_mise(), copied from provision-lib.sh. The
+    # mirror used to list each language's BINARIES instead (`mix erl`, `ghc cabal`,
+    # `dune`), which is lang_tools()'s answer, not the mise.mise table's: a tree
+    # declaring `erlang elixir` was failed for not declaring `mix`/`erl`, and a
+    # Rust tree declaring `rust` was failed for declaring a tool the engine
+    # installs. A mirror that disagrees with the engine is a bug in the mirror.
     _t="just shellcheck trivy"
     for l in $LANGS; do
         case "$l" in
-            rust) _t="$_t cargo rustc" ;;
-            julia|idris2|zig) _t="$_t $l" ;;
-            elixir) _t="$_t elixir mix erl" ;;
-            gleam) _t="$_t gleam erl" ;;
-            ocaml) _t="$_t opam dune ocaml" ;;
-            haskell) _t="$_t ghc cabal" ;;
-            bun) _t="$_t bun deno pnpm" ;;
+            rust)              _t="$_t rust" ;;
+            zig)               _t="$_t zig" ;;
+            julia)             _t="$_t julia" ;;
+            idris2)            _t="$_t idris2" ;;
+            elixir)            _t="$_t erlang elixir" ;;
+            gleam)             _t="$_t erlang gleam" ;;
+            ocaml)             _t="$_t opam" ;;
+            bun)               _t="$_t bun deno pnpm" ;;
+            docs)              _t="$_t lychee" ;;
         esac
     done
     TOOLS="$_t"
@@ -146,10 +162,16 @@ declared() {
     awk '
         /^[[:space:]]*\[tools\][[:space:]]*$/ { t = 1; next }
         /^[[:space:]]*\[/                    { t = 0 }
-        t && /^[[:space:]]*[A-Za-z0-9_.-]+[[:space:]]*=/ {
+        t && /^[[:space:]]*("[^"]*"|\047[^\047]*\047|[A-Za-z0-9_.-]+)[[:space:]]*=/ {
+            # Quoted keys are not decoration: TOML REQUIRES them for
+            # backend-qualified tools ("npm:prettier" = "latest"), so a parser
+            # that only saw bare keys never declared them — and a file declaring
+            # the banned tool passed this gate while the backend check below
+            # could not be reached for the syntax it exists to inspect.
             line = $0
             sub(/[[:space:]]*=.*/, "", line)
             gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+            gsub(/^["\047]|["\047]$/, "", line)
             print line
         }' "$MISE"
 }

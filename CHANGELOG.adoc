@@ -144,6 +144,47 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   `static-analysis-gate.yml` evidence, and the enrolment reason states the rule
   it is an instance of (one scanner, one row).
 
+* **Seven defects the review of this work found, each now covered by a control.**
+  None of these were reached by the tests as written, which is the point:
+** `check-container-pins.sh` took the "nothing to pin" success path even after
+   failing on a `Dockerfile`, so the one repository shape the Dockerfile rule
+   exists to catch reported PASS; and it registered a stage name only after the
+   line that `continue`s, so the ordinary `FROM image@sha256:… AS build` +
+   `FROM build` pair was judged an unpinned remote image. Stage names are now
+   registered when parsed, before any branch can skip the rest of the line;
+** `pin-container-digests.sh` rewrote every `FROM` line, turning `FROM scratch`
+   and `FROM build` into `scratch@sha256:…` and `build@sha256:…` — corrupting the
+   multi-stage files it should leave alone, while the companion gate accepted the
+   result. It now splits FROM into flags/reference/tail and rewrites only the
+   reference of a remote image;
+** `check-spdx-headers.sh` judged emptiness per EXTENSION, so a valid Elixir tree
+   with `.ex` and no `.exs` (or OCaml `.ml` without `.mli`) failed for a language
+   it is written in. Emptiness is now judged per language, across all of its
+   extensions;
+** `render-mise.sh --langs` only changed the label: the tool list still came from
+   the tree's own detection, so a fixture asking for Julia was handed the docs
+   toolchain. `mise-tools` now accepts the language list, and `--check` compares
+   the declared toolchain rather than the rendered prose — which made it
+   impossible to pass on any repository that wrote its own header, the template
+   included;
+** `check-mise-language.sh` parsed only bare `[tools]` keys, and backend-qualified
+   tools MUST be quoted (`"npm:prettier"`), so the banned-tool check could never
+   see them; its `--detect` mirror also looked only at the root, calling a tree
+   with `src/interface/abi.ipkg` and `src/interface/ffi/build.zig` a docs
+   repository. Both now follow the engine, depths included, and the mirror lists
+   mise tools rather than each language's binaries;
+** `check-mint-tokens.sh` treated "no build/just/repo-init.just" as proof of a
+   minted tree — but that recipe is carried verbatim into every child, so no child
+   was ever recognised and an unfilled `{{PROJECT_NAME}}` passed (and
+   `survey-template-damage.sh` reported such repositories token-clean). The marker
+   is `archetypes/`, which the mint deletes;
+** `archetypes/*/prune.txt` dropped only `build/container/`, so a minted Julia
+   package and a minted Rust CLI both carried the Idris2/Zig seam: three languages
+   detected, `idris2` and `zig` installed, `idris2 --build` in `just build`. Both
+   presets declare neither the abi nor the ffi capability, so both now prune
+   `src/interface/`; `validate-rsr` requires the seam only of a tree that carries
+   it. The archetype tests assert the toolchain is single-language.
+
 ==== Added
 
 * `scripts/governance-badge.js` — the single implementation of the badge

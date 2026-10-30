@@ -260,11 +260,20 @@ done
 
 # Declared language, no files: the extension table and the detector disagree, or
 # the declaration lies. Name the empty extension rather than leaving it to feel.
+# A language is empty only when NO extension of that language matched. Several
+# mappings list alternatives (.ex/.exs, .ml/.mli, .js/.mjs/.cjs), so judging each
+# extension separately failed perfectly good repositories for the alternative
+# they do not use — an Elixir tree with .ex and no .exs was "missing" a language
+# it is written in.
 EMPTY_DECL=""
 for l in $LANGS; do
-    for e in $(exts_for "$l"); do
-        [ "${COUNT["$e"]:-0}" -eq 0 ] && EMPTY_DECL="$EMPTY_DECL .$e($l)"
+    total=0
+    exts="$(exts_for "$l")"
+    [ -n "$exts" ] || continue     # `docs` maps to no extension: nothing to find
+    for e in $exts; do
+        total=$(( total + ${COUNT["$e"]:-0} ))
     done
+    [ "$total" -eq 0 ] && EMPTY_DECL="$EMPTY_DECL $l($(echo "$exts" | sed 's/^ *//; s/  */, ./g; s/^/\./'))"
 done
 if [ -n "$EMPTY_DECL" ]; then
     bad "declared language source not found:$EMPTY_DECL"
