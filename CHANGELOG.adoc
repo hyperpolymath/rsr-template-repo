@@ -33,6 +33,11 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    `N/A` and exited 0. It now fails when a verb runs nothing, and the
    `julia-library` archetype wires `fmt`, `fmt-check` and `lint` to
    `scripts/julia-quality.jl`;
+** `build/container/Containerfile` is deleted rather than pinned: two
+   `FROM …:latest` lines and a body of TODO comments built nothing and failed
+   `container-images-pinned` in every minted repository, including those that
+   publish no image. A repository that publishes one adds the file and pins it
+   (`scripts/pin-container-digests.sh`); `just container-build` says so;
 ** `archetypes/*/prune.txt` and `scripts/prune-archetype-modules.sh`: an
    archetype can remove spine modules its preset does not declare, so a Julia
    library no longer inherits a `Containerfile`;

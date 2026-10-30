@@ -129,7 +129,9 @@ container-init:
     echo "Container templates initialised."
     echo ""
     echo "Next steps:"
-    echo "  1. Edit build/container/Containerfile          — add your build commands (Tier A)"
+    echo "  1. Add build/container/Containerfile            — Tier A; pin every FROM:"
+    echo "       scripts/pin-container-digests.sh --root . build/container/Containerfile"
+    echo "     (the template ships none: it shipped an unpinned, non-building one until 2026-10-30)"
     echo "  2. Edit build/container/entrypoint.sh          — set your application binary"
     echo "  3. Review build/container/compose.yaml         — portable stack (Tier B)"
     echo "  4. Review build/container/stapeln/             — sovereign stack (Tier C)"
@@ -147,7 +149,10 @@ container-build *args:
     elif [ -f "Containerfile" ]; then
         "$ENGINE" build -t {{project}}:latest -f Containerfile .
     else
-        echo "No Containerfile found in build/container/ or project root"
+        echo "No Containerfile found in build/container/ or project root."
+        echo "This template ships none — the one it used to ship was unpinned and"
+        echo "built nothing. Add one, pin it, and the estate gate will accept it:"
+        echo "  scripts/pin-container-digests.sh --root . build/container/Containerfile"
         exit 1
     fi
 

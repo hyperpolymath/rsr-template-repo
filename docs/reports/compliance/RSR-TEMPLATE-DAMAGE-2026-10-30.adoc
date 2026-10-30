@@ -140,6 +140,16 @@ this PR, passed it vacuously.
 | `scripts/pin-container-digests.sh` | New. Rewrites `FROM` lines to digest
   pins. Refuses to run with a placeholder or malformed digest.
 
+| `build/container/Containerfile` | **Deleted.** It had two `FROM …:latest`
+  lines and a body of TODO comments — it could not build, and it failed
+  `container-images-pinned` in every repository that carried it, including the
+  ones that publish no image. Pinning it was not possible from here (no registry
+  access) and would have left a file that still builds nothing. "Pinned or not
+  at all" resolves to *not at all*: a repository that publishes an image adds
+  the file and pins it. `build/container/README.adoc` and `just container-build`
+  say so, and `just container-build` now explains this instead of exiting with
+  "No Containerfile found".
+
 | `scripts/prune-archetype-modules.sh` | New, and now a mint step. Deletes the
   paths an archetype's `prune.txt` lists, refusing to continue on a path that
   does not exist.
