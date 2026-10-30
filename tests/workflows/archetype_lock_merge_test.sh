@@ -109,6 +109,21 @@ cmp -s "$fixture/unsorted.lock" "$fixture/canonical.lock" || fail "an unsorted l
 grep -q 'scripts/rust-tool.sh merge-actions-lock' "$repo/build/just/repo-init.just" \
     || fail "build/just/repo-init.just no longer merges archetype lock fragments"
 
+# Renaming overlay .in files is now the general rule (2026-10-30): the mint
+# records the file list the overlay actually added and resolves *.in inside it,
+# instead of naming three julia-library paths by hand. The old check grepped
+# repo-init for each workflow's own path, which depended on that hardcoded list —
+# it would have gone on passing while a new archetype's workflow kept its suffix.
+# Check the RULE instead. (The per-file consequence is exercised by the overlay
+# list the mint records: it is built from `find archetypes/<name>/overlay`, so
+# every .in below is in it by construction.)
+grep -qF 'mapfile -t OVERLAY_FILES < <(' "$repo/build/just/repo-init.just" \
+    || fail "build/just/repo-init.just no longer records the overlay's own file list"
+grep -qF 'for _of in "${OVERLAY_FILES[@]}"' "$repo/build/just/repo-init.just" \
+    || fail "build/just/repo-init.just no longer iterates the overlay's own file list when resolving .in names"
+grep -qF '*.in) [ -f "$_of" ]' "$repo/build/just/repo-init.just" \
+    || fail "build/just/repo-init.just no longer renames *.in inside the overlay's file list"
+
 shopt -s nullglob
 checked=0
 for arch in "$repo"/archetypes/*/; do
@@ -125,10 +140,6 @@ for arch in "$repo"/archetypes/*/; do
     for f in "${wfs[@]}"; do
         spdx_ok "$f" || fail "$name: ${f#"$repo"/} has no SPDX line in its leading comment block"
         perms_ok "$f" || fail "$name: ${f#"$repo"/} has no top-level permissions"
-        case "$f" in
-            *.in) grep -qF ".github/workflows/$(basename "$f")" "$repo/build/just/repo-init.just" \
-                || fail "$name: build/just/repo-init.just never renames ${f#"$repo"/}, so the minted workflow keeps its .in suffix and never runs" ;;
-        esac
     done
 
     # The mint: spine workflows and lock, then the overlay's workflows under

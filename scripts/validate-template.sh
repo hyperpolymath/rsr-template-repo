@@ -163,7 +163,13 @@ echo ""
 check_deed_exists "repo deed (universal AI entry point)"
 check_file_exists "README.adoc" "High-level pitch"
 check_file_either "EXPLAINME.adoc" "docs/EXPLAINME.adoc" "Developer deep-dive"
-check_file_exists "LICENSE" "License file"
+# Either spelling: `LICENSE` is the forge-facing copy, `LICENSE.adoc` the estate
+# document (root-allow.txt permits both, requires neither specifically).
+if [ -f "$REPO_ROOT/LICENSE" ] || [ -f "$REPO_ROOT/LICENSE.adoc" ]; then
+    log_pass "License file"
+else
+    log_error "Required file missing: LICENSE (or LICENSE.adoc)"
+fi
 check_file_exists "Justfile" "Task runner"
 check_file_either "AUDIT.adoc" "docs/AUDIT.adoc" "Release audit gate"
 

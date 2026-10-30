@@ -14,7 +14,7 @@
 #     gofmt black isort ruff prettier shfmt stylua
 #     cmake make ninja git gnu-sed gnu-tar gnu-grep
 #     vitest pytest jest
-#     [alias] build = "cargo build || npm run build || go build" …
+#     [alias] build/test/lint/fmt = a chain of Cargo, Node, Go and Ruff commands
 #
 # for every repository it seeded, including a Julia package. Two of those
 # declarations are policy violations on their own (Python and Node are banned

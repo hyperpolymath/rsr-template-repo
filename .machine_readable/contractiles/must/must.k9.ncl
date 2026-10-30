@@ -136,8 +136,8 @@ let base    = import "../_base.ncl" in
       {
         id = "license-present",
         section = "File Presence",
-        description = "LICENSE file must exist",
-        probe = "test -f LICENSE",
+        description = "a licence must exist (LICENSE, the forge-facing copy, or LICENSE.adoc)",
+        probe = "test -f LICENSE || test -f LICENSE.adoc",
         severity = 'critical,
       },
       {
