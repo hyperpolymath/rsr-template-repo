@@ -101,6 +101,10 @@ predecessors did.
 | yes
 | thin; delegates phases to build/just/*.just
 
+| `LICENSE`
+| optional
+| forge-facing copy of LICENSES/MPL-2.0.txt. Optional, not required:
+
 | `LICENSE.adoc`
 | yes
 | the licence (MPL-2.0); renamed from LICENSE to the estate AsciiDoc format 2026-10-26
@@ -220,7 +224,6 @@ your own repo - but do not read their emptiness as neglect here.
 | `docs/governance/planning/could/`
 | `docs/governance/planning/must/`
 | `docs/governance/planning/should/`
-| `docs/reports/compliance/`
 | `docs/reports/maintenance/`
 | `docs/reports/performance/`
 | `docs/reports/quality/`

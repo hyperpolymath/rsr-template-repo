@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# Spine modules this archetype does NOT carry, one repository-relative path per
+# line. `container-images-pinned` means an unpinned Containerfile cannot ship;
+# a Julia package has nothing to deploy, so the deployed-container module is
+# dropped rather than shipped floating. The dev container stays (it is a
+# development environment, not an artifact, and the pin gate scopes it out).
+build/container/
+# Same rule for the polyglot seam: a Julia package declares neither the abi nor
+# the ffi capability, so src/interface/ (abi.ipkg, ffi/build.zig) is carrier data
+# from the template's spine, not part of this package. Shipping it made the mint
+# detect Idris2 and Zig, install both, and run `idris2 --build` from `just build`
+# in a package written in one language.
+src/interface/

@@ -208,6 +208,14 @@ fi
 if ! (cd "$TEST_REPO_PATH" && printf '%s\n' "${INIT_ANSWERS[@]}" | env "${PIN_ENV[@]}" just repo-init) > "$TEST_DIR/init.log" 2>&1; then
     log_error "just repo-init failed:"
     cat "$TEST_DIR/init.log" >&2
+    # The lane's verdict is one line in a 200-line log; the reason is the last
+    # few lines of init.log. Emit them as an annotation so the failure is
+    # legible where the failure is reported (PR check list, API, the log
+    # summary), not only to whoever downloads the raw log.
+    if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        printf '::error title=just repo-init failed::%s\n' \
+            "$(tail -n 40 "$TEST_DIR/init.log" | awk '{printf "%s%%0A", $0}')"
+    fi
     exit 1
 fi
 

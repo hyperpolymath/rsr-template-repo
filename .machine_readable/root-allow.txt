@@ -29,6 +29,13 @@
 # ─── Baseline: every RSR repo has these ──────────────────────────────────────
 README.adoc
 LICENSE.adoc               # the licence (MPL-2.0); renamed from LICENSE to the estate AsciiDoc format 2026-10-26
+?LICENSE                   # forge-facing copy of LICENSES/MPL-2.0.txt. Optional, not required:
+                           #   GitHub (and most forges) only detect LICENSE / LICENSE.md /
+                           #   LICENSE.txt to show the licence on the repo page, and readers
+                           #   follow that name. LICENSE.adoc above stays authoritative; this
+                           #   is a byte-identical copy of the REUSE text, not a second licence.
+                           #   Added 2026-10-30 — without it license-present failed and every
+                           #   minted repo's link:LICENSE[LICENSE] was a dead link.
 LICENSES/                  # REUSE licence texts, dual-licence model (code MPL-2.0 / docs CC-BY-SA-4.0)
 CHANGELOG.adoc             # AsciiDoc is the estate-standard documentation format
 CITATION.cff               # citation metadata; GitHub reads it from the root of the default branch only

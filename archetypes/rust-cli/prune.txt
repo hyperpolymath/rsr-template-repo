@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# Spine modules this archetype does NOT carry, one repository-relative path per
+# line. `container-images-pinned` means an unpinned Containerfile cannot ship;
+# a CLI library has nothing to deploy, so the deployed-container module is
+# dropped rather than shipped floating. The dev container stays (it is a
+# development environment, not an artifact, and the pin gate scopes it out).
+build/container/
+# The contract above says it plainly: "nothing here declares the ffi or abi
+# capability, so the archetype must not ship the ...". The seam is the template's
+# polyglot spine — src/interface/abi.ipkg (Idris2) and src/interface/ffi/build.zig
+# (Zig) — and carrying it made a Rust CLI detect THREE languages: render-mise.sh
+# installed idris2 and zig, and the inherited build/test recipes ran them. A
+# Rust CLI that needs an Idris2 toolchain is not a Rust CLI.
+src/interface/

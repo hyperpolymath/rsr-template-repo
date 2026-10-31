@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MPL-2.0
+# SPDX-FileCopyrightText: {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
+#
 # {{PROJECT_NAME}} — test entry point (julia-library archetype)
 #
 # Two suites, in this order:

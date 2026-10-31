@@ -1,0 +1,37 @@
+;; SPDX-License-Identifier: MPL-2.0
+;; SPDX-FileCopyrightText: 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+;;
+;; rust-cli_praxis.deed — the rust-cli archetype for `just repo-init`
+;; (ADR-0003). repo-init reads it with scripts/deed-field.sh:
+;;   (capability :preset)  the capability preset; and
+;;   (tokens :<TOKEN>)     each value fills {{<TOKEN>}} at mint.
+;;
+;; The preset name matches a [presets] entry in standards
+;; .machine_readable/template-capability-gates.toml:
+;;   rust-cli = ["rust", "cli", "library"]
+;; It is deliberately the CLI/library preset and not rust-ffi-lib: nothing here
+;; declares the ffi or abi capability, so the archetype must not ship the
+;; Zig/Idris2 seam as if it did.
+;;
+;; Contract rules: archetypes/README.adoc. Single-line values; no `|` in token
+;; values (init's sed delimiter). Tokens omitted here stay UNASSIGNED on
+;; purpose: PACKAGE_NAME and MUST_INVARIANTS are per-repo judgement, and an
+;; archetype must not write fiction.
+(praxis-deed
+  :schema-version "1.0.0"
+  :canonical-name "rsr-template-repo-archetype-rust-cli"
+  (metadata
+    :archetype "rust-cli"
+    :name "rust-cli"
+    :schema_version "0.1.0")
+  (capability
+    ; Preset defined in standards .machine_readable/template-capability-gates.toml
+    :preset "rust-cli")
+  (tokens
+    :PROJECT_KIND "cli"
+    :PROJECT_DOMAIN "rust"
+    :LANG_STACK "Rust (edition 2021)"
+    :BUILD_CMD "cargo build --release"
+    :TEST_CMD "cargo test --all-targets"
+    :DEPS "crates.io via Cargo.toml with a [compat] floor per dependency"
+    :BUILD_OUTPUT_PATH "target/release/"))

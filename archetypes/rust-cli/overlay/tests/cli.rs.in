@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
+//!
+//! An integration test, so `cargo test --all-targets` runs something real from
+//! the day the repo is minted. `cargo test` with no tests at all exits 0, and a
+//! green suite that contains no test is the same fake gate as one that is
+//! skipped.
+
+use {{project}}::about;
+
+#[test]
+fn about_is_not_empty() {
+    assert!(!about().is_empty());
+}

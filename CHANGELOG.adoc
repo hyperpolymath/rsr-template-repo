@@ -10,6 +10,54 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **The template's gates could not fail, and the toolchain was not minted.**
+  Reported from JuliaPackageSpitter.jl and traced here; see
+  `docs/reports/compliance/RSR-TEMPLATE-DAMAGE-2026-10-30.adoc` for the full
+  investigation and the estate inventory.
+** `spdx-headers` globbed `*.rs`/`*.res`/`*.gleam` and capped the scan at 20
+   files, so it examined nothing and passed in every Julia, Idris2, Zig, Elixir,
+   OCaml and shell repository. `scripts/check-spdx-headers.sh` derives the
+   extension set from the languages the repository declares, scans every match,
+   and fails when a declared language has no files or when it matched nothing;
+** `container-images-pinned` asked whether `cgr.dev` appeared in the
+   Containerfile, which `FROM cgr.dev/chainguard/wolfi-base:latest` satisfies.
+   `scripts/check-container-pins.sh` requires a 64-hex digest on every `FROM`;
+   `scripts/pin-container-digests.sh` writes the pins and refuses a placeholder;
+** `mise.toml` was copied from the spine, not rendered, so every mint declared
+   the template's own toolchain — nine runtimes including Python, which is
+   banned estate-wide, and not the language of the repository. It is now
+   rendered from the detected languages by `scripts/render-mise.sh`, and
+   `scripts/check-mise-language.sh` fails a repository whose declared toolchain
+   is not the one its languages need;
+** `just quality` printed "All quality checks passed!" over verbs that reported
+   `N/A` and exited 0. It now fails when a verb runs nothing, and the
+   `julia-library` archetype wires `fmt`, `fmt-check` and `lint` to
+   `scripts/julia-quality.jl`;
+** `build/container/Containerfile` is deleted rather than pinned: two
+   `FROM …:latest` lines and a body of TODO comments built nothing and failed
+   `container-images-pinned` in every minted repository, including those that
+   publish no image. A repository that publishes one adds the file and pins it
+   (`scripts/pin-container-digests.sh`); `just container-build` says so;
+** `archetypes/*/prune.txt` and `scripts/prune-archetype-modules.sh`: an
+   archetype can remove spine modules its preset does not declare, so a Julia
+   library no longer inherits a `Containerfile`;
+** the mint's `.in` rename covered a hardcoded three-file list; it now covers
+   the files the applied overlay actually added, so the spine's own `.in`
+   templates survive;
+** `check-no-placeholders.sh` died with exit 1 and no output in a repository
+   with no `origin` remote (a fresh mint, before the first push): `git config`
+   exited 1 and `set -e` took the script with it;
+** `validate-template.sh` referenced an unset `SCRIPT_DIR` (aborting at Phase 6
+   under `set -u`) and demanded `CONTRIBUTING.md` in an estate that writes
+   `.adoc`. There is now a root `LICENSE` (MPL-2.0), so the Mustfile's
+   `license-present` and every minted `link:LICENSE[LICENSE]` resolve;
+** a pre-write token gate in `repo-init` refuses a mint the recipe cannot answer
+   for, and four gates now run against the minted tree before handoff;
+** `tests/workflows/mint_gates_test.sh` (30 controls) asserts that every gate
+   fails on a fixture built to fail it; `tests/e2e/language_profiles_mint_test.sh`
+   (27 controls) mints a Julia package and a Rust CLI and runs the gates on both.
+   `.github/workflows/quality.yml` gained a `mint-gates` job that runs them.
+
 * `repo-init` minting a repository created with GitHub's "Use this
   template" (measured on metadatastician/lintel, 2026-10-14):
 ** provenance recorded the CHILD's own HEAD as the template commit. The
@@ -95,6 +143,47 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   it, and no such row existed. The grid now renders that row from
   `static-analysis-gate.yml` evidence, and the enrolment reason states the rule
   it is an instance of (one scanner, one row).
+
+* **Seven defects the review of this work found, each now covered by a control.**
+  None of these were reached by the tests as written, which is the point:
+** `check-container-pins.sh` took the "nothing to pin" success path even after
+   failing on a `Dockerfile`, so the one repository shape the Dockerfile rule
+   exists to catch reported PASS; and it registered a stage name only after the
+   line that `continue`s, so the ordinary `FROM image@sha256:… AS build` +
+   `FROM build` pair was judged an unpinned remote image. Stage names are now
+   registered when parsed, before any branch can skip the rest of the line;
+** `pin-container-digests.sh` rewrote every `FROM` line, turning `FROM scratch`
+   and `FROM build` into `scratch@sha256:…` and `build@sha256:…` — corrupting the
+   multi-stage files it should leave alone, while the companion gate accepted the
+   result. It now splits FROM into flags/reference/tail and rewrites only the
+   reference of a remote image;
+** `check-spdx-headers.sh` judged emptiness per EXTENSION, so a valid Elixir tree
+   with `.ex` and no `.exs` (or OCaml `.ml` without `.mli`) failed for a language
+   it is written in. Emptiness is now judged per language, across all of its
+   extensions;
+** `render-mise.sh --langs` only changed the label: the tool list still came from
+   the tree's own detection, so a fixture asking for Julia was handed the docs
+   toolchain. `mise-tools` now accepts the language list, and `--check` compares
+   the declared toolchain rather than the rendered prose — which made it
+   impossible to pass on any repository that wrote its own header, the template
+   included;
+** `check-mise-language.sh` parsed only bare `[tools]` keys, and backend-qualified
+   tools MUST be quoted (`"npm:prettier"`), so the banned-tool check could never
+   see them; its `--detect` mirror also looked only at the root, calling a tree
+   with `src/interface/abi.ipkg` and `src/interface/ffi/build.zig` a docs
+   repository. Both now follow the engine, depths included, and the mirror lists
+   mise tools rather than each language's binaries;
+** `check-mint-tokens.sh` treated "no build/just/repo-init.just" as proof of a
+   minted tree — but that recipe is carried verbatim into every child, so no child
+   was ever recognised and an unfilled `{{PROJECT_NAME}}` passed (and
+   `survey-template-damage.sh` reported such repositories token-clean). The marker
+   is `archetypes/`, which the mint deletes;
+** `archetypes/*/prune.txt` dropped only `build/container/`, so a minted Julia
+   package and a minted Rust CLI both carried the Idris2/Zig seam: three languages
+   detected, `idris2` and `zig` installed, `idris2 --build` in `just build`. Both
+   presets declare neither the abi nor the ffi capability, so both now prune
+   `src/interface/`; `validate-rsr` requires the seam only of a tree that carries
+   it. The archetype tests assert the toolchain is single-language.
 
 ==== Added
 

@@ -196,9 +196,14 @@ recipe_tools() {
 }
 
 # Print deduplicated mise tools needed by the base, detected languages and recipes.
+# Usage: mise_tools [lang ...]
+# The language list defaults to what the tree detects; callers that already know
+# (scripts/render-mise.sh --langs) pass it, so an override actually changes the,
+# toolchain rather than only the label above it.
 mise_tools() {
-  local l t seen=" " out=()
-  for t in $MISE_BASE $(for l in "${LANGS[@]}"; do lang_mise "$l"; done) $(recipe_tools); do
+  local l t seen=" " out=() use=()
+  if [ "$#" -gt 0 ]; then use=("$@"); else use=("${LANGS[@]}"); fi
+  for t in $MISE_BASE $(for l in "${use[@]}"; do lang_mise "$l"; done) $(recipe_tools); do
     case "$seen" in *" $t "*) ;; *) out+=("$t"); seen="$seen$t " ;; esac
   done
   printf "%s\n" "${out[*]}"
@@ -938,7 +943,7 @@ cmd_search() {
 
 case "${1:-}" in
   guix-specs)         guix_specs ;;
-  mise-tools)         mise_tools ;;
+  mise-tools)         shift; mise_tools "$@" ;;
   langs)              printf '%s\n' "${LANGS[@]}" ;;
   doctor)             cmd_doctor ;;
   setup)              cmd_setup ;;
