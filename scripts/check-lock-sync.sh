@@ -12,7 +12,8 @@
 #   3. every ref NAMED anywhere in the lockfile resolves to a top-level
 #      `dependencies:` record — the lockfile has no dangling edges.
 #   4. every workflow file has a lockfile entry, even when it uses no actions;
-#   5. dependency metadata uses a named ref, never a SHA or placeholder;
+#   5. dependency ref metadata is a string naming a short branch/tag, never a
+#      SHA or placeholder, and matches its key unless that key is a full SHA;
 #   6. the lockfile version is the supported v0.0.3 format.
 #
 # Clause 3 is not decoration. It is the clause that catches the failure mode that
@@ -102,12 +103,38 @@ function ck(r,   at, s) {
   return tolower(substr(r, 1, at - 1)) substr(r, at)
 }
 
-# Check named-ref syntax without network access. Git allows one-level names
-# for branches/tags; see git-check-ref-format --allow-onelevel. Angle brackets
+# Full commit identities supported by the upstream resolver (SHA-1/SHA-256).
+# Keep the length checks separate from the regex for POSIX awk/mawk.
+function fullsha(r) {
+  return r ~ /^[0-9a-fA-F]+$/ && (length(r) == 40 || length(r) == 64)
+}
+
+# The v0.0.3 schema requires a string, not a YAML null, boolean, number or
+# collection. Recognize plain single-line names without coercing those types
+# into strings. Quoted names are handled separately, so e.g. "null" and
+# "123" remain eligible literal refs. Tags/anchors/block scalars are outside
+# the generated lockfile format; quote a literal name instead.
+function plainstring(r,   n) {
+  if (r == "" || r ~ /^(~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/) return 0
+  if (r ~ /^[#&*!|>\[{]/ || substr(r, 1, 1) == "`" || substr(r, 1, 1) == "@") return 0
+  n = r
+  gsub(/_/, "", n)
+  if (r ~ /^[-+0-9.]/ && (n ~ /^[-+]?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][-+]?[0-9]+)?$/ ||
+      n ~ /^[-+]?0[xX][0-9a-fA-F]+$/ ||
+      n ~ /^[-+]?0[oO][0-7]+$/ ||
+      n ~ /^[-+]?0[bB][01]+$/ ||
+      n ~ /^[-+]?\.(inf|Inf|INF)$/ || n ~ /^\.(nan|NaN|NAN)$/)) return 0
+  return 1
+}
+
+# Check short named-ref syntax without network access. Git allows one-level
+# names for branches/tags, but lock metadata forbids the refs/ namespace
+# prefix; see upstream lockfile.ValidEntryRef. Angle brackets
 # are additionally rejected here because lock metadata must not be a template
 # marker such as <sha-pinned>. Existence and commit resolution remain upstream
 # checks; this gate does not claim to prove them from a name alone.
 function namedref(r,   count, part, j) {
+  if (index(r, "refs/") == 1) return 0
   if (r == "" || r == "@" || r ~ /[[:cntrl:] ]/ || r ~ /[~^:?*\\]/ || index(r, "[")) return 0
   if (index(r, "<") || index(r, ">") || index(r, "..") || index(r, "@{") || index(r, "//")) return 0
   if (r ~ /^\// || r ~ /\/$/ || r ~ /\.$/) return 0
@@ -145,8 +172,10 @@ FILENAME == lockfile {
     # when its dependency key and commit: are correctly pinned to a SHA.
     if ($0 ~ /^        ref:/ && depkey != "") {
       rval = $0
-      sub(/^        ref:[[:space:]]*/, "", rval)
+      # Preserve the separator before # until comments are stripped: a
+      # comment-only value is YAML null, not a branch named #missing.
       sub(/[[:space:]]+#.*$/, "", rval)
+      sub(/^        ref:[[:space:]]*/, "", rval)
       sub(/[[:space:]]*$/, "", rval)
       hasref[ck(depkey)] = 1
       quote = substr(rval, 1, 1)
@@ -157,11 +186,17 @@ FILENAME == lockfile {
         }
         rval = substr(rval, 2, length(rval) - 2)
         if (quote == "\047") gsub(/\047\047/, "\047", rval)
+      } else if (!plainstring(rval)) {
+        invalidscalar[depkey] = (rval == "" ? "<empty or comment-only>" : rval)
+        next
       }
-      if (rval ~ /^[0-9a-fA-F]+$/ && length(rval) == 40) {
+      keyref = substr(depkey, index(depkey, "@") + 1)
+      if (fullsha(rval)) {
         selfsha[depkey] = rval
       } else if (!namedref(rval)) {
         invalidref[depkey] = (rval == "" ? "<empty>" : rval)
+      } else if (!fullsha(keyref) && rval != keyref) {
+        mismatchref[depkey] = rval
       }
       next
     }
@@ -314,8 +349,8 @@ END {
     bad = 1
   }
 
-  # --- clause 5: NO SELF-SHA REFS. GitHub rejects any dependencies: record whose
-  #     `ref:` is a 40-hex commit SHA ("invalid lockfile pin", standards#1271). ---
+  # --- clause 5: GitHub requires string-valued short source refs, matching
+  #     mutable keys, never 40/64-hex commit identities as ref metadata. ---
   nself = 0; selflist = ""
   for (s in selfsha) {
     nself++
@@ -323,7 +358,7 @@ END {
   }
   if (nself > 0) {
     printf "FAIL actions.lock: SELF-SHA REFS\n"
-    printf "     %d dependencies: record(s) use a 40-hex SHA as ref: (rejected by GitHub runner):%s\n", nself, selflist
+    printf "     %d dependencies: record(s) use a 40/64-hex SHA as ref: (rejected by GitHub runner):%s\n", nself, selflist
     bad = 1
   }
 
@@ -337,6 +372,28 @@ END {
   if (ninvalid > 0) {
     printf "FAIL actions.lock: INVALID NAMED REFS\n"
     printf "     %d dependencies: record(s) have missing, placeholder or malformed ref: metadata:%s\n", ninvalid, invalidlist
+    bad = 1
+  }
+
+  nscalar = 0; scalarlist = ""
+  for (d in invalidscalar) {
+    nscalar++
+    scalarlist = scalarlist sprintf("\n       %s (ref: %s)", d, invalidscalar[d])
+  }
+  if (nscalar > 0) {
+    printf "FAIL actions.lock: INVALID REF SCALARS\n"
+    printf "     %d dependencies: record(s) have non-string or unsupported YAML ref: values; quote literal names:%s\n", nscalar, scalarlist
+    bad = 1
+  }
+
+  nmismatch = 0; mismatchlist = ""
+  for (d in mismatchref) {
+    nmismatch++
+    mismatchlist = mismatchlist sprintf("\n       %s (ref: %s)", d, mismatchref[d])
+  }
+  if (nmismatch > 0) {
+    printf "FAIL actions.lock: MISMATCHED REFS\n"
+    printf "     %d dependencies: record(s) disagree with their mutable key refs:%s\n", nmismatch, mismatchlist
     bad = 1
   }
 
@@ -370,8 +427,9 @@ END {
     print "     with no uses: takes an empty list:  \047.github/workflows/x.yml\047: []"
     print "     `gh actions-lock` has been observed to OMIT such a workflow entirely; that"
     print "     omission is itself the defect, so re-running the tool may not add it."
-    print "  5. Every dependency ref: must name a real branch or tag. Preserve the immutable"
-    print "     commit: sha1-... pin; do not replace ref: with that SHA or a placeholder."
+    print "  5. Every dependency ref: must be a string naming a short branch or tag and"
+    print "     match the key ref unless the key is a full SHA. Preserve the immutable"
+    print "     commit: pin; do not replace ref: with that SHA, a placeholder or a refs/ name."
     exit 1
   }
   printf "actions.lock is in sync and transitively closed:\n"
@@ -379,7 +437,7 @@ END {
   printf "  * every lockfile entry is still referenced\n"
   printf "  * every ref named in the lockfile resolves to a dependencies: record (0 dangling edges)\n"
   printf "  * every workflow file has a lockfile key (zero-uses: workflows included)\n"
-  printf "  * dependency ref: metadata has valid named-ref syntax, without placeholders or SHAs\n"
+  printf "  * dependency ref: metadata uses string-valued short names, matches mutable keys, and has no placeholders or SHAs\n"
   if (nunref > 0)
     printf "  note: %d dependencies: record(s) are unreferenced - harmless, but prunable.\n", nunref
 }
