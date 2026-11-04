@@ -120,5 +120,31 @@ OWNER=example-owner REPO=geo-tools
 . "$rule_script"
 check 'geo and geo' 'geo-tools and geo-tools'
 
+# ── Literal marker-like text survives (Codex review of #274) ─────────────────
+# The pass marks matches before replacing them; markers that are plain text
+# rewrote a user's literal "__TEMPLATE_NAME__". They are control characters now.
+TEMPLATE_OWNER=example-owner TEMPLATE_REPO=app
+TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
+OWNER=other-owner REPO=new
+# shellcheck disable=SC1090
+. "$rule_script"
+check 'app handles __TEMPLATE_NAME__ and __TEMPLATE_SLUG__ text' 'new handles __TEMPLATE_NAME__ and __TEMPLATE_SLUG__ text'
+
+# ── The owner rewrite takes every form the identity parser accepts ───────────
+owner_line=$(grep -m1 -E '^ +sed -i -E "s\|\^\(\(export' "$recipe") \
+  || { echo "FAIL: no owner rewrite for export/single-quoted OWNER in $recipe" >&2; exit 1; }
+sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+ofix=$(mktemp -d)
+for form in 'OWNER := "example-owner"' "OWNER := 'example-owner'" 'export OWNER := "example-owner"'; do
+  printf '%s\n' "$form" > "$ofix/Justfile"
+  (cd "$ofix" && TEMPLATE_OWNER=example-owner OWNER=other-owner; eval "${owner_line#"${owner_line%%[! ]*}"}")
+  if grep -q 'other-owner' "$ofix/Justfile" && ! grep -q 'example-owner' "$ofix/Justfile"; then
+    echo "  PASS owner: $form"
+  else
+    echo "  FAIL owner: $form -> $(cat "$ofix/Justfile")" >&2; fail=1
+  fi
+done
+rm -rf "$ofix"
+
 [ "$fail" -eq 0 ] || { echo "FAIL: self-name pass" >&2; exit 1; }
 echo 'PASS: self-name pass rewrites the derived template name, keeps issue references, provenance and detectors'

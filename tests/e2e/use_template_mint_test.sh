@@ -158,6 +158,18 @@ grep -q 'RSR_TEMPLATE_SLUG' "$work/no-identity.log" \
 [ -z "$(g -C "$J" status --porcelain)" ] || fail 'the missing-identity mint wrote to the tree'
 pass "(a-) a Justfile identity repo-init cannot read stops the mint and names RSR_TEMPLATE_SLUG"
 
+# ── 4c. Control: an answer with a newline is refused before the first write ─
+# (Codex review of #274: the refusal used to come after the overlay, the
+# prune and the docs seed had already written.)
+NL="$work/newline"
+use_template "$NL"
+MINT_ENV=(PROJECT_DESCRIPTION=$'line one\nline two')
+if mint "$NL" "$work/newline.log"; then fail 'an answer with a newline was accepted'; fi
+MINT_ENV=()
+grep -q 'contains a newline' "$work/newline.log" || { cat "$work/newline.log" >&2; fail 'the newline refusal did not say why'; }
+[ -z "$(g -C "$NL" status --porcelain)" ] || { g -C "$NL" status --short | head >&2; fail 'the refused mint wrote to the tree'; }
+pass "(a-) an answer containing a newline is refused before anything is written"
+
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2

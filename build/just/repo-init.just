@@ -359,6 +359,17 @@ repo-init archetype="":
     ask "Proceed? [Y/n] " CONFIRM
     [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
 
+    # An answer is one line: no sed expression, deed string or prompt can carry
+    # a newline. Refused HERE, before the first write (the overlay, the prune
+    # and the docs seed all come next), so a bad answer leaves a clean tree.
+    for _ans in PROJECT_NAME PROJECT_DESCRIPTION OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG \
+                AUTHOR_LAST AUTHOR_FIRST FORGE SECURITY_EMAIL CONDUCT_EMAIL PROJECT_TYPE \
+                WEBSITE SERVICE_NAME PORT REGISTRY AUTHOR_EMAIL_ALT AUTHOR_ORCID OPENSSF_BP_ID; do
+        case "${!_ans:-}" in
+            *$'\n'*) echo "Error: the answer for $_ans contains a newline; answers are one line."; exit 1 ;;
+        esac
+    done
+
     # Chain mint: everything below renders a TEMPLATE tree, which this is not.
     # chain-mint.sh renders the template afresh with these answers and carries
     # this tree's own work across; it writes nothing unless it succeeds.
@@ -487,16 +498,8 @@ repo-init archetype="":
     # inserts the matched token, `\` escapes, `|` ends the expression. A
     # description "Tools & proofs" rendered as "Tools <the token> proofs" and
     # then failed the placeholder gate; a `|` broke the substitution. Every
-    # answer goes through sed_rhs, and a newline (which no sed expression can
-    # carry) is refused by name before anything is written.
+    # answer goes through sed_rhs. (A newline was refused before the first write.)
     sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
-    for _ans in PROJECT_NAME PROJECT_DESCRIPTION OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG \
-                AUTHOR_LAST AUTHOR_FIRST FORGE SECURITY_EMAIL CONDUCT_EMAIL PROJECT_TYPE \
-                WEBSITE SERVICE_NAME PORT REGISTRY AUTHOR_EMAIL_ALT AUTHOR_ORCID OPENSSF_BP_ID; do
-        case "${!_ans:-}" in
-            *$'\n'*) echo "Error: the answer for $_ans contains a newline; answers are one line."; exit 1 ;;
-        esac
-    done
 
     # Build the sed expression list
     # Note: using | as delimiter since URLs contain /
@@ -764,7 +767,7 @@ repo-init archetype="":
         # loops (:label … t label) because a match consumes its right-hand
         # neighbour, and marks through a sentinel so a new name that contains
         # the old one (Geometry -> Geometry.jl) cannot loop forever.
-        SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1__TEMPLATE_ISSUE__\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1__TEMPLATE_SLUG__\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1__TEMPLATE_NAME__\\2@;tn;s@__TEMPLATE_SLUG__@${OWNER}/${REPO}@g;s@__TEMPLATE_NAME__@${REPO}@g;s@__TEMPLATE_ISSUE__@${TEMPLATE_REPO}#@g;}"
+        SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
         # Paths that are ABOUT the template keep its name wholesale: its ADRs,
         # changelog and audits. Template machinery (this recipe, the tests whose
         # fixtures must stay the template's literal name) is not in mint_files
@@ -817,7 +820,9 @@ repo-init archetype="":
     # every child genuinely points at, and rewriting those would break the
     # child's canon, CI and badges.
     if [ "$OWNER" != "$TEMPLATE_OWNER" ]; then
-        sed -i -E 's|^(OWNER[[:space:]]*:=[[:space:]]*)"'"${TEMPLATE_OWNER}"'"|\1"'"${OWNER}"'"|' Justfile
+        # The same declaration forms the identity parser accepts: optional
+        # `export`, either quote (Codex review of #274).
+        sed -i -E "s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|" Justfile
         sed -i -E 's|^sonar\.organization='"${TEMPLATE_OWNER}"'$|sonar.organization='"${OWNER}"'|' sonar-project.properties
         sed -i -E 's|^sonar\.projectKey='"${TEMPLATE_OWNER}"'_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
