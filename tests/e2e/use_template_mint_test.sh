@@ -210,9 +210,17 @@ if grep -qF "${LB}OWNER${RB}" "$C/mint-probe.md"; then fail 'probe: the substitu
 # The probe stays: it was a repository file at mint, so the map lists it.
 pass "(c) ignored files are byte-identical, none created but the arrival-pack artefact; the same content in a repository file was rewritten"
 
-# ── (d) the drift gate is no longer recommended for a minted repo ───────────
-if grep -q 'arm the drift gate' "$work/mint.log"; then fail 'repo-init still recommends arming the drift gate'; fi
+# ── (d) the drift gate replays the mint, and a fresh mint is green ──────────
+grep -q 'arm the drift gate' "$work/mint.log" || fail 'repo-init does not recommend arming the drift gate'
 grep -q 'scripts/check-template-conformance.sh' "$work/mint.log" || fail 'repo-init does not point at the conformance check'
+# The answers are recorded, verbatim (the description carries & and |).
+[ "$(field mint-answers description)" = "$DESC" ] || fail "(mint-answers :description) is '$(field mint-answers description)'"
+[ "$(field mint-answers repo)" = mint-check ] && [ -n "$(field mint-answers mint-date)" ] \
+    || fail '(mint-answers) lacks the repo or the mint date'
+# The probe is the child's own addition after the mint: declared, as a child
+# declares its additions (and this exercises the declared path).
+sed -i 's|^      :added ()|      :added ("mint-probe.md")|' "$DEED"
+grep -q ':added ("mint-probe.md")' "$DEED" || fail 'fixture: could not declare the probe'
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
 # Minting the minted child again must stop before it writes: its tokens are
@@ -226,16 +234,21 @@ grep -qF "records its template as ${T_SLUG}" "$work/remint.log" || fail 'the re-
 pass "(e-) minting an already-minted repo stops before writing and names its template"
 (cd "$C" && bash scripts/check-template-conformance.sh --quiet) > "$work/conf.log" 2>&1 \
     || { cat "$work/conf.log" >&2; fail 'the conformance check fails on a fresh mint'; }
-# The gate itself must still FAIL here (no silent green), say why, and not
-# list the mint's own removals, which the (variant) clause now declares.
-if (cd "$C" && bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1; then
-    fail 'the drift gate turned green on a minted repo without (normalise) support: suspicious'
-fi
-grep -q 'records :role "minted-repo"' "$work/drift.log" || fail 'the drift gate does not explain its minted-repo findings'
-if grep -q 'declare in paths.removed' "$work/drift.log"; then
-    grep 'declare in paths.removed' "$work/drift.log" >&2; fail 'the mint removed paths it did not declare'
-fi
-pass "(d) stage 8 points at the conformance check (green); the drift gate still fails loudly, removals declared"
+# A fresh mint is identical to a replay of itself: green, by construction.
+drift() { (cd "$C" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1; }
+drift || { cat "$work/drift.log" >&2; fail 'the drift gate is red on a fresh mint'; }
+grep -q 'identical to a replay of the mint' "$work/drift.log" || fail 'the drift gate did not replay the mint'
+pass "(d) the drift gate replays the mint from (provenance) and (mint-answers): green on a fresh mint"
+# Negative control: an edit to a file the mint produced, and an undeclared
+# addition, are each named. Then restored, and green again.
+printf '\nedited after the mint\n' >> "$C/README.adoc"
+printf 'stray\n' > "$C/stray.txt"
+if drift; then fail 'the drift gate missed an edit and an undeclared addition'; fi
+grep -q '^DRIFT: README.adoc differs' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the edited README.adoc was not named'; }
+grep -q '^DRIFT: stray.txt exists here' "$work/drift.log" || fail 'the undeclared stray.txt was not named'
+[ "$(grep -c '^DRIFT:' "$work/drift.log")" -eq 2 ] || { cat "$work/drift.log" >&2; fail 'the drift gate reported more than the two changes'; }
+g -C "$C" checkout -q -- README.adoc; rm "$C/stray.txt"
+pass "(d-) an edited file and an undeclared addition are named; nothing else is"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the

@@ -295,8 +295,15 @@ repo-init archetype="":
     # hyphens of a slug and the dot of a Julia slug alike.
     PROJECT_UPPER=$(echo "$REPO" | tr '[:lower:]-.' '[:upper:]__')
     PROJECT_LOWER=$(echo "$REPO" | tr '[:upper:]-.' '[:lower:]__')
-    CURRENT_YEAR=$(date +%Y)
-    CURRENT_DATE=$(date +%Y-%m-%d)
+    # The mint date is an input like any answer: RSR_MINT_DATE replays a mint
+    # exactly (scripts/check-mint-drift.sh re-mints a child with the date it
+    # recorded). Otherwise it is today. The year always follows the date.
+    CURRENT_DATE="${RSR_MINT_DATE:-$(date +%Y-%m-%d)}"
+    if [[ ! "$CURRENT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! date -d "$CURRENT_DATE" >/dev/null 2>&1; then
+        echo "Error: RSR_MINT_DATE must be a real date, YYYY-MM-DD (got '${CURRENT_DATE}')."
+        exit 1
+    fi
+    CURRENT_YEAR="${CURRENT_DATE:0:4}"
     VERSION="0.1.0"
 
     # --- Derive the repo's uuid --------------------------------------------
@@ -974,12 +981,11 @@ repo-init archetype="":
     {
         echo "  ; variant — provenance contract (ADR-0002 shape; ADR-0003 use)."
         echo "  ; Records what this repo was minted from, for re-templating tooling and"
-        echo "  ; the drift gate (scripts/check-variant-drift.sh). The mint renders"
-        echo "  ; tokens and rewrites files, so most spine files differ from the parent"
-        echo "  ; by design, and (normalise) does not yet fold the mint's answers"
-        echo "  ; (ADR-0003): the gate is not armed for a minted repo. Measured on a"
-        echo "  ; fresh mint (2026-10-20): 101 rendered files differ. The template pin"
-        echo "  ; is checked by scripts/check-template-conformance.sh instead."
+        echo "  ; the drift gate. For a minted repo the gate replays the mint from"
+        echo "  ; (provenance) and (mint-answers) and diffs this tree against the"
+        echo "  ; replay (scripts/check-mint-drift.sh), so only edits made after the"
+        echo "  ; mint count. Declare those in (paths) below; the derived files are"
+        echo "  ; declared already, since their own gates keep them fresh."
         echo "  (variant"
         echo "    :project \"${REPO}\""
         echo "    :schema-version \"0.1.0\""
@@ -999,7 +1005,7 @@ repo-init archetype="":
         printf '      :removed ('; _sep=""
         for _p in "${_removed[@]}"; do printf '%s"%s"' "$_sep" "$_p"; _sep=" "; done
         printf ')\n'
-        echo "      :diverged (\"${REPO}_chora.deed\" \"docs/status/ROADMAP.adoc\")))"
+        echo "      :diverged (\"${REPO}_chora.deed\" \"docs/status/ROADMAP.adoc\" \"CLAUDE.md\" \"docs/architecture/REPOSITORY-MAP.adoc\")))"
     } | put_clause variant
     if [ "$PARENT_PIN" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (variant) — parent-pin UNASSIGNED (offline?)"
@@ -1049,6 +1055,36 @@ repo-init archetype="":
         echo "    ; the validation step below already fails on a leftover token."
         echo "    (substitutions :rendered 34 :unassigned ()))"
     } | put_clause provenance
+
+    # ── (mint-answers) — the answers, so the mint can be replayed ───────────
+    # Provenance names the template commit; this names what it was rendered
+    # with. Together they make the mint a function that can be run again:
+    # scripts/check-mint-drift.sh re-mints the template at the pin with these
+    # answers and diffs the child against the result, so drift is measured
+    # exactly instead of through hand-written (normalise) rules (ADR-0003).
+    # Owner ruling (2026-11-04): record only values the mint already writes
+    # into the child's own files (names, contacts, description, URLs), so the
+    # record publishes nothing new. Deed strings escape `\` and `"`.
+    deed_str() { printf '%s' "$1" | sed -e 's/[\\"]/\\&/g'; }
+    {
+        echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
+        echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
+        echo "  ; here already appears in this repo's rendered files."
+        echo "  (mint-answers"
+        for _pair in project-name:PROJECT_NAME repo:REPO owner:OWNER author:AUTHOR \
+                     author-email:AUTHOR_EMAIL author-org:AUTHOR_ORG \
+                     author-email-alt:AUTHOR_EMAIL_ALT author-orcid:AUTHOR_ORCID \
+                     description:PROJECT_DESCRIPTION forge:FORGE \
+                     security-email:SECURITY_EMAIL conduct-email:CONDUCT_EMAIL \
+                     project-type:PROJECT_TYPE website:WEBSITE \
+                     openssf-bp-id:OPENSSF_BP_ID service-name:SERVICE_NAME \
+                     port:PORT registry:REGISTRY archetype:ARCHETYPE; do
+            _var="${_pair#*:}"
+            echo "    :${_pair%%:*} \"$(deed_str "${!_var:-}")\""
+        done
+        echo "    :mint-date \"${CURRENT_DATE}\")"
+    } | put_clause mint-answers
+    echo "  answers:    $DEED_OUT (mint-answers) — replayable with scripts/check-mint-drift.sh"
 
     if [ "$CANON_VERSION" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (provenance) — canon pin UNASSIGNED"
@@ -1310,6 +1346,17 @@ repo-init archetype="":
     # real. (Spelled out in words because just interpolates double braces
     # anywhere in a recipe, comments included, and an undefined variable here
     # takes the whole Justfile down, not just this recipe.)
+    # Replay (scripts/check-mint-drift.sh): every tree-writing step has run, so
+    # the reconstruction is complete. What follows only checks the tree, and a
+    # replay with a past RSR_MINT_DATE would fail it for the wrong reason
+    # (security.txt Expires is the end of the mint year). The child's own CI
+    # runs those checks on the child; the replay exists only to be compared.
+    if [ "${RSR_MINT_REPLAY:-0}" = "1" ]; then
+        echo ""
+        echo "Replay complete (RSR_MINT_REPLAY=1): post-write checks left to the child's CI."
+        exit 0
+    fi
+
     if [ -f www/tests/run-all.sh ]; then
         echo ""
         echo "Running www/ site-operations suite..."
@@ -1349,8 +1396,7 @@ repo-init archetype="":
         echo "     must be set to ci/.gitlab-ci.yml, or GitLab CI silently never"
         echo "     runs - no pipeline and no error. See ci/README.adoc."
     fi
-    echo "  8. HARNESS — check the recorded template pin (provenance):"
-    echo "       scripts/check-template-conformance.sh [--template <template-checkout>]"
-    echo "     scripts/check-variant-drift.sh is not for a minted repo yet: the mint"
-    echo "     renders most spine files, so they differ from the parent by design"
-    echo "     until (normalise) folds the mint's answers (ADR-0003)."
+    echo "  8. HARNESS — check the recorded pin, then arm the drift gate, which replays"
+    echo "     this mint from (provenance) and (mint-answers) and diffs the result:"
+    echo "       scripts/check-template-conformance.sh"
+    echo "       scripts/check-variant-drift.sh <template-checkout>"
