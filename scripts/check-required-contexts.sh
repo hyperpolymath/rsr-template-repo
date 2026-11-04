@@ -58,19 +58,52 @@ function fail(msg) {
   errors++;
 }
 
-/** Return the check-run names a parsed workflow's jobs produce (GitHub nests reusables at most four deep). */
-function producedNames(doc, depth = 0) {
+/**
+ * Expand a job's name over a literal `strategy.matrix`, the way GitHub names
+ * the check runs: a name that references `matrix.<key>` is evaluated per
+ * combination; any other name gets the combination's values appended,
+ * `name (v1, v2)`. Returns null when that cannot be done statically:
+ * include/exclude, a computed matrix or value, or another expression in the
+ * name.
+ */
+function matrixNames(name, job) {
+  const matrix = job?.strategy?.matrix;
+  const exprs = [...name.matchAll(/\$\{\{\s*(.*?)\s*\}\}/g)].map((m) => m[1]);
+  if (matrix === undefined) return exprs.length === 0 ? [name] : null;
+  if (matrix === null || typeof matrix !== "object" || Array.isArray(matrix)) return null;
+  if ("include" in matrix || "exclude" in matrix) return null;
+  const keys = Object.keys(matrix);
+  const literal = (v) => v !== null && typeof v !== "object" && !String(v).includes("${{");
+  if (keys.length === 0 || keys.some((k) => !Array.isArray(matrix[k]) || !matrix[k].every(literal))) return null;
+  if (exprs.some((e) => !e.startsWith("matrix.") || !keys.includes(e.slice(7)))) return null;
+  let combos = [{}];
+  for (const k of keys) combos = combos.flatMap((c) => matrix[k].map((v) => ({ ...c, [k]: String(v) })));
+  return combos.map((c) =>
+    exprs.length > 0
+      ? name.replace(/\$\{\{\s*matrix\.(.*?)\s*\}\}/g, (_, k) => c[k])
+      : `${name} (${keys.map((k) => c[k]).join(", ")})`);
+}
+
+/**
+ * Return the check-run names a parsed workflow's jobs produce (GitHub nests
+ * reusables at most four deep), adding to `unresolved` each job whose names
+ * cannot be known statically.
+ */
+function producedNames(doc, unresolved, depth = 0) {
   const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
   const names = [];
   for (const [id, job] of Object.entries(jobs)) {
     const name = String(job?.name ?? id);
     const uses = typeof job?.uses === "string" ? job.uses : null;
-    if (uses === null) {
-      names.push(name);
+    const expanded = matrixNames(name, job);
+    if (expanded === null || (uses !== null && job?.strategy?.matrix !== undefined)) {
+      unresolved.push(name);
+    } else if (uses === null) {
+      names.push(...expanded);
     } else if (uses.startsWith("./.github/workflows/") && depth < 4) {
       const called = join(root, uses.slice(2));
       if (existsSync(called)) {
-        for (const inner of producedNames(Bun.YAML.parse(readFileSync(called, "utf8")), depth + 1)) {
+        for (const inner of producedNames(Bun.YAML.parse(readFileSync(called, "utf8")), unresolved, depth + 1)) {
           names.push(`${name} / ${inner}`);
         }
       }
@@ -145,15 +178,20 @@ for (const [ctx, relWf] of mapped.entries()) {
       fail(`required context '${ctx}' producer '${relWf}' filters pull_request by paths — strands PRs that do not touch those paths`);
     }
   }
-  // A job's check-run name is its `name:` (or its id when unnamed). A job that
-  // calls a reusable workflow produces `<caller name> / <called job name>`
-  // instead, one per called job; a remote reusable cannot be read from here,
-  // so it produces nothing this gate can certify. Without a job of exactly
-  // the context's name the context is never produced, however the workflow
-  // is triggered.
-  const checkNames = producedNames(doc);
+  // A job's check-run name is its `name:` (or its id when unnamed), expanded
+  // over a literal matrix. A job that calls a reusable workflow produces
+  // `<caller name> / <called job name>` instead, one per called job; a remote
+  // reusable cannot be read from here, so it produces nothing this gate can
+  // certify. Without a job of exactly the context's name the context is never
+  // produced, however the workflow is triggered; a job whose names cannot be
+  // known statically is named, never assumed to match.
+  const unresolved = [];
+  const checkNames = producedNames(doc, unresolved);
   if (!checkNames.includes(ctx)) {
-    fail(`required context '${ctx}' producer '${relWf}' has no job named '${ctx}' (jobs: ${checkNames.join(", ") || "none"})`);
+    const why = unresolved.length > 0
+      ? `; not resolvable statically (matrix include/exclude, computed values, or other expressions in the name): ${unresolved.join(", ")}`
+      : "";
+    fail(`required context '${ctx}' producer '${relWf}' has no job named '${ctx}' (jobs: ${checkNames.join(", ") || "none"})${why}`);
   }
 }
 

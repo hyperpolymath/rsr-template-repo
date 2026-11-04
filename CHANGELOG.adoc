@@ -69,7 +69,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    job could strand pull requests behind an unproducible required check. A
    job that calls a local reusable workflow counts as producing
    `<caller> / <called job>`; one that calls a remote reusable produces
-   nothing the gate can certify;
+   nothing the gate can certify. A literal matrix is expanded as GitHub
+   names its runs; a matrix with include/exclude or computed values is
+   refused by name, never assumed to match;
 ** `repo-init` and `container-init` filled the container tokens without
    reformatting the KYAML, so a fresh child that keeps its containers failed
    Estate Rules' "Converted YAML stays KYAML". Both now run

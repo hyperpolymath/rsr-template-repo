@@ -301,6 +301,18 @@ printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / gitleaks\
 assert_rc 1 'a reusable caller named like the context does not produce it' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / gitleaks\n    uses: example/repo/.github/workflows/inner.yaml@0123456789012345678901234567890123456789\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'a remote reusable produces nothing the gate can certify' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+# GitHub names matrix runs `name (v1, v2)`, or evaluates a name that refers to
+# the matrix; anything the gate cannot expand statically is refused, by name.
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan\n    strategy: {matrix: {tool: [gitleaks, trufflehog]}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
+printf 'scan (gitleaks) => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 0 'a literal matrix names its runs `name (value)`' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matrix.tool }}\n    strategy: {matrix: {tool: [gitleaks]}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
+printf 'scan / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 0 'a name that refers to the matrix is evaluated per run' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matrix.tool }}\n    strategy: {matrix: {tool: [gitleaks], include: [{tool: trufflehog}]}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a matrix with include is refused, not guessed' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matrix.tool }}\n    strategy: {matrix: ${{ fromJSON(vars.TOOLS) }}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a computed matrix is refused, not guessed' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 rm "$context_tree/.github/workflows/inner.yaml"
 printf 'name: Scan\non: pull_request_target\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'pull_request_target alone cannot produce a required PR check' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
