@@ -296,3 +296,35 @@ fresh
 sha_key
 set_ref 'release#1'
 expect 0 'OK' 'a hash inside a quoted name is not a YAML comment'
+
+# A closing quote must terminate the scalar, not merely match its last byte.
+# Doubled single quotes remain valid YAML escaping inside a literal name.
+for scalar in "'main'junk'" '"main"junk"'; do
+  fresh
+  sha_key
+  set_ref_scalar "$scalar"
+  expect 1 'INVALID NAMED REFS' "content after a quoted scalar is refused: $scalar"
+done
+for scalar in "'main''junk'" "\"main'junk\""; do
+  fresh
+  sha_key
+  set_ref_scalar "$scalar"
+  expect 0 'OK' "properly quoted literal name remains valid: $scalar"
+done
+
+# Case-folded lookup cannot lend one raw dependency record another's ref.
+fresh
+sha_key
+sed -i "/^        ref:/d; s/^    'owner\/repo@/    'Owner\/Repo@/" "$work/current/actions.lock"
+cat >> "$work/current/actions.lock" <<'LOCK'
+    'owner/repo@1111111111111111111111111111111111111111':
+        ref: 'main'
+        commit: 'sha1-1111111111111111111111111111111111111111'
+        owner_id: 1
+        repo_id: 2
+LOCK
+expect 1 'Owner/Repo@1111111111111111111111111111111111111111 (ref: <missing ref>)' 'a later case variant cannot mask an earlier missing ref'
+sed -i "/^    'Owner\/Repo@/a\        ref: 'main'" "$work/current/actions.lock"
+expect 0 'OK' 'case variants pass when each raw dependency record has its own ref'
+sed -i "/^    'owner\/repo@/,/^        repo_id:/ { /^        ref:/d; }" "$work/current/actions.lock"
+expect 1 'owner/repo@1111111111111111111111111111111111111111 (ref: <missing ref>)' 'an earlier case variant cannot mask a later missing ref'
