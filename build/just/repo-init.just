@@ -600,6 +600,11 @@ repo-init archetype="":
         fi
     done
 
+    # The pass above fills the container tokens too (SERVICE_NAME, PORT,
+    # REGISTRY), which changes how KYAML quotes them; reformat the configs or
+    # Estate Rules' "Converted YAML stays KYAML" fails the child.
+    bash scripts/format-container-kyaml.sh
+
     # [YOUR-REPO-NAME] and [YOUR-NAME/ORG] (the family-7 allocation manifest
     # folded into the deed — standards#837 pilot) are replaced in the deed,
     # found by its shape rather than by the original template's file name: in

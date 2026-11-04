@@ -66,11 +66,17 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    a second pass;
 ** `scripts/check-required-contexts.sh` checked a mapped context's workflow
    trigger but not that a job with that check-run name exists, so a renamed
-   job could strand pull requests behind an unproducible required check;
-** `container-init` filled the container tokens without reformatting the
-   KYAML, so a fresh child failed Estate Rules' "Converted YAML stays
-   KYAML". It now runs `scripts/kyaml-format.sh` on the three configs and
-   stops with the command to run when it cannot;
+   job could strand pull requests behind an unproducible required check. A
+   job that calls a local reusable workflow counts as producing
+   `<caller> / <called job>`; one that calls a remote reusable produces
+   nothing the gate can certify;
+** `repo-init` and `container-init` filled the container tokens without
+   reformatting the KYAML, so a fresh child that keeps its containers failed
+   Estate Rules' "Converted YAML stays KYAML". Both now run
+   `scripts/format-container-kyaml.sh` after their substitution pass, and stop
+   with the command to run when no KYAML-capable yq is available. Estate
+   Rules installs its pinned yq before the mint steps, and
+   `use_template_mint_test.sh` checks the minted configs;
 ** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or
    `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
    gate then rejected in a child;

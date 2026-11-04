@@ -225,4 +225,17 @@ pass "the committed map is fresh (the index-mode control reproduces lintel's sta
     || { cat "$work/ph.log" >&2; fail 'the minted child fails its own placeholder gate'; }
 pass "the minted child passes its own placeholder gate"
 
+# The substitution pass fills the container tokens, which changes how KYAML
+# quotes them; Estate Rules' "Converted YAML stays KYAML" checks the child.
+[ -f "$C/build/container/compose.yaml" ] \
+    || fail 'fixture: the default mint no longer keeps build/container/; this check is vacuous'
+kyaml_files=()
+for f in build/container/compose.yaml build/container/compose.example.yaml \
+         build/container/stapeln/.gatekeeper.yaml; do
+    if [ -f "$C/$f" ]; then kyaml_files+=("$f"); fi
+done
+(cd "$C" && bash scripts/kyaml-format.sh --check "${kyaml_files[@]}") > "$work/kyaml.log" 2>&1 \
+    || { cat "$work/kyaml.log" >&2; fail 'the minted container configs are not canonical KYAML'; }
+pass "the minted container configs are canonical KYAML"
+
 echo "PASS: Use-this-template mint"

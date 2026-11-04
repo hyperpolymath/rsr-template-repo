@@ -292,6 +292,16 @@ sed -i 's|name: scan / gitleaks|name: scan / renamed|' "$context_tree/.github/wo
 assert_rc 1 'a renamed job no longer produces the required context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Scan\non: pull_request\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'a PR-triggered workflow with no jobs produces no context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+# A job that calls a reusable workflow produces `<caller> / <called job>`,
+# never its own name alone; a remote reusable cannot be certified from here.
+printf 'name: Inner\non: workflow_call\njobs:\n  g:\n    name: gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/inner.yaml"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: ./.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 0 'a local reusable produces <caller> / <called job>' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / gitleaks\n    uses: ./.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a reusable caller named like the context does not produce it' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / gitleaks\n    uses: example/repo/.github/workflows/inner.yaml@0123456789012345678901234567890123456789\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a remote reusable produces nothing the gate can certify' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+rm "$context_tree/.github/workflows/inner.yaml"
 printf 'name: Scan\non: pull_request_target\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'pull_request_target alone cannot produce a required PR check' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Scan\non:\n  pull_request:\n    paths-ignore: []\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"

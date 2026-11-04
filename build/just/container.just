@@ -106,21 +106,9 @@ container-init:
         fi
     done
 
-    # Filling a token can change how KYAML quotes the value (a token needs
-    # quotes, a bare service name does not), so reformat the KYAML configs or
+    # Filling a token can change how KYAML quotes it; reformat the configs or
     # Estate Rules' "Converted YAML stays KYAML" fails the child.
-    KYAML_FILES=()
-    for f in build/container/compose.yaml build/container/compose.example.yaml \
-             build/container/stapeln/.gatekeeper.yaml; do
-        if [ -f "$f" ]; then KYAML_FILES+=("$f"); fi
-    done
-    if [ "${#KYAML_FILES[@]}" -gt 0 ]; then
-        if ! bash scripts/kyaml-format.sh "${KYAML_FILES[@]}"; then
-            echo "error: container KYAML is not canonical after filling the tokens." >&2
-            echo "  Install yq v4.53.3+ and run: bash scripts/kyaml-format.sh ${KYAML_FILES[*]}" >&2
-            exit 1
-        fi
-    fi
+    bash scripts/format-container-kyaml.sh
 
     # The k9-svc deploy component ships as a template (deploy.k9.ncl.in): a
     # file with brace tokens is not a K9 component. Render it once nothing is

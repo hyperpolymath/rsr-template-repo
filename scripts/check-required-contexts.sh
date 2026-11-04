@@ -58,6 +58,27 @@ function fail(msg) {
   errors++;
 }
 
+/** Return the check-run names a parsed workflow's jobs produce (GitHub nests reusables at most four deep). */
+function producedNames(doc, depth = 0) {
+  const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
+  const names = [];
+  for (const [id, job] of Object.entries(jobs)) {
+    const name = String(job?.name ?? id);
+    const uses = typeof job?.uses === "string" ? job.uses : null;
+    if (uses === null) {
+      names.push(name);
+    } else if (uses.startsWith("./.github/workflows/") && depth < 4) {
+      const called = join(root, uses.slice(2));
+      if (existsSync(called)) {
+        for (const inner of producedNames(Bun.YAML.parse(readFileSync(called, "utf8")), depth + 1)) {
+          names.push(`${name} / ${inner}`);
+        }
+      }
+    }
+  }
+  return names;
+}
+
 // 1. Parse mapping file: "<context> => <.github/workflows/foo.yml>"
 const mapped = new Map();
 const lines = readFileSync(allowPath, "utf8").split(/\r?\n/);
@@ -124,11 +145,13 @@ for (const [ctx, relWf] of mapped.entries()) {
       fail(`required context '${ctx}' producer '${relWf}' filters pull_request by paths — strands PRs that do not touch those paths`);
     }
   }
-  // A job's check-run name is its `name:` (or its id when unnamed). Without a
-  // job of exactly that name the context is never produced, however the
-  // workflow is triggered.
-  const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
-  const checkNames = Object.entries(jobs).map(([id, job]) => String(job?.name ?? id));
+  // A job's check-run name is its `name:` (or its id when unnamed). A job that
+  // calls a reusable workflow produces `<caller name> / <called job name>`
+  // instead, one per called job; a remote reusable cannot be read from here,
+  // so it produces nothing this gate can certify. Without a job of exactly
+  // the context's name the context is never produced, however the workflow
+  // is triggered.
+  const checkNames = producedNames(doc);
   if (!checkNames.includes(ctx)) {
     fail(`required context '${ctx}' producer '${relWf}' has no job named '${ctx}' (jobs: ${checkNames.join(", ") || "none"})`);
   }
