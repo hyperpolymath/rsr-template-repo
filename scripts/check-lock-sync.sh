@@ -5,12 +5,15 @@
 # workflow YAML, in BOTH directions (including job-level reusable-workflow refs),
 # AND that the lockfile is TRANSITIVELY CLOSED.
 #
-# Three clauses, each of which alone is insufficient:
+# Validation clauses, each of which alone is insufficient:
 #
 #   1. every `uses:` in a workflow is locked under THAT workflow's own path;
 #   2. every lockfile entry is still referenced by its workflow (no orphans);
 #   3. every ref NAMED anywhere in the lockfile resolves to a top-level
 #      `dependencies:` record — the lockfile has no dangling edges.
+#   4. every workflow file has a lockfile entry, even when it uses no actions;
+#   5. dependency metadata uses a named ref, never a SHA or placeholder;
+#   6. the lockfile version is the supported v0.0.3 format.
 #
 # Clause 3 is not decoration. It is the clause that catches the failure mode that
 # clauses 1 and 2 are structurally blind to, and it was added only after that
@@ -38,7 +41,7 @@
 # job-level refs and will not backfill -> the developer hand-adds the workflows:
 # entry to get green -> no dependencies: record -> CI dies silently, gate green.
 #
-# Exit 0 only when all three clauses hold. Any violation exits 1. There is no
+# Exit 0 only when all clauses hold. Any violation exits 1. There is no
 # warn-only mode: a desync means GitHub refuses to start the run, so it must fail
 # the job. A `::warning::` cannot fail a job and would be a vacuous gate.
 
@@ -99,6 +102,21 @@ function ck(r,   at, s) {
   return tolower(substr(r, 1, at - 1)) substr(r, at)
 }
 
+# Check named-ref syntax without network access. Git allows one-level names
+# for branches/tags; see git-check-ref-format --allow-onelevel. Angle brackets
+# are additionally rejected here because lock metadata must not be a template
+# marker such as <sha-pinned>. Existence and commit resolution remain upstream
+# checks; this gate does not claim to prove them from a name alone.
+function namedref(r,   count, part, j) {
+  if (r == "" || r == "@" || r ~ /[[:cntrl:] ]/ || r ~ /[~^:?*\\]/ || index(r, "[")) return 0
+  if (index(r, "<") || index(r, ">") || index(r, "..") || index(r, "@{") || index(r, "//")) return 0
+  if (r ~ /^\// || r ~ /\/$/ || r ~ /\.$/) return 0
+  count = split(r, part, "/")
+  for (j = 1; j <= count; j++)
+    if (part[j] ~ /^\./ || part[j] ~ /\.lock$/) return 0
+  return 1
+}
+
 # ---------- pass 1: the lockfile ----------
 FILENAME == lockfile {
   if ($0 ~ /^version:[[:space:]]*/) {
@@ -123,13 +141,27 @@ FILENAME == lockfile {
       haverec[ck(depkey)] = 1; disp[ck(depkey)] = depkey
       next
     }
-    # "        ref: '...'" -- ban 40-hex self-SHA ref (standards#1271)
-    if ($0 ~ /^        ref:[[:space:]]*\047[0-9a-fA-F]+\047[[:space:]]*$/ && depkey != "") {
+    # "        ref: '...'" -- the record needs a real branch/tag name, even
+    # when its dependency key and commit: are correctly pinned to a SHA.
+    if ($0 ~ /^        ref:/ && depkey != "") {
       rval = $0
-      sub(/^        ref:[[:space:]]*\047/, "", rval)
-      sub(/\047[[:space:]]*$/, "", rval)
-      if (length(rval) == 40) {
+      sub(/^        ref:[[:space:]]*/, "", rval)
+      sub(/[[:space:]]+#.*$/, "", rval)
+      sub(/[[:space:]]*$/, "", rval)
+      hasref[ck(depkey)] = 1
+      quote = substr(rval, 1, 1)
+      if (quote == "\047" || quote == "\042") {
+        if (length(rval) < 2 || substr(rval, length(rval), 1) != quote) {
+          invalidref[depkey] = rval
+          next
+        }
+        rval = substr(rval, 2, length(rval) - 2)
+        if (quote == "\047") gsub(/\047\047/, "\047", rval)
+      }
+      if (rval ~ /^[0-9a-fA-F]+$/ && length(rval) == 40) {
         selfsha[depkey] = rval
+      } else if (!namedref(rval)) {
+        invalidref[depkey] = (rval == "" ? "<empty>" : rval)
       }
       next
     }
@@ -295,6 +327,19 @@ END {
     bad = 1
   }
 
+  for (d in haverec)
+    if (!(d in hasref)) invalidref[disp[d]] = "<missing ref>"
+  ninvalid = 0; invalidlist = ""
+  for (d in invalidref) {
+    ninvalid++
+    invalidlist = invalidlist sprintf("\n       %s (ref: %s)", d, invalidref[d])
+  }
+  if (ninvalid > 0) {
+    printf "FAIL actions.lock: INVALID NAMED REFS\n"
+    printf "     %d dependencies: record(s) have missing, placeholder or malformed ref: metadata:%s\n", ninvalid, invalidlist
+    bad = 1
+  }
+
   if (!has_version || lock_version != "\047v0.0.3\047") {
     printf "FAIL actions.lock: INVALID VERSION (%s; expected \047v0.0.3\047)\n", (has_version ? lock_version : "missing")
     bad = 1
@@ -306,7 +351,7 @@ END {
 
   if (bad) {
     print ""
-    print "actions.lock is OUT OF SYNC with the workflow YAML, or is not transitively closed."
+    print "actions.lock is OUT OF SYNC, is not transitively closed, or has invalid pin metadata."
     print "GitHub refuses such a run at startup: zero jobs are created and the run"
     print "reports \"This run likely failed because of a workflow file issue.\""
     print ""
@@ -325,6 +370,8 @@ END {
     print "     with no uses: takes an empty list:  \047.github/workflows/x.yml\047: []"
     print "     `gh actions-lock` has been observed to OMIT such a workflow entirely; that"
     print "     omission is itself the defect, so re-running the tool may not add it."
+    print "  5. Every dependency ref: must name a real branch or tag. Preserve the immutable"
+    print "     commit: sha1-... pin; do not replace ref: with that SHA or a placeholder."
     exit 1
   }
   printf "actions.lock is in sync and transitively closed:\n"
@@ -332,6 +379,7 @@ END {
   printf "  * every lockfile entry is still referenced\n"
   printf "  * every ref named in the lockfile resolves to a dependencies: record (0 dangling edges)\n"
   printf "  * every workflow file has a lockfile key (zero-uses: workflows included)\n"
+  printf "  * dependency ref: metadata has valid named-ref syntax, without placeholders or SHAs\n"
   if (nunref > 0)
     printf "  note: %d dependencies: record(s) are unreferenced - harmless, but prunable.\n", nunref
 }
