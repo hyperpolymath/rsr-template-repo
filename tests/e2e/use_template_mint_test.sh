@@ -255,6 +255,19 @@ grep -q '^DRIFT: stray.txt exists here' "$work/drift.log" || fail 'the undeclare
 [ "$(grep -c '^DRIFT:' "$work/drift.log")" -eq 2 ] || { cat "$work/drift.log" >&2; fail 'the drift gate reported more than the two changes'; }
 g -C "$C" checkout -q -- README.adoc; rm "$C/stray.txt"
 pass "(d-) an edited file and an undeclared addition are named; nothing else is"
+# Each declaration is a claim the gate checks (Codex review of #275): a
+# mode-only change, a file recreated under a declared-removed directory, and a
+# declared addition that is gone are each named.
+chmod +x "$C/README.adoc"
+mkdir -p "$C/archetypes"; printf 'back\n' > "$C/archetypes/revived.txt"
+rm "$C/mint-probe.md"
+if drift; then fail 'the drift gate missed a mode change, a revived removal and a missing addition'; fi
+grep -q '^DRIFT: README.adoc differs .*mode' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the mode-only change was not named'; }
+grep -q '^DRIFT: archetypes/revived.txt exists here but is declared removed' "$work/drift.log" || fail 'the revived removal was not named'
+grep -q '^DRIFT: declared-added mint-probe.md is missing' "$work/drift.log" || fail 'the missing declared addition was not named'
+[ "$(grep -c '^DRIFT:' "$work/drift.log")" -eq 3 ] || { cat "$work/drift.log" >&2; fail 'the drift gate reported more than the three changes'; }
+chmod -x "$C/README.adoc"; rm -r "$C/archetypes"; g -C "$C" checkout -q -- mint-probe.md
+pass "(d-) a mode change, a revived removal and a missing addition are each named"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the

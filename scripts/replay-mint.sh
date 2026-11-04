@@ -17,6 +17,7 @@
 #   PROJECT_NAME REPO OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG AUTHOR_EMAIL_ALT
 #   AUTHOR_ORCID PROJECT_DESCRIPTION FORGE SECURITY_EMAIL CONDUCT_EMAIL
 #   PROJECT_TYPE WEBSITE OPENSSF_BP_ID SERVICE_NAME PORT REGISTRY RSR_MINT_DATE
+#   RSR_PACKAGE_UUID (julia-library: the recorded package uuid)
 # Nothing else from the caller's environment reaches the mint: no defaults
 # file, no global git config (an ORCID or signing key there would leak in).
 # Exit: 0 minted into <out-dir>; 1 the mint failed (log tail on stderr); 2 usage.
@@ -41,6 +42,7 @@ if [ $# -gt 3 ]; then
     PROJECT_TYPE="$(ans project-type)" WEBSITE="$(ans website)"
     OPENSSF_BP_ID="$(ans openssf-bp-id)" SERVICE_NAME="$(ans service-name)"
     PORT="$(ans port)" REGISTRY="$(ans registry)" RSR_MINT_DATE="$(ans mint-date)"
+    RSR_PACKAGE_UUID="$(ans package-uuid)"
     ARCH="$(ans archetype)"
 fi
 TDIR="$(cd "$TDIR" && pwd)"
@@ -74,7 +76,7 @@ if ! (cd "$OUT" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         SECURITY_EMAIL="${SECURITY_EMAIL:-}" CONDUCT_EMAIL="${CONDUCT_EMAIL:-}" \
         PROJECT_TYPE="${PROJECT_TYPE:-}" WEBSITE="${WEBSITE:-}" \
         OPENSSF_BP_ID="${OPENSSF_BP_ID:-}" SERVICE_NAME="${SERVICE_NAME:-}" \
-        PORT="${PORT:-}" REGISTRY="${REGISTRY:-}" \
+        PORT="${PORT:-}" REGISTRY="${REGISTRY:-}" RSR_PACKAGE_UUID="${RSR_PACKAGE_UUID:-}" \
         just repo-init ${ARCH:+"$ARCH"} </dev/null) > "$SCRATCH/replay.log" 2>&1; then
     tail -n 30 "$SCRATCH/replay.log" >&2
     echo "replay-mint: the mint of $PIN failed (above)" >&2
