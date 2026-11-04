@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MPL-2.0
-# Regression controls for PR #253's POSIX awk lock parser. No network used.
+# Regression controls for the POSIX awk lock parser. No network used.
 # Usage: bash tests/workflows/check_lock_sync_test.sh
 set -euo pipefail
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -128,3 +128,43 @@ LOCK
 expect 0 'OK' 'an unreferenced leaf dependency is informational, not fatal'
 sed -i "s/ref: 'v2'/ref: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'/" "$work/current/actions.lock"
 expect 1 'SELF-SHA REFS' 'self-SHA refusal also covers unreferenced dependency records'
+
+# A resolved commit does not make placeholder or malformed source-ref metadata
+# valid. The K9 action preparation failure in Protoctist.jl used <sha-pinned>.
+set_ref() {
+  local named_ref=$1 line
+  while IFS= read -r line; do
+    if [[ "$line" == '        ref:'* ]]; then
+      printf "        ref: '%s'\n" "$named_ref"
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$work/current/actions.lock" > "$work/new.lock"
+  mv "$work/new.lock" "$work/current/actions.lock"
+}
+
+for ref in main v1.2.3 release/2026.11; do
+  fresh
+  set_ref "$ref"
+  expect 0 'OK' "named branch/tag ref remains legal: $ref"
+done
+
+for ref in '<sha-pinned>' '' 'release branch' 'release..next' 'release/.hidden' 'main.lock' 'main@{1}' 'main\next'; do
+  fresh
+  set_ref "$ref"
+  expect 1 'INVALID NAMED REFS' "placeholder or malformed ref is refused: $ref"
+done
+
+fresh
+sed -i '/^        ref:/d' "$work/current/actions.lock"
+expect 1 'INVALID NAMED REFS' 'a dependency with no ref metadata is refused'
+fresh
+sed -i "s/ref: 'v1'/ref: 'v1/" "$work/current/actions.lock"
+expect 1 'INVALID NAMED REFS' 'an unterminated quoted ref is refused'
+
+fresh
+sed -i "s/ref: 'v1'/ref: \"main\"/" "$work/current/actions.lock"
+expect 0 'OK' 'double-quoted named refs are accepted'
+fresh
+sed -i "s/ref: 'v1'/ref: main/" "$work/current/actions.lock"
+expect 0 'OK' 'plain named refs are accepted'
