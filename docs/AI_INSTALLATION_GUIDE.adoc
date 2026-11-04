@@ -43,8 +43,13 @@ with no git ancestry; `just repo-init` recovers the template tip via
 
 [source,bash]
 ----
+mise install              # the toolchain, including the yq repo-init needs
 just repo-init            # or: just repo-init <archetype>
 ----
+
+When the mint keeps `build/container/`, `just repo-init` reformats its KYAML
+configs after filling them, which needs a yq that writes KYAML (mise.toml
+provides it). Without one the mint stops before writing anything.
 
 `just repo-init` renders every `{{TOKEN}}` in the tree, derives the repository
 identity, writes the provenance files, and removes the template-only

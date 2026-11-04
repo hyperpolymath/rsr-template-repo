@@ -46,6 +46,10 @@ container-init:
         exit 1
     fi
 
+    # The configs are reformatted after their tokens are filled, which needs a
+    # KYAML-capable yq: check before anything is written.
+    bash scripts/format-container-kyaml.sh --preflight
+
     echo "=== Container Template Initialisation ==="
     echo ""
 

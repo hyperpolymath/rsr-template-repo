@@ -104,6 +104,7 @@ EOF
         case "$t" in
             trivy)    echo "trivy = \"latest\"          # just deps-audit" ;;
             shellcheck) echo "shellcheck = \"latest\"     # the shell scripts" ;;
+            yq)       echo "yq = \"latest\"             # scripts/kyaml-format.sh (KYAML configs)" ;;
             just)     echo "just = \"latest\"" ;;
             *)        printf '%s = "latest"\n' "$t" ;;
         esac

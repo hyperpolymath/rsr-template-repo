@@ -79,11 +79,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 ** `repo-init` and `container-init` filled the container tokens without
    reformatting the KYAML, so a fresh child that keeps its containers failed
    Estate Rules' "Converted YAML stays KYAML". Both now run
-   `scripts/format-container-kyaml.sh` after their substitution pass. Without a
-   yq that writes KYAML the files are left and the command to run is printed,
-   since the tree is already written and a mint is not aborted half-way. Estate
-   Rules installs its pinned yq before the mint steps, and
-   `use_template_mint_test.sh` checks the minted configs;
+   `scripts/format-container-kyaml.sh` after their substitution pass, and check
+   for a yq that writes KYAML before they write anything (a mint that prunes
+   `build/container/` needs none). yq joins the base toolchain (`MISE_BASE`,
+   so every rendered `mise.toml`, and the template's own); `mise.lock` gains
+   its record with `just toolchain-refresh`. The quick-start docs install the
+   toolchain before `just repo-init`. Estate Rules installs its pinned yq
+   before the mint steps, and `use_template_mint_test.sh` checks the minted
+   configs and that a mint without a KYAML-capable yq stops untouched;
 ** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or
    `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
    gate then rejected in a child;

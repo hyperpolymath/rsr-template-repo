@@ -120,7 +120,7 @@ if [ -z "$TOOLS" ] && [ "$DETECT" -eq 1 ]; then
     # declaring `erlang elixir` was failed for not declaring `mix`/`erl`, and a
     # Rust tree declaring `rust` was failed for declaring a tool the engine
     # installs. A mirror that disagrees with the engine is a bug in the mirror.
-    _t="just shellcheck trivy"
+    _t="just shellcheck yq trivy"
     for l in $LANGS; do
         case "$l" in
             rust)              _t="$_t rust" ;;

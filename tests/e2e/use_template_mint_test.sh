@@ -139,6 +139,20 @@ grep -q 'stale entry' "$work/stale.log" || { cat "$work/stale.log" >&2; fail 'th
 [ -z "$(g -C "$M" status --porcelain)" ] || fail 'the stale-manifest mint wrote to the tree'
 pass "(b-) a stale mint-verbatim entry stops the mint before it writes"
 
+# ── 4b. Negative control: no KYAML-capable yq aborts, untouched ─────────────
+# A yq that cannot write KYAML (an old or non-mikefarah one) shadows the real
+# one; the mint keeps build/container/, so it must stop before it writes.
+Y="$work/no-kyaml"
+use_template "$Y"
+mkdir -p "$work/fake-yq"
+printf '#!/bin/sh\nexit 1\n' > "$work/fake-yq/yq"; chmod +x "$work/fake-yq/yq"
+if PATH="$work/fake-yq:$PATH" mint "$Y" "$work/no-kyaml.log"; then fail 'a mint without a KYAML-capable yq went ahead'; fi
+grep -q 'mint aborted before writing anything' "$work/no-kyaml.log" \
+    && grep -q 'yq that writes KYAML' "$work/no-kyaml.log" \
+    || { cat "$work/no-kyaml.log" >&2; fail 'the no-yq abort did not say why'; }
+[ -z "$(g -C "$Y" status --porcelain)" ] || fail 'the no-yq mint wrote to the tree'
+pass "(c-) a mint keeping build/container/ without a KYAML-capable yq stops before it writes"
+
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2

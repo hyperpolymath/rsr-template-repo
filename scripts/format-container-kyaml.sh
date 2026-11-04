@@ -11,16 +11,19 @@
 # key needs none), and Estate Rules' "Converted YAML stays KYAML" fails the
 # child. Both recipes call this after their substitution pass.
 #
-# yq is not part of the mint's toolchain, so without a yq that writes KYAML
-# this leaves the files as they are and says so: the recipes have already
-# written the tree, and aborting there would leave a half-minted checkout.
-# The child's KYAML check still fails until the command named here is run.
+# The formatter needs a yq that writes KYAML (mikefarah yq; mise.toml provides
+# it). Both recipes run `--preflight` BEFORE they write anything, so a missing
+# yq stops them with the tree untouched instead of half-minted.
 #
-# Usage: format-container-kyaml.sh [REPO_ROOT]
-# Exit: 0 = formatted, nothing to format (an archetype may prune
-#       build/container/), or no KYAML-capable yq (warned on stderr);
-#       non-zero = the formatter refused a file (unparseable, data change).
+# Usage: format-container-kyaml.sh [--preflight] [REPO_ROOT]
+#   --preflight  write nothing; fail when configs are present and no
+#                KYAML-capable yq is on PATH.
+# Exit: 0 = formatted (or nothing to format: an archetype may prune
+#       build/container/); 1 = no KYAML-capable yq, or the formatter refused
+#       a file (unparseable, data change), with the reason on stderr.
 set -euo pipefail
+PREFLIGHT=0
+if [ "${1:-}" = --preflight ]; then PREFLIGHT=1; shift; fi
 cd "${1:-.}"
 
 files=()
@@ -32,13 +35,13 @@ done
 
 if ! command -v yq >/dev/null 2>&1 || ! printf 'a: 1\n' | yq -p yaml -o kyaml '.' >/dev/null 2>&1; then
     {
-        echo "WARNING: no yq that writes KYAML (mikefarah yq v4.53.3+) is on PATH, so the"
-        echo "  container configs keep the template's key quoting and Estate Rules'"
-        echo "  \"Converted YAML stays KYAML\" check will fail until you run:"
-        echo "    bash scripts/kyaml-format.sh ${files[*]}"
+        echo "error: the container configs need a yq that writes KYAML (mikefarah yq"
+        echo "  v4.53.3+) once their tokens are filled, and none is on PATH."
+        echo "  Run 'mise install' (mise.toml provides yq), or install mikefarah yq."
     } >&2
-    exit 0
+    exit 1
 fi
+[ "$PREFLIGHT" -eq 0 ] || exit 0
 
 if ! bash scripts/kyaml-format.sh "${files[@]}"; then
     echo "error: the KYAML formatter refused a container config (see above)." >&2

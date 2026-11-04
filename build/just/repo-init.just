@@ -355,6 +355,19 @@ repo-init archetype="":
         exit 1
     fi
 
+    # --- Container KYAML needs yq (checked before anything is written) -----
+    # Filling the container tokens changes how KYAML quotes them, so the pass
+    # below reformats those configs (scripts/format-container-kyaml.sh). That
+    # needs a KYAML-capable yq; check for it now, while the tree is untouched,
+    # unless the archetype prunes build/container/ anyway.
+    if [ -n "$ARCHETYPE" ] && [ -f "archetypes/${ARCHETYPE}/prune.txt" ] \
+        && grep -qxE '[[:space:]]*build/container/?[[:space:]]*' "archetypes/${ARCHETYPE}/prune.txt"; then
+        :
+    elif ! bash scripts/format-container-kyaml.sh --preflight; then
+        echo "ERROR: mint aborted before writing anything — see above."
+        exit 1
+    fi
+
     echo ""
     echo "Replacing placeholders..."
 

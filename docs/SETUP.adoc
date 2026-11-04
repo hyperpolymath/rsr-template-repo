@@ -64,8 +64,10 @@ Or with OPSM, the odds-and-sods package manager (see <<opsm>>):
 `opsm install https://github.com/hyperpolymath/rsr-template-repo.git --registry git`
 
 TIP: To start a *new* project from this template, use GitHub's *Use this template*
-button (or clone as above), then run `just repo-init` before step 3; it fills every
-placeholder token. The steps below work the same afterwards.
+button (or clone as above), install the toolchain (step 3), then run `just repo-init`;
+it fills every placeholder token, and needs the toolchain's yq to keep the container
+configs KYAML (it stops before writing anything without one). The steps below work
+the same afterwards.
 
 == 3. Install the toolchain
 
