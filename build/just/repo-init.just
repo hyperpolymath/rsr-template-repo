@@ -299,7 +299,18 @@ repo-init archetype="":
     # exactly (scripts/check-mint-drift.sh re-mints a child with the date it
     # recorded). Otherwise it is today. The year always follows the date.
     CURRENT_DATE="${RSR_MINT_DATE:-$(date +%Y-%m-%d)}"
-    if [[ ! "$CURRENT_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! date -d "$CURRENT_DATE" >/dev/null 2>&1; then
+    # Validated in bash, not with `date -d`: that is GNU-only, and macOS's date
+    # rejected every date, today's included (Codex review of #275).
+    _dm=0
+    if [[ "$CURRENT_DATE" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]]; then
+        _yy=$((10#${BASH_REMATCH[1]})); _mm=$((10#${BASH_REMATCH[2]})); _dd=$((10#${BASH_REMATCH[3]}))
+        case "$_mm" in
+            1|3|5|7|8|10|12) _dm=31 ;;
+            4|6|9|11) _dm=30 ;;
+            2) if (( (_yy % 4 == 0 && _yy % 100 != 0) || _yy % 400 == 0 )); then _dm=29; else _dm=28; fi ;;
+        esac
+    fi
+    if [ "$_dm" -eq 0 ] || [ "${_dd:-0}" -lt 1 ] || [ "${_dd:-0}" -gt "$_dm" ]; then
         echo "Error: RSR_MINT_DATE must be a real date, YYYY-MM-DD (got '${CURRENT_DATE}')."
         exit 1
     fi
@@ -563,7 +574,12 @@ repo-init archetype="":
         # GitHub owner logins are case-insensitive; canonicalize to lowercase
         # before the preimage so owner casing cannot fork the UUID.
         OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
-        if command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
+        # A replay supplies the uuid the mint recorded ((mint-answers
+        # :package-uuid)), so the drift gate does not depend on which of bun or
+        # python3 the checking host has (Codex review of #275).
+        if [[ "${RSR_PACKAGE_UUID:-}" =~ ^(UNASSIGNED|[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]]; then
+            PACKAGE_UUID="$RSR_PACKAGE_UUID"
+        elif command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
             PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
         elif command -v python3 >/dev/null 2>&1; then
             PACKAGE_UUID=$(python3 -c '
@@ -1083,7 +1099,8 @@ repo-init archetype="":
                      security-email:SECURITY_EMAIL conduct-email:CONDUCT_EMAIL \
                      project-type:PROJECT_TYPE website:WEBSITE \
                      openssf-bp-id:OPENSSF_BP_ID service-name:SERVICE_NAME \
-                     port:PORT registry:REGISTRY archetype:ARCHETYPE; do
+                     port:PORT registry:REGISTRY archetype:ARCHETYPE \
+                     package-uuid:PACKAGE_UUID; do
             _var="${_pair#*:}"
             echo "    :${_pair%%:*} \"$(deed_str "${!_var:-}")\""
         done
@@ -1206,6 +1223,18 @@ repo-init archetype="":
     if [ -f scripts/gen-repo-map.sh ]; then
         bash scripts/gen-repo-map.sh --worktree . >/dev/null
         echo "  repo map:     docs/architecture/REPOSITORY-MAP.adoc regenerated"
+    fi
+
+    # Replay (scripts/check-mint-drift.sh): every tree-writing step has run, so
+    # the reconstruction is complete. What follows only checks the tree: the placeholder
+    # gate (a partial mint made with RSR_ALLOW_PLACEHOLDERS=1 would fail it on
+    # replay), the www suite (a past RSR_MINT_DATE fails it: security.txt
+    # expires at the end of the mint year) and the rest. The child's own CI
+    # runs those checks on the child; the replay exists only to be compared.
+    if [ "${RSR_MINT_REPLAY:-0}" = "1" ]; then
+        echo ""
+        echo "Replay complete (RSR_MINT_REPLAY=1): post-write checks left to the child's CI."
+        exit 0
     fi
 
     echo ""
@@ -1351,17 +1380,6 @@ repo-init archetype="":
     # real. (Spelled out in words because just interpolates double braces
     # anywhere in a recipe, comments included, and an undefined variable here
     # takes the whole Justfile down, not just this recipe.)
-    # Replay (scripts/check-mint-drift.sh): every tree-writing step has run, so
-    # the reconstruction is complete. What follows only checks the tree, and a
-    # replay with a past RSR_MINT_DATE would fail it for the wrong reason
-    # (security.txt Expires is the end of the mint year). The child's own CI
-    # runs those checks on the child; the replay exists only to be compared.
-    if [ "${RSR_MINT_REPLAY:-0}" = "1" ]; then
-        echo ""
-        echo "Replay complete (RSR_MINT_REPLAY=1): post-write checks left to the child's CI."
-        exit 0
-    fi
-
     if [ -f www/tests/run-all.sh ]; then
         echo ""
         echo "Running www/ site-operations suite..."

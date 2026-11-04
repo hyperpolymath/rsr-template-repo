@@ -70,22 +70,24 @@ if ! (cd "$R" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         SECURITY_EMAIL="$(ans security-email)" CONDUCT_EMAIL="$(ans conduct-email)" \
         PROJECT_TYPE="$(ans project-type)" WEBSITE="$(ans website)" \
         OPENSSF_BP_ID="$(ans openssf-bp-id)" SERVICE_NAME="$(ans service-name)" \
-        PORT="$(ans port)" REGISTRY="$(ans registry)" \
+        PORT="$(ans port)" REGISTRY="$(ans registry)" RSR_PACKAGE_UUID="$(ans package-uuid)" \
         just repo-init ${ARCH:+"$ARCH"} </dev/null) > "$WORK/replay.log" 2>&1; then
     tail -n 30 "$WORK/replay.log" >&2
     die "the replay of the mint failed (above); nothing was compared"
 fi
 
-# Declared divergence, from the CHILD's (variant (paths …)) clause. An entry
-# ending in / covers a directory.
-declared() {
-    local s
-    for s in added removed diverged diverged-pending-upstream operational-state; do
-        bash "$READ" --list "$DEED" variant/paths "$s" 2>/dev/null || true
-    done
-}
-DECLARED="$(declared)"
-is_declared() {
+# Declared divergence, from the CHILD's (variant (paths …)) clause, kept by
+# category: each one is a claim the gate checks, not a blanket exemption
+# (Codex review of #275). An entry ending in / covers a directory.
+#   added     must exist here, and must NOT be something the mint produces;
+#   removed   must be absent here;
+#   diverged  (and -pending-upstream, operational-state) may differ in
+#             content, but must still exist here.
+section() { bash "$READ" --list "$DEED" variant/paths "$1" 2>/dev/null || true; }
+ADDED="$(section added)"
+REMOVED="$(section removed)"
+DIVERGED="$(section diverged; section diverged-pending-upstream; section operational-state)"
+in_list() {
     local p="$1" e
     while IFS= read -r e; do
         [ -n "$e" ] || continue
@@ -93,7 +95,7 @@ is_declared() {
             */) case "$p" in "$e"*) return 0 ;; esac ;;
             *) [ "$p" = "$e" ] && return 0 ;;
         esac
-    done <<< "$DECLARED"
+    done <<< "$2"
     return 1
 }
 # files DIR — the repository's own files: tracked, or untracked and not ignored.
@@ -102,21 +104,50 @@ files() {
         | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"; done \
         | LC_ALL=C sort -u
 }
+exists() { [ -e "$1" ] || [ -L "$1" ]; }
+# same A B — identical as git would record them: content, the executable bit,
+# and for a symlink its target (cmp alone follows links and ignores modes).
+same() {
+    if [ -L "$1" ] || [ -L "$2" ]; then
+        [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
+        return
+    fi
+    { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
+    cmp -s "$1" "$2"
+}
 
 DRIFT=0
 report() { DRIFT=1; echo "DRIFT: $*"; }
 while IFS= read -r f; do
-    is_declared "$f" && continue
-    if [ ! -e "$R/$f" ] && [ ! -L "$R/$f" ]; then
+    if in_list "$f" "$REMOVED"; then
+        report "$f exists here but is declared removed"
+    elif in_list "$f" "$ADDED"; then
+        exists "$R/$f" && report "$f is declared added, but the mint produces it (declare it diverged)"
+    elif in_list "$f" "$DIVERGED"; then
+        :
+    elif ! exists "$R/$f"; then
         report "$f exists here but the mint did not produce it (declare in paths.added)"
-    elif ! cmp -s "$R/$f" "$CDIR/$f"; then
-        report "$f differs from what the mint produced (declare in paths.diverged, or restore it)"
+    elif ! same "$R/$f" "$CDIR/$f"; then
+        report "$f differs from what the mint produced, in content or mode (declare in paths.diverged, or restore it)"
     fi
 done < <(files "$CDIR")
 while IFS= read -r f; do
-    is_declared "$f" && continue
-    [ -e "$CDIR/$f" ] || [ -L "$CDIR/$f" ] || report "$f was produced by the mint but is absent here (declare in paths.removed)"
+    exists "$CDIR/$f" && continue
+    in_list "$f" "$REMOVED" && continue
+    if in_list "$f" "$DIVERGED"; then
+        report "$f is declared diverged but is absent here (declare it removed)"
+    else
+        report "$f was produced by the mint but is absent here (declare in paths.removed)"
+    fi
 done < <(files "$R")
+# Every declared addition must actually be here.
+while IFS= read -r e; do
+    [ -n "$e" ] || continue
+    case "$e" in
+        */) [ -d "$CDIR/$e" ] || report "declared-added directory $e is missing" ;;
+        *) exists "$CDIR/$e" || report "declared-added $e is missing" ;;
+    esac
+done <<< "$ADDED"
 
 if [ "$DRIFT" -eq 0 ]; then
     echo "PASS: identical to a replay of the mint (${SLUG}@${PIN:0:12}, $(ans mint-date)), modulo declared variant paths"

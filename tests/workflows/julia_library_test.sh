@@ -49,7 +49,7 @@ chmod +x "$fixture/python/uuidgen"
 derive() {
   env -i PATH="$1:$fixture/common" OWNER="$2" REPO="$3" \
     STANDARDS_UUID_V8_JS="${4:-}" ARCHETYPE="${5:-julia-library}" \
-    REPO_UUID="${6:-UNASSIGNED}" BUN_LOG="$fixture/bun.args" \
+    REPO_UUID="${6:-UNASSIGNED}" RSR_PACKAGE_UUID="${7:-}" BUN_LOG="$fixture/bun.args" \
     "$bash_bin" -c '
       set -euo pipefail
       LB="{{" RB="}}" PACKAGE_UUID=UNTOUCHED
@@ -182,4 +182,14 @@ for job in fmt jet test; do
   ' "$workflow")
   equal "$actual" "$minutes" "$job job timeout"
 done
+# A replay supplies the recorded uuid (mint-answers :package-uuid), so the
+# drift gate gives the same answer on a host with neither bun nor python3
+# (Codex review of #275). A recorded UNASSIGNED replays as UNASSIGNED even
+# where a generator exists; a malformed value is ignored, not trusted.
+equal "$(derive "$fixture/empty" example-owner MintCheck.jl '' julia-library UNASSIGNED "$expected")" "$expected" \
+  'a recorded package uuid replays without bun or python3'
+equal "$(derive "$fixture/python" example-owner MintCheck.jl '' julia-library UNASSIGNED UNASSIGNED)" UNASSIGNED \
+  'a recorded UNASSIGNED replays as UNASSIGNED'
+equal "$(derive "$fixture/empty" example-owner MintCheck.jl '' julia-library UNASSIGNED 'not-a-uuid')" UNASSIGNED \
+  'a malformed recorded uuid is ignored'
 echo "PASS: $checks Julia library UUID and timeout checks; generator failures rejected"
