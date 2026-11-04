@@ -22,7 +22,7 @@
 # Identity-bearing files (the deed, CLAUDE.md, the map, the roadmap) are never
 # carried: they come from the new mint and are regenerated. Text the parent
 # wrote about itself is renamed by the same bounded self-name pass repo-init
-# uses (its SELF_PROV/SELF_NAME_SED lines, evaluated, so there is one rule).
+# uses (repo-init defines it once and exports SELF_NAME_SED: one rule).
 #
 # Called by `just repo-init` from the root of the new repository, whose tree is
 # the parent's ("Use this template" on a minted repo), after the prompts, with
@@ -98,9 +98,9 @@ done
 g -C "$M" add -A; g -C "$M" commit -q --allow-empty -m theirs
 THEIRS="$(g -C "$M" rev-parse HEAD)"
 # The parent's own work, by kind: what this repo inherits and must declare.
-mapfile -t CARRIED_M < <(g -C "$M" diff --no-renames --name-only --diff-filter=M "$B" "$THEIRS")
-mapfile -t CARRIED_A < <(g -C "$M" diff --no-renames --name-only --diff-filter=A "$B" "$THEIRS")
-mapfile -t CARRIED_D < <(g -C "$M" diff --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
+mapfile -d "" -t CARRIED_M < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=MT "$B" "$THEIRS")
+mapfile -d "" -t CARRIED_A < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=A "$B" "$THEIRS")
+mapfile -d "" -t CARRIED_D < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
 
 g -C "$M" checkout -q -b ours "$B"
 snapshot "$WORK/new"
@@ -109,6 +109,14 @@ snapshot "$WORK/new"
 # not a change anyone made. Without this, every deletion of a rendered file
 # was a modify/delete conflict (measured: .machine_readable/ai/PLACEHOLDERS.adoc).
 for f in "${CARRIED_D[@]}"; do g -C "$M" rm -q --cached --ignore-unmatch -- "$f"; rm -f -- "$M/$f"; done
+# Likewise a type change (a file the parent made a symlink, say) replaces the
+# whole path: ours keeps the base version there, so the parent's wins cleanly
+# (it was a "distinct types" conflict against a mere re-rendering).
+while IFS= read -r -d "" f; do
+    [ -n "$f" ] || continue
+    rm -f -- "$M/$f"
+    g -C "$M" checkout -q "$B" -- "$f"
+done < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=T "$B" "$THEIRS")
 g -C "$M" commit -q --allow-empty -m ours
 OURS="$(g -C "$M" rev-parse HEAD)"
 
@@ -121,40 +129,88 @@ if ! g -C "$M" merge-tree --write-tree --name-only --merge-base="$B" "$OURS" "$T
 fi
 RESULT="$(head -n 1 "$WORK/merge.out")"
 
-# Write the result over this repo's own files; .git and ignored paths stay.
-files "$G" | while IFS= read -r f; do rm -f -- "$G/$f"; done
-find "$G" -mindepth 1 -type d -empty ! -path "$G/.git*" -delete 2>/dev/null || true
-g -C "$M" archive "$RESULT" | tar -x -C "$G"
+# Everything below is built and checked in a scratch copy, F; this repo's own
+# tree is replaced only once every step has succeeded, so a failure at any
+# point (a carried placeholder, say) leaves it untouched (Codex review of #277).
+F="$WORK/final"
+g init -q -b main "$F"
+g -C "$M" archive "$RESULT" | tar -x -C "$F"
+g -C "$F" add -A
 
-# Rename the parent where its own work names it: the same bounded rule as
-# repo-init's self-name pass, read from the recipe so the two cannot differ.
-RECIPE="$G/build/just/repo-init.just"
-prov="$(grep -m1 -E "^ +SELF_PROV='" "$RECIPE")" || die "no SELF_PROV line in $RECIPE"
-prog="$(grep -m1 -E '^ +SELF_NAME_SED="' "$RECIPE")" || die "no SELF_NAME_SED line in $RECIPE"
+# Rename the parent where its own work names it, by the self-name rule
+# repo-init defined and exported (SELF_NAME_SED): one rule, read as data.
+[ -n "${SELF_NAME_SED:-}" ] || { echo "chain-mint: SELF_NAME_SED is not set (run through just repo-init)" >&2; exit 2; }
 TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
-eval "$prov"; eval "$prog"
-VERBATIM="$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$G/.machine_readable/mint-verbatim.txt" | grep -v '^$' || true)"
+VERBATIM="$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$F/.machine_readable/mint-verbatim.txt" | grep -v '^$' || true)"
 for f in "${CARRIED_M[@]}" "${CARRIED_A[@]}"; do
-    [ -f "$G/$f" ] && [ ! -L "$G/$f" ] || continue
+    [ -f "$F/$f" ] && [ ! -L "$F/$f" ] || continue
     grep -qxF -- "$f" <<< "$VERBATIM" && continue
-    grep -qIF -- "$TEMPLATE_REPO" "$G/$f" 2>/dev/null || continue
-    sed -i -E "$SELF_NAME_SED" "$G/$f"
+    grep -qIF -- "$TEMPLATE_REPO" "$F/$f" 2>/dev/null || continue
+    sed -i -E "$SELF_NAME_SED" "$F/$f"
 done
 
-# Record the lineage and the inherited divergence in the new deed.
-DEED="$G/${REPO}_chora.deed"
+# Record the lineage and the inherited divergence in the new deed. Paths are
+# written as deed strings (\ and " escaped) by awk, which takes them as data:
+# a path holding &, |, " or \ cannot corrupt the clause or the command.
+DEED="$F/${REPO}_chora.deed"
 [ -f "$DEED" ] || die "the new mint produced no ${REPO}_chora.deed"
 PARENT_TREE="$(git -C "$G" rev-parse 'HEAD^{tree}' 2>/dev/null || echo UNASSIGNED)"
-sed -i "s|^\(    :template-tree \"[^\"]*\"\)$|\1\n    ; minted from a minted repo: its own work since its mint was carried across\n    :derived-from \"${TEMPLATE_SLUG}\"\n    :derived-from-tree \"${PARENT_TREE}\"|" "$DEED"
+printf '%s\n' "${CARRIED_A[@]}" > "$WORK/added.list"
+printf '%s\n' "${CARRIED_D[@]}" > "$WORK/removed.list"
+printf '%s\n' "${CARRIED_M[@]}" > "$WORK/diverged.list"
+awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" \
+    -v fa="$WORK/added.list" -v fr="$WORK/removed.list" -v fd="$WORK/diverged.list" '
+    function load(file,    s, p) {
+        s = ""
+        while ((getline p < file) > 0) {
+            if (p == "") continue
+            gsub(/\\/, "\\\\", p); gsub(/"/, "\\\"", p)
+            s = s " \"" p "\""
+        }
+        close(file); return s
+    }
+    # insert EXTRA before the first ")" that closes the list opened at "(",
+    # skipping parentheses inside strings.
+    function extend(line, extra,    i, c, q, open, out) {
+        open = index(line, "("); q = 0
+        for (i = open + 1; i <= length(line); i++) {
+            c = substr(line, i, 1)
+            if (q && c == "\\") { i++; continue }
+            if (c == "\"") q = !q
+            else if (!q && c == ")") {
+                out = substr(line, 1, i - 1) extra substr(line, i)
+                sub(/\( "/, "(\"", out)
+                return out
+            }
+        }
+        return line
+    }
+    BEGIN { A = load(fa); R = load(fr); D = load(fd) }
+    /^      :added \(/    { $0 = extend($0, A) }
+    /^      :removed \(/  { $0 = extend($0, R) }
+    /^      :diverged \(/ { $0 = extend($0, D) }
+    { print }
+    /^    :template-tree "[^"]*"$/ {
+        print "    ; minted from a minted repo: its own work since its mint was carried across"
+        print "    :derived-from \"" slug "\""
+        print "    :derived-from-tree \"" ptree "\""
+    }
+' "$DEED" > "$WORK/deed.new"
+cat "$WORK/deed.new" > "$DEED"
 grep -q ':derived-from "' "$DEED" || die "could not record :derived-from in $(basename "$DEED")"
-q() { local s="" p; for p in "$@"; do s+=" \"$p\""; done; printf '%s' "$s"; }
-sed -i -E "s|^(      :added \()([^)]*)\)|\1\2$(q "${CARRIED_A[@]}")\)|; s|^(      :removed \()([^)]*)\)|\1\2$(q "${CARRIED_D[@]}")\)|; s|^(      :diverged \()([^)]*)\)|\1\2$(q "${CARRIED_M[@]}")\)|" "$DEED"
-sed -i -E '/^      :(added|removed|diverged) \(/s/\( "/("/' "$DEED"
 
-# Derived files follow the merged tree and the new deed.
-( cd "$G" && bash .machine_readable/arrival-pack/generate.sh >/dev/null )
-( cd "$G" && bash scripts/gen-repo-map.sh --worktree . >/dev/null )
-( cd "$G" && env -u GITHUB_REPOSITORY bash scripts/check-no-placeholders.sh . >/dev/null ) \
-    || die "the merged tree still holds placeholder tokens (run scripts/check-no-placeholders.sh)"
+# Derived files follow the merged tree and the new deed; then the gate.
+( cd "$F" && bash .machine_readable/arrival-pack/generate.sh >/dev/null ) \
+    || die "the arrival pack could not be regenerated; nothing was written"
+( cd "$F" && bash scripts/gen-repo-map.sh --worktree . >/dev/null ) \
+    || die "the repository map could not be regenerated; nothing was written"
+( cd "$F" && env -u GITHUB_REPOSITORY bash scripts/check-no-placeholders.sh . >/dev/null ) \
+    || die "the merged tree still holds placeholder tokens; nothing was written"
+
+# Every step succeeded: replace this repo's own files with the result.
+files "$G" | while IFS= read -r f; do rm -f -- "$G/$f"; done
+find "$G" -mindepth 1 -type d -empty ! -path "$G/.git" ! -path "$G/.git/*" -delete 2>/dev/null || true
+rm -f "$F/.machine_readable/arrival-pack/claude-md-data.json"
+files "$F" | tar -C "$F" -cf - -T - | tar -C "$G" -xf -
 echo "  chain: carried the parent's own work: ${#CARRIED_M[@]} edited, ${#CARRIED_A[@]} added, ${#CARRIED_D[@]} removed (declared in (variant (paths)))"
 echo "  chain: ${REPO} minted from ${TEMPLATE_SLUG} (template ${TSLUG}@${PIN:0:12})"

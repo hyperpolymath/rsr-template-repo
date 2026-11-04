@@ -47,7 +47,9 @@ repo_files() {
             | while IFS= read -r -d '' f; do [ -e "$f" ] || [ -L "$f" ] && printf '%s\n' "$f"; done \
             | sort -u
     else
-        git ls-files -- "$@"
+        # NUL-separated: plain output C-quotes a path holding a quote or a
+        # non-ASCII byte, which then read as a root entry named `"notes`.
+        git ls-files -z -- "$@" | tr "\0" "\n"
     fi
 }
 

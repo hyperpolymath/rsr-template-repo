@@ -177,7 +177,21 @@ repo-init archetype="":
     ARCHETYPE='{{archetype}}'
     ARCH_FILE=""
     ARCH_PRESET=""
-    if [ -n "$ARCHETYPE" ]; then
+    # A chain mint has no archetypes/ (the parent's mint removed it); it
+    # re-mints with the archetype the parent recorded, from the root template
+    # (scripts/chain-mint.sh). Naming that same archetype is accepted; any
+    # other is refused, since the parent's tree was built for its own.
+    if [ -n "$ARCHETYPE" ] && [ "$CHAIN_MINT" = "1" ]; then
+        _p_arch="$(bash scripts/deed-field.sh "$_prov_deed" mint-answers archetype 2>/dev/null || true)"
+        if [ "$ARCHETYPE" != "$_p_arch" ]; then
+            echo "Error: this tree was minted as archetype '${_p_arch:-none}'; a chain mint keeps it."
+            echo "       Run just repo-init${_p_arch:+ ${_p_arch}} (or mint from the template for another)."
+            exit 1
+        fi
+        echo "Archetype: ${ARCHETYPE} (the parent's, re-minted from the template)"
+        echo ""
+        ARCHETYPE=""
+    elif [ -n "$ARCHETYPE" ]; then
         ARCH_FILE="archetypes/${ARCHETYPE}/${ARCHETYPE}_praxis.deed"
         if [ ! -f "$ARCH_FILE" ]; then
             echo "Error: unknown archetype '${ARCHETYPE}'. Available:"
@@ -381,6 +395,25 @@ repo-init archetype="":
         esac
     done
 
+    # The self-name rule, defined once: used by the self-name pass below and
+    # handed to scripts/chain-mint.sh, so a chain mint renames the parent by
+    # exactly the same rule (passed as data, never re-read from the recipe).
+    SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: |reject-if-contains'
+    # The template's name and slug are LITERAL text, not patterns: a Julia
+    # mint's parent may be <Name>.jl, and `.` in a sed pattern matches any
+    # character. Escaped inline so self_name_pass_test.sh can evaluate this
+    # one assignment exactly as the recipe defines it.
+    # The name is matched only where it stands as a whole name: not inside
+    # a longer word or slug (Codex review of #251). Unbounded, a parent
+    # named `app` turned "application mapping" into "newlication mnewing".
+    # A neighbouring letter or digit blocks the match; anything else does
+    # not, so `<owner>_<name>` (sonar.projectKey), `<name>_chora.deed` and
+    # derived names such as `<name>-checkout` or `rm-<name>` still follow. Each pass
+    # loops (:label … t label) because a match consumes its right-hand
+    # neighbour, and marks through a sentinel so a new name that contains
+    # the old one (Geometry -> Geometry.jl) cannot loop forever.
+    SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
+
     # Chain mint: everything below renders a TEMPLATE tree, which this is not.
     # chain-mint.sh renders the template afresh with these answers and carries
     # this tree's own work across; it writes nothing unless it succeeds.
@@ -389,7 +422,7 @@ repo-init archetype="":
                AUTHOR_ORCID PROJECT_DESCRIPTION FORGE SECURITY_EMAIL CONDUCT_EMAIL \
                PROJECT_TYPE WEBSITE OPENSSF_BP_ID SERVICE_NAME PORT REGISTRY \
                TEMPLATE_REPO TEMPLATE_OWNER
-        export RSR_MINT_DATE="$CURRENT_DATE"
+        export RSR_MINT_DATE="$CURRENT_DATE" SELF_NAME_SED
         bash scripts/chain-mint.sh
         echo ""
         echo "Done! Chain mint complete. Review with git status, then commit."
@@ -769,21 +802,6 @@ repo-init archetype="":
     # after its mint on 2026-10-14. tests/workflows/self_name_pass_test.sh
     # runs these two lines on fixtures.
     if [ "$REPO" != "$TEMPLATE_REPO" ]; then
-        SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: |reject-if-contains'
-        # The template's name and slug are LITERAL text, not patterns: a Julia
-        # mint's parent may be <Name>.jl, and `.` in a sed pattern matches any
-        # character. Escaped inline so self_name_pass_test.sh can evaluate this
-        # one assignment exactly as the recipe defines it.
-        # The name is matched only where it stands as a whole name: not inside
-        # a longer word or slug (Codex review of #251). Unbounded, a parent
-        # named `app` turned "application mapping" into "newlication mnewing".
-        # A neighbouring letter or digit blocks the match; anything else does
-        # not, so `<owner>_<name>` (sonar.projectKey), `<name>_chora.deed` and
-        # derived names such as `<name>-checkout` or `rm-<name>` still follow. Each pass
-        # loops (:label … t label) because a match consumes its right-hand
-        # neighbour, and marks through a sentinel so a new name that contains
-        # the old one (Geometry -> Geometry.jl) cannot loop forever.
-        SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
         # Paths that are ABOUT the template keep its name wholesale: its ADRs,
         # changelog and audits. Template machinery (this recipe, the tests whose
         # fixtures must stay the template's literal name) is not in mint_files

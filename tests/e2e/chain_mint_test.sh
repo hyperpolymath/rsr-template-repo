@@ -71,6 +71,10 @@ g -C "$P" add -A; g -C "$P" commit -q -m mint
 printf '\nNotes for elder-proj users.\n' >> "$P/README.adoc"
 mkdir -p "$P/notes"; printf 'elder-proj notes, see https://github.com/elder-owner/elder-proj\n' > "$P/notes/elder-proj-notes.md"
 g -C "$P" rm -q .machine_readable/ai/PLACEHOLDERS.adoc
+# A path holding characters special to sed and to deed strings, and a type
+# change (a file the parent replaced with a symlink) (Codex review of #277).
+printf 'odd name\n' > "$P/notes/R&D | \"q\".md"
+rm "$P/SUPPORT.adoc"; ln -s README.adoc "$P/SUPPORT.adoc"
 g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
 pass "fixture: a minted parent with its own edit, addition and removal"
 
@@ -121,6 +125,10 @@ bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added | grep -qx no
     && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx README.adoc \
     && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths removed | grep -qx .machine_readable/ai/PLACEHOLDERS.adoc \
     || { grep -n ':added\|:removed\|:diverged' "$DEED" >&2; fail 'the carried work is not declared in (variant (paths))'; }
+bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added | grep -qxF 'notes/R&D | "q".md' \
+    || { grep -n ':added' "$DEED" >&2; fail 'a path with & | and quotes was not declared intact'; }
+[ -L "$G/SUPPORT.adoc" ] && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx SUPPORT.adoc \
+    || fail 'the type change (file to symlink) was not carried and declared'
 pass "the parent's edit, addition and removal are carried, renamed, and declared"
 
 # The grandchild's drift gate replays ITS mint: green, carried work declared.
@@ -163,5 +171,37 @@ fi
 grep -q 'records no (mint-answers)' "$work/old.log" || { tail -10 "$work/old.log" >&2; fail 'the refusal did not say why'; }
 [ -z "$(g -C "$G3" status --porcelain)" ] || fail 'the refused mint wrote to the tree'
 pass "(-) a parent minted before (mint-answers) is refused before anything is written"
+
+# ── Negative control: a failure after the merge writes nothing ──────────────
+# The parent carries a broken arrival-pack source: both replays pass (they use
+# the pinned template), the merge succeeds, then regenerating CLAUDE.md from
+# the merged tree fails. Every step runs in a scratch copy first, so the
+# grandchild is untouched (Codex review of #277: the checkout used to be
+# replaced before the later steps ran). (A carried unfilled token is refused
+# even earlier, by check-mint-tokens.sh, before anything is written.)
+P4="$work/parent4"
+g clone -q --no-local "$P" "$P4"
+printf 'this is not nickel\n' >> "$P4/.machine_readable/arrival-pack/arrival-pack.ncl"
+g -C "$P4" commit -q -am "a broken arrival-pack source"
+G4="$work/grandchild4"
+use_template "$P4" HEAD "$G4" git@github.com:other-owner/grand-check.git
+if mint "$G4" "$work/late.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint carrying a broken arrival-pack source succeeded'
+fi
+grep -q 'arrival pack could not be regenerated; nothing was written' "$work/late.log" || { tail -20 "$work/late.log" >&2; fail 'the late failure did not say why'; }
+[ -z "$(g -C "$G4" status --porcelain)" ] || { g -C "$G4" status --short | head >&2; fail 'a failure after the merge wrote to the tree'; }
+pass "(-) a failure after the merge (a broken carried source) leaves the tree untouched"
+
+# ── Negative control: a chain mint keeps the parent's archetype ─────────────
+# `just repo-init <archetype>` on a chain must not die on the absent
+# archetypes/ (Codex review of #277); naming a different archetype is refused.
+G5="$work/grandchild5"
+use_template "$P" HEAD "$G5" git@github.com:other-owner/grand-check.git
+if (cd "$G5" && env -i PATH="$PATH" HOME="$HOME" RSR_NON_INTERACTIVE=1 just repo-init julia-library </dev/null) > "$work/arch.log" 2>&1; then
+    fail 'a chain mint accepted a different archetype'
+fi
+grep -q "was minted as archetype 'none'; a chain mint keeps it" "$work/arch.log" || { cat "$work/arch.log" >&2; fail 'the archetype refusal did not say why'; }
+[ -z "$(g -C "$G5" status --porcelain)" ] || fail 'the refused archetype wrote to the tree'
+pass "(-) a chain mint refuses an archetype other than the parent's, before writing"
 
 echo "PASS: chain mint"
