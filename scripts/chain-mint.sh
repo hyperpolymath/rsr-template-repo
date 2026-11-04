@@ -88,6 +88,9 @@ B="$(g -C "$M" rev-parse HEAD)"
 # theirs: the parent as it stands, with its identity files held at base, so
 # they are never carried (they belong to the parent, not to this repo).
 snapshot "$G"
+# The tree actually carried: the parent as it stands, uncommitted work included
+# (Codex review of #277: HEAD^{tree} named a tree the chain may not have used).
+PARENT_TREE="$(g -C "$M" write-tree)"
 for f in "${IDENTITY[@]}"; do
     if g -C "$M" cat-file -e "$B:$f" 2>/dev/null; then
         mkdir -p "$M/$(dirname "$f")"; g -C "$M" show "$B:$f" > "$M/$f"
@@ -154,7 +157,6 @@ done
 # a path holding &, |, " or \ cannot corrupt the clause or the command.
 DEED="$F/${REPO}_chora.deed"
 [ -f "$DEED" ] || die "the new mint produced no ${REPO}_chora.deed"
-PARENT_TREE="$(git -C "$G" rev-parse 'HEAD^{tree}' 2>/dev/null || echo UNASSIGNED)"
 printf '%s\n' "${CARRIED_A[@]}" > "$WORK/added.list"
 printf '%s\n' "${CARRIED_D[@]}" > "$WORK/removed.list"
 printf '%s\n' "${CARRIED_M[@]}" > "$WORK/diverged.list"

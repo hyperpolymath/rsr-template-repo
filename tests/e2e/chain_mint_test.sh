@@ -75,13 +75,21 @@ g -C "$P" rm -q .machine_readable/ai/PLACEHOLDERS.adoc
 # change (a file the parent replaced with a symlink) (Codex review of #277).
 printf 'odd name\n' > "$P/notes/R&D | \"q\".md"
 rm "$P/SUPPORT.adoc"; ln -s README.adoc "$P/SUPPORT.adoc"
+# A file listed in mint-verbatim.txt, deleted: the template's own preflights
+# must not stop a chain mint over the parent's choices (Codex review of #277).
+g -C "$P" rm -q tests/e2e/template_instantiation_test.sh
 g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
 pass "fixture: a minted parent with its own edit, addition and removal"
 
 # ── The grandchild: "Use this template" on the parent, then a chain mint ────
 G="$work/grandchild"
 use_template "$P" HEAD "$G" git@github.com:other-owner/grand-check.git
-P_TREE=$(g -C "$G" rev-parse 'HEAD^{tree}')
+# Uncommitted work in the checkout is carried too, and :derived-from-tree must
+# name the snapshot actually used, not HEAD^{tree} (Codex review of #277).
+printf 'local\n' > "$G/notes/local.txt"
+HEAD_TREE=$(g -C "$G" rev-parse 'HEAD^{tree}')
+P_TREE=$(cd "$G" && GIT_INDEX_FILE="$work/snap.index" git add -A . && GIT_INDEX_FILE="$work/snap.index" git write-tree)
+[ "$P_TREE" != "$HEAD_TREE" ] || fail 'fixture: the uncommitted file did not change the tree'
 mint "$G" "$work/chain.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
     || { tail -40 "$work/chain.log" >&2; fail 'the chain mint failed'; }
 grep -q 'minted as a chain' "$work/chain.log" || fail 'repo-init did not take the chain path'
@@ -121,6 +129,8 @@ tail -n 1 "$G/README.adoc" | grep -qx 'Notes for grand-check users.' || fail 'th
 grep -qx 'grand-check notes, see https://github.com/other-owner/grand-check' "$G/notes/elder-proj-notes.md" \
     || fail 'the parent'"'"'s added file was not carried and renamed'
 [ ! -e "$G/.machine_readable/ai/PLACEHOLDERS.adoc" ] || fail 'the parent'"'"'s removal was not carried'
+[ ! -e "$G/tests/e2e/template_instantiation_test.sh" ] || fail 'the deletion of a verbatim-listed file was not carried'
+[ -f "$G/notes/local.txt" ] || fail 'uncommitted work in the checkout was not carried'
 bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added | grep -qx notes/elder-proj-notes.md \
     && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx README.adoc \
     && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths removed | grep -qx .machine_readable/ai/PLACEHOLDERS.adoc \

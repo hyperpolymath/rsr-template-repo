@@ -141,9 +141,16 @@ repo-init archetype="":
     VERBATIM_LIST=".machine_readable/mint-verbatim.txt"
     [ -f "$VERBATIM_LIST" ] || { echo "Error: $VERBATIM_LIST is missing; the mint cannot tell machinery from content."; exit 1; }
     mapfile -t MINT_VERBATIM < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$VERBATIM_LIST" | grep -v '^$')
-    for _v in "${MINT_VERBATIM[@]}"; do
-        [ -f "$_v" ] || { echo "Error: $VERBATIM_LIST names $_v, which does not exist (stale entry)."; exit 1; }
-    done
+    # These two preflights judge a TEMPLATE tree. A chain mint's tree is a
+    # minted repo whose own work (a deleted verbatim-listed file, an added file
+    # with a brace token) is the parent's business; the root template is
+    # checked when chain-mint.sh replays it, and the merged result passes the
+    # placeholder gate (Codex review of #277).
+    if [ "$CHAIN_MINT" != "1" ]; then
+        for _v in "${MINT_VERBATIM[@]}"; do
+            [ -f "$_v" ] || { echo "Error: $VERBATIM_LIST names $_v, which does not exist (stale entry)."; exit 1; }
+        done
+    fi
 
     # ── Can the template be minted at all? ──────────────────────────────────
     # A brace token the recipe below has no answer for is a file that cannot be
@@ -151,7 +158,7 @@ repo-init archetype="":
     # files in every Julia repo minted before 2026-10-30) or trips the
     # placeholder gate at the END of a mint that has already written the tree.
     # Both are cheaper to refuse here, before a single byte is written.
-    if [ -f scripts/check-mint-tokens.sh ]; then
+    if [ "$CHAIN_MINT" != "1" ] && [ -f scripts/check-mint-tokens.sh ]; then
         if ! bash scripts/check-mint-tokens.sh; then
             echo "ERROR: mint aborted before writing anything — the template ships a"
             echo "       token this recipe cannot fill. See the findings above."
