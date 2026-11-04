@@ -32,13 +32,17 @@ grep -qE 'TEMPLATE_SLUG="\$\{TEMPLATE_OWNER\}/\$\{TEMPLATE_REPO\}"' "$recipe" \
   || { echo "FAIL: repo-init does not compose TEMPLATE_SLUG" >&2; exit 1; }
 grep -qE 'PARENT_SLUG="\$TEMPLATE_SLUG"' "$recipe" \
   || { echo "FAIL: repo-init does not record the derived parent in provenance" >&2; exit 1; }
-# Outside comments and the documented last-resort default, no code line may
+# Outside comments, no code line may
 # name the original template or a deed file: each such line was a mint that
 # silently did nothing in a second-generation child.
 hard=$(grep -nE 'rsr-template-repo|hyperpolymath|[A-Za-z0-9-]_chora\.deed' "$recipe" \
-       | grep -vE '^[0-9]+: *#' \
-       | grep -vE '^[0-9]+: *TEMPLATE_(REPO|OWNER)="\$\{TEMPLATE_(REPO|OWNER):-(rsr-template-repo|hyperpolymath)\}"$' || true)
+       | grep -vE '^[0-9]+: *#' || true)
 [ -z "$hard" ] || { echo "$hard" >&2; echo "FAIL: repo-init hardcodes a template name or deed file again" >&2; exit 1; }
+# The template identity must never fall back to the git remote: in a
+# template-created child the remote is the CHILD (Codex review of #251).
+if sed -n '/--- The template'"'"'s own identity/,/TEMPLATE_SLUG=/p' "$recipe" | grep -v '^ *#' | grep -q 'remote\.origin'; then
+  echo "FAIL: repo-init derives the template identity from the git remote again" >&2; exit 1
+fi
 
 fail=0
 # check INPUT EXPECTED — the pass must turn INPUT into EXPECTED.
@@ -93,6 +97,28 @@ OWNER=example-owner REPO=mint-check
 . "$rule_script"
 check 'project := "Geometry.jl"' 'project := "mint-check"'
 check 'Geometry.jl ships it; GeometryXjl is another string' 'mint-check ships it; GeometryXjl is another string'
+
+# ── A short, common parent name (Codex review of #251) ───────────────────────
+# Unbounded, a parent named `app` corrupted every word containing "app".
+TEMPLATE_OWNER=example-owner TEMPLATE_REPO=app
+TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
+OWNER=other-owner REPO=new
+# shellcheck disable=SC1090
+. "$rule_script"
+check 'application mapping app' 'application mapping new'
+check 'my-app app-config apps happy' 'my-new new-config apps happy'
+check 'project := "app"' 'project := "new"'
+check 'app app app' 'new new new'
+check 'example-owner/app and example-owner/apps' 'other-owner/new and example-owner/apps'
+check 'sonar.projectKey=example-owner_app' 'sonar.projectKey=example-owner_new'
+check 'app_chora.deed and app#12' 'new_chora.deed and app#12'
+# A new name containing the old one terminates and is not rewritten twice.
+TEMPLATE_OWNER=example-owner TEMPLATE_REPO=geo
+TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
+OWNER=example-owner REPO=geo-tools
+# shellcheck disable=SC1090
+. "$rule_script"
+check 'geo and geo' 'geo-tools and geo-tools'
 
 [ "$fail" -eq 0 ] || { echo "FAIL: self-name pass" >&2; exit 1; }
 echo 'PASS: self-name pass rewrites the derived template name, keeps issue references, provenance and detectors'
