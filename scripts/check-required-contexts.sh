@@ -114,7 +114,9 @@ function producedNames(doc, unresolved, chain = []) {
   for (const [id, job] of Object.entries(jobs)) {
     const name = String(job?.name ?? id);
     const uses = typeof job?.uses === "string" ? job.uses : null;
-    const local = uses?.match(/^[.$]\/(\.github\/workflows\/[^@]+)$/);
+    // GitHub runs only files directly in .github/workflows/: no subdirectory,
+    // no traversal.
+    const local = uses?.match(/^[.$]\/(\.github\/workflows\/[^/@\\]+\.ya?ml)$/);
     const expanded = matrixNames(name, job);
     if (expanded === null) {
       unresolved.push(name);

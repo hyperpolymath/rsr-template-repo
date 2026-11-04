@@ -68,7 +68,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    trigger but not that a job with that check-run name exists, so a renamed
    job could strand pull requests behind an unproducible required check. A
    job that calls a local reusable workflow (one declaring
-   `on: workflow_call`, called as `./` or `$/`, nested at most ten deep, no
+   `on: workflow_call`, directly in `.github/workflows/`, called as `./` or
+   `$/`, nested at most ten deep, no
    cycles) counts as producing
    `<caller> / <called job>`; one that calls a remote reusable produces
    nothing the gate can certify. A literal matrix is expanded as GitHub
@@ -91,8 +92,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
    gate then rejected in a child;
 ** `tests/ffi_strings_test.sh` named the template's export prefix, so in a
-   child it called functions that do not exist. It now maps the child's
-   prefix onto the fixture's.
+   child it called functions that do not exist. It now maps the child's exported
+   symbols onto the fixture's, and nothing else that shares their prefix.
 
 * `repo-init` minting a repository created with GitHub's "Use this
   template" (measured on metadatastician/lintel, 2026-10-14):

@@ -351,6 +351,16 @@ assert_rc 1 'a $/ call with an @ref (which GitHub forbids) produces nothing' bas
 printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    strategy: {matrix: {target: [dev, prod]}}\n    uses: ./.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
 printf 'scan (prod) / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
 assert_rc 0 'a matrix caller produces <caller run> / <called job>' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+# GitHub runs only files directly in .github/workflows/: a subdirectory or a
+# traversal is not a reusable workflow, whatever file it reaches.
+mkdir -p "$context_tree/.github/workflows/sub"
+cp "$context_tree/.github/workflows/inner.yaml" "$context_tree/.github/workflows/sub/inner.yaml"
+printf 'scan / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: ./.github/workflows/sub/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a reusable in a subdirectory of .github/workflows produces nothing' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: ./.github/workflows/sub/../inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a traversal in a reusable path produces nothing' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+rm -r "$context_tree/.github/workflows/sub"
 printf 'scan / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
 rm "$context_tree/.github/workflows/inner.yaml"
 printf 'name: Scan\non: pull_request_target\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
