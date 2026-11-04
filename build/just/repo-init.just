@@ -365,7 +365,7 @@ repo-init archetype="":
     # needs a KYAML-capable yq; check for it now, while the tree is untouched,
     # unless the archetype prunes build/container/ anyway.
     if [ -n "$ARCHETYPE" ] && [ -f "archetypes/${ARCHETYPE}/prune.txt" ] \
-        && grep -qxE '[[:space:]]*build/container/?[[:space:]]*' "archetypes/${ARCHETYPE}/prune.txt"; then
+        && sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "archetypes/${ARCHETYPE}/prune.txt" | grep -qxE 'build/container/?'; then
         :
     elif ! bash scripts/format-container-kyaml.sh --preflight; then
         echo "ERROR: mint aborted before writing anything — see above."

@@ -78,7 +78,9 @@ function matrixNames(name, job) {
   const literal = (v) => v !== null && typeof v !== "object" && !String(v).includes("${{");
   if (keys.length === 0 || byLower.size !== keys.length) return null;
   if (keys.some((k) => !Array.isArray(matrix[k]) || !matrix[k].every(literal))) return null;
-  if (exprs.some((e) => !e.startsWith("matrix.") || !byLower.has(e.slice(7).toLowerCase()))) return null;
+  // A dot dereference needs a property starting with a letter or underscore.
+  const prop = /^matrix\.([A-Za-z_][A-Za-z0-9_-]*)$/;
+  if (exprs.some((e) => !prop.test(e) || !byLower.has(e.slice(7).toLowerCase()))) return null;
   let combos = [{}];
   for (const k of keys) combos = combos.flatMap((c) => matrix[k].map((v) => ({ ...c, [k]: String(v) })));
   return combos.map((c) =>

@@ -321,6 +321,8 @@ printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matri
 assert_rc 0 'matrix property names match case-insensitively' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matrix.tool }}\n    strategy: {matrix: {TOOL: [gitleaks], tool: [trufflehog]}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'keys differing only in case are refused as ambiguous' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matrix.1tool }}\n    strategy: {matrix: {1tool: [gitleaks]}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a dereference GitHub rejects (matrix.1tool) is refused' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 # A called file counts only when it declares on: workflow_call; GitHub nests
 # at most ten workflows (the caller and nine reusables); a cycle is refused.
 printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: ./.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"

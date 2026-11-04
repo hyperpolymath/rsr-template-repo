@@ -73,7 +73,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    cycles) counts as producing
    `<caller> / <called job>`; one that calls a remote reusable produces
    nothing the gate can certify. A literal matrix is expanded as GitHub
-   names its runs (property names case-insensitive); a matrix with
+   names its runs (property names case-insensitive, and only names GitHub
+   can dereference); a matrix with
    include/exclude or computed values is
    refused by name, never assumed to match; a matrix caller of a reusable
    produces one `<caller run> / <called job>` per run;
