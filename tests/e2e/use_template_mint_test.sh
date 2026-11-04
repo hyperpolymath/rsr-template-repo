@@ -223,15 +223,9 @@ sed -i 's|^      :added ()|      :added ("mint-probe.md")|' "$DEED"
 grep -q ':added ("mint-probe.md")' "$DEED" || fail 'fixture: could not declare the probe'
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
-# Minting the minted child again must stop before it writes: its tokens are
-# filled and build/templates is gone, so it would inherit this child's
-# identity (Codex review of #251). Chain minting is a separate, owner-chosen
-# change; until it lands, this is a loud refusal, not a silent half-mint.
-if mint "$C" "$work/remint.log"; then fail 'a minted repo was minted again'; fi
-grep -q 'already been minted' "$work/remint.log" || { cat "$work/remint.log" >&2; fail 'the re-mint refusal did not say why'; }
-grep -qF "records its template as ${T_SLUG}" "$work/remint.log" || fail 'the re-mint refusal does not name the template to use'
-[ -z "$(g -C "$C" status --porcelain)" ] || fail 'the refused re-mint wrote to the tree'
-pass "(e-) minting an already-minted repo stops before writing and names its template"
+# Minting this child again is a chain mint now (scripts/chain-mint.sh); that,
+# and the refusal of a child minted before (mint-answers), are covered end to
+# end by tests/e2e/chain_mint_test.sh.
 (cd "$C" && bash scripts/check-template-conformance.sh --quiet) > "$work/conf.log" 2>&1 \
     || { cat "$work/conf.log" >&2; fail 'the conformance check fails on a fresh mint'; }
 # A fresh mint is identical to a replay of itself: green, by construction.

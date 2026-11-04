@@ -43,38 +43,11 @@ git -C "$TDIR" cat-file -e "${PIN}^{commit}" 2>/dev/null \
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-g() { git -c user.name=replay -c user.email=replay@example.invalid -c commit.gpgsign=false "$@"; }
-
-# The child as "Use this template" made it: the pinned tree, one root commit.
+# The child as "Use this template" made it, minted again with its own
+# recorded answers and date (scripts/replay-mint.sh, the one replay path).
 R="$WORK/replay"
-mkdir -p "$R"
-git -C "$TDIR" archive "$PIN" | tar x -C "$R"
-g -C "$R" init -q -b main
-g -C "$R" add -A
-g -C "$R" commit -q -m "Initial commit"
-g -C "$R" remote add origin "git@$(ans forge):$(ans owner)/$(ans repo).git"
-
-ARCH="$(ans archetype)"
-: > "$WORK/gitconfig"
-mkdir -p "$WORK/cfg"
-if ! (cd "$R" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
-        ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
-        ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
-        XDG_CONFIG_HOME="$WORK/cfg" GIT_CONFIG_GLOBAL="$WORK/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
-        RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 \
-        RSR_TEMPLATE_URL="$TDIR" RSR_TEMPLATE_COMMIT="$PIN" RSR_MINT_DATE="$(ans mint-date)" \
-        PROJECT_NAME="$(ans project-name)" REPO="$(ans repo)" OWNER="$(ans owner)" \
-        AUTHOR="$(ans author)" AUTHOR_EMAIL="$(ans author-email)" AUTHOR_ORG="$(ans author-org)" \
-        AUTHOR_EMAIL_ALT="$(ans author-email-alt)" AUTHOR_ORCID="$(ans author-orcid)" \
-        PROJECT_DESCRIPTION="$(ans description)" FORGE="$(ans forge)" \
-        SECURITY_EMAIL="$(ans security-email)" CONDUCT_EMAIL="$(ans conduct-email)" \
-        PROJECT_TYPE="$(ans project-type)" WEBSITE="$(ans website)" \
-        OPENSSF_BP_ID="$(ans openssf-bp-id)" SERVICE_NAME="$(ans service-name)" \
-        PORT="$(ans port)" REGISTRY="$(ans registry)" \
-        just repo-init ${ARCH:+"$ARCH"} </dev/null) > "$WORK/replay.log" 2>&1; then
-    tail -n 30 "$WORK/replay.log" >&2
-    die "the replay of the mint failed (above); nothing was compared"
-fi
+bash "$(dirname "$READ")/replay-mint.sh" "$TDIR" "$PIN" "$R" --answers-from "$DEED" \
+    || die "the replay of the mint failed (above); nothing was compared"
 
 # Declared divergence, from the CHILD's (variant (paths …)) clause. An entry
 # ending in / covers a directory.

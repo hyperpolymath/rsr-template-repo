@@ -10,6 +10,18 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Added
 
+* **Chain minting: a minted repo can be minted again.** "Use this template"
+  on a minted repo now mints correctly (owner ruling 2026-11-04, after the
+  Codex review of #251 showed the grandchild inherited its parent's identity).
+  `scripts/chain-mint.sh` replays the parent's mint, mints the same template
+  commit with the new answers, and carries the parent's own work across with
+  `git merge-tree`: everything rendered is rendered afresh, the parent's
+  edits, additions and removals are kept (renamed by the self-name rule) and
+  declared in the new `(variant (paths))`, and a conflict with the new
+  rendering stops before anything is written. Provenance records the root
+  template commit plus `:derived-from` the parent. A parent minted before
+  `(mint-answers)` is still refused. `scripts/replay-mint.sh` is now the one
+  replay path, shared with the drift gate.
 * **An exact drift gate for minted repos: the mint is replayed.** repo-init
   records its answers in a `(mint-answers)` deed clause (owner ruling
   2026-11-04: only values it already writes into the child's files) and takes

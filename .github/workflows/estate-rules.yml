@@ -119,6 +119,11 @@ jobs:
         run: |
           command -v uuidgen >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q uuid-runtime; }
           bash tests/e2e/use_template_mint_test.sh
+      # A repo made from a MINTED repo: its parent's mint is replayed, the
+      # template is minted with the new answers, and the parent's own work is
+      # carried by a three-way merge (Codex review of #251; owner ruling).
+      - name: Chain mint (a minted repo minted again) end to end
+        run: bash tests/e2e/chain_mint_test.sh
       # An archetype overlay once shipped its own actions.lock, which replaced
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock

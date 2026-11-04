@@ -92,16 +92,31 @@ repo-init archetype="":
     # support chains properly (2026-11-04); until a minted repo carries the
     # pristine inputs that makes possible, stop here, before anything is
     # asked or written. A variant template keeps build/templates and still mints.
+    #
+    # Chain minting (owner ruling 2026-11-04): a minted repo that recorded its
+    # (mint-answers) CAN be minted again. scripts/chain-mint.sh replays its
+    # mint, mints the same template commit with the new answers, and carries
+    # its own work across by a three-way merge. One minted before answers were
+    # recorded cannot be replayed, so it is still refused.
+    CHAIN_MINT=0
     if [ ! -f build/templates/identity.deed.in ]; then
-        echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
-        echo "       absent), so it cannot be minted again yet: its tokens are filled and"
-        echo "       its identity template is gone. Mint from the template it came from."
         _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
-        if [ -n "$_prov_deed" ]; then
-            _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
-            [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
+        if [ -n "$_prov_deed" ] && bash scripts/deed-field.sh --has "$_prov_deed" mint-answers \
+           && [ -f scripts/chain-mint.sh ]; then
+            CHAIN_MINT=1
+            echo "This tree is a minted repo (${TEMPLATE_SLUG}): it will be minted as a chain,"
+            echo "from its template, carrying its own work since its mint."
+            echo ""
+        else
+            echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
+            echo "       absent) and records no (mint-answers), so its mint cannot be replayed"
+            echo "       and it cannot be minted again. Mint from the template it came from."
+            if [ -n "$_prov_deed" ]; then
+                _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
+                [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
+            fi
+            exit 1
         fi
-        exit 1
     fi
 
     # --- What the mint may edit ---------------------------------------------
@@ -343,6 +358,21 @@ repo-init archetype="":
     echo ""
     ask "Proceed? [Y/n] " CONFIRM
     [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
+
+    # Chain mint: everything below renders a TEMPLATE tree, which this is not.
+    # chain-mint.sh renders the template afresh with these answers and carries
+    # this tree's own work across; it writes nothing unless it succeeds.
+    if [ "$CHAIN_MINT" = "1" ]; then
+        export PROJECT_NAME REPO OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG AUTHOR_EMAIL_ALT \
+               AUTHOR_ORCID PROJECT_DESCRIPTION FORGE SECURITY_EMAIL CONDUCT_EMAIL \
+               PROJECT_TYPE WEBSITE OPENSSF_BP_ID SERVICE_NAME PORT REGISTRY \
+               TEMPLATE_REPO TEMPLATE_OWNER
+        export RSR_MINT_DATE="$CURRENT_DATE"
+        bash scripts/chain-mint.sh
+        echo ""
+        echo "Done! Chain mint complete. Review with git status, then commit."
+        exit 0
+    fi
 
     # Template-only paths this recipe deletes, as they stand before it runs.
     # Recorded in the (variant) clause's (paths :removed …) below, so the

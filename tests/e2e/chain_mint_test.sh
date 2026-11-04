@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
+#
+# chain_mint_test.sh — mint a repository made from a MINTED repository.
+#
+# Codex (review of #251) showed that minting a minted repo inherited the
+# parent's author, contacts and identity, because the parent's tokens were
+# already filled. The owner chose to support chains properly (2026-11-04):
+# scripts/chain-mint.sh replays the parent's mint, mints the same template
+# commit with the new answers, and carries the parent's own work across by a
+# three-way merge. This mints parent -> grandchild end to end and checks:
+#   * nothing of the parent's identity or contacts survives in the grandchild;
+#   * the parent's own work (an edit, an addition, a removal) is carried, with
+#     its name rewritten, and declared in the grandchild's (variant (paths));
+#   * provenance names the root template commit and the parent;
+#   * the grandchild's drift gate (a replay of ITS mint) is green;
+# and, as negative controls, that a conflicting parent edit stops the chain
+# before it writes, and that a parent without (mint-answers) is refused.
+# Needs just, rustc, uuidgen, nickel, file. Network-free (RSR_TEMPLATE_URL).
+#
+# Usage: bash tests/e2e/chain_mint_test.sh [--keep]
+set -euo pipefail
+repo=$(git rev-parse --show-toplevel)
+work=$(mktemp -d)
+if [ "${1:-}" = "--keep" ]; then echo "keeping $work"; else trap 'rm -rf "$work"' EXIT; fi
+fail() { echo "FAIL: $*" >&2; exit 1; }
+pass() { echo "PASS: $*"; }
+g() { git -c user.name=t -c user.email=t@example.org -c commit.gpgsign=false "$@"; }
+for tool in just rustc uuidgen nickel file; do
+    command -v "$tool" >/dev/null 2>&1 || fail "$tool is required to run a real mint (not skipping)"
+done
+
+# ── The template: this checkout's tree, committed or not, on main ───────────
+T="$work/template"
+g clone -q --no-local "$repo" "$T"
+g -C "$T" checkout -q -B main
+(cd "$repo" && git ls-files -z --cached --others --exclude-standard \
+    | while IFS= read -r -d '' f; do { [ -e "$f" ] || [ -L "$f" ]; } && printf '%s\0' "$f"; done \
+    | tar --null -T - -cf -) > "$work/tree.tar"
+(cd "$T" && git ls-files -z | xargs -0 rm -f && tar xf "$work/tree.tar")
+g -C "$T" add -A
+g -C "$T" commit -q --allow-empty -m "template under test"
+T_COMMIT=$(g -C "$T" rev-parse HEAD)
+T_SLUG="$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Justfile" | head -1)/$(sed -n -E 's/^REPO[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Justfile" | head -1)"
+
+# use_template FROM COMMITISH DIR ORIGIN — what "Use this template" makes.
+use_template() {
+    rm -rf "$3"; mkdir -p "$3"
+    g -C "$1" archive "$2" | tar x -C "$3"
+    g -C "$3" init -q -b main; g -C "$3" add -A; g -C "$3" commit -q -m "Initial commit"
+    g -C "$3" remote add origin "$4"
+}
+# mint DIR LOG NAME OWNER AUTHOR EMAIL DESC — a non-interactive mint, isolated.
+mint() {
+    local cfg="$work/cfg"; mkdir -p "$cfg"; : > "$cfg/gitconfig"
+    (cd "$1" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
+        XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$T" RSR_MINT_TOOL_CACHE="$work/tools" \
+        PROJECT_NAME="$3" REPO="$3" OWNER="$4" AUTHOR="$5" AUTHOR_EMAIL="$6" \
+        PROJECT_DESCRIPTION="$7" timeout 1200 just repo-init </dev/null) > "$2" 2>&1
+}
+
+# ── The parent: a minted repo, then its own work ────────────────────────────
+P="$work/parent"
+use_template "$T" HEAD "$P" git@github.com:elder-owner/elder-proj.git
+mint "$P" "$work/parent.log" elder-proj elder-owner "Eldra Author" elder@example.org "Elder tools" \
+    || { tail -30 "$work/parent.log" >&2; fail 'the parent mint failed'; }
+g -C "$P" add -A; g -C "$P" commit -q -m mint
+printf '\nNotes for elder-proj users.\n' >> "$P/README.adoc"
+mkdir -p "$P/notes"; printf 'elder-proj notes, see https://github.com/elder-owner/elder-proj\n' > "$P/notes/elder-proj-notes.md"
+g -C "$P" rm -q .machine_readable/ai/PLACEHOLDERS.adoc
+g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
+pass "fixture: a minted parent with its own edit, addition and removal"
+
+# ── The grandchild: "Use this template" on the parent, then a chain mint ────
+G="$work/grandchild"
+use_template "$P" HEAD "$G" git@github.com:other-owner/grand-check.git
+P_TREE=$(g -C "$G" rev-parse 'HEAD^{tree}')
+mint "$G" "$work/chain.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
+    || { tail -40 "$work/chain.log" >&2; fail 'the chain mint failed'; }
+grep -q 'minted as a chain' "$work/chain.log" || fail 'repo-init did not take the chain path'
+pass "a minted repo is minted again, as a chain"
+
+DEED="$G/grand-check_chora.deed"
+[ -f "$DEED" ] && [ ! -e "$G/elder-proj_chora.deed" ] || fail 'the deed is not the grandchild'"'"'s alone'
+field() { bash "$G/scripts/deed-field.sh" "$DEED" "$@"; }
+[ "$(field provenance template-repo)" = "$T_SLUG" ] && [ "$(field provenance template-commit)" = "$T_COMMIT" ] \
+    || fail "provenance names $(field provenance template-repo)@$(field provenance template-commit), not the root template"
+[ "$(field provenance derived-from)" = elder-owner/elder-proj ] || fail 'provenance does not name the parent'
+[ "$(field provenance derived-from-tree)" = "$P_TREE" ] || fail 'provenance does not name the parent tree'
+[ "$(field mint-answers author)" = "Other Author" ] && [ "$(field mint-answers description)" = "Grand tools" ] \
+    || fail '(mint-answers) are not the grandchild'"'"'s'
+pass "provenance names the root template commit and the parent; the answers are the grandchild's"
+
+# Nothing of the parent's identity or contacts survives (the Codex finding).
+# A file identical to the template's own copy is template text, not a leak
+# (this test and the recipe name these fixtures on purpose).
+leak=$(cd "$G" && git ls-files -co --exclude-standard | grep -vxF grand-check_chora.deed \
+       | while IFS= read -r f; do
+             [ -f "$f" ] || continue
+             g -C "$T" show "$T_COMMIT:$f" 2>/dev/null | cmp -s - "$f" && continue
+             grep -lIE 'elder-proj|Eldra Author|elder@example\.org|Elder tools' -- "$f"
+         done || true)
+[ -z "$leak" ] || { echo "$leak" >&2; fail 'the parent'"'"'s identity or contacts survive in the files above'; }
+grep -q 'Eldra Author\|elder@example.org' "$DEED" && fail 'the deed carries the parent'"'"'s author'
+grep -qF 'Grand tools' "$G/README.adoc" && grep -qF 'other@example.org' "$G/.github/SECURITY.adoc" 2>/dev/null \
+    || grep -rqF 'other@example.org' "$G/.github" || fail 'the new contacts were not rendered'
+pass "nothing of the parent's identity, author or contacts survives; the new answers are rendered"
+
+# The parent's own work is carried, renamed, and declared. The rename is the
+# self-name rule: the repo name and the owner/repo slug, never a bare owner
+# (an owner is shared with real estate repos, the same reason the template's
+# owner pass is narrow).
+tail -n 1 "$G/README.adoc" | grep -qx 'Notes for grand-check users.' || fail 'the parent'"'"'s README edit was not carried and renamed'
+grep -qx 'grand-check notes, see https://github.com/other-owner/grand-check' "$G/notes/elder-proj-notes.md" \
+    || fail 'the parent'"'"'s added file was not carried and renamed'
+[ ! -e "$G/.machine_readable/ai/PLACEHOLDERS.adoc" ] || fail 'the parent'"'"'s removal was not carried'
+bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added | grep -qx notes/elder-proj-notes.md \
+    && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx README.adoc \
+    && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths removed | grep -qx .machine_readable/ai/PLACEHOLDERS.adoc \
+    || { grep -n ':added\|:removed\|:diverged' "$DEED" >&2; fail 'the carried work is not declared in (variant (paths))'; }
+pass "the parent's edit, addition and removal are carried, renamed, and declared"
+
+# The grandchild's drift gate replays ITS mint: green, carried work declared.
+g -C "$G" add -A; g -C "$G" commit -q -m "chain mint"
+(cd "$G" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1 \
+    || { cat "$work/drift.log" >&2; fail 'the grandchild'"'"'s drift gate is red'; }
+(cd "$G" && bash scripts/gen-repo-map.sh . >/dev/null) && g -C "$G" diff --quiet -- docs/architecture/REPOSITORY-MAP.adoc \
+    || fail 'the grandchild'"'"'s map is stale'
+pass "the grandchild's drift gate (a replay of its own mint) is green; its map is fresh"
+
+# ── Negative control: a parent edit that conflicts with the new rendering ───
+# The parent rewrote the rendered description line; the new mint renders a
+# different description on that line. That is a real conflict: stop, write
+# nothing, name the file.
+P2="$work/parent2"
+g clone -q --no-local "$P" "$P2"
+sed -i 's/^Elder tools$/Elder tools, rewritten by hand/' "$P2/README.adoc"
+grep -qx 'Elder tools, rewritten by hand' "$P2/README.adoc" || fail 'fixture: the description line was not found'
+g -C "$P2" commit -q -am "hand edit of a rendered line"
+G2="$work/grandchild2"
+use_template "$P2" HEAD "$G2" git@github.com:other-owner/grand-check.git
+if mint "$G2" "$work/conflict.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a conflicting parent edit was merged silently'
+fi
+grep -q 'conflict' "$work/conflict.log" && grep -q 'README.adoc' "$work/conflict.log" \
+    || { tail -20 "$work/conflict.log" >&2; fail 'the conflict was not reported with its file'; }
+[ -z "$(g -C "$G2" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) a conflicting parent edit stops the chain before it writes, and names the file"
+
+# ── Negative control: a parent minted before (mint-answers) is refused ──────
+G3="$work/grandchild3"
+use_template "$P" HEAD "$G3" git@github.com:other-owner/grand-check.git
+bash "$G3/scripts/deed-clause.sh" delete "$G3/elder-proj_chora.deed" mint-answers 2>/dev/null \
+    || perl -0pi -e 's/\n  ; mint-answers.*?\n  \(mint-answers.*?\)\n/\n/s' "$G3/elder-proj_chora.deed"
+! bash "$G3/scripts/deed-field.sh" --has "$G3/elder-proj_chora.deed" mint-answers || fail 'fixture: (mint-answers) still present'
+g -C "$G3" commit -q -am "an old child"
+if mint "$G3" "$work/old.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a parent without (mint-answers) was minted'
+fi
+grep -q 'records no (mint-answers)' "$work/old.log" || { tail -10 "$work/old.log" >&2; fail 'the refusal did not say why'; }
+[ -z "$(g -C "$G3" status --porcelain)" ] || fail 'the refused mint wrote to the tree'
+pass "(-) a parent minted before (mint-answers) is refused before anything is written"
+
+echo "PASS: chain mint"
