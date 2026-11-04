@@ -262,6 +262,10 @@ repo-init archetype="":
         PORT="${_PORT:-${PORT:-8080}}"
         ask "Container registry [${REGISTRY:-ghcr.io/${OWNER}}]: " _REGISTRY
         REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER}}}"
+        # The values fill double-quoted KYAML scalars: refuse a value that
+        # would break them now, before anything is written.
+        bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
+            || { echo "ERROR: mint aborted before writing anything — see above."; exit 1; }
     else
         SERVICE_NAME="${SERVICE_NAME:-${REPO,,}}"
         PORT="${PORT:-8080}"

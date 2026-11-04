@@ -71,6 +71,7 @@ container-init:
 
     read -rp "Container registry [ghcr.io/${OWNER:-{{OWNER}}}]: " _REGISTRY
     REGISTRY="${_REGISTRY:-ghcr.io/${OWNER:-{{OWNER}}}}"
+    bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY"
 
     echo ""
     echo "  Service:  $SERVICE_NAME"

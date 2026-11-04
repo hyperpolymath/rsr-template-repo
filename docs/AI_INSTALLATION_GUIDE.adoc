@@ -44,7 +44,7 @@ with no git ancestry; `just repo-init` recovers the template tip via
 [source,bash]
 ----
 mise install              # the toolchain, including the yq repo-init needs
-just repo-init            # or: just repo-init <archetype>
+mise exec -- just repo-init   # or: mise exec -- just repo-init <archetype>
 ----
 
 When the mint keeps `build/container/`, `just repo-init` reformats its KYAML

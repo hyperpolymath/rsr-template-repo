@@ -49,7 +49,7 @@ Replace this section with a description of *your* project once initialised.
 ----
 # 1. Create a repo from this template (or clone it), then from the repo root:
 mise install                  # the toolchain, including the yq repo-init needs
-just repo-init                # interactive bootstrap: fills every {{PLACEHOLDER}}
+mise exec -- just repo-init   # interactive bootstrap: fills every {{PLACEHOLDER}}
 
 # 2. See the available tasks:
 just                     # lists all phases (build, test, validate, audit, ...)

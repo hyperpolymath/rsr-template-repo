@@ -15,13 +15,32 @@
 # it). Both recipes run `--preflight` BEFORE they write anything, so a missing
 # yq stops them with the tree untouched instead of half-minted.
 #
+# The values fill double-quoted KYAML scalars, so a quote or backslash in one
+# would leave a file the formatter refuses after the tree is written. Both
+# recipes run `--check-values` on the answers before they write anything.
+#
 # Usage: format-container-kyaml.sh [--preflight] [REPO_ROOT]
-#   --preflight  write nothing; fail when configs are present and no
-#                KYAML-capable yq is on PATH.
+#        format-container-kyaml.sh --check-values SERVICE_NAME PORT REGISTRY
+#   --preflight     write nothing; fail when configs are present and no
+#                   KYAML-capable yq is on PATH.
+#   --check-values  fail unless SERVICE_NAME is an OCI image-name component,
+#                   PORT is 1-65535 and REGISTRY has no quote, backslash or
+#                   whitespace.
 # Exit: 0 = formatted (or nothing to format: an archetype may prune
-#       build/container/); 1 = no KYAML-capable yq, or the formatter refused
-#       a file (unparseable, data change), with the reason on stderr.
+#       build/container/), or values accepted; 1 = no KYAML-capable yq, a
+#       value refused, or the formatter refused a file (unparseable, data
+#       change), with the reason on stderr.
 set -euo pipefail
+if [ "${1:-}" = --check-values ]; then
+    name="${2:-}" port="${3:-}" registry="${4:-}" bad=0
+    [[ "$name" =~ ^[a-z0-9]+([._-]+[a-z0-9]+)*$ ]] \
+        || { echo "error: service name '$name' is not an OCI image name (lower-case letters, digits, . _ -)." >&2; bad=1; }
+    [[ "$port" =~ ^[0-9]{1,5}$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] \
+        || { echo "error: port '$port' is not a number from 1 to 65535." >&2; bad=1; }
+    [[ -n "$registry" && ! "$registry" =~ [[:space:]\"\\] ]] \
+        || { echo "error: registry '$registry' is empty or contains a quote, backslash or whitespace." >&2; bad=1; }
+    exit "$bad"
+fi
 PREFLIGHT=0
 if [ "${1:-}" = --preflight ]; then PREFLIGHT=1; shift; fi
 cd "${1:-.}"
