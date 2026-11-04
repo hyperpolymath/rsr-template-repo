@@ -73,14 +73,17 @@ function matrixNames(name, job) {
   if (matrix === null || typeof matrix !== "object" || Array.isArray(matrix)) return null;
   if ("include" in matrix || "exclude" in matrix) return null;
   const keys = Object.keys(matrix);
+  // GitHub reads matrix property names case-insensitively.
+  const byLower = new Map(keys.map((k) => [k.toLowerCase(), k]));
   const literal = (v) => v !== null && typeof v !== "object" && !String(v).includes("${{");
-  if (keys.length === 0 || keys.some((k) => !Array.isArray(matrix[k]) || !matrix[k].every(literal))) return null;
-  if (exprs.some((e) => !e.startsWith("matrix.") || !keys.includes(e.slice(7)))) return null;
+  if (keys.length === 0 || byLower.size !== keys.length) return null;
+  if (keys.some((k) => !Array.isArray(matrix[k]) || !matrix[k].every(literal))) return null;
+  if (exprs.some((e) => !e.startsWith("matrix.") || !byLower.has(e.slice(7).toLowerCase()))) return null;
   let combos = [{}];
   for (const k of keys) combos = combos.flatMap((c) => matrix[k].map((v) => ({ ...c, [k]: String(v) })));
   return combos.map((c) =>
     exprs.length > 0
-      ? name.replace(/\$\{\{\s*matrix\.(.*?)\s*\}\}/g, (_, k) => c[k])
+      ? name.replace(/\$\{\{\s*matrix\.(.*?)\s*\}\}/g, (_, k) => c[byLower.get(k.toLowerCase())])
       : `${name} (${keys.map((k) => c[k]).join(", ")})`);
 }
 
