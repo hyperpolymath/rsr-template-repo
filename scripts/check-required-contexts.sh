@@ -104,7 +104,9 @@ function triggersOf(doc) {
  * `unresolved` each job whose names cannot be known statically. A called
  * file counts only when it declares `on: workflow_call`, as GitHub requires;
  * GitHub nests at most ten workflows (the caller and nine reusables), and a
- * call back into the chain is a cycle GitHub refuses.
+ * call back into the chain is a cycle GitHub refuses. A same-repository call
+ * is spelled `./.github/workflows/…` or `$/.github/workflows/…`; a caller
+ * with a literal matrix produces one `<caller run> / <called job>` per run.
  */
 function producedNames(doc, unresolved, chain = []) {
   const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
@@ -112,13 +114,14 @@ function producedNames(doc, unresolved, chain = []) {
   for (const [id, job] of Object.entries(jobs)) {
     const name = String(job?.name ?? id);
     const uses = typeof job?.uses === "string" ? job.uses : null;
+    const local = uses?.match(/^[.$]\/(\.github\/workflows\/[^@]+)$/);
     const expanded = matrixNames(name, job);
-    if (expanded === null || (uses !== null && job?.strategy?.matrix !== undefined)) {
+    if (expanded === null) {
       unresolved.push(name);
     } else if (uses === null) {
       names.push(...expanded);
-    } else if (uses.startsWith("./.github/workflows/")) {
-      const called = join(root, uses.slice(2));
+    } else if (local) {
+      const called = join(root, local[1]);
       if (chain.includes(called) || chain.length >= 10) {
         unresolved.push(name);
         continue;
@@ -126,8 +129,9 @@ function producedNames(doc, unresolved, chain = []) {
       if (!existsSync(called)) continue;
       const calledDoc = Bun.YAML.parse(readFileSync(called, "utf8"));
       if (!triggersOf(calledDoc).includes("workflow_call")) continue;
-      for (const inner of producedNames(calledDoc, unresolved, [...chain, called])) {
-        names.push(`${name} / ${inner}`);
+      const inners = producedNames(calledDoc, unresolved, [...chain, called]);
+      for (const caller of expanded) {
+        for (const inner of inners) names.push(`${caller} / ${inner}`);
       }
     }
   }

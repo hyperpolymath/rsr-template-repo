@@ -68,17 +68,20 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    trigger but not that a job with that check-run name exists, so a renamed
    job could strand pull requests behind an unproducible required check. A
    job that calls a local reusable workflow (one declaring
-   `on: workflow_call`, nested at most ten deep, no cycles) counts as producing
+   `on: workflow_call`, called as `./` or `$/`, nested at most ten deep, no
+   cycles) counts as producing
    `<caller> / <called job>`; one that calls a remote reusable produces
    nothing the gate can certify. A literal matrix is expanded as GitHub
    names its runs (property names case-insensitive); a matrix with
    include/exclude or computed values is
-   refused by name, never assumed to match;
+   refused by name, never assumed to match; a matrix caller of a reusable
+   produces one `<caller run> / <called job>` per run;
 ** `repo-init` and `container-init` filled the container tokens without
    reformatting the KYAML, so a fresh child that keeps its containers failed
    Estate Rules' "Converted YAML stays KYAML". Both now run
-   `scripts/format-container-kyaml.sh` after their substitution pass, and stop
-   with the command to run when no KYAML-capable yq is available. Estate
+   `scripts/format-container-kyaml.sh` after their substitution pass. Without a
+   yq that writes KYAML the files are left and the command to run is printed,
+   since the tree is already written and a mint is not aborted half-way. Estate
    Rules installs its pinned yq before the mint steps, and
    `use_template_mint_test.sh` checks the minted configs;
 ** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or

@@ -342,6 +342,16 @@ printf 'scan / scan => .github/workflows/scan.yaml\n' > "$context_tree/.machine_
 assert_rc 1 'a workflow calling itself is refused, not followed' timeout 20 bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Inner\non: workflow_call\njobs:\n  g:\n    name: gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/inner.yaml"
 printf 'scan / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+# `$/.github/workflows/…` is GitHub's recommended same-repository form, and a
+# caller with a literal matrix produces `<caller run> / <called job>`.
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: $/.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 0 'a $/ same-repository call resolves like ./' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: $/.github/workflows/inner.yaml@v1\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a $/ call with an @ref (which GitHub forbids) produces nothing' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    strategy: {matrix: {target: [dev, prod]}}\n    uses: ./.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+printf 'scan (prod) / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 0 'a matrix caller produces <caller run> / <called job>' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'scan / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
 rm "$context_tree/.github/workflows/inner.yaml"
 printf 'name: Scan\non: pull_request_target\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'pull_request_target alone cannot produce a required PR check' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"

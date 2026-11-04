@@ -11,10 +11,15 @@
 # key needs none), and Estate Rules' "Converted YAML stays KYAML" fails the
 # child. Both recipes call this after their substitution pass.
 #
+# yq is not part of the mint's toolchain, so without a yq that writes KYAML
+# this leaves the files as they are and says so: the recipes have already
+# written the tree, and aborting there would leave a half-minted checkout.
+# The child's KYAML check still fails until the command named here is run.
+#
 # Usage: format-container-kyaml.sh [REPO_ROOT]
-# Exit: 0 = every config present is canonical KYAML (none present is fine:
-#       an archetype may prune build/container/); non-zero = it could not
-#       format them, with the command to run named on stderr.
+# Exit: 0 = formatted, nothing to format (an archetype may prune
+#       build/container/), or no KYAML-capable yq (warned on stderr);
+#       non-zero = the formatter refused a file (unparseable, data change).
 set -euo pipefail
 cd "${1:-.}"
 
@@ -25,8 +30,17 @@ for f in build/container/compose.yaml build/container/compose.example.yaml \
 done
 [ "${#files[@]}" -gt 0 ] || exit 0
 
+if ! command -v yq >/dev/null 2>&1 || ! printf 'a: 1\n' | yq -p yaml -o kyaml '.' >/dev/null 2>&1; then
+    {
+        echo "WARNING: no yq that writes KYAML (mikefarah yq v4.53.3+) is on PATH, so the"
+        echo "  container configs keep the template's key quoting and Estate Rules'"
+        echo "  \"Converted YAML stays KYAML\" check will fail until you run:"
+        echo "    bash scripts/kyaml-format.sh ${files[*]}"
+    } >&2
+    exit 0
+fi
+
 if ! bash scripts/kyaml-format.sh "${files[@]}"; then
-    echo "error: container KYAML is not canonical after filling the tokens." >&2
-    echo "  Install yq v4.53.3+ (mikefarah) and run: bash scripts/kyaml-format.sh ${files[*]}" >&2
+    echo "error: the KYAML formatter refused a container config (see above)." >&2
     exit 1
 fi
