@@ -166,6 +166,7 @@ FILENAME == lockfile {
       sub(/^    \047/, "", depkey)
       sub(/\047:.*$/, "", depkey)
       haverec[ck(depkey)] = 1; disp[ck(depkey)] = depkey
+      rawrec[depkey] = 1
       next
     }
     # "        ref: '...'" -- the record needs a real branch/tag name, even
@@ -177,10 +178,13 @@ FILENAME == lockfile {
       sub(/[[:space:]]+#.*$/, "", rval)
       sub(/^        ref:[[:space:]]*/, "", rval)
       sub(/[[:space:]]*$/, "", rval)
-      hasref[ck(depkey)] = 1
+      hasref[depkey] = 1
       quote = substr(rval, 1, 1)
       if (quote == "\047" || quote == "\042") {
-        if (length(rval) < 2 || substr(rval, length(rval), 1) != quote) {
+        # Match one complete scalar: inner single quotes must be doubled,
+        # and an unescaped double quote must end a double-quoted scalar.
+        if ((quote == "\047" && rval !~ /^\047([^\047]|\047\047)*\047$/) ||
+            (quote == "\042" && rval !~ /^\042([^\042\\]|\\.)*\042$/)) {
           invalidref[depkey] = rval
           next
         }
@@ -362,8 +366,10 @@ END {
     bad = 1
   }
 
-  for (d in haverec)
-    if (!(d in hasref)) invalidref[disp[d]] = "<missing ref>"
+  # Metadata belongs to each raw record, even when repository lookup folds
+  # case and another spelling of the same pin has its own valid ref.
+  for (d in rawrec)
+    if (!(d in hasref)) invalidref[d] = "<missing ref>"
   ninvalid = 0; invalidlist = ""
   for (d in invalidref) {
     ninvalid++
