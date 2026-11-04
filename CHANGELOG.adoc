@@ -67,7 +67,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 ** `scripts/check-required-contexts.sh` checked a mapped context's workflow
    trigger but not that a job with that check-run name exists, so a renamed
    job could strand pull requests behind an unproducible required check. A
-   job that calls a local reusable workflow counts as producing
+   job that calls a local reusable workflow (one declaring
+   `on: workflow_call`, nested at most ten deep, no cycles) counts as producing
    `<caller> / <called job>`; one that calls a remote reusable produces
    nothing the gate can certify. A literal matrix is expanded as GitHub
    names its runs; a matrix with include/exclude or computed values is

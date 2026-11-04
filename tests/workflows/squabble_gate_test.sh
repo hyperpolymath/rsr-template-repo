@@ -313,6 +313,31 @@ printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matri
 assert_rc 1 'a matrix with include is refused, not guessed' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    name: scan / ${{ matrix.tool }}\n    strategy: {matrix: ${{ fromJSON(vars.TOOLS) }}}\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'a computed matrix is refused, not guessed' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+# A called file counts only when it declares on: workflow_call; GitHub nests
+# at most ten workflows (the caller and nine reusables); a cycle is refused.
+printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: ./.github/workflows/inner.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+printf 'name: Inner\non: push\njobs:\n  g:\n    name: gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/inner.yaml"
+assert_rc 1 'a called file without on: workflow_call produces nothing' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+chain_tree() { # <reusables>: scan.yaml calls r1 ... rN; the last runs job gitleaks
+    local n=$1 i ctx=scan
+    printf 'name: Scan\non: pull_request\njobs:\n  scan:\n    uses: ./.github/workflows/r1.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+    for ((i = 1; i < n; i++)); do
+        printf 'name: R\non: workflow_call\njobs:\n  l%d:\n    uses: ./.github/workflows/r%d.yaml\n' "$i" "$((i + 1))" > "$context_tree/.github/workflows/r$i.yaml"
+        ctx="$ctx / l$i"
+    done
+    printf 'name: R\non: workflow_call\njobs:\n  g:\n    name: gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/r$n.yaml"
+    printf '%s / gitleaks => .github/workflows/scan.yaml\n' "$ctx" > "$context_tree/.machine_readable/required-contexts-allow.txt"
+}
+chain_tree 9
+assert_rc 0 'nine nested reusables (ten workflows) resolve' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+chain_tree 10
+assert_rc 1 'a tenth nested reusable exceeds GitHub'"'"'s limit' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+rm -f "$context_tree"/.github/workflows/r*.yaml
+printf 'name: Scan\non: [pull_request, workflow_call]\njobs:\n  scan:\n    uses: ./.github/workflows/scan.yaml\n' > "$context_tree/.github/workflows/scan.yaml"
+printf 'scan / scan => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 1 'a workflow calling itself is refused, not followed' timeout 20 bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Inner\non: workflow_call\njobs:\n  g:\n    name: gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/inner.yaml"
+printf 'scan / gitleaks => .github/workflows/scan.yaml\n' > "$context_tree/.machine_readable/required-contexts-allow.txt"
 rm "$context_tree/.github/workflows/inner.yaml"
 printf 'name: Scan\non: pull_request_target\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'pull_request_target alone cannot produce a required PR check' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"

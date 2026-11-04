@@ -19,8 +19,8 @@ sed -i -e 's/{{project}}/test_project/g' -e 's/{{PROJECT}}/TEST_PROJECT/g' \
 # A minted repository has its own export prefix where the template has the
 # token; map that prefix too, so the appended tests name the same functions.
 prefix=$(sed -nE 's/^export fn ([a-z0-9_]+)_init\(\).*/\1/p' "$work/ffi/src/main.zig" | head -1)
-[ -n "$prefix" ] || { echo 'FAIL: no `export fn <prefix>_init()` in src/interface/ffi/src/main.zig' >&2; exit 1; }
-if [ "$prefix" != test_project ]; then
+[[ -n "$prefix" ]] || { echo 'FAIL: no `export fn <prefix>_init()` in src/interface/ffi/src/main.zig' >&2; exit 1; }
+if [[ "$prefix" != test_project ]]; then
   sed -i -E "s/\\b${prefix}_/test_project_/g" \
     "$work/ffi/build.zig" "$work/ffi/src/main.zig" "$work/ffi/test/integration_test.zig"
 fi

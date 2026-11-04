@@ -84,12 +84,26 @@ function matrixNames(name, job) {
       : `${name} (${keys.map((k) => c[k]).join(", ")})`);
 }
 
+/** Return the event names a parsed workflow triggers on. */
+function triggersOf(doc) {
+  const onBlock = doc?.on ?? doc?.true;
+  return typeof onBlock === "string"
+    ? [onBlock]
+    : Array.isArray(onBlock)
+      ? onBlock.map(String)
+      : onBlock && typeof onBlock === "object"
+        ? Object.keys(onBlock)
+        : [];
+}
+
 /**
- * Return the check-run names a parsed workflow's jobs produce (GitHub nests
- * reusables at most four deep), adding to `unresolved` each job whose names
- * cannot be known statically.
+ * Return the check-run names a parsed workflow's jobs produce, adding to
+ * `unresolved` each job whose names cannot be known statically. A called
+ * file counts only when it declares `on: workflow_call`, as GitHub requires;
+ * GitHub nests at most ten workflows (the caller and nine reusables), and a
+ * call back into the chain is a cycle GitHub refuses.
  */
-function producedNames(doc, unresolved, depth = 0) {
+function producedNames(doc, unresolved, chain = []) {
   const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
   const names = [];
   for (const [id, job] of Object.entries(jobs)) {
@@ -100,12 +114,17 @@ function producedNames(doc, unresolved, depth = 0) {
       unresolved.push(name);
     } else if (uses === null) {
       names.push(...expanded);
-    } else if (uses.startsWith("./.github/workflows/") && depth < 4) {
+    } else if (uses.startsWith("./.github/workflows/")) {
       const called = join(root, uses.slice(2));
-      if (existsSync(called)) {
-        for (const inner of producedNames(Bun.YAML.parse(readFileSync(called, "utf8")), unresolved, depth + 1)) {
-          names.push(`${name} / ${inner}`);
-        }
+      if (chain.includes(called) || chain.length >= 10) {
+        unresolved.push(name);
+        continue;
+      }
+      if (!existsSync(called)) continue;
+      const calledDoc = Bun.YAML.parse(readFileSync(called, "utf8"));
+      if (!triggersOf(calledDoc).includes("workflow_call")) continue;
+      for (const inner of producedNames(calledDoc, unresolved, [...chain, called])) {
+        names.push(`${name} / ${inner}`);
       }
     }
   }
@@ -157,15 +176,7 @@ for (const [ctx, relWf] of mapped.entries()) {
   }
   const doc = Bun.YAML.parse(readFileSync(fullWf, "utf8"));
   const onBlock = doc?.on ?? doc?.true;
-  const triggers =
-    typeof onBlock === "string"
-      ? [onBlock]
-      : Array.isArray(onBlock)
-        ? onBlock.map(String)
-        : onBlock && typeof onBlock === "object"
-          ? Object.keys(onBlock)
-          : [];
-  if (!triggers.includes("pull_request")) {
+  if (!triggersOf(doc).includes("pull_request")) {
     fail(`required context '${ctx}' producer '${relWf}' does not trigger on pull_request`);
     continue;
   }
@@ -186,7 +197,7 @@ for (const [ctx, relWf] of mapped.entries()) {
   // produced, however the workflow is triggered; a job whose names cannot be
   // known statically is named, never assumed to match.
   const unresolved = [];
-  const checkNames = producedNames(doc, unresolved);
+  const checkNames = producedNames(doc, unresolved, [fullWf]);
   if (!checkNames.includes(ctx)) {
     const why = unresolved.length > 0
       ? `; not resolvable statically (matrix include/exclude, computed values, or other expressions in the name): ${unresolved.join(", ")}`
