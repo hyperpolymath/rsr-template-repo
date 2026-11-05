@@ -92,7 +92,9 @@ MINT_ARCH=""
 # mint DIR LOG — the non-interactive mint, isolated from this host's defaults
 # file and global git config (an ORCID or signing key there would leak in).
 mint() {
-    local cfg="$work/cfg"; mkdir -p "$cfg"; : > "$cfg/gitconfig"
+    # The user's global excludesFile ignores *.mine-local (CodeRabbit review of #275).
+    local cfg="$work/cfg"; mkdir -p "$cfg"; printf '*.mine-local\n' > "$work/global-excludes"
+    printf '[core]\n\texcludesFile = %s\n' "$work/global-excludes" > "$cfg/gitconfig"
     (cd "$1" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
@@ -131,6 +133,9 @@ printf '\nA local usage note, added to the seed before the mint.\n' >> "$C/build
 # the unrendered project type: a value found only in a tree the mint deletes
 # must not count as written into the child (CodeRabbit review of #275).
 printf 'local zq-unrendered-kind\n' > "$C/archetypes/premint-local.txt"
+# A file only the user's global excludesFile ignores: git add -A never commits
+# it, so the mint must not declare it (CodeRabbit review of #275).
+printf 'mine\n' > "$C/notes.mine-local"
 ignored_list() { (cd "$C" && git ls-files -o -i --exclude-standard | LC_ALL=C sort); }
 IGN_LIST=$(ignored_list)
 IGN_BEFORE=$(cd "$C" && printf '%s\n' "$IGN_LIST" | xargs -d '\n' sha256sum)
@@ -322,6 +327,8 @@ grep -q 'already differ from the template tree' "$work/mint.log" && grep -q '^  
 bash "$C/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx docs/usage.adoc \
     && grep -q 'A local usage note' "$C/docs/usage.adoc" \
     || { grep -n ':diverged' "$DEED" >&2; fail 'a pre-mint edit to the docs seed was not declared where it lands'; }
+if grep -q 'notes.mine-local' "$DEED"; then fail 'a file only a global excludesFile ignores was declared'; fi
+mv "$C/notes.mine-local" "$work/notes.mine-local"   # this test's own git does not ignore it
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
 # Minting the minted child again must stop before it writes: its tokens are
@@ -339,6 +346,12 @@ pass "(e-) minting an already-minted repo stops before writing and names its tem
 drift() { (cd "$C" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1; }
 drift || { cat "$work/drift.log" >&2; fail 'the drift gate is red on a fresh mint'; }
 grep -q 'identical to a replay of the mint' "$work/drift.log" || fail 'the drift gate did not replay the mint'
+# The same file, present, under the same global configuration: not this repo's
+# file, so not drift (CodeRabbit review of #275).
+mv "$work/notes.mine-local" "$C/notes.mine-local"
+(cd "$C" && GIT_CONFIG_GLOBAL="$work/cfg/gitconfig" RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1 \
+    || { cat "$work/drift.log" >&2; fail 'the drift gate counts a file the global excludesFile ignores'; }
+rm "$C/notes.mine-local"
 pass "(d) the drift gate replays the mint from (provenance) and (mint-answers): green on a fresh mint"
 # Negative control: an edit to a file the mint produced, and an undeclared
 # addition, are each named. Then restored, and green again.

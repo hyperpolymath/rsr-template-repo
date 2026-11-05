@@ -1365,9 +1365,13 @@ repo-init archetype="":
         _owned=("${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc)
         _is_owned() { local _o; for _o in "${_owned[@]}"; do [ "$1" = "$_o" ] && return 0; done; return 1; }
         # _files DIR — DIR's own files, one per line (tracked, or untracked and not
-        # ignored), as the drift gate lists them.
+        # ignored), as the drift gate lists them. This tree is read under its own
+        # git configuration, as `git add -A` will commit it (a file only a global
+        # excludesFile ignores is never committed, so never declared); the
+        # replay under none (CodeRabbit review of #275).
         _files() {
-            _rg -C "$1" ls-files -z --cached --others --exclude-standard \
+            { if [ "$1" = "$_REPLAY" ]; then _rg -C "$1" ls-files -z --cached --others --exclude-standard
+              else git -C "$1" ls-files -z --cached --others --exclude-standard; fi; } \
                 | while IFS= read -r -d '' _f; do
                     if [ -e "$1/$_f" ] || [ -L "$1/$_f" ]; then printf '%s\n' "$_f"; fi
                 done | LC_ALL=C sort -u
