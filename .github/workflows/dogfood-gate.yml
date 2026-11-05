@@ -41,9 +41,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-deed
-          sparse-checkout: 1-formats/deed
+          sparse-checkout: |
+            1-formats/deed
+            scripts
           sparse-checkout-cone-mode: true
           persist-credentials: false
       - name: Setup Bun runtime
@@ -55,6 +57,10 @@ jobs:
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/standards-deed"
           mv "$PWD/.standards-deed" "$RUNNER_TEMP/standards-deed"
+          if [ -f .machine_readable/a2ml-legacy-allow.txt ] && [ ! -f "$RUNNER_TEMP/standards-deed/scripts/check-a2ml-archived.sh" ]; then
+            echo "::error::A2ML ledger present but scripts/check-a2ml-archived.sh is missing from the standards checkout"
+            exit 1
+          fi
           STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
 
   # ---------------------------------------------------------------------------
@@ -79,7 +85,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-k9
           sparse-checkout: 1-formats/k9
           sparse-checkout-cone-mode: true
@@ -103,6 +109,14 @@ jobs:
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/standards-k9"
           mv "$PWD/.standards-k9" "$RUNNER_TEMP/standards-k9"
+          if [ ! -f "$RUNNER_TEMP/standards-k9/1-formats/k9/tools/k9-validate.sh" ]; then
+            echo "::error::K9 validator is missing from the standards checkout"
+            exit 1
+          fi
+          if ! command -v nickel >/dev/null 2>&1; then
+            echo "::error::nickel is required for K9 layer L2 validation"
+            exit 1
+          fi
           STANDARDS_DIR="$RUNNER_TEMP/standards-k9" bash .github/hooks/validate-k9.sh
 
       # The state -> badge mapping lives in scripts/governance-badge.js and
@@ -567,7 +581,7 @@ jobs:
           else
             GROOVE_STATUS=":ballot_box_with_check:"
           fi
-          if grep -rl 'verisimdb\|VeriSimDB' --include='*.toml' --include='*.yaml' --include='*.yml' --include='*.json' --include='*.rs' --include='*.ex' . 2>/dev/null | head -1 | grep -q .; then
+          if grep -rl 'verisimdb\|VeriSimDB' --include='*.toml' --include='*.yaml' --include='*.yml' --include='*.kyaml' --include='*.json' --include='*.rs' --include='*.ex' . 2>/dev/null | head -1 | grep -q .; then
             SCORE=$((SCORE + 1)); VSDB_STATUS=":white_check_mark:"
           else
             VSDB_STATUS=":ballot_box_with_check:"
@@ -605,7 +619,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: _standards
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

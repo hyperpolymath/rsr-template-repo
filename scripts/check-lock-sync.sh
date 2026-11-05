@@ -13,7 +13,15 @@
 #      `dependencies:` record — the lockfile has no dangling edges.
 #   4. every workflow file has a lockfile entry, even when it uses no actions;
 #   5. dependency ref metadata is a string naming a short branch/tag, never a
-#      SHA or placeholder, and matches its key unless that key is a full SHA;
+#      SHA or placeholder, and matches its key unless that key is a full SHA.
+#      One measured exception: a record that is ONLY the target of job-level
+#      reusable-workflow calls (`uses: o/r/.github/workflows/x.yml@<sha>`),
+#      never a step action and never a nested `uses:` of another record, may
+#      carry its own SHA as ref:. Such a reusable has no tag to name, and
+#      GitHub runs it: hyperpolymath/secret-types main at d1d843b, Governance
+#      run 41678782554 (2026-11-03), every job past "Set up job" with
+#      metadatastician/standards@46ee183 recorded as ref: 46ee183... . The
+#      action case stays refused (Protoctist.jl#18; metadatastician/lintel#15);
 #   6. the lockfile version is the supported v0.0.3 format.
 #
 # Clause 3 is not decoration. It is the clause that catches the failure mode that
@@ -253,6 +261,12 @@ FNR == 1 { wf = FILENAME }
     if (raw ~ /^\$\//) { dollar[wf] = dollar[wf] " " raw; next }   # known corruption
     n = norm(raw)
     if (n != "") { uses[wf, ck(n)] = 1; useslist[wf] = useslist[wf] " " n }
+    # Clause 5's exception needs to know HOW a ref is used: as the target of a
+    # job-level reusable-workflow call, or as an action.
+    if (n != "") {
+      if (raw ~ /\/\.github\/workflows\/[^\/@]+\.ya?ml@/) reusetgt[ck(n)] = 1
+      else actiontgt[ck(n)] = 1
+    }
   }
 }
 
@@ -357,6 +371,10 @@ END {
   #     mutable keys, never 40/64-hex commit identities as ref metadata. ---
   nself = 0; selflist = ""
   for (s in selfsha) {
+    k = ck(s)
+    # Only the target of job-level reusable calls, never an action and never a
+    # nested uses: of another record (see the header, clause 5).
+    if ((k in reusetgt) && !(k in actiontgt) && index(wantsrc[k], " dependencies:") == 0) continue
     nself++
     selflist = selflist sprintf("\n       %s (ref: %s)", s, selfsha[s])
   }
@@ -443,7 +461,7 @@ END {
   printf "  * every lockfile entry is still referenced\n"
   printf "  * every ref named in the lockfile resolves to a dependencies: record (0 dangling edges)\n"
   printf "  * every workflow file has a lockfile key (zero-uses: workflows included)\n"
-  printf "  * dependency ref: metadata uses string-valued short names, matches mutable keys, and has no placeholders or SHAs\n"
+  printf "  * dependency ref: metadata uses string-valued short names, matches mutable keys, and has no placeholders or SHAs (a job-level reusable target may name its own SHA)\n"
   if (nunref > 0)
     printf "  note: %d dependencies: record(s) are unreferenced - harmless, but prunable.\n", nunref
 }
