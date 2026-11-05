@@ -29,16 +29,18 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   the mint produces; `operational-state` stays out of the comparison. The
   replay's git runs without user or system configuration or hooks. What a
   work tree already held beyond the pinned tree before the mint (an edit, an
-  untracked file, a deletion) is named by the mint and declared in
-  `(variant (paths))` as the repo's own, by how each path stands once the
-  mint has moved and deleted what it will, so the replay from the pin stays
-  exact. A pre-mint change under a root `.well-known/` (which the mint moves),
+  untracked file, a deletion) is named by the mint, which then replays itself
+  from the pinned tree before writing anything and declares in
+  `(variant (paths))` exactly what the result differs by: the comparison the
+  drift gate makes, whatever the mint did to a change on the way (moved,
+  rendered, overwritten, or reached through an edited input). The replay
+  passes the recorded `RSR_TEMPLATE_SLUG`. A pre-mint change under a root `.well-known/` (which the mint moves),
   or a work tree that differs from an asserted template tree this repository
   does not hold, is refused before anything is written. The gate clears
   inherited git location variables, and archives the template without global
   git attributes. A pre-mint file at a path the mint itself writes (the
-  archetype overlay, the docs seed, the deed) is refused, since the mint would
-  overwrite it.
+  archetype overlay, the docs seed, the deed), or an edited template file the
+  overlay replaces, is refused, since the mint would overwrite it.
 
 ==== Fixed
 

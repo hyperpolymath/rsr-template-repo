@@ -77,6 +77,7 @@ if ! (cd "$R" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         XDG_CONFIG_HOME="$WORK/cfg" GIT_CONFIG_GLOBAL="$WORK/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
         RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 \
         RSR_TEMPLATE_URL="$TDIR" RSR_TEMPLATE_COMMIT="$PIN" RSR_MINT_DATE="$(ans mint-date)" \
+        ${SLUG:+RSR_TEMPLATE_SLUG="$SLUG"} \
         PROJECT_NAME="$(ans project-name)" REPO="$(ans repo)" OWNER="$(ans owner)" \
         AUTHOR="$(ans author)" AUTHOR_EMAIL="$(ans author-email)" AUTHOR_ORG="$(ans author-org)" \
         AUTHOR_EMAIL_ALT="$(ans author-email-alt)" AUTHOR_ORCID="$(ans author-orcid)" \
