@@ -27,6 +27,7 @@ scripts/strip-instruction-blocks.rs        # names the marker it strips
 scripts/resolve-template-pin.sh            # documents the template it resolves
 tests/e2e/template_instantiation_test.sh   # token answer list; marker exemptions
 tests/e2e/use_template_mint_test.sh        # mints a template copy: template literals
+tests/e2e/chain_mint_test.sh               # chain fixtures: parent names and paths
 tests/workflows/mint_cleanup_test.sh       # instruction-block fixture
 tests/workflows/self_name_pass_test.sh     # template-name fixtures
 tests/workflows/template_conformance_test.sh  # template-slug fixtures

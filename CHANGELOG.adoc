@@ -10,6 +10,51 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Added
 
+* **Chain minting: a minted repo can be minted again.** "Use this template"
+  on a minted repo now mints correctly (owner ruling 2026-11-04, after the
+  Codex review of #251 showed the grandchild inherited its parent's identity).
+  `scripts/chain-mint.sh` replays the parent's mint, mints the same template
+  commit with the new answers, and carries the parent's own work across with
+  `git merge-tree`: everything rendered is rendered afresh, the parent's
+  edits, additions and removals are kept (renamed by the self-name rule and
+  the narrow self-owner rule, each defined once in repo-init) and declared in
+  the new `(variant (paths))` by comparing the result with the fresh mint, as
+  the drift gate does, so an edit carried across an answer-dependent rename
+  (a Julia entry point) is declared where it lives. Paths stay NUL-delimited,
+  so a backslash or a leading dash survives, and a file the parent tracks
+  although an ignore rule matches it is carried. Identity files are held in
+  git's index, never through the work tree, and a symlink at any path the
+  chain writes is refused, so a parent-controlled link cannot redirect a
+  write. Every tree is read from, and the result written back into, the
+  checkout by git (a scratch index and a two-tree `read-tree -m -u`), never by
+  tar, so no symlink is followed. The checkout is read and written by its own
+  git, under its own configuration (a linked worktree's common excludes,
+  `core.autocrlf`, a global excludesFile, clean and smudge filters); the
+  replays under none. Every path the result adds is checked on the disk first
+  and refused by name if anything the parent snapshot does not track is there,
+  ignored or not: git's own check lets an ignored entry be overwritten
+  wherever it sees the ignore rule. A sparse checkout, an unresolved merge, or
+  a tracked path beneath a symlink is refused. A parent's deletion is honoured
+  across an answer-dependent rename; a type change there is refused by name.
+  The baselines, and the drift gate, replay with the wrapper at the pin, not
+  the carried copy, and
+  the template clone takes no init templates. The result is fixed before the
+  gates run (what they write is not carried), every file the write changes is
+  first checked out into scratch with this checkout's filters, and a write
+  that still fails part-way keeps the objects needed to put it back. The
+  generator's temporary paths join the symlink guard. A path holding byte 0x01 is refused
+  like one holding a newline. The deed's (mint-answers) decides that a tree is
+  a minted repo, so one that added build/templates/identity.deed.in back is
+  still chain-minted. The carried generators run before the
+  final measure (their intermediate data is removed before it, and the
+  declaration settles path by path and category by category), and the result must pass
+  the child's own gates (placeholders, SPDX, toolchain, container pins, www,
+  `just verify`) before it is written. A conflict with the new rendering stops
+  before anything is written. Provenance records the root
+  template commit plus `:derived-from` the parent. A parent minted before
+  `(mint-answers)` is still refused. `scripts/replay-mint.sh` is now the one
+  replay path, shared with the drift gate; only a recorded `(mint-answers)`
+  supplies its package uuid, so the new side of a chain mint derives its own.
 * **An exact drift gate for minted repos: the mint is replayed.** repo-init
   records its answers in a `(mint-answers)` deed clause (owner ruling
   2026-11-04: only values it already writes into the child's files; the
@@ -63,9 +108,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 * **repo-init follow-ups to #251 (the Codex review it merged before).**
 ** Re-minting a minted repo silently inherited its parent's author, contacts
-   and identity (its tokens are filled and `build/templates` is gone). It now
-   stops before writing and names the template to mint from. Chain minting is
-   the owner's chosen fix and lands separately; this refusal is the interim.
+   and identity (its tokens are filled and `build/templates` is gone). A
+   minted repo that records `(mint-answers)` is now chain-minted (see Added);
+   one that does not is refused before writing, naming its template.
 ** The template identity no longer falls back to the git remote, which in a
    template-created child is the child itself. A Justfile without readable
    `OWNER :=`/`REPO :=` (now also `export`) needs `RSR_TEMPLATE_SLUG`.
@@ -203,7 +248,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    fixture token; it is now carried verbatim;
 ** the repository map is generated from the work tree (`gen-repo-map.sh
    --worktree`), after the last tree-changing step, so it no longer lists
-   `archetypes/` and the template's deed name;
+   `archetypes/` and the template's deed name; a path holding a newline,
+   which the line-based map would split into bogus entries, is refused by
+   name in both modes;
 ** stage 8 no longer tells a minted repo to arm `check-variant-drift.sh`,
    which a fresh mint cannot pass (101 rendered files differ); it points at
    `check-template-conformance.sh`. The (variant) clause now declares the

@@ -127,6 +127,15 @@ jobs:
       # a repo was created with "Use this template" (metadatastician/lintel).
       - name: Template pin resolves by tree equality (controls)
         run: bash tests/workflows/resolve_template_pin_test.sh
+      # A replay trusts RSR_PACKAGE_UUID; only recorded answers may supply it.
+      - name: Replay passes a package uuid only from recorded answers
+        run: bash tests/workflows/replay_mint_env_test.sh
+      # chain-mint reads checkouts through git: gitlinks kept, no ignored file read.
+      - name: Chain snapshots keep gitlinks and read no ignored file
+        run: bash tests/workflows/chain_tree_of_test.sh
+      # The repository map is line-based: a path holding a newline is refused by name.
+      - name: Repository map refuses a path holding a newline
+        run: bash tests/workflows/repo_map_newline_test.sh
       # The first CI job to run a FULL mint: a Use-this-template child, checked
       # for provenance, untouched fixtures and ignored files, the map and the
       # closing advice. A fresh mint of main aborted on 2026-10-20 and nothing
@@ -135,6 +144,11 @@ jobs:
         run: |
           command -v uuidgen >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q uuid-runtime; }
           bash tests/e2e/use_template_mint_test.sh
+      # A repo made from a MINTED repo: its parent's mint is replayed, the
+      # template is minted with the new answers, and the parent's own work is
+      # carried by a three-way merge (Codex review of #251; owner ruling).
+      - name: Chain mint (a minted repo minted again) end to end
+        run: bash tests/e2e/chain_mint_test.sh
       # An archetype overlay once shipped its own actions.lock, which replaced
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock

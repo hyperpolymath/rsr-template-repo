@@ -114,11 +114,29 @@ repo-init archetype="":
     # support chains properly (2026-11-04); until a minted repo carries the
     # pristine inputs that makes possible, stop here, before anything is
     # asked or written. A variant template keeps build/templates and still mints.
-    if [ ! -f build/templates/identity.deed.in ]; then
+    #
+    # Chain minting (owner ruling 2026-11-04): a minted repo that recorded its
+    # (mint-answers) CAN be minted again. scripts/chain-mint.sh replays its
+    # mint, mints the same template commit with the new answers, and carries
+    # its own work across by a three-way merge. One minted before answers were
+    # recorded cannot be replayed, so it is still refused.
+    #
+    # Which it is, the deed's recorded mint state decides first: a template
+    # (or a variant template, which is maintained, never minted) records no
+    # (mint-answers). A minted repo that added build/templates/identity.deed.in
+    # back as its own work is still a minted repo (Codex review of #277).
+    CHAIN_MINT=0
+    _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
+    if [ -n "$_prov_deed" ] && bash scripts/deed-field.sh --has "$_prov_deed" mint-answers \
+       && [ -f scripts/chain-mint.sh ]; then
+        CHAIN_MINT=1
+        echo "This tree is a minted repo (${TEMPLATE_SLUG}): it will be minted as a chain,"
+        echo "from its template, carrying its own work since its mint."
+        echo ""
+    elif [ ! -f build/templates/identity.deed.in ]; then
         echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
-        echo "       absent), so it cannot be minted again yet: its tokens are filled and"
-        echo "       its identity template is gone. Mint from the template it came from."
-        _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
+        echo "       absent) and records no (mint-answers), so its mint cannot be replayed"
+        echo "       and it cannot be minted again. Mint from the template it came from."
         if [ -n "$_prov_deed" ]; then
             _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
             [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
@@ -148,9 +166,16 @@ repo-init archetype="":
     VERBATIM_LIST=".machine_readable/mint-verbatim.txt"
     [ -f "$VERBATIM_LIST" ] || { echo "Error: $VERBATIM_LIST is missing; the mint cannot tell machinery from content."; exit 1; }
     mapfile -t MINT_VERBATIM < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$VERBATIM_LIST" | grep -v '^$')
-    for _v in "${MINT_VERBATIM[@]}"; do
-        [ -f "$_v" ] || { echo "Error: $VERBATIM_LIST names $_v, which does not exist (stale entry)."; exit 1; }
-    done
+    # These two preflights judge a TEMPLATE tree. A chain mint's tree is a
+    # minted repo whose own work (a deleted verbatim-listed file, an added file
+    # with a brace token) is the parent's business; the root template is
+    # checked when chain-mint.sh replays it, and the merged result passes the
+    # placeholder gate (Codex review of #277).
+    if [ "$CHAIN_MINT" != "1" ]; then
+        for _v in "${MINT_VERBATIM[@]}"; do
+            [ -f "$_v" ] || { echo "Error: $VERBATIM_LIST names $_v, which does not exist (stale entry)."; exit 1; }
+        done
+    fi
 
     # ── Can the template be minted at all? ──────────────────────────────────
     # A brace token the recipe below has no answer for is a file that cannot be
@@ -158,7 +183,7 @@ repo-init archetype="":
     # files in every Julia repo minted before 2026-10-30) or trips the
     # placeholder gate at the END of a mint that has already written the tree.
     # Both are cheaper to refuse here, before a single byte is written.
-    if [ -f scripts/check-mint-tokens.sh ]; then
+    if [ "$CHAIN_MINT" != "1" ] && [ -f scripts/check-mint-tokens.sh ]; then
         if ! bash scripts/check-mint-tokens.sh; then
             echo "ERROR: mint aborted before writing anything — the template ships a"
             echo "       token this recipe cannot fill. See the findings above."
@@ -184,7 +209,25 @@ repo-init archetype="":
     ARCHETYPE='{{archetype}}'
     ARCH_FILE=""
     ARCH_PRESET=""
-    if [ -n "$ARCHETYPE" ]; then
+    # A chain mint has no archetypes/ (the parent's mint removed it); it
+    # re-mints with the archetype the parent recorded, from the root template
+    # (scripts/chain-mint.sh). Naming that same archetype is accepted; any
+    # other is refused, since the parent's tree was built for its own.
+    # MINT_ARCH is the archetype the mint will actually apply: on a chain, the
+    # parent's, whether or not it was named (the slug rule below depends on it:
+    # a Julia package's <Name>.jl slug).
+    MINT_ARCH="$ARCHETYPE"
+    if [ "$CHAIN_MINT" = "1" ]; then
+        _p_arch="$(bash scripts/deed-field.sh "$_prov_deed" mint-answers archetype 2>/dev/null || true)"
+        if [ -n "$ARCHETYPE" ] && [ "$ARCHETYPE" != "$_p_arch" ]; then
+            echo "Error: this tree was minted as archetype '${_p_arch:-none}'; a chain mint keeps it."
+            echo "       Run just repo-init${_p_arch:+ ${_p_arch}} (or mint from the template for another)."
+            exit 1
+        fi
+        [ -z "$_p_arch" ] || { echo "Archetype: ${_p_arch} (the parent's, re-minted from the template)"; echo ""; }
+        MINT_ARCH="$_p_arch"
+        ARCHETYPE=""
+    elif [ -n "$ARCHETYPE" ]; then
         ARCH_FILE="archetypes/${ARCHETYPE}/${ARCHETYPE}_praxis.deed"
         if [ ! -f "$ARCH_FILE" ]; then
             echo "Error: unknown archetype '${ARCHETYPE}'. Available:"
@@ -218,11 +261,11 @@ repo-init archetype="":
     # <Name> is the package's own identifier (UpperCamelCase by Julia
     # convention). The julia-library archetype accepts that form as well as
     # the estate slug; every other mint takes the estate slug only.
-    if [[ "$ARCHETYPE" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
+    if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
         :
     elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
         echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
-        [ "$ARCHETYPE" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
+        [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
         exit 1
     fi
 
@@ -391,6 +434,54 @@ repo-init archetype="":
             *$'\n'*) echo "Error: the answer for $_ans contains a newline; answers are one line."; exit 1 ;;
         esac
     done
+
+    # Answers are free text, and the right-hand side of s|…|…| is not: `&`
+    # inserts the matched token, `\` escapes, `|` ends the expression. A
+    # description "Tools & proofs" rendered as "Tools <the token> proofs" and
+    # then failed the placeholder gate; a `|` broke the substitution. Every
+    # answer goes through sed_rhs. (A newline was refused before the first write.)
+    # Defined here, ahead of the rules below that use it.
+    sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
+    # The self-name rule, defined once: used by the self-name pass below and
+    # handed to scripts/chain-mint.sh, so a chain mint renames the parent by
+    # exactly the same rule (passed as data, never re-read from the recipe).
+    SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: |reject-if-contains'
+    # The template's name and slug are LITERAL text, not patterns: a Julia
+    # mint's parent may be <Name>.jl, and `.` in a sed pattern matches any
+    # character. Escaped inline so self_name_pass_test.sh can evaluate this
+    # one assignment exactly as the recipe defines it.
+    # The name is matched only where it stands as a whole name: not inside
+    # a longer word or slug (Codex review of #251). Unbounded, a parent
+    # named `app` turned "application mapping" into "newlication mnewing".
+    # A neighbouring letter or digit blocks the match; anything else does
+    # not, so `<owner>_<name>` (sonar.projectKey), `<name>_chora.deed` and
+    # derived names such as `<name>-checkout` or `rm-<name>` still follow. Each pass
+    # loops (:label … t label) because a match consumes its right-hand
+    # neighbour, and marks through a sentinel so a new name that contains
+    # the old one (Geometry -> Geometry.jl) cannot loop forever.
+    SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
+    # The self-owner rule, defined once likewise (see the self-OWNER pass for
+    # why it is three exact identity lines and never a blanket rewrite): the
+    # Justfile OWNER declaration in each form the identity parser accepts, and
+    # the SonarCloud organization and project key. chain-mint.sh applies it to
+    # the parent's carried files too (Codex review of #277).
+    SELF_OWNER_SED="s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER//./\\.}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|;s|^sonar\\.organization=${TEMPLATE_OWNER//./\\.}\$|sonar.organization=$(sed_rhs "${OWNER}")|;s|^sonar\\.projectKey=${TEMPLATE_OWNER//./\\.}_|sonar.projectKey=$(sed_rhs "${OWNER}")_|"
+
+    # Chain mint: everything below renders a TEMPLATE tree, which this is not.
+    # chain-mint.sh renders the template afresh with these answers and carries
+    # this tree's own work across; it writes nothing unless it succeeds.
+    if [ "$CHAIN_MINT" = "1" ]; then
+        export PROJECT_NAME REPO OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG AUTHOR_EMAIL_ALT \
+               AUTHOR_ORCID PROJECT_DESCRIPTION FORGE SECURITY_EMAIL CONDUCT_EMAIL \
+               PROJECT_TYPE WEBSITE OPENSSF_BP_ID SERVICE_NAME PORT REGISTRY \
+               TEMPLATE_REPO TEMPLATE_OWNER
+        export RSR_MINT_DATE="$CURRENT_DATE" SELF_NAME_SED SELF_OWNER_SED
+        bash scripts/chain-mint.sh
+        echo ""
+        echo "Done! Chain mint complete. Review with git status, then commit."
+        exit 0
+    fi
 
     # Template-only paths this recipe deletes, as they stand before it runs.
     # Recorded in the (variant) clause's (paths :removed …) below, so the

@@ -130,21 +130,33 @@ OWNER=other-owner REPO=new
 . "$rule_script"
 check 'app handles __TEMPLATE_NAME__ and __TEMPLATE_SLUG__ text' 'new handles __TEMPLATE_NAME__ and __TEMPLATE_SLUG__ text'
 
-# ── The owner rewrite takes every form the identity parser accepts ───────────
-owner_line=$(grep -m1 -E '^ +sed -i -E "s\|\^\(\(export' "$recipe") \
-  || { echo "FAIL: no owner rewrite for export/single-quoted OWNER in $recipe" >&2; exit 1; }
+# ── The self-owner rule: every form the identity parser accepts ─────────────
+# One definition (SELF_OWNER_SED), used by the mint and by chain-mint.sh on
+# the parent's carried files (Codex review of #277). It touches exactly the
+# three identity lines; estate dependencies under the old owner stay.
+oprog=$(grep -m1 -E '^ +SELF_OWNER_SED="' "$recipe") \
+  || { echo "FAIL: no SELF_OWNER_SED line in $recipe" >&2; exit 1; }
+grep -qE '^ +sed -i -E "\$SELF_OWNER_SED" Justfile sonar-project.properties$' "$recipe" \
+  || { echo "FAIL: the self-owner pass does not apply SELF_OWNER_SED" >&2; exit 1; }
+printf '%s\n' "$oprog" > "$rule_script"
 sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
-ofix=$(mktemp -d)
-for form in 'OWNER := "example-owner"' "OWNER := 'example-owner'" 'export OWNER := "example-owner"'; do
-  printf '%s\n' "$form" > "$ofix/Justfile"
-  (cd "$ofix" && TEMPLATE_OWNER=example-owner OWNER=other-owner; eval "${owner_line#"${owner_line%%[! ]*}"}")
-  if grep -q 'other-owner' "$ofix/Justfile" && ! grep -q 'example-owner' "$ofix/Justfile"; then
-    echo "  PASS owner: $form"
-  else
-    echo "  FAIL owner: $form -> $(cat "$ofix/Justfile")" >&2; fail=1
-  fi
-done
-rm -rf "$ofix"
+TEMPLATE_OWNER=example-owner OWNER=other-owner
+# shellcheck disable=SC1090
+. "$rule_script"
+ocheck() {
+  local got; got=$(printf '%s\n' "$1" | sed -E "$SELF_OWNER_SED")
+  if [ "$got" = "$2" ]; then echo "  PASS owner: $1"; else echo "  FAIL owner: $1 -> $got (want $2)" >&2; fail=1; fi
+}
+ocheck 'OWNER := "example-owner"' 'OWNER := "other-owner"'
+ocheck "OWNER := 'example-owner'" "OWNER := 'other-owner'"
+ocheck 'export OWNER := "example-owner"' 'export OWNER := "other-owner"'
+ocheck 'sonar.organization=example-owner' 'sonar.organization=other-owner'
+ocheck 'sonar.projectKey=example-owner_elder-proj' 'sonar.projectKey=other-owner_elder-proj'
+# Controls: dependencies, longer owners and other keys are left alone.
+ocheck 'uses: example-owner/standards/.github/workflows/x.yml@main' 'uses: example-owner/standards/.github/workflows/x.yml@main'
+ocheck 'sonar.organization=example-owner-two' 'sonar.organization=example-owner-two'
+ocheck 'OWNER := "example-owner-two"' 'OWNER := "example-owner-two"'
+ocheck 'REPO_OWNER := "example-owner"' 'REPO_OWNER := "example-owner"'
 
 [ "$fail" -eq 0 ] || { echo "FAIL: self-name pass" >&2; exit 1; }
 echo 'PASS: self-name pass rewrites the derived template name, keeps issue references, provenance and detectors'

@@ -47,9 +47,18 @@ repo_files() {
             | while IFS= read -r -d '' f; do [ -e "$f" ] || [ -L "$f" ] && printf '%s\n' "$f"; done \
             | sort -u
     else
-        git ls-files -- "$@"
+        # NUL-separated: plain output C-quotes a path holding a quote or a
+        # non-ASCII byte, which then read as a root entry named `"notes`.
+        git ls-files -z -- "$@" | tr "\0" "\n"
     fi
 }
+
+# The map is built from lines, so a path holding a newline would read as two
+# bogus entries (Codex review of #277). Refused by name, as the drift tooling does.
+if [ "$MODE" = worktree ]; then NL_SET=(--cached --others --exclude-standard); else NL_SET=(--cached); fi
+NL_PATHS="$(git ls-files -z "${NL_SET[@]}" | while IFS= read -r -d '' f; do
+    case "$f" in *$'\n'*) printf '  %q\n' "$f" ;; esac; done)"
+[ -z "$NL_PATHS" ] || { printf 'ERROR: cannot map a path containing a newline:\n%s\n' "$NL_PATHS" >&2; exit 2; }
 
 [ -f "$ALLOW" ] || { echo "ERROR: $ALLOW not found" >&2; exit 2; }
 mkdir -p "$(dirname "$OUT")"
