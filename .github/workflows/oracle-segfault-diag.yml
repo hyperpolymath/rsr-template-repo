@@ -116,7 +116,7 @@ jobs:
           beam="$(find "$INSTALL_DIR_FOR_OTP" -name beam.smp -type f -print -quit)"
           for c in "$out"/cores/core.*; do
             [ -f "$c" ] || continue
-            gdb -batch -q -ex 'info sharedlibrary' -ex 'thread apply all bt 40' \
+            gdb -batch -q -ex 'bt 40' -ex 'info registers rip rsp' -ex 'x/8i $pc' -ex 'info sharedlibrary' \
               "$beam" "$c" > "$c.bt.txt" 2>&1 || true
             rm -f "$c"
           done
@@ -144,37 +144,52 @@ jobs:
           bt="$(find "$out/cores" -name '*.bt.txt' -print -quit)"
           if [ -n "$bt" ]; then
             echo "--- crashing thread first, then the rest: $bt ---"
-            grep -v '^\(From\|0x[0-9a-f]* *0x[0-9a-f]* *Yes\)' "$bt" | head -n 220
+            grep -v -e 'JITed symbol file' -e '^\[New LWP' "$bt" | head -n 120
           else
             echo "no backtrace recorded"
           fi
-      - name: Bisect what in the tree triggers the crash
-        if: always()
+      - name: Minimise the triggering file
+        if: matrix.label == 'crashed-2ba9126'
         working-directory: _hypatia
         env:
-          GOOD: 0c9dc42948cbe4060149a7829d14cb21f330dd3f
+          FILE: .github/workflows/dogfood-summary.yml
         run: |
           set -u
-          score() {
+          t="$RUNNER_TEMP/m"
+          crashes() {
+            rm -rf "$t" && mkdir -p "$t/$(dirname "$FILE")" && cp "$1" "$t/$FILE"
             rc=0
-            mix hypatia.rsr_score "$1" \
+            mix hypatia.rsr_score "$t" \
               --ssot ../_standards/0-canon/rsr/rsr-criteria-v2.a2ml \
-              > "$RUNNER_TEMP/bisect.txt" 2>&1 || rc=$?
-            echo "rc=$rc  $2"
+              > /dev/null 2>&1 || rc=$?
+            [ "$rc" -ge 128 ]
           }
-          fresh() {
-            rm -rf "$RUNNER_TEMP/t" && mkdir -p "$RUNNER_TEMP/t"
-            git -C ../subject archive HEAD | tar -x -C "$RUNNER_TEMP/t"
-          }
-          score ../subject "subject as checked out (with .git)"
-          fresh; score "$RUNNER_TEMP/t" "subject tree, no .git"
-          for p in $(git -C ../subject diff --name-only HEAD "$GOOD"); do
-            fresh
-            git -C ../subject show "$GOOD:$p" > "$RUNNER_TEMP/t/$p"
-            score "$RUNNER_TEMP/t" "no .git, $p taken from $GOOD"
+          git -C ../subject show "HEAD:$FILE" > "$RUNNER_TEMP/cur"
+          if crashes "$RUNNER_TEMP/cur"; then
+            echo "the file alone, in an otherwise empty tree: crashes"
+          else
+            echo "the file alone, in an otherwise empty tree: no crash; it needs the rest of the tree"
+            exit 0
+          fi
+          # Same length, every byte replaced: is it the content or the size?
+          tr -c '\n' 'a' < "$RUNNER_TEMP/cur" > "$RUNNER_TEMP/same-size"
+          if crashes "$RUNNER_TEMP/same-size"; then echo "same size, content replaced by 'a': crashes"; else echo "same size, content replaced by 'a': no crash"; fi
+          # Greedy one-line-at-a-time deletion, repeated until nothing more can go.
+          changed=1
+          while [ "$changed" = 1 ]; do
+            changed=0
+            n=$(wc -l < "$RUNNER_TEMP/cur")
+            i=1
+            while [ "$i" -le "$n" ]; do
+              sed "${i}d" "$RUNNER_TEMP/cur" > "$RUNNER_TEMP/try"
+              if crashes "$RUNNER_TEMP/try"; then
+                mv "$RUNNER_TEMP/try" "$RUNNER_TEMP/cur"; n=$((n - 1)); changed=1
+              else
+                i=$((i + 1))
+              fi
+            done
           done
-          fresh
-          for p in $(git -C ../subject diff --name-only HEAD "$GOOD"); do
-            git -C ../subject show "$GOOD:$p" > "$RUNNER_TEMP/t/$p"
-          done
-          score "$RUNNER_TEMP/t" "no .git, all differing files taken from $GOOD"
+          echo "--- minimal crashing content ($(wc -lc < "$RUNNER_TEMP/cur" | xargs) lines/bytes), shown with cat -A ---"
+          cat -A "$RUNNER_TEMP/cur"
+          echo "--- its sha256 ---"
+          sha256sum "$RUNNER_TEMP/cur"
