@@ -10,6 +10,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **Canon lockstep failed once standards released canon 2.1.4.** The deed
+  declared `(canon :version "2.1.3")`, so the job that compares it with
+  standards' live `canon.lock` failed on `main` and on every open PR. 2.1.4
+  is an editorial PATCH: only `TEMPLATE-APPLICABILITY-POLICY.adoc` changes,
+  naming the repo deed's `(agentic)` `(neurosym)` `(playbook)` clauses as
+  the carriers of those descriptiles, which this deed already has. The
+  criteria and gates hashes are unchanged, so the deed adopts the release
+  with its version, and `governance_policy_test.sh` pins the new tuple.
 * **`.kyaml` files were invisible to four file scans.** Estate configuration
   is `.kyaml` (D307), but these selectors matched only `*.yaml`/`*.yml`: the
   invisible-character scan (`scripts/check-invisible-characters.sh`), the
