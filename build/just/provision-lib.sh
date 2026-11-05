@@ -176,7 +176,7 @@ guix_specs() {
 # mise tools per language (registry-checked 2026-09-30, mise 2026.7.5). idris2 comes
 # from pack and haskell from ghcup or Guix: neither is a mise tool. The recipes
 # themselves need just and shellcheck, so those two are always declared.
-MISE_BASE="just shellcheck"
+MISE_BASE="just shellcheck yq"   # yq: scripts/kyaml-format.sh (KYAML configs; the mint formats the container ones)
 # Tools a repo's own recipes call (e.g. `deps-audit` runs trivy): pinned only where used.
 RECIPE_TOOLS="trivy"
 # Print the mise tool names for language $1, if supported.

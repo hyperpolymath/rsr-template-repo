@@ -8,16 +8,78 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Added
+
+* **An exact drift gate for minted repos: the mint is replayed.** repo-init
+  records its answers in a `(mint-answers)` deed clause (owner ruling
+  2026-11-04: only values it already writes into the child's files; the
+  recipe checks each value against those files, not the template-only trees
+  it deletes, and names any it leaves out)
+  and takes its date from `RSR_MINT_DATE`; a replay also takes the recorded
+  Julia package uuid, which an ordinary mint always derives.
+  `scripts/check-mint-drift.sh` re-mints the template at `(provenance :template-commit)` with those answers
+  and diffs the child against the result, so a fresh mint is green by
+  construction and each later edit is named. `check-variant-drift.sh`
+  delegates to it for a minted repo, and stage 8 recommends it again. The
+  derived files (`CLAUDE.md`, the repository map) are declared diverged at
+  mint: their own gates keep them fresh. Each side's file set is its tracked
+  or unignored files (the child's under its own git configuration, as
+  `git add -A` commits it; the replay's under none), so a force-added build
+  artefact is still named. The
+  most specific declaration covering a path decides its category, so a file
+  declared added under a directory the mint removes is an addition; a path
+  holding a newline is refused by name. A path declared diverged must be one
+  the mint produces; `operational-state` stays out of the comparison. The
+  replay's git runs without user or system configuration or hooks. What a
+  work tree already held beyond the pinned tree before the mint (an edit, an
+  untracked file, a deletion) is named by the mint, which then replays itself
+  from the pinned tree before writing anything and declares in
+  `(variant (paths))` exactly what the result differs by: the comparison the
+  drift gate makes, whatever the mint did to a change on the way (moved,
+  rendered, overwritten, or reached through an edited input). The replay
+  passes the recorded `RSR_TEMPLATE_SLUG`. A pre-mint change under a root `.well-known/` (which the mint moves),
+  or a work tree that differs from an asserted template tree this repository
+  does not hold, is refused before anything is written. The gate clears
+  inherited git location variables, and writes the pinned tree as a checkout
+  does (`checkout-index`, never `git archive`, whose `export-ignore` and
+  `export-subst` would change it), without global git attributes. A pre-mint
+  file at a path the mint itself writes (the archetype overlay, the docs seed,
+  the deed), or an edited template file the overlay replaces, is refused,
+  since the mint would overwrite it; and the mint also dry-runs itself on the
+  work tree, refusing by name any pre-mint change it would discard (an edit to
+  the roadmap or `mise.toml`, which it writes whole). repo-init clears any
+  inherited git location (`GIT_DIR`, `GIT_INDEX_FILE`, …) before it runs, so
+  neither its replays nor the tests it runs in scratch repositories can commit
+  into the child; one naming another repository is refused. The replays
+  receive `STANDARDS_UUID_V8_JS`, and a template tree carrying a submodule
+  (a gitlink, which a replay cannot reproduce) is refused by name, at the mint
+  as well, clean or not. A pre-mint change gone from both results (an input
+  the mint never copies, a file in a directory it deletes) is checked by
+  minting without it, and refused by name when it has no effect; a path
+  holding byte 0x01 (the deed reader's record separator) is refused like one
+  holding a newline.
+
 ==== Fixed
 
-* **Canon lockstep failed once standards released canon 2.1.4.** The deed
-  declared `(canon :version "2.1.3")`, so the job that compares it with
-  standards' live `canon.lock` failed on `main` and on every open PR. 2.1.4
-  is an editorial PATCH: only `TEMPLATE-APPLICABILITY-POLICY.adoc` changes,
-  naming the repo deed's `(agentic)` `(neurosym)` `(playbook)` clauses as
-  the carriers of those descriptiles, which this deed already has. The
-  criteria and gates hashes are unchanged, so the deed adopts the release
-  with its version, and `governance_policy_test.sh` pins the new tuple.
+* **repo-init follow-ups to #251 (the Codex review it merged before).**
+** Re-minting a minted repo silently inherited its parent's author, contacts
+   and identity (its tokens are filled and `build/templates` is gone). It now
+   stops before writing and names the template to mint from. Chain minting is
+   the owner's chosen fix and lands separately; this refusal is the interim.
+** The template identity no longer falls back to the git remote, which in a
+   template-created child is the child itself. A Justfile without readable
+   `OWNER :=`/`REPO :=` (now also `export`) needs `RSR_TEMPLATE_SLUG`.
+** The self-name pass matches the template name only where no letter or
+   digit touches it, so a short parent name such as `app` no longer rewrites
+   "application" into "newlication".
+** `resolve-template-pin.sh` pins a root commit by creation time (the
+   default branch's tip when the child was made) and refuses, listing them,
+   when several commits share a tree; 29 trees repeat on main.
+** `rust-tool.sh` caches each mint tool by the hash of its source, so two
+   checkouts can no longer run each other's binary.
+** Answers go through `sed_rhs`, so `&`, `|` and `\` in a description or name
+   render literally; an answer with a newline is refused.
+
 * **`.kyaml` files were invisible to four file scans.** Estate configuration
   is `.kyaml` (D307), but these selectors matched only `*.yaml`/`*.yml`: the
   invisible-character scan (`scripts/check-invisible-characters.sh`), the
@@ -72,6 +134,53 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    fails on a fixture built to fail it; `tests/e2e/language_profiles_mint_test.sh`
    (27 controls) mints a Julia package and a Rust CLI and runs the gates on both.
    `.github/workflows/quality.yml` gained a `mint-gates` job that runs them.
+
+* Defects a child inherited, found porting this CI into resource-algebra
+  (resource-algebra#15, fixed there in resource-algebra#16):
+** Secret Scanner: a repository `.gitleaks.toml` replaced the estate
+   gitleaks baseline in all three passes, so a pull request could pass with
+   a weaker local config. The baseline now always runs; a local config adds
+   a second pass;
+** `scripts/check-required-contexts.sh` checked a mapped context's workflow
+   trigger but not that a job with that check-run name exists, so a renamed
+   job could strand pull requests behind an unproducible required check; a
+   job with neither `runs-on` nor `uses` produces nothing. A
+   job that calls a local reusable workflow (one declaring
+   `on: workflow_call`, directly in `.github/workflows/`, called as `./` or
+   `$/`, nested at most ten deep, no
+   cycles) counts as producing
+   `<caller> / <called job>`; one that calls a remote reusable produces
+   nothing the gate can certify. A literal matrix is expanded as GitHub
+   names its runs (property names case-insensitive, and only names GitHub
+   can dereference); a matrix with
+   include/exclude or computed values is
+   refused by name, never assumed to match; a matrix caller of a reusable
+   produces one `<caller run> / <called job>` per run;
+** `repo-init` and `container-init` filled the container tokens without
+   reformatting the KYAML, so a fresh child that keeps its containers failed
+   Estate Rules' "Converted YAML stays KYAML". Both now run
+   `scripts/format-container-kyaml.sh` after their substitution pass, and check
+   for a yq that writes KYAML before they write anything (a mint that prunes
+   `build/container/` needs none), refusing a service name, port or registry
+   that would break the KYAML they fill or the substitution (a service name
+   that is a DNS label, since it is also a TOML table key and the backend's
+   hostname; a registry of a host or a bracketed IPv6 address in RFC 4291 text, an optional port
+   from 1 to 65535 and lower-case path components, the owner lower-cased in
+   its default;
+   `container_kyaml_test.sh` holds the accepted and refused values). yq joins
+   the base toolchain (`MISE_BASE`, so every rendered `mise.toml`, and the
+   template's own); `mise.lock` gains its record with `just toolchain-refresh`.
+   The quick-start docs install the toolchain before `just repo-init` and run
+   every `just` through `mise exec --` unless mise is activated. Estate Rules
+   installs its pinned yq before the mint steps, and `use_template_mint_test.sh`
+   checks the minted configs and that a mint without a KYAML-capable yq stops
+   untouched;
+** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or
+   `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
+   gate then rejected in a child;
+** `tests/ffi_strings_test.sh` named the template's export prefix, so in a
+   child it called functions that do not exist. It now maps the child's exported
+   symbols onto the fixture's, and nothing else that shares their prefix.
 
 * `repo-init` minting a repository created with GitHub's "Use this
   template" (measured on metadatastician/lintel, 2026-10-14):

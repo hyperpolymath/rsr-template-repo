@@ -4,7 +4,8 @@
 # PR #244 configuration regressions: the retired runtime policy must not ship,
 # and governance must run for pull requests targeting any branch with a locked
 # checkout of metadatastician/standards at a full 40-hex SHA.
-# PR #257 adds the proof-policy mapping and adopts canon 2.1.3. Since that
+# PR #257 adds the proof-policy mapping and adopts canon 2.1.3, and canon 2.1.4 (an editorial PATCH:
+# the criteria and gates hashes are unchanged) is adopted here. Since that
 # change is documentation and configuration only, check its published contract
 # here without invoking any proof compiler or making network requests.
 # Usage: bash tests/workflows/governance_policy_test.sh
@@ -194,6 +195,6 @@ assert.deepEqual([field("version"), field("criteria-sha256"), field("gates-sha25
   "2.1.4",
   "6a5aa8857bd0d0d58ef48827938ca17c251b6b854dacf59d306388d61694d82a",
   "2f31f46d4753432e0aa8c9c28f339e18e062c98dc6e6ef4ecbb76993cf37638b",
-], "canon 2.1.4 keeps the 2.1.3 criteria and gates identities (an editorial PATCH)");
+], "canon 2.1.4 keeps the criteria and gates identities of 2.1.3 (an editorial PATCH)");
 console.log("PASS: the deed adopts the complete canon 2.1.4 identity");
 JS

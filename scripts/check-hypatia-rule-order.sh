@@ -170,11 +170,20 @@ policy_hypatia="$(jq -r '.scanner.commit' "$POLICY")"
 # sed -nE, not grep: under `set -e`, a grep that finds no pin terminates the
 # script before the diagnostic below, which would turn a missing pin into a
 # silent non-zero rather than a stated one.
-wf_hypatia="$(sed -nE "s/.*HYPATIA_SHA: *'?([0-9a-f]{40})'?.*/\1/p" "$HYPATIA_WF" | head -n1)"
+# The scanner pin is HYPATIA_SHA where hypatia-scan.yml runs the scan itself,
+# or the `hypatia-ref:` input where it calls a reusable workflow (the call
+# passes the pin; the reusable has none of its own). Both present must agree:
+# two pins for one scanner leave the policy two answers.
+wf_sha="$(sed -nE "s/.*HYPATIA_SHA: *['\"]?([0-9a-f]{40})['\"]?.*/\1/p" "$HYPATIA_WF" | head -n1)"
+wf_ref="$(sed -nE "s/^[[:space:]]+hypatia-ref: *['\"]?([0-9a-f]{40})['\"]?[[:space:]]*(#.*)?$/\1/p" "$HYPATIA_WF" | head -n1)"
+wf_hypatia="${wf_sha:-$wf_ref}"
+wf_pin_name="HYPATIA_SHA"; [ -n "$wf_sha" ] || wf_pin_name="the hypatia-ref input"
 if [ -z "$wf_hypatia" ]; then
-  fail "hypatia-scan.yml declares no HYPATIA_SHA; the policy's scanner.commit cannot be verified"
+  fail "hypatia-scan.yml declares no HYPATIA_SHA and passes no hypatia-ref input; the policy's scanner.commit cannot be verified"
+elif [ -n "$wf_sha" ] && [ -n "$wf_ref" ] && [ "$wf_sha" != "$wf_ref" ]; then
+  fail "hypatia-scan.yml pins the scanner twice and disagrees: HYPATIA_SHA ${wf_sha:0:12}, hypatia-ref ${wf_ref:0:12}"
 elif [ "$policy_hypatia" != "$wf_hypatia" ]; then
-  fail "policy scanner.commit (${policy_hypatia:0:12}) does not match HYPATIA_SHA in hypatia-scan.yml (${wf_hypatia:0:12})"
+  fail "policy scanner.commit (${policy_hypatia:0:12}) does not match ${wf_pin_name} in hypatia-scan.yml (${wf_hypatia:0:12})"
 fi
 
 policy_grid="$(jq -r '.grid.commit' "$POLICY")"
