@@ -147,7 +147,7 @@ reusable_source() {
         echo "check-workflow-edges: reusable '${call}' is not in EDGES_REUSABLE_DIR" >&2
         return 2
       fi
-    elif ! curl -fsSL --retry 3 --max-time 30 "https://raw.githubusercontent.com/$owner/$repo/$ref/$path" -o "$out"; then
+    elif ! curl --proto =https --proto-redir =https -fsSL --retry 3 --max-time 30 "https://raw.githubusercontent.com/$owner/$repo/$ref/$path" -o "$out"; then
       echo "check-workflow-edges: could not read reusable '${call}' at its pinned commit; the edge through it cannot be verified" >&2
       return 2
     fi
