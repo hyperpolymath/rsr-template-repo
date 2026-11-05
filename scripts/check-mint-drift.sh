@@ -60,7 +60,9 @@ g() {
 # The child as "Use this template" made it: the pinned tree, one root commit.
 R="$WORK/replay"
 mkdir -p "$R"
-git -C "$TDIR" archive "$PIN" | tar x -C "$R"
+# Through g: a global core.attributesFile (export-ignore) must not shape the
+# replay (Codex review of #277).
+g -C "$TDIR" archive "$PIN" | tar x -C "$R"
 g -C "$R" init -q -b main
 g -C "$R" add -A
 g -C "$R" commit -q -m "Initial commit"
