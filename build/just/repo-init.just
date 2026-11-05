@@ -120,25 +120,28 @@ repo-init archetype="":
     # mint, mints the same template commit with the new answers, and carries
     # its own work across by a three-way merge. One minted before answers were
     # recorded cannot be replayed, so it is still refused.
+    #
+    # Which it is, the deed's recorded mint state decides first: a template
+    # (or a variant template, which is maintained, never minted) records no
+    # (mint-answers). A minted repo that added build/templates/identity.deed.in
+    # back as its own work is still a minted repo (Codex review of #277).
     CHAIN_MINT=0
-    if [ ! -f build/templates/identity.deed.in ]; then
-        _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
-        if [ -n "$_prov_deed" ] && bash scripts/deed-field.sh --has "$_prov_deed" mint-answers \
-           && [ -f scripts/chain-mint.sh ]; then
-            CHAIN_MINT=1
-            echo "This tree is a minted repo (${TEMPLATE_SLUG}): it will be minted as a chain,"
-            echo "from its template, carrying its own work since its mint."
-            echo ""
-        else
-            echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
-            echo "       absent) and records no (mint-answers), so its mint cannot be replayed"
-            echo "       and it cannot be minted again. Mint from the template it came from."
-            if [ -n "$_prov_deed" ]; then
-                _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
-                [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
-            fi
-            exit 1
+    _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
+    if [ -n "$_prov_deed" ] && bash scripts/deed-field.sh --has "$_prov_deed" mint-answers \
+       && [ -f scripts/chain-mint.sh ]; then
+        CHAIN_MINT=1
+        echo "This tree is a minted repo (${TEMPLATE_SLUG}): it will be minted as a chain,"
+        echo "from its template, carrying its own work since its mint."
+        echo ""
+    elif [ ! -f build/templates/identity.deed.in ]; then
+        echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
+        echo "       absent) and records no (mint-answers), so its mint cannot be replayed"
+        echo "       and it cannot be minted again. Mint from the template it came from."
+        if [ -n "$_prov_deed" ]; then
+            _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
+            [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
         fi
+        exit 1
     fi
 
     # --- What the mint may edit ---------------------------------------------

@@ -60,7 +60,19 @@ g() {
 # The child as "Use this template" made it, minted again with its own
 # recorded answers and date (scripts/replay-mint.sh, the one replay path).
 R="$WORK/replay"
-bash "$(dirname "$READ")/replay-mint.sh" "$TDIR" "$PIN" "$R" --answers-from "$DEED" \
+# The replay wrapper (and the deed reader it uses) as the template commit has
+# them, not this repo's carried copies, which an edit here could turn against
+# the gate (Codex review of #277). A pin older than the wrapper has none: this
+# repo's own copy is used then, and said so.
+RM_DIR="$WORK/pinned"; mkdir -p "$RM_DIR"
+if g -C "$TDIR" show "${PIN}:scripts/replay-mint.sh" > "$RM_DIR/replay-mint.sh" 2>/dev/null \
+   && g -C "$TDIR" show "${PIN}:scripts/deed-field.sh" > "$RM_DIR/deed-field.sh" 2>/dev/null; then
+    RM_WRAP="$RM_DIR/replay-mint.sh"
+else
+    RM_WRAP="$(dirname "$READ")/replay-mint.sh"
+    echo "NOTE: template commit ${PIN:0:12} has no scripts/replay-mint.sh; replaying with this repo's own copy"
+fi
+bash "$RM_WRAP" "$TDIR" "$PIN" "$R" --answers-from "$DEED" \
     || die "the replay of the mint failed (above); nothing was compared"
 
 # Declared divergence, from the CHILD's (variant (paths …)) clause, kept by

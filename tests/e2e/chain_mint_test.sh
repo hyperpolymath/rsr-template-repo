@@ -119,6 +119,10 @@ printf 'elder-proj filtered note\n' > "$P/notes/elder.bad"
 # not part of the result (Codex review of #277).
 sed -i '1a printf "side\\n" > gate-output.txt' "$P/scripts/check-container-pins.sh"
 grep -q 'gate-output.txt' "$P/scripts/check-container-pins.sh" || fail 'fixture: the gate side effect was not added'
+# The identity template's path, added back as the parent's own file: the
+# deed's (mint-answers) still marks the parent as minted, so the grandchild is
+# chain-minted and the file carried as its work (Codex review of #277).
+mkdir -p "$P/build/templates"; printf 'my own identity notes\n' > "$P/build/templates/identity.deed.in"
 g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
 pass "fixture: a minted parent with its own edit, addition and removal"
 
@@ -217,6 +221,10 @@ if grep -qF 'to-become-dir.txt/secret' "$DEED" || g -C "$G" ls-files -co --exclu
 fi
 [ "$(cat "$G/notes/to-become-dir.txt/secret.txt")" = 'not for the chain' ] || fail 'the ignored file was changed'
 pass "a carried generator's output is declared; an ignored file is never read into the chain"
+[ "$(cat "$G/build/templates/identity.deed.in" 2>/dev/null)" = 'my own identity notes' ] \
+    && added | grep -qx build/templates/identity.deed.in \
+    || { grep -n ':added' "$DEED" >&2; fail 'a parent that added the identity template back was not chain-minted with it carried'; }
+pass "a minted parent carrying build/templates/identity.deed.in is still chain-minted"
 [ ! -e "$G/gate-output.txt" ] && ! grep -q 'gate-output.txt' "$DEED" \
     || fail 'a file a gate wrote while the gates ran was carried into the result'
 pass "what the gates write while they run is not part of the result"
@@ -254,6 +262,8 @@ use_template "$P" HEAD "$G3" git@github.com:other-owner/grand-check.git
 bash "$G3/scripts/deed-clause.sh" delete "$G3/elder-proj_chora.deed" mint-answers 2>/dev/null \
     || perl -0pi -e 's/\n  ; mint-answers.*?\n  \(mint-answers.*?\)\n/\n/s' "$G3/elder-proj_chora.deed"
 ! bash "$G3/scripts/deed-field.sh" --has "$G3/elder-proj_chora.deed" mint-answers || fail 'fixture: (mint-answers) still present'
+# Nor the identity template the main parent added back: an old child has neither.
+g -C "$G3" rm -q build/templates/identity.deed.in
 g -C "$G3" commit -q -am "an old child"
 if mint "$G3" "$work/old.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
     fail 'a parent without (mint-answers) was minted'
@@ -352,7 +362,28 @@ if grep -qE 'elder-proj|Elder tools|Eldra Author' "$G11/README.adoc" \
     fail 'the parent'"'"'s edited replay wrapper redefined the baseline: its README was carried as its own work'
 fi
 grep -qF 'Grand tools' "$G11/README.adoc" || fail 'the README was not rendered for the grandchild'
-pass "the baselines replay with the wrapper at the pin, not the parent's edited copy"
+# The grandchild carries the edited wrapper (its parent's work, declared), and
+# its own drift gate replays with the wrapper at the pin too (Codex review of
+# #277): green.
+g -C "$G11" add -A; g -C "$G11" commit -q -m "chain mint"
+(cd "$G11" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/wrapperdrift.log" 2>&1 \
+    || { cat "$work/wrapperdrift.log" >&2; fail 'the drift gate replayed with the carried, edited wrapper'; }
+pass "the baselines replay with the wrapper at the pin, not the parent's edited copy; so does the drift gate"
+
+# A path holding byte 0x01, the deed reader's record separator, cannot be
+# declared: refused by name, before anything is written (Codex review of #277).
+P12="$work/parent12"
+g clone -q --no-local "$P" "$P12"
+printf 'x\n' > "$P12/notes/soh"$'\001'"name.txt"
+g -C "$P12" add -A; g -C "$P12" commit -q -m "a path holding 0x01"
+G12="$work/grandchild12"
+use_template "$P12" HEAD "$G12" git@github.com:other-owner/grand-check.git
+if mint "$G12" "$work/soh.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint declared a path holding byte 0x01'
+fi
+grep -q 'newline or byte 0x01' "$work/soh.log" || { tail -20 "$work/soh.log" >&2; fail 'the 0x01 path was not refused by name'; }
+[ -z "$(g -C "$G12" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) a carried path holding byte 0x01 is refused before anything is written"
 
 # A smudge filter that fails during the write-back stops the chain before the
 # checkout is touched: read-tree -u is not atomic (Codex review of #277).

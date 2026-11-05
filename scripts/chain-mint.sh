@@ -271,13 +271,15 @@ done
 cp "$DEED" "$WORK/deed.fresh"
 
 # declare — the inherited paths, by kind, into the three lists. The deed's
-# (paths) lists are line-based: a path holding a newline is refused by name.
+# (paths) lists are line-based: a path holding a newline is refused by name,
+# as is one holding byte 0x01, the deed reader's record separator (Codex
+# review of #277).
 declare_paths() {
     : > "$WORK/added.list"; : > "$WORK/removed.list"; : > "$WORK/diverged.list"
     N_A=0 N_D=0 N_M=0
     while IFS= read -r -d '' st && IFS= read -r -d '' f; do
         is_owned "$f" && continue
-        case "$f" in *$'\n'*) die "cannot declare a carried path containing a newline: $(printf '%q' "$f"); nothing was written" ;; esac
+        case "$f" in *$'\n'*|*$'\001'*) die "cannot declare a carried path containing a newline or byte 0x01: $(printf '%q' "$f"); nothing was written" ;; esac
         case "$st" in
             A) printf '%s\n' "$f" >> "$WORK/added.list"; N_A=$((N_A + 1)) ;;
             D) printf '%s\n' "$f" >> "$WORK/removed.list"; N_D=$((N_D + 1)) ;;

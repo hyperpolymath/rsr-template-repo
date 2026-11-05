@@ -36,12 +36,16 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   wherever it sees the ignore rule. A sparse checkout, an unresolved merge, or
   a tracked path beneath a symlink is refused. A parent's deletion is honoured
   across an answer-dependent rename; a type change there is refused by name.
-  The baselines replay with the wrapper at the pin, not the parent's copy, and
+  The baselines, and the drift gate, replay with the wrapper at the pin, not
+  the carried copy, and
   the template clone takes no init templates. The result is fixed before the
   gates run (what they write is not carried), every file the write changes is
   first checked out into scratch with this checkout's filters, and a write
   that still fails part-way keeps the objects needed to put it back. The
-  generator's temporary paths join the symlink guard. The carried generators run before the
+  generator's temporary paths join the symlink guard. A path holding byte 0x01 is refused
+  like one holding a newline. The deed's (mint-answers) decides that a tree is
+  a minted repo, so one that added build/templates/identity.deed.in back is
+  still chain-minted. The carried generators run before the
   final measure (their intermediate data is removed before it, and the
   declaration settles path by path and category by category), and the result must pass
   the child's own gates (placeholders, SPDX, toolchain, container pins, www,
