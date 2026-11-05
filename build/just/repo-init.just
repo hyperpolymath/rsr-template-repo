@@ -44,6 +44,28 @@ repo-init archetype="":
         echo "Error: repo-init must run inside a git work tree (run 'git init' first)."
         exit 1
     fi
+    # The mint runs git against other repositories too (replays, a template
+    # clone, the tests it runs in scratch repositories), and an inherited
+    # repository location (GIT_DIR, GIT_INDEX_FILE, … from a hook or another git
+    # caller) would redirect every one of them into this repository: the
+    # replay's commits, the tests' fixture commits (CodeRabbit review of #275).
+    # So the location is cleared, once, here, for this recipe and everything it
+    # starts; one that named a different repository than this work tree's own
+    # is refused, since clearing it would mint something else.
+    _git_loc=(GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+              GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE)
+    _git_set=""; for _v in "${_git_loc[@]}"; do [ -z "${!_v+x}" ] || _git_set="${_git_set} ${_v}"; done
+    if [ -n "$_git_set" ]; then
+        _here_gd="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+        _bare_gd="$(cd "$(git rev-parse --show-toplevel)" && env $(printf -- '-u %s ' "${_git_loc[@]}") git rev-parse --absolute-git-dir 2>/dev/null || true)"
+        if [ -z "$_bare_gd" ] || [ "$_here_gd" != "$_bare_gd" ]; then
+            echo "Error: mint aborted before writing anything — git location variables are set"
+            echo "      (${_git_set# }) and name a repository other than this work tree's own."
+            echo "      Run repo-init from the repository's work tree without them."
+            exit 1
+        fi
+        unset "${_git_loc[@]}"
+    fi
 
     # --- The template's own identity ---------------------------------------
     # repo-init is carried into every minted repo UNCHANGED (it is listed in
@@ -616,8 +638,18 @@ repo-init archetype="":
     }
     _REPLAY=""
     if [ $(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} )) -gt 0 ]; then
-        _rg() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=replay -c user.email=replay@example.invalid \
-                    -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+        # _rg — git with no user or system configuration and no hooks, and no
+        # inherited repository location (GIT_DIR, GIT_INDEX_FILE, … from a hook or
+        # another git caller), which would redirect the replay's commits into
+        # this repository (CodeRabbit review of #275). _rgi IDX — the same, on
+        # the scratch index IDX and object store $_pm (the work tree's objects).
+        _rgclean=(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY
+                  -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_PREFIX -u GIT_NAMESPACE GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1)
+        _rgflags=(-c user.name=replay -c user.email=replay@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null)
+        _rg() { "${_rgclean[@]}" git "${_rgflags[@]}" "$@"; }
+        _rgi() { local _i="$1"; shift
+                 "${_rgclean[@]}" GIT_INDEX_FILE="$_i" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
+                     git "${_rgflags[@]}" "$@"; }
         _rp="$(mktemp -d)"; _REPLAY="$_rp/r"
         mkdir -p "$_rp/cfg"; : > "$_rp/gitconfig"
         # _mint_tree TREE DIR — TREE written into DIR as a checkout writes it
@@ -626,10 +658,17 @@ repo-init archetype="":
         # "Use this template" commits it, then minted with this mint's answers.
         _mint_tree() {
             mkdir -p "$2"
-            GIT_INDEX_FILE="$_rp/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
-                _rg read-tree "$1"
-            GIT_INDEX_FILE="$_rp/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
-                _rg checkout-index -a -f --prefix="$2/"
+            _rgi "$_rp/index" read-tree "$1"
+            # A gitlink has no files to write, so the copy would lose it: refused
+            # by name rather than replayed inexactly (Codex review of #277).
+            _gl="$(_rgi "$_rp/index" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "         " $2 }')"
+            if [ -n "$_gl" ]; then
+                echo "ERROR: the tree carries a submodule (gitlink), which the replay of this mint"
+                echo "       cannot reproduce; minting such a tree is not supported:"
+                printf '%s\n' "$_gl"
+                rm -f "$_rp/index"; return 1
+            fi
+            _rgi "$_rp/index" checkout-index -a -f --prefix="$2/"
             rm -f "$_rp/index"
             _rg -C "$2" init -q -b main; _rg -C "$2" add -A; _rg -C "$2" commit -q -m "Initial commit"
             _rg -C "$2" remote add origin "git@${FORGE}:${OWNER}/${REPO}.git"
@@ -637,6 +676,7 @@ repo-init archetype="":
                 ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
                 ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
                 ${RSR_TEMPLATE_SLUG:+RSR_TEMPLATE_SLUG="$RSR_TEMPLATE_SLUG"} \
+                ${STANDARDS_UUID_V8_JS:+STANDARDS_UUID_V8_JS="$STANDARDS_UUID_V8_JS"} \
                 XDG_CONFIG_HOME="$_rp/cfg" GIT_CONFIG_GLOBAL="$_rp/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
                 RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 RSR_ALLOW_UNPINNED=1 \
                 RSR_TEMPLATE_URL="$_rp/no-template-source" RSR_MINT_DATE="$CURRENT_DATE" \

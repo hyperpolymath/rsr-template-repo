@@ -82,7 +82,12 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   the deed), or an edited template file the overlay replaces, is refused,
   since the mint would overwrite it; and the mint also dry-runs itself on the
   work tree, refusing by name any pre-mint change it would discard (an edit to
-  the roadmap or `mise.toml`, which it writes whole).
+  the roadmap or `mise.toml`, which it writes whole). repo-init clears any
+  inherited git location (`GIT_DIR`, `GIT_INDEX_FILE`, …) before it runs, so
+  neither its replays nor the tests it runs in scratch repositories can commit
+  into the child; one naming another repository is refused. The replays
+  receive `STANDARDS_UUID_V8_JS`, and a template tree carrying a submodule
+  (a gitlink, which a replay cannot reproduce) is refused by name.
 
 ==== Fixed
 
