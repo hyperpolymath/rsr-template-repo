@@ -22,6 +22,11 @@
 # file, no global git config (an ORCID or signing key there would leak in).
 # Exit: 0 minted into <out-dir>; 1 the mint failed (log tail on stderr); 2 usage.
 set -euo pipefail
+# This script runs git against other repositories (-C does not override
+# these), so an inherited location (a hook, another git caller) cannot redirect
+# it (CodeRabbit review of #275).
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE
 
 usage() { echo "usage: replay-mint.sh <template-checkout> <commit> <out-dir> [--answers-from DEED]" >&2; exit 2; }
 TDIR="${1:-}"; PIN="${2:-}"; OUT="${3:-}"

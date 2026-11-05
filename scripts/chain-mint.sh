@@ -33,6 +33,11 @@
 # RSR_TEMPLATE_URL overrides where the template's history is read from.
 # Exit: 0 minted; 1 refused (reason on stderr, tree untouched); 2 usage.
 set -euo pipefail
+# This script runs git against other repositories (-C does not override
+# these), so an inherited location (a hook, another git caller) cannot redirect
+# it (CodeRabbit review of #275).
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 READ="$HERE/deed-field.sh"
@@ -85,7 +90,7 @@ ARCHETYPE="$P_ARCH" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/n
 # a leading dash, and tar --null takes each literally (Codex review of #277).
 files() {
     g -C "$1" ls-files -z --cached --others --exclude-standard \
-        | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\0' "$f"; done \
+        | while IFS= read -r -d '' f; do if [ -e "$1/$f" ] || [ -L "$1/$f" ]; then printf '%s\0' "$f"; fi; done \
         | LC_ALL=C sort -z -u
 }
 # copy SRC DST — SRC's own files into DST.
