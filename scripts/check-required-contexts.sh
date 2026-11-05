@@ -123,7 +123,10 @@ function producedNames(doc, unresolved, chain = []) {
     if (expanded === null) {
       unresolved.push(name);
     } else if (uses === null) {
-      names.push(...expanded);
+      // An ordinary job needs a runner; without `runs-on` GitHub creates no
+      // check run for it.
+      const runsOn = job?.["runs-on"];
+      if (runsOn !== undefined && runsOn !== null && runsOn !== "") names.push(...expanded);
     } else if (local) {
       const called = join(root, local[1]);
       if (chain.includes(called) || chain.length >= 10) {

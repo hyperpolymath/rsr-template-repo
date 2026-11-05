@@ -66,7 +66,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    a second pass;
 ** `scripts/check-required-contexts.sh` checked a mapped context's workflow
    trigger but not that a job with that check-run name exists, so a renamed
-   job could strand pull requests behind an unproducible required check. A
+   job could strand pull requests behind an unproducible required check; a
+   job with neither `runs-on` nor `uses` produces nothing. A
    job that calls a local reusable workflow (one declaring
    `on: workflow_call`, directly in `.github/workflows/`, called as `./` or
    `$/`, nested at most ten deep, no

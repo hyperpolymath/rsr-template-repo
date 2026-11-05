@@ -292,6 +292,8 @@ sed -i 's|name: scan / gitleaks|name: scan / renamed|' "$context_tree/.github/wo
 assert_rc 1 'a renamed job no longer produces the required context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 printf 'name: Scan\non: pull_request\njobs: {}\n' > "$context_tree/.github/workflows/scan.yaml"
 assert_rc 1 'a PR-triggered workflow with no jobs produces no context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
+printf 'name: Scan\non: pull_request\njobs:\n  gitleaks:\n    name: scan / gitleaks\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/scan.yaml"
+assert_rc 1 'a job with neither runs-on nor uses produces no context' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 # A job that calls a reusable workflow produces `<caller> / <called job>`,
 # never its own name alone; a remote reusable cannot be certified from here.
 printf 'name: Inner\non: workflow_call\njobs:\n  g:\n    name: gitleaks\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' > "$context_tree/.github/workflows/inner.yaml"
