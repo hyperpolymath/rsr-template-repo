@@ -303,12 +303,16 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-${REPO,,}}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
+        # The values fill double-quoted KYAML scalars: refuse a value that
+        # would break them now, before anything is written.
+        bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
+            || { echo "ERROR: mint aborted before writing anything — see above."; exit 1; }
     else
         SERVICE_NAME="${SERVICE_NAME:-${REPO,,}}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER}}"
+        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
     fi
 
     # --- Derived values ---
@@ -933,6 +937,11 @@ repo-init archetype="":
             sed -i "${SED_ARGS[@]}" "$file"
         fi
     done
+
+    # The pass above fills the container tokens too (SERVICE_NAME, PORT,
+    # REGISTRY), which changes how KYAML quotes them; reformat the configs or
+    # Estate Rules' "Converted YAML stays KYAML" fails the child.
+    bash scripts/format-container-kyaml.sh
 
     # [YOUR-REPO-NAME] and [YOUR-NAME/ORG] (the family-7 allocation manifest
     # folded into the deed — standards#837 pilot) are replaced in the deed,
