@@ -21,8 +21,10 @@
 # are carried; a conflict between the two stops before anything is written.
 # Identity-bearing files (the deed, CLAUDE.md, the map, the roadmap) are never
 # carried: they come from the new mint and are regenerated. Text the parent
-# wrote about itself is renamed by the same bounded self-name pass repo-init
-# uses (repo-init defines it once and exports SELF_NAME_SED: one rule).
+# wrote about itself is renamed by the same rules repo-init uses: the bounded
+# self-name rule and the narrow self-owner rule (repo-init defines each once
+# and exports SELF_NAME_SED and SELF_OWNER_SED). What it inherits is declared
+# by comparing the result with the fresh mint, as the drift gate does.
 #
 # Called by `just repo-init` from the root of the new repository, whose tree is
 # the parent's ("Use this template" on a minted repo), after the prompts, with
@@ -66,18 +68,22 @@ echo "  chain: minting ${TSLUG}@${PIN:0:12} with this repo's answers"
 ARCHETYPE="$P_ARCH" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/new" \
     || die "the mint with the new answers failed (above); nothing was written"
 
-# files DIR — the repository's own files: tracked, or untracked and not ignored.
+# files DIR — the repository's own files (tracked, or untracked and not
+# ignored), NUL-separated end to end: a name may hold a backslash, a newline or
+# a leading dash, and tar --null takes each literally (Codex review of #277).
 files() {
     git -C "$1" ls-files -z --cached --others --exclude-standard \
-        | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"; done \
-        | LC_ALL=C sort -u
+        | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\0' "$f"; done \
+        | LC_ALL=C sort -z -u
 }
+# copy SRC DST — SRC's own files into DST.
+copy() { files "$1" | tar -C "$1" --null -cf - -T - | tar -C "$2" -xf -; }
 # snapshot SRC — replace the merge repo's work tree with SRC's own files.
 M="$WORK/merge"
 g init -q -b base "$M"
 snapshot() {
     find "$M" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-    files "$1" | tar -C "$1" -cf - -T - | tar -C "$M" -xf -
+    copy "$1" "$M"
     g -C "$M" add -A
 }
 P_DEED_NAME="$(basename "$PDEED")"
@@ -100,13 +106,16 @@ for f in "${IDENTITY[@]}"; do
 done
 g -C "$M" add -A; g -C "$M" commit -q --allow-empty -m theirs
 THEIRS="$(g -C "$M" rev-parse HEAD)"
-# The parent's own work, by kind: what this repo inherits and must declare.
-mapfile -d "" -t CARRIED_M < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=MT "$B" "$THEIRS")
-mapfile -d "" -t CARRIED_A < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=A "$B" "$THEIRS")
+# The parent's deletions, which shape "ours" below. What this repo finally
+# inherits is measured on the merged result, not here (see "Declare").
 mapfile -d "" -t CARRIED_D < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
 
 g -C "$M" checkout -q -b ours "$B"
 snapshot "$WORK/new"
+# The fresh mint itself, kept as a commit: the drift gate replays exactly
+# this, so the declarations are measured against it.
+g -C "$M" commit -q --allow-empty -m fresh
+g -C "$M" branch -q fresh
 # ours differs from base only by rendering (same template commit, other
 # answers), so a file the parent deleted stays deleted: its re-rendering is
 # not a change anyone made. Without this, every deletion of a rendered file
@@ -140,26 +149,56 @@ g init -q -b main "$F"
 g -C "$M" archive "$RESULT" | tar -x -C "$F"
 g -C "$F" add -A
 
-# Rename the parent where its own work names it, by the self-name rule
-# repo-init defined and exported (SELF_NAME_SED): one rule, read as data.
-[ -n "${SELF_NAME_SED:-}" ] || { echo "chain-mint: SELF_NAME_SED is not set (run through just repo-init)" >&2; exit 2; }
+# What this repo inherits is the merged result's difference from the fresh
+# mint: exactly what the drift gate will compare. Measured on the result, not
+# on the parent's diff, so a path the merge carried through an answer-dependent
+# rename (src/<Old>.jl -> src/<New>.jl) is named where it now lives (Codex
+# review of #277).
+g -C "$F" fetch -q "$M" fresh
+FRESH="$(g -C "$F" rev-parse FETCH_HEAD)"
+# inherited — "STATUS\0PATH\0" for every path where F differs from the fresh mint.
+inherited() { g -C "$F" add -A; g -C "$F" diff --cached -z --no-renames --name-status "$FRESH"; }
+
+# Rename the parent where its own work names it, by the rules repo-init
+# defined and exported, read as data: the bounded self-name rule
+# (SELF_NAME_SED) and the narrow self-owner rule for identity settings
+# (SELF_OWNER_SED: a carried sonar.organization or OWNER := line).
+for v in SELF_NAME_SED SELF_OWNER_SED; do
+    [ -n "${!v:-}" ] || { echo "chain-mint: $v is not set (run through just repo-init)" >&2; exit 2; }
+done
 TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
 VERBATIM="$(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$F/.machine_readable/mint-verbatim.txt" | grep -v '^$' || true)"
-for f in "${CARRIED_M[@]}" "${CARRIED_A[@]}"; do
+while IFS= read -r -d '' st && IFS= read -r -d '' f; do
+    [ "$st" != D ] || continue
     [ -f "$F/$f" ] && [ ! -L "$F/$f" ] || continue
     grep -qxF -- "$f" <<< "$VERBATIM" && continue
-    grep -qIF -- "$TEMPLATE_REPO" "$F/$f" 2>/dev/null || continue
-    sed -i -E "$SELF_NAME_SED" "$F/$f"
-done
+    if [ "$TEMPLATE_OWNER" != "$OWNER" ] && grep -qIF -- "$TEMPLATE_OWNER" "$F/$f" 2>/dev/null; then
+        sed -i -E "$SELF_OWNER_SED" "$F/$f"
+    fi
+    if grep -qIF -- "$TEMPLATE_REPO" "$F/$f" 2>/dev/null; then
+        sed -i -E "$SELF_NAME_SED" "$F/$f"
+    fi
+done < <(inherited)
+
+# Declare: measured after the renames, so each path is declared by what it
+# finally is. The deed's (paths) lists are line-based: a path holding a
+# newline cannot be declared, so it is refused by name.
+: > "$WORK/added.list"; : > "$WORK/removed.list"; : > "$WORK/diverged.list"
+N_A=0 N_D=0 N_M=0
+while IFS= read -r -d '' st && IFS= read -r -d '' f; do
+    case "$f" in *$'\n'*) die "cannot declare a carried path containing a newline: $(printf '%q' "$f"); nothing was written" ;; esac
+    case "$st" in
+        A) printf '%s\n' "$f" >> "$WORK/added.list"; N_A=$((N_A + 1)) ;;
+        D) printf '%s\n' "$f" >> "$WORK/removed.list"; N_D=$((N_D + 1)) ;;
+        *) printf '%s\n' "$f" >> "$WORK/diverged.list"; N_M=$((N_M + 1)) ;;
+    esac
+done < <(inherited)
 
 # Record the lineage and the inherited divergence in the new deed. Paths are
 # written as deed strings (\ and " escaped) by awk, which takes them as data:
 # a path holding &, |, " or \ cannot corrupt the clause or the command.
 DEED="$F/${REPO}_chora.deed"
 [ -f "$DEED" ] || die "the new mint produced no ${REPO}_chora.deed"
-printf '%s\n' "${CARRIED_A[@]}" > "$WORK/added.list"
-printf '%s\n' "${CARRIED_D[@]}" > "$WORK/removed.list"
-printf '%s\n' "${CARRIED_M[@]}" > "$WORK/diverged.list"
 awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" \
     -v fa="$WORK/added.list" -v fr="$WORK/removed.list" -v fd="$WORK/diverged.list" '
     function load(file,    s, p) {
@@ -210,9 +249,9 @@ grep -q ':derived-from "' "$DEED" || die "could not record :derived-from in $(ba
     || die "the merged tree still holds placeholder tokens; nothing was written"
 
 # Every step succeeded: replace this repo's own files with the result.
-files "$G" | while IFS= read -r f; do rm -f -- "$G/$f"; done
+files "$G" | while IFS= read -r -d '' f; do rm -f -- "$G/$f"; done
 find "$G" -mindepth 1 -type d -empty ! -path "$G/.git" ! -path "$G/.git/*" -delete 2>/dev/null || true
 rm -f "$F/.machine_readable/arrival-pack/claude-md-data.json"
-files "$F" | tar -C "$F" -cf - -T - | tar -C "$G" -xf -
-echo "  chain: carried the parent's own work: ${#CARRIED_M[@]} edited, ${#CARRIED_A[@]} added, ${#CARRIED_D[@]} removed (declared in (variant (paths)))"
+copy "$F" "$G"
+echo "  chain: carried the parent's own work: ${N_M} edited, ${N_A} added, ${N_D} removed (declared in (variant (paths)))"
 echo "  chain: ${REPO} minted from ${TEMPLATE_SLUG} (template ${TSLUG}@${PIN:0:12})"

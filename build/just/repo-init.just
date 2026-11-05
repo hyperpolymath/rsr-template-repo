@@ -188,15 +188,19 @@ repo-init archetype="":
     # re-mints with the archetype the parent recorded, from the root template
     # (scripts/chain-mint.sh). Naming that same archetype is accepted; any
     # other is refused, since the parent's tree was built for its own.
-    if [ -n "$ARCHETYPE" ] && [ "$CHAIN_MINT" = "1" ]; then
+    # MINT_ARCH is the archetype the mint will actually apply: on a chain, the
+    # parent's, whether or not it was named (the slug rule below depends on it:
+    # a Julia package's <Name>.jl slug).
+    MINT_ARCH="$ARCHETYPE"
+    if [ "$CHAIN_MINT" = "1" ]; then
         _p_arch="$(bash scripts/deed-field.sh "$_prov_deed" mint-answers archetype 2>/dev/null || true)"
-        if [ "$ARCHETYPE" != "$_p_arch" ]; then
+        if [ -n "$ARCHETYPE" ] && [ "$ARCHETYPE" != "$_p_arch" ]; then
             echo "Error: this tree was minted as archetype '${_p_arch:-none}'; a chain mint keeps it."
             echo "       Run just repo-init${_p_arch:+ ${_p_arch}} (or mint from the template for another)."
             exit 1
         fi
-        echo "Archetype: ${ARCHETYPE} (the parent's, re-minted from the template)"
-        echo ""
+        [ -z "$_p_arch" ] || { echo "Archetype: ${_p_arch} (the parent's, re-minted from the template)"; echo ""; }
+        MINT_ARCH="$_p_arch"
         ARCHETYPE=""
     elif [ -n "$ARCHETYPE" ]; then
         ARCH_FILE="archetypes/${ARCHETYPE}/${ARCHETYPE}_praxis.deed"
@@ -232,11 +236,11 @@ repo-init archetype="":
     # <Name> is the package's own identifier (UpperCamelCase by Julia
     # convention). The julia-library archetype accepts that form as well as
     # the estate slug; every other mint takes the estate slug only.
-    if [[ "$ARCHETYPE" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
+    if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
         :
     elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
         echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
-        [ "$ARCHETYPE" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
+        [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
         exit 1
     fi
 
@@ -402,6 +406,14 @@ repo-init archetype="":
         esac
     done
 
+    # Answers are free text, and the right-hand side of s|…|…| is not: `&`
+    # inserts the matched token, `\` escapes, `|` ends the expression. A
+    # description "Tools & proofs" rendered as "Tools <the token> proofs" and
+    # then failed the placeholder gate; a `|` broke the substitution. Every
+    # answer goes through sed_rhs. (A newline was refused before the first write.)
+    # Defined here, ahead of the rules below that use it.
+    sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
     # The self-name rule, defined once: used by the self-name pass below and
     # handed to scripts/chain-mint.sh, so a chain mint renames the parent by
     # exactly the same rule (passed as data, never re-read from the recipe).
@@ -420,6 +432,12 @@ repo-init archetype="":
     # neighbour, and marks through a sentinel so a new name that contains
     # the old one (Geometry -> Geometry.jl) cannot loop forever.
     SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
+    # The self-owner rule, defined once likewise (see the self-OWNER pass for
+    # why it is three exact identity lines and never a blanket rewrite): the
+    # Justfile OWNER declaration in each form the identity parser accepts, and
+    # the SonarCloud organization and project key. chain-mint.sh applies it to
+    # the parent's carried files too (Codex review of #277).
+    SELF_OWNER_SED="s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER//./\\.}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|;s|^sonar\\.organization=${TEMPLATE_OWNER//./\\.}\$|sonar.organization=$(sed_rhs "${OWNER}")|;s|^sonar\\.projectKey=${TEMPLATE_OWNER//./\\.}_|sonar.projectKey=$(sed_rhs "${OWNER}")_|"
 
     # Chain mint: everything below renders a TEMPLATE tree, which this is not.
     # chain-mint.sh renders the template afresh with these answers and carries
@@ -429,7 +447,7 @@ repo-init archetype="":
                AUTHOR_ORCID PROJECT_DESCRIPTION FORGE SECURITY_EMAIL CONDUCT_EMAIL \
                PROJECT_TYPE WEBSITE OPENSSF_BP_ID SERVICE_NAME PORT REGISTRY \
                TEMPLATE_REPO TEMPLATE_OWNER
-        export RSR_MINT_DATE="$CURRENT_DATE" SELF_NAME_SED
+        export RSR_MINT_DATE="$CURRENT_DATE" SELF_NAME_SED SELF_OWNER_SED
         bash scripts/chain-mint.sh
         echo ""
         echo "Done! Chain mint complete. Review with git status, then commit."
@@ -544,13 +562,6 @@ repo-init archetype="":
     # Brace tokens as variables (hex avoids just interpolation)
     LB=$(printf '\x7b\x7b')
     RB=$(printf '\x7d\x7d')
-
-    # Answers are free text, and the right-hand side of s|…|…| is not: `&`
-    # inserts the matched token, `\` escapes, `|` ends the expression. A
-    # description "Tools & proofs" rendered as "Tools <the token> proofs" and
-    # then failed the placeholder gate; a `|` broke the substitution. Every
-    # answer goes through sed_rhs. (A newline was refused before the first write.)
-    sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
 
     # Build the sed expression list
     # Note: using | as delimiter since URLs contain /
@@ -863,11 +874,10 @@ repo-init archetype="":
     # every child genuinely points at, and rewriting those would break the
     # child's canon, CI and badges.
     if [ "$OWNER" != "$TEMPLATE_OWNER" ]; then
-        # The same declaration forms the identity parser accepts: optional
-        # `export`, either quote (Codex review of #274).
-        sed -i -E "s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|" Justfile
-        sed -i -E 's|^sonar\.organization='"${TEMPLATE_OWNER}"'$|sonar.organization='"${OWNER}"'|' sonar-project.properties
-        sed -i -E 's|^sonar\.projectKey='"${TEMPLATE_OWNER}"'_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
+        # SELF_OWNER_SED (defined once, above): the Justfile OWNER line in
+        # every form the identity parser accepts (Codex review of #274), and
+        # the SonarCloud organization and project key.
+        sed -i -E "$SELF_OWNER_SED" Justfile sonar-project.properties
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
         echo "  NOTE: confirm the SonarCloud ORG is really '${OWNER}' before provisioning —"
         echo "        the GitHub owner and the SonarCloud org are not always the same."

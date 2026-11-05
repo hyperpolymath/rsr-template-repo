@@ -16,8 +16,12 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   `scripts/chain-mint.sh` replays the parent's mint, mints the same template
   commit with the new answers, and carries the parent's own work across with
   `git merge-tree`: everything rendered is rendered afresh, the parent's
-  edits, additions and removals are kept (renamed by the self-name rule) and
-  declared in the new `(variant (paths))`, and a conflict with the new
+  edits, additions and removals are kept (renamed by the self-name rule and
+  the narrow self-owner rule, each defined once in repo-init) and declared in
+  the new `(variant (paths))` by comparing the result with the fresh mint, as
+  the drift gate does, so an edit carried across an answer-dependent rename
+  (a Julia entry point) is declared where it lives. Paths stay NUL-delimited,
+  so a backslash or a leading dash survives. A conflict with the new
   rendering stops before anything is written. Provenance records the root
   template commit plus `:derived-from` the parent. A parent minted before
   `(mint-answers)` is still refused. `scripts/replay-mint.sh` is now the one

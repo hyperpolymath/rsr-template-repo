@@ -51,15 +51,16 @@ use_template() {
     g -C "$3" init -q -b main; g -C "$3" add -A; g -C "$3" commit -q -m "Initial commit"
     g -C "$3" remote add origin "$4"
 }
-# mint DIR LOG NAME OWNER AUTHOR EMAIL DESC — a non-interactive mint, isolated.
+# mint DIR LOG REPO OWNER AUTHOR EMAIL DESC [ARCHETYPE [PROJECT_NAME]] — a
+# non-interactive mint, isolated. The project name defaults to the repo name.
 mint() {
     local cfg="$work/cfg"; mkdir -p "$cfg"; : > "$cfg/gitconfig"
     (cd "$1" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
         RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$T" RSR_MINT_TOOL_CACHE="$work/tools" \
-        PROJECT_NAME="$3" REPO="$3" OWNER="$4" AUTHOR="$5" AUTHOR_EMAIL="$6" \
-        PROJECT_DESCRIPTION="$7" timeout 1200 just repo-init </dev/null) > "$2" 2>&1
+        PROJECT_NAME="${9:-$3}" REPO="$3" OWNER="$4" AUTHOR="$5" AUTHOR_EMAIL="$6" \
+        PROJECT_DESCRIPTION="$7" timeout 1200 just repo-init ${8:+"$8"} </dev/null) > "$2" 2>&1
 }
 
 # ── The parent: a minted repo, then its own work ────────────────────────────
@@ -78,6 +79,13 @@ rm "$P/SUPPORT.adoc"; ln -s README.adoc "$P/SUPPORT.adoc"
 # A file listed in mint-verbatim.txt, deleted: the template's own preflights
 # must not stop a chain mint over the parent's choices (Codex review of #277).
 g -C "$P" rm -q tests/e2e/template_instantiation_test.sh
+# Path bytes tar's line mode would mangle: a backslash and a leading dash; a
+# file under archetypes/, which the mint declares removed; and an identity
+# setting naming the parent's owner (all Codex review of #277).
+printf 'slash\n' > "$P/notes/back\\slash.txt"
+printf 'dash\n' > "$P/-lead.txt"
+mkdir -p "$P/archetypes"; printf 'mine\n' > "$P/archetypes/custom.txt"
+printf 'sonar.organization=elder-owner\nsonar.projectKey=elder-owner_elder-proj\n' > "$P/notes/extra-sonar.properties"
 g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
 pass "fixture: a minted parent with its own edit, addition and removal"
 
@@ -139,7 +147,16 @@ bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added | grep -qxF '
     || { grep -n ':added' "$DEED" >&2; fail 'a path with & | and quotes was not declared intact'; }
 [ -L "$G/SUPPORT.adoc" ] && bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx SUPPORT.adoc \
     || fail 'the type change (file to symlink) was not carried and declared'
+added() { bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added; }
+[ -f "$G/notes/back\\slash.txt" ] && [ -f "$G/-lead.txt" ] \
+    && added | grep -qxF 'notes/back\slash.txt' && added | grep -qxF -- '-lead.txt' \
+    || { grep -n ':added' "$DEED" >&2; fail 'a path holding a backslash or a leading dash was not carried and declared intact'; }
+[ -f "$G/archetypes/custom.txt" ] && added | grep -qx archetypes/custom.txt \
+    || fail 'a file under the mint-removed archetypes/ was not carried and declared added'
+[ "$(cat "$G/notes/extra-sonar.properties")" = "$(printf 'sonar.organization=other-owner\nsonar.projectKey=other-owner_grand-check')" ] \
+    || { cat "$G/notes/extra-sonar.properties" >&2; fail 'a carried identity setting kept the parent'"'"'s owner'; }
 pass "the parent's edit, addition and removal are carried, renamed, and declared"
+pass "odd path bytes, an addition under a removed directory and a carried owner setting are handled"
 
 # The grandchild's drift gate replays ITS mint: green, carried work declared.
 g -C "$G" add -A; g -C "$G" commit -q -m "chain mint"
@@ -213,5 +230,36 @@ fi
 grep -q "was minted as archetype 'none'; a chain mint keeps it" "$work/arch.log" || { cat "$work/arch.log" >&2; fail 'the archetype refusal did not say why'; }
 [ -z "$(g -C "$G5" status --porcelain)" ] || fail 'the refused archetype wrote to the tree'
 pass "(-) a chain mint refuses an archetype other than the parent's, before writing"
+
+# ── An answer-dependent rename: a Julia package's entry point ───────────────
+# The mint names src/<Package>.jl after the project, so a parent's edit to its
+# entry point lives at another path in the grandchild. The merge carries the
+# edit across that rename; the declaration must name where it now lives
+# (Codex review of #277), which the grandchild's drift gate checks.
+JP="$work/jparent"
+use_template "$T" HEAD "$JP" git@github.com:elder-owner/ElderPkg.jl.git
+mint "$JP" "$work/jparent.log" ElderPkg.jl elder-owner "Eldra Author" elder@example.org "Elder tools" julia-library ElderPkg \
+    || { tail -30 "$work/jparent.log" >&2; fail 'the Julia parent mint failed'; }
+[ -f "$JP/src/ElderPkg.jl" ] || fail 'fixture: the Julia parent has no src/ElderPkg.jl'
+g -C "$JP" add -A; g -C "$JP" commit -q -m mint
+sed -i 's/^# --- implementation .*/&\nanswer() = 42/' "$JP/src/ElderPkg.jl"
+grep -qx 'answer() = 42' "$JP/src/ElderPkg.jl" || fail 'fixture: the entry-point edit did not apply'
+g -C "$JP" commit -q -am "the parent's own code"
+JG="$work/jgrandchild"
+use_template "$JP" HEAD "$JG" git@github.com:other-owner/GrandPkg.jl.git
+mint "$JG" "$work/jchain.log" GrandPkg.jl other-owner "Other Author" other@example.org "Grand tools" julia-library GrandPkg \
+    || { tail -40 "$work/jchain.log" >&2; fail 'the Julia chain mint failed'; }
+[ -f "$JG/src/GrandPkg.jl" ] && [ ! -e "$JG/src/ElderPkg.jl" ] && grep -qx 'answer() = 42' "$JG/src/GrandPkg.jl" \
+    || { ls "$JG/src" >&2; fail 'the entry-point edit was not carried across the rename'; }
+JDEED="$JG/GrandPkg.jl_chora.deed"
+bash "$JG/scripts/deed-field.sh" --list "$JDEED" variant/paths diverged | grep -qx src/GrandPkg.jl \
+    || { grep -n ':added\|:removed\|:diverged' "$JDEED" >&2; fail 'the renamed entry point is not declared where it now lives'; }
+if bash "$JG/scripts/deed-field.sh" --list "$JDEED" variant/paths diverged | grep -qx src/ElderPkg.jl; then
+    fail 'the deed declares the parent'"'"'s entry-point path'
+fi
+g -C "$JG" add -A; g -C "$JG" commit -q -m "chain mint"
+(cd "$JG" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/jdrift.log" 2>&1 \
+    || { cat "$work/jdrift.log" >&2; fail 'the Julia grandchild'"'"'s drift gate is red'; }
+pass "an edit carried across an answer-dependent rename is declared where it lives; the drift gate is green"
 
 echo "PASS: chain mint"
