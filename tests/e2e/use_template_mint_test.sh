@@ -241,5 +241,15 @@ pass "the minted child passes its own placeholder gate"
 (cd "$C" && bash scripts/check-hypatia-ignore.sh .) > "$work/hi.log" 2>&1 \
     || { cat "$work/hi.log" >&2; fail 'the minted child fails its own Hypatia exemption gate'; }
 pass "the minted child passes its own Hypatia exemption gate"
+# The rule-order policy must lose the same module, or it classifies an
+# exemption that no longer exists.
+(cd "$C" && bash scripts/check-hypatia-rule-order.sh .) > "$work/ro.log" 2>&1 \
+    || { cat "$work/ro.log" >&2; fail 'the minted child fails its own Hypatia rule-order gate'; }
+pass "the minted child passes its own Hypatia rule-order gate"
+if command -v bun >/dev/null 2>&1 || command -v ijson-jcs >/dev/null 2>&1; then
+    (cd "$C" && bash scripts/check-ijson-jcs.sh --enforce .machine_readable/policies/hypatia-rule-order.json) > "$work/jcs.log" 2>&1 \
+        || { cat "$work/jcs.log" >&2; fail 'the minted rule-order policy is not canonical JSON'; }
+    pass "the minted rule-order policy stays canonical JSON"
+fi
 
 echo "PASS: Use-this-template mint"

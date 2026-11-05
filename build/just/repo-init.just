@@ -1029,6 +1029,20 @@ repo-init archetype="":
              { blank = 0; print }' .hypatia-ignore > .hypatia-ignore.mint
         mv .hypatia-ignore.mint .hypatia-ignore
     fi
+    # The Hypatia rule-order policy classifies each module .hypatia-ignore
+    # exempts, and check-hypatia-rule-order.sh fails on a classification with
+    # no exemption behind it. With no structural_drift exemption left, drop its
+    # observed_modules entry. The policy is one line of JCS (RFC 8785), so
+    # removing one object and its comma keeps it canonical; no JSON tool needed.
+    POLICY=.machine_readable/policies/hypatia-rule-order.json
+    if [ -f "$POLICY" ] && ! grep -q '^structural_drift/' .hypatia-ignore 2>/dev/null; then
+        SD_OBJ='[{]"layer":[0-9]+,"module":"structural_drift","rationale":"([^"\\]|\\.)*"[}]'
+        sed -E -i -e "s/${SD_OBJ},//" -e "s/,${SD_OBJ}//" "$POLICY"
+        if grep -q '"module":"structural_drift"' "$POLICY"; then
+            echo "ERROR: could not drop structural_drift from $POLICY; the mint stops here." >&2
+            exit 1
+        fi
+    fi
 
     # Overlay .in rule (every archetype): an overlay ships content templates as
     # *.in so a substitution token never survives in a file whose final name is
