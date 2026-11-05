@@ -93,7 +93,7 @@ echo "  chain: replaying the parent's mint (${TSLUG}@${PIN:0:12}, its own answer
 bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/base" --answers-from "$PDEED" \
     || die "the replay of the parent's mint failed (above); nothing was written"
 echo "  chain: minting ${TSLUG}@${PIN:0:12} with this repo's answers"
-ARCHETYPE="$P_ARCH" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/new" \
+ARCHETYPE="$P_ARCH" RSR_TEMPLATE_SLUG="$TSLUG" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/new" \
     || die "the mint with the new answers failed (above); nothing was written"
 
 

@@ -563,10 +563,12 @@ repo-init archetype="":
             while IFS= read -r -d '' _o; do _writes+=("docs/${_o#./}"); done \
                 < <(cd build/docs-seed && find . -type f ! -path ./README.adoc -print0)
         fi
-        for _p in "${PREMINT_A[@]}"; do
+        # An edited template file the overlay or seed replaces is lost the same way
+        # (Codex review of #275: provisioning_praxis.deed under julia-library).
+        for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}"; do
             for _w in "${_writes[@]}"; do
                 if [ "$_p" = "$_w" ]; then
-                    echo "ERROR: mint aborted before writing anything — $_p is not in the template, and"
+                    echo "ERROR: mint aborted before writing anything — $_p changed before the mint, and"
                     echo "       the mint writes that path itself (the archetype overlay, the docs seed or"
                     echo "       the deed), so your file would be overwritten. Move it aside, mint, then"
                     echo "       bring it back as a change of your own."
@@ -578,9 +580,50 @@ repo-init archetype="":
         if [ "$_n" -gt 0 ]; then
             echo "NOTE: ${_n} path(s) here already differ from the template tree ${PARENT_TREE:0:12}"
             echo "      (${#PREMINT_A[@]} added, ${#PREMINT_M[@]} changed, ${#PREMINT_D[@]} removed before this mint). They are"
-            echo "      this repo's own, and are declared in (variant (paths)) as such, by how"
-            echo "      each stands once the mint is done:"
+            echo "      this repo's own. What they change in the result is declared in"
+            echo "      (variant (paths)), measured against a replay of this mint:"
             for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do echo "        $_p"; done
+        fi
+    fi
+
+    # --- The replay this mint is measured against, when the tree has changed ---
+    # A pre-mint change can reach the result in ways no rule over its own path
+    # predicts: the mint moves, overwrites and renders files, and reads its own
+    # inputs (the overlay, the docs seed, its scripts) from this tree (Codex and
+    # CodeRabbit review of #275). So this mint is replayed, here, before anything
+    # is written, from the pinned tree with the same answers and date, exactly
+    # as the drift gate will replay it; what this tree then differs by is
+    # declared below. The pinned tree is in this repository (checked above).
+    # The inner mint skips pin resolution (RSR_ALLOW_UNPINNED with no template
+    # source): it writes the pin only into its deed, which is not compared.
+    _REPLAY=""
+    if [ $(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} )) -gt 0 ]; then
+        _rg() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=replay -c user.email=replay@example.invalid \
+                    -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
+        _rp="$(mktemp -d)"; _REPLAY="$_rp/r"
+        mkdir -p "$_REPLAY" "$_rp/cfg"; : > "$_rp/gitconfig"
+        _rg archive "$PARENT_TREE" | tar -x -C "$_REPLAY"
+        _rg -C "$_REPLAY" init -q -b main; _rg -C "$_REPLAY" add -A; _rg -C "$_REPLAY" commit -q -m "Initial commit"
+        _rg -C "$_REPLAY" remote add origin "git@${FORGE}:${OWNER}/${REPO}.git"
+        echo "  replaying this mint from the template tree, to measure the pre-mint changes..."
+        if ! (cd "$_REPLAY" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+                ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
+                ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
+                ${RSR_TEMPLATE_SLUG:+RSR_TEMPLATE_SLUG="$RSR_TEMPLATE_SLUG"} \
+                XDG_CONFIG_HOME="$_rp/cfg" GIT_CONFIG_GLOBAL="$_rp/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+                RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 RSR_ALLOW_UNPINNED=1 \
+                RSR_TEMPLATE_URL="$_rp/no-template-source" RSR_MINT_DATE="$CURRENT_DATE" \
+                PROJECT_NAME="$PROJECT_NAME" REPO="$REPO" OWNER="$OWNER" AUTHOR="$AUTHOR" \
+                AUTHOR_EMAIL="$AUTHOR_EMAIL" AUTHOR_ORG="${AUTHOR_ORG:-}" AUTHOR_EMAIL_ALT="${AUTHOR_EMAIL_ALT:-}" \
+                AUTHOR_ORCID="${AUTHOR_ORCID:-}" PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-}" FORGE="$FORGE" \
+                SECURITY_EMAIL="${SECURITY_EMAIL:-}" CONDUCT_EMAIL="${CONDUCT_EMAIL:-}" \
+                PROJECT_TYPE="${PROJECT_TYPE:-}" WEBSITE="${WEBSITE:-}" OPENSSF_BP_ID="${OPENSSF_BP_ID:-}" \
+                SERVICE_NAME="${SERVICE_NAME:-}" PORT="${PORT:-}" REGISTRY="${REGISTRY:-}" \
+                just repo-init ${ARCHETYPE:+"$ARCHETYPE"} </dev/null) > "$_rp/replay.log" 2>&1; then
+            tail -n 30 "$_rp/replay.log"
+            echo "ERROR: mint aborted before writing anything — the replay of this mint, needed to"
+            echo "       measure the pre-mint changes above, failed (its log is above)."
+            exit 1
         fi
     fi
 
@@ -1371,21 +1414,47 @@ repo-init archetype="":
     fi
 
     # ── What this work tree held before the mint ────────────────────────────
-    # Declared here, after every step that moves or deletes files (the
-    # archetype and docs-seed removals, the overlay renames, the www/
-    # migration), so each path is declared by how it finally stands (Codex
-    # review of #275): one the mint deleted is not declared; a deletion the
-    # mint re-created is not either. The derived files are declared already.
-    # Written into the (variant (paths)) lists by awk, which takes the paths as
-    # data and escapes \ and " in deed strings.
-    if [ $(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} )) -gt 0 ]; then
+    # Declared here, after every step that moves or deletes files, as exactly
+    # what this tree now differs by from the replay taken before the first write
+    # (above): the comparison the drift gate makes, so the declaration cannot
+    # disagree with it, whatever the mint did to a pre-mint change on the way
+    # (moved, rendered, overwritten, or reached through an edited input) (Codex
+    # and CodeRabbit review of #275). The files this mint owns are declared
+    # already. Written into the (variant (paths)) lists by awk, which takes the
+    # paths as data and escapes \ and " in deed strings.
+    if [ -n "$_REPLAY" ]; then
         _owned=("${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc)
         _is_owned() { local _o; for _o in "${_owned[@]}"; do [ "$1" = "$_o" ] && return 0; done; return 1; }
-        _there() { [ -e "$1" ] || [ -L "$1" ]; }
+        # _files DIR — DIR's own files, one per line (tracked, or untracked and not
+        # ignored), as the drift gate lists them.
+        _files() {
+            _rg -C "$1" ls-files -z --cached --others --exclude-standard \
+                | while IFS= read -r -d '' _f; do
+                    if [ -e "$1/$_f" ] || [ -L "$1/$_f" ]; then printf '%s\n' "$_f"; fi
+                done | LC_ALL=C sort -u
+        }
+        # _same A B — identical as git records them: content, executable bit, link target.
+        _same() {
+            if [ -L "$1" ] || [ -L "$2" ]; then
+                [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
+                return
+            fi
+            { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
+            cmp -s "$1" "$2"
+        }
         _pml="$(mktemp -d)"; : > "$_pml/a"; : > "$_pml/r"; : > "$_pml/d"
-        for _p in "${PREMINT_A[@]}"; do if _there "$_p" && ! _is_owned "$_p"; then printf '%s\n' "$_p" >> "$_pml/a"; fi; done
-        for _p in "${PREMINT_M[@]}"; do if _there "$_p" && ! _is_owned "$_p"; then printf '%s\n' "$_p" >> "$_pml/d"; fi; done
-        for _p in "${PREMINT_D[@]}"; do if ! _there "$_p" && ! _is_owned "$_p"; then printf '%s\n' "$_p" >> "$_pml/r"; fi; done
+        _files . > "$_pml/child"
+        _files "$_REPLAY" > "$_pml/replay"
+        while IFS= read -r _p; do
+            _is_owned "$_p" && continue
+            if ! grep -qxF -- "$_p" "$_pml/replay"; then printf '%s\n' "$_p" >> "$_pml/a"
+            elif ! _same "$_p" "$_REPLAY/$_p"; then printf '%s\n' "$_p" >> "$_pml/d"
+            fi
+        done < "$_pml/child"
+        while IFS= read -r _p; do
+            _is_owned "$_p" && continue
+            grep -qxF -- "$_p" "$_pml/child" || printf '%s\n' "$_p" >> "$_pml/r"
+        done < "$_pml/replay"
         awk -v fa="$_pml/a" -v fr="$_pml/r" -v fd="$_pml/d" '
             function load(file,    s, p) {
                 s = ""
@@ -1416,8 +1485,9 @@ repo-init archetype="":
             /^      :diverged \(/ { $0 = extend($0, D) }
             { print }
         ' "$DEED_OUT" > "$_pml/deed" && cat "$_pml/deed" > "$DEED_OUT"
-        rm -rf "$_pml"
-        echo "  pre-mint: declared in $DEED_OUT (variant (paths)) as this repo's own"
+        echo "  pre-mint: $(wc -l < "$_pml/a") added, $(wc -l < "$_pml/d") diverged, $(wc -l < "$_pml/r") removed;"
+        echo "            declared in $DEED_OUT (variant (paths)) as this repo's own"
+        rm -rf "$_pml" "$(dirname "$_REPLAY")"
     fi
 
     # ── Regenerate what is DERIVED from the deed and the tree ───────────────

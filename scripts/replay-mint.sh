@@ -17,7 +17,9 @@
 #   PROJECT_NAME REPO OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG AUTHOR_EMAIL_ALT
 #   AUTHOR_ORCID PROJECT_DESCRIPTION FORGE SECURITY_EMAIL CONDUCT_EMAIL
 #   PROJECT_TYPE WEBSITE OPENSSF_BP_ID SERVICE_NAME PORT REGISTRY RSR_MINT_DATE
-#   RSR_PACKAGE_UUID (julia-library: the recorded package uuid)
+#   RSR_TEMPLATE_SLUG (a template whose Justfile names itself through env())
+# With --answers-from, the slug is DEED's (provenance :template-repo) and a
+# julia-library package uuid its recorded one; without it, the uuid is derived.
 # Nothing else from the caller's environment reaches the mint: no defaults
 # file, no global git config (an ORCID or signing key there would leak in).
 # Exit: 0 minted into <out-dir>; 1 the mint failed (log tail on stderr); 2 usage.
@@ -49,6 +51,9 @@ if [ $# -gt 3 ]; then
     PORT="$(ans port)" REGISTRY="$(ans registry)" RSR_MINT_DATE="$(ans mint-date)"
     RSR_PACKAGE_UUID="$(ans package-uuid)"
     ARCH="$(ans archetype)"
+    # The template identity the mint was given, for a template whose Justfile
+    # names itself through env() (Codex review of #275).
+    RSR_TEMPLATE_SLUG="$(bash "$READ" "$ANS_DEED" provenance template-repo 2>/dev/null || true)"
 else
     # A fresh mint (a chain mint's new side) derives its package uuid: only a
     # recorded (mint-answers) may supply one, never the caller's environment.
@@ -86,6 +91,7 @@ if ! (cd "$OUT" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         XDG_CONFIG_HOME="$SCRATCH/cfg" GIT_CONFIG_GLOBAL="$SCRATCH/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
         RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 \
         RSR_TEMPLATE_URL="$TDIR" RSR_TEMPLATE_COMMIT="$PIN" RSR_MINT_DATE="${RSR_MINT_DATE:-}" \
+        ${RSR_TEMPLATE_SLUG:+RSR_TEMPLATE_SLUG="$RSR_TEMPLATE_SLUG"} \
         PROJECT_NAME="${PROJECT_NAME:-}" REPO="${REPO:-}" OWNER="${OWNER:-}" \
         AUTHOR="${AUTHOR:-}" AUTHOR_EMAIL="${AUTHOR_EMAIL:-}" AUTHOR_ORG="${AUTHOR_ORG:-}" \
         AUTHOR_EMAIL_ALT="${AUTHOR_EMAIL_ALT:-}" AUTHOR_ORCID="${AUTHOR_ORCID:-}" \
