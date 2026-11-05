@@ -165,12 +165,14 @@ jobs:
   fleet:
     name: Fleet report-backs
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Worst case, so a stalled phase never kills the job before the upload: the
+    # 2400 s build budget + seven adapters at 300 s + checkout, cache and upload.
+    timeout-minutes: 85
     permissions:
       contents: read
     env:
       # hyperpolymath/gitbot-fleet commit whose driver and adapters run.
-      FLEET_REF: e85b71bf139a61f956c7e0717a2912cd6e347cc5
+      FLEET_REF: e44af8144789594fcce891ccc7b77fc9a464a520
       # panic-attack commit for panicbot. Deliberately the SAME commit
       # static-analysis-gate.yml builds: panicbot is not enrolled today (the
       # grid's own panic-attack row already grades that scanner, so a second
