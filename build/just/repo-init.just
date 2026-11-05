@@ -576,8 +576,10 @@ repo-init archetype="":
         OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
         # A replay supplies the uuid the mint recorded ((mint-answers
         # :package-uuid)), so the drift gate does not depend on which of bun or
-        # python3 the checking host has (Codex review of #275).
-        if [[ "${RSR_PACKAGE_UUID:-}" =~ ^(UNASSIGNED|[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]]; then
+        # python3 the checking host has (Codex review of #275). Only a replay:
+        # an ordinary mint always derives it, so a stray RSR_PACKAGE_UUID in the
+        # environment cannot write an unrelated identity into Project.toml.
+        if [ "${RSR_MINT_REPLAY:-0}" = "1" ] && [[ "${RSR_PACKAGE_UUID:-}" =~ ^(UNASSIGNED|[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]]; then
             PACKAGE_UUID="$RSR_PACKAGE_UUID"
         elif command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
             PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
@@ -1087,26 +1089,40 @@ repo-init archetype="":
     # into the child's own files (names, contacts, description, URLs), so the
     # record publishes nothing new. Deed strings escape `\` and `"`.
     deed_str() { printf '%s' "$1" | sed -e 's/[\\"]/\\&/g'; }
+    # The ruling is checked here, not left to a hand-kept list (Codex review of
+    # #275 found project-type recorded, though no template file renders it): a
+    # non-empty answer is recorded only if its value appears verbatim in this
+    # repo's files. An answer left out replays as unanswered; it rendered
+    # nothing here, so the replay is unchanged.
+    mapfile -t _MINTED < <(mint_files)
+    _ANSWERS=() _UNRECORDED=""
+    for _pair in project-name:PROJECT_NAME repo:REPO owner:OWNER author:AUTHOR \
+                 author-email:AUTHOR_EMAIL author-org:AUTHOR_ORG \
+                 author-email-alt:AUTHOR_EMAIL_ALT author-orcid:AUTHOR_ORCID \
+                 description:PROJECT_DESCRIPTION forge:FORGE \
+                 security-email:SECURITY_EMAIL conduct-email:CONDUCT_EMAIL \
+                 project-type:PROJECT_TYPE website:WEBSITE \
+                 openssf-bp-id:OPENSSF_BP_ID service-name:SERVICE_NAME \
+                 port:PORT registry:REGISTRY archetype:ARCHETYPE \
+                 package-uuid:PACKAGE_UUID; do
+        _var="${_pair#*:}"
+        _val="${!_var:-}"
+        if [ -n "$_val" ] && ! grep -qsF -- "$_val" "${_MINTED[@]}"; then
+            _UNRECORDED="${_UNRECORDED} ${_pair%%:*}"
+            continue
+        fi
+        _ANSWERS+=("    :${_pair%%:*} \"$(deed_str "$_val")\"")
+    done
     {
         echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
         echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
         echo "  ; here already appears in this repo's rendered files."
         echo "  (mint-answers"
-        for _pair in project-name:PROJECT_NAME repo:REPO owner:OWNER author:AUTHOR \
-                     author-email:AUTHOR_EMAIL author-org:AUTHOR_ORG \
-                     author-email-alt:AUTHOR_EMAIL_ALT author-orcid:AUTHOR_ORCID \
-                     description:PROJECT_DESCRIPTION forge:FORGE \
-                     security-email:SECURITY_EMAIL conduct-email:CONDUCT_EMAIL \
-                     project-type:PROJECT_TYPE website:WEBSITE \
-                     openssf-bp-id:OPENSSF_BP_ID service-name:SERVICE_NAME \
-                     port:PORT registry:REGISTRY archetype:ARCHETYPE \
-                     package-uuid:PACKAGE_UUID; do
-            _var="${_pair#*:}"
-            echo "    :${_pair%%:*} \"$(deed_str "${!_var:-}")\""
-        done
+        printf '%s\n' "${_ANSWERS[@]}"
         echo "    :mint-date \"${CURRENT_DATE}\")"
     } | put_clause mint-answers
     echo "  answers:    $DEED_OUT (mint-answers) — replayable with scripts/check-mint-drift.sh"
+    [ -z "$_UNRECORDED" ] || echo "              not recorded, written into no file here:${_UNRECORDED}"
 
     if [ "$CANON_VERSION" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (provenance) — canon pin UNASSIGNED"

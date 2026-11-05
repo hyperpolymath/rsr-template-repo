@@ -104,7 +104,14 @@ files() {
         | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"; done \
         | LC_ALL=C sort -u
 }
-exists() { [ -e "$1" ] || [ -L "$1" ]; }
+# Membership is the repository file set on each side, not bare existence: an
+# ignored artifact the replay also generates (arrival-pack output) is not a
+# file the mint produced, even if a child force-adds it (Codex review of #275).
+CLIST="$WORK/child.files"; RLIST="$WORK/replay.files"
+files "$CDIR" > "$CLIST"
+files "$R" > "$RLIST"
+in_child() { grep -qxF -- "$1" "$CLIST"; }
+in_replay() { grep -qxF -- "$1" "$RLIST"; }
 # same A B — identical as git would record them: content, the executable bit,
 # and for a symlink its target (cmp alone follows links and ignores modes).
 same() {
@@ -122,30 +129,31 @@ while IFS= read -r f; do
     if in_list "$f" "$REMOVED"; then
         report "$f exists here but is declared removed"
     elif in_list "$f" "$ADDED"; then
-        exists "$R/$f" && report "$f is declared added, but the mint produces it (declare it diverged)"
+        in_replay "$f" && report "$f is declared added, but the mint produces it (declare it diverged)"
     elif in_list "$f" "$DIVERGED"; then
         :
-    elif ! exists "$R/$f"; then
+    elif ! in_replay "$f"; then
         report "$f exists here but the mint did not produce it (declare in paths.added)"
     elif ! same "$R/$f" "$CDIR/$f"; then
         report "$f differs from what the mint produced, in content or mode (declare in paths.diverged, or restore it)"
     fi
-done < <(files "$CDIR")
+done < "$CLIST"
 while IFS= read -r f; do
-    exists "$CDIR/$f" && continue
+    in_child "$f" && continue
     in_list "$f" "$REMOVED" && continue
     if in_list "$f" "$DIVERGED"; then
         report "$f is declared diverged but is absent here (declare it removed)"
     else
         report "$f was produced by the mint but is absent here (declare in paths.removed)"
     fi
-done < <(files "$R")
+done < "$RLIST"
 # Every declared addition must actually be here.
 while IFS= read -r e; do
     [ -n "$e" ] || continue
     case "$e" in
-        */) [ -d "$CDIR/$e" ] || report "declared-added directory $e is missing" ;;
-        *) exists "$CDIR/$e" || report "declared-added $e is missing" ;;
+        */) P="$e" awk 'index($0, ENVIRON["P"]) == 1 { f = 1; exit } END { exit !f }' "$CLIST" \
+               || report "declared-added directory $e has no files here" ;;
+        *) in_child "$e" || report "declared-added $e is missing" ;;
     esac
 done <<< "$ADDED"
 
