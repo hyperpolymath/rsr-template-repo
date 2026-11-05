@@ -534,9 +534,22 @@ repo-init archetype="":
         [ ! -f "$_ix" ] || cp "$_ix" "$_pm/index"
         _wt() { GIT_INDEX_FILE="$_pm/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" git "$@"; }
         _wt add -A .
+        # A gitlink (submodule) cannot be replayed (checkout-index writes no files
+        # for one), so the drift gate could never pass: refused by name here,
+        # whether or not anything else changed (Codex review of #275).
+        _gl="$(_wt ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "         " $2 }')"
+        if [ -n "$_gl" ]; then
+            echo "ERROR: mint aborted before writing anything — this tree carries a submodule"
+            echo "       (gitlink), which a replay of the mint cannot reproduce, so its drift gate"
+            echo "       could never pass. Minting such a tree is not supported:"
+            printf '%s\n' "$_gl"
+            rm -rf "$_pm"; exit 1
+        fi
         if git cat-file -e "${PARENT_TREE}^{tree}" 2>/dev/null; then
             while IFS= read -r -d '' _st && IFS= read -r -d '' _p; do
-                case "$_p" in *$'\n'*) echo "Error: a path holding a newline cannot be declared: $(printf '%q' "$_p")"; rm -rf "$_pm"; exit 1 ;; esac
+                # A newline splits the deed's line-based lists; byte 0x01 is the deed
+                # reader's record separator (Codex review of #277).
+                case "$_p" in *$'\n'*|*$'\001'*) echo "Error: a path holding a newline or byte 0x01 cannot be declared: $(printf '%q' "$_p")"; rm -rf "$_pm"; exit 1 ;; esac
                 case "$_st" in
                     A) PREMINT_A+=("$_p") ;;
                     D) PREMINT_D+=("$_p") ;;
@@ -701,16 +714,47 @@ repo-init archetype="":
             echo "       tree failed (its log is above): a pre-mint change breaks the mint."
             rm -rf "$_pm"; exit 1
         fi
-        rm -rf "$_pm"
         _lost=()
+        _here() { [ -e "$1" ] || [ -L "$1" ]; }
+        # _result_tree DIR — the mint result in DIR, as the tree git would commit.
+        _result_tree() { _rg -C "$1" add -A >/dev/null && _rg -C "$1" write-tree; }
+        _DRY_T=""
+        _n=0
         for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do
-            { [ -e "$_rp/dry/$_p" ] || [ -L "$_rp/dry/$_p" ]; } || continue
-            { [ -e "$_REPLAY/$_p" ] || [ -L "$_REPLAY/$_p" ]; } || continue
-            if _same "$_rp/dry/$_p" "$_REPLAY/$_p"; then _lost+=("$_p"); fi
+            if _here "$_rp/dry/$_p" && _here "$_REPLAY/$_p"; then
+                if _same "$_rp/dry/$_p" "$_REPLAY/$_p"; then _lost+=("$_p"); fi
+            elif ! _here "$_rp/dry/$_p" && ! _here "$_REPLAY/$_p" \
+                 && { _wt ls-files --error-unmatch -- ":(literal)$_p" >/dev/null 2>&1; }; then
+                # Added or changed here, and gone from both results: an input
+                # the mint reads and deletes (the docs seed, the overlay), or a
+                # file in a directory it deletes. Its change had an effect only if
+                # the result differs without it: this mint, minus that one change,
+                # is minted again and compared whole (Codex review of #275: an
+                # edit to build/docs-seed/README.adoc, which is never copied,
+                # was destroyed without a trace).
+                [ -n "$_DRY_T" ] || _DRY_T="$(_result_tree "$_rp/dry")"
+                _n=$((_n + 1))
+                _rgi "$_rp/index" read-tree "$_WT_TREE"
+                if _rgi "$_rp/index" cat-file -e "${PARENT_TREE}:$_p" 2>/dev/null; then
+                    read -r _m _ _s _ <<<"$(_rgi "$_rp/index" ls-tree "$PARENT_TREE" -- "$_p")"
+                    _rgi "$_rp/index" update-index --add --cacheinfo "$_m,$_s,$_p"
+                else
+                    _rgi "$_rp/index" update-index --force-remove -- "$_p"
+                fi
+                _rev_t="$(_rgi "$_rp/index" write-tree)"; rm -f "$_rp/index"
+                echo "  checking that the pre-mint change to $_p has an effect..."
+                if ! _mint_tree "$_rev_t" "$_rp/without.$_n"; then
+                    echo "ERROR: mint aborted before writing anything — a dry run without the change"
+                    echo "       to $_p failed (its log is above)."
+                    rm -rf "$_pm"; exit 1
+                fi
+                if [ "$(_result_tree "$_rp/without.$_n")" = "$_DRY_T" ]; then _lost+=("$_p"); fi
+            fi
         done
+        rm -rf "$_pm"
         if [ "${#_lost[@]}" -gt 0 ]; then
             echo "ERROR: mint aborted before writing anything — these paths changed before the mint,"
-            echo "       and the mint writes each of them itself, so the change would be discarded:"
+            echo "       and the mint writes or deletes each itself, so the change would be discarded:"
             for _p in "${_lost[@]}"; do echo "         $_p"; done
             echo "       Revert them (or move them aside), mint, then make the change again."
             exit 1
