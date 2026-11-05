@@ -23,10 +23,10 @@
 #        format-container-kyaml.sh --check-values SERVICE_NAME PORT REGISTRY
 #   --preflight     write nothing; fail when configs are present and no
 #                   KYAML-capable yq is on PATH.
-#   --check-values  fail unless SERVICE_NAME is an image-name component (the
-#                   distribution/reference grammar),
-#                   PORT is 1-65535 and REGISTRY is an image prefix
-#                   (a host or [IPv6] address, an optional :port, then
+#   --check-values  fail unless SERVICE_NAME is a DNS label (lower-case
+#                   letters, digits and inner hyphens, at most 63), PORT is
+#                   1-65535 and REGISTRY is an image prefix (a host or [IPv6]
+#                   address, an optional :port from 1 to 65535, then
 #                   lower-case path components).
 # Exit: 0 = formatted (or nothing to format: an archetype may prune
 #       build/container/), or values accepted; 1 = no KYAML-capable yq, a
@@ -35,9 +35,14 @@
 set -euo pipefail
 if [ "${1:-}" = --check-values ]; then
     name="${2:-}" port="${3:-}" registry="${4:-}" bad=0
-    [[ "$name" =~ ^[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*$ ]] \
-        || { echo "error: service name '$name' is not an OCI image name (lower-case letters, digits, . _ -)." >&2; bad=1; }
-    [[ "$port" =~ ^[0-9]{1,5}$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] \
+    # The service name is an image name component, a compose service key, a
+    # bare TOML table key (stapeln/compose.toml) and the backend's hostname on
+    # the container network (http://NAME:PORT). A DNS label is valid as all
+    # four; a dot would nest the TOML table and an underscore is no hostname.
+    [[ "$name" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] \
+        || { echo "error: service name '$name' is not a DNS label (lower-case letters, digits and inner hyphens, at most 63)." >&2; bad=1; }
+    in_port_range() { [[ "$1" =~ ^[0-9]{1,5}$ ]] && [ "$((10#$1))" -ge 1 ] && [ "$((10#$1))" -le 65535 ]; }
+    in_port_range "$port" \
         || { echo "error: port '$port' is not a number from 1 to 65535." >&2; bad=1; }
     # A registry is the image prefix: a host (DNS labels, or a bracketed IPv6
     # address), an optional :port, then lower-case path components, as the
@@ -45,8 +50,14 @@ if [ "${1:-}" = --check-values ]; then
     label='[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?'
     host="($label(\.$label)*|\[[A-Fa-f0-9:]+\])"
     comp='[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*'
-    [[ "$registry" =~ ^$host(:[0-9]+)?(/$comp)*$ ]] \
-        || { echo "error: registry '$registry' is not an image prefix: a host or [IPv6] address, an optional :port, then lower-case path components (letters, digits, . _ -)." >&2; bad=1; }
+    # The grammar takes any digits as the port; a usable one is 1-65535. An
+    # IPv6 host ends in "]", so a trailing ":digits" before the path is a port.
+    registry_port=""
+    if [[ "${registry%%/*}" =~ :([0-9]+)$ ]]; then registry_port="${BASH_REMATCH[1]}"; fi
+    if ! [[ "$registry" =~ ^$host(:[0-9]+)?(/$comp)*$ ]] \
+        || { [ -n "$registry_port" ] && ! in_port_range "$registry_port"; }; then
+        echo "error: registry '$registry' is not an image prefix: a host or [IPv6] address, an optional :port from 1 to 65535, then lower-case path components (letters, digits, . _ -)." >&2; bad=1
+    fi
     exit "$bad"
 fi
 PREFLIGHT=0
