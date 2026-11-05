@@ -60,6 +60,17 @@ done
 _sparse=0
 while IFS= read -r -d '' e; do case "$e" in "S "*) _sparse=$((_sparse + 1)) ;; esac; done < <(g -C "$G" ls-files -t -z)
 [ "$_sparse" -eq 0 ] || die "this checkout is sparse (${_sparse} tracked paths are not checked out); a chain mint carries the whole tree. Run it from a full checkout (git sparse-checkout disable); nothing was written"
+# An unresolved merge: its stages would collapse into one ordinary blob, and
+# conflict markers would be carried as the parent's work (Codex review of #277).
+[ -z "$(g -C "$G" ls-files -u)" ] || die "this checkout has an unresolved merge (git ls-files -u); resolve it first; nothing was written"
+# A tracked path beneath a symlink: reading it would read through the link,
+# from wherever it points (Codex review of #277). Refused by name.
+while IFS= read -r -d '' f; do
+    p="$f"
+    while case "$p" in */*) p="${p%/*}"; true ;; *) false ;; esac; do
+        [ ! -L "$G/$p" ] || die "the tracked path $f lies beneath the symlink $p; restore the directory or untrack the path; nothing was written"
+    done
+done < <(g -C "$G" ls-files -z)
 PDEED="$(bash "$READ" --find "$G")" || die "no single *_chora.deed in this tree"
 PIN="$(bash "$READ" "$PDEED" provenance template-commit 2>/dev/null || true)"
 TSLUG="$(bash "$READ" "$PDEED" provenance template-repo 2>/dev/null || true)"
@@ -85,78 +96,76 @@ echo "  chain: minting ${TSLUG}@${PIN:0:12} with this repo's answers"
 ARCHETYPE="$P_ARCH" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/new" \
     || die "the mint with the new answers failed (above); nothing was written"
 
-# files DIR — the repository's own files (tracked, or untracked and not
-# ignored), NUL-separated end to end: a name may hold a backslash, a newline or
-# a leading dash, and tar --null takes each literally (Codex review of #277).
-files() {
-    g -C "$1" ls-files -z --cached --others --exclude-standard \
-        | while IFS= read -r -d '' f; do if [ -e "$1/$f" ] || [ -L "$1/$f" ]; then printf '%s\0' "$f"; fi; done \
-        | LC_ALL=C sort -z -u
-}
-# copy SRC DST — SRC's own files into DST.
-copy() { files "$1" | tar -C "$1" --null -cf - -T - | tar -C "$2" -xf -; }
-# snapshot SRC — replace the merge repo's work tree with SRC's own files.
+
+# ── Trees, written by git ───────────────────────────────────────────────────
+# Every tree below is written by git from a work tree, and the result is
+# written back into this checkout by git. Git never follows a symlink in a work
+# tree, and checks every path it would overwrite before it writes any (Codex
+# review of #277: copying with tar followed a parent-controlled symlink,
+# recursed into a path that had become a directory, and emptied the checkout
+# before learning that an ignored entry was in the way).
 M="$WORK/merge"
 g init -q -b base "$M"
-snapshot() {
-    find "$M" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-    copy "$1" "$M"
-    g -C "$M" add -A
-    # Exactly SRC's file set, including a file it tracks although an ignore
-    # rule matches it: `add -A` alone re-applied .gitignore and dropped such a
-    # file from the chain without a word. Literal pathspecs, NUL-separated.
-    files "$1" | g --literal-pathspecs -C "$M" add -f --pathspec-from-file=- --pathspec-file-nul
+mkdir -p "$M/.git/objects/info"
+# link_objects DIR — DIR's objects become readable from M.
+link_objects() {
+    local od
+    od="$(g -C "$1" rev-parse --path-format=absolute --git-common-dir)/objects"
+    grep -qxF "$od" "$M/.git/objects/info/alternates" 2>/dev/null || printf '%s\n' "$od" >> "$M/.git/objects/info/alternates"
 }
+# tree_of DIR NAME — the tree of DIR's own files, as `git add -A` commits them
+# from DIR's index: tracked files (an ignore rule matching or not) and the
+# untracked files no rule ignores. Written into M; DIR's .git is not written.
+tree_of() {
+    local d="$1" idx="$WORK/index.$2" gd
+    link_objects "$d"
+    gd="$(g -C "$d" rev-parse --path-format=absolute --git-dir)"
+    rm -f "$idx"
+    g -C "$d" ls-files -s -z | GIT_INDEX_FILE="$idx" g --git-dir="$M/.git" update-index -z --index-info
+    ( cd "$d" && GIT_INDEX_FILE="$idx" g --git-dir="$M/.git" --work-tree=. \
+        -c core.excludesFile="$gd/info/exclude" add -A . )
+    GIT_INDEX_FILE="$idx" g --git-dir="$M/.git" write-tree
+}
+# with_index NAME CMD… — run git CMD in M against the scratch index NAME.
+with_index() { local i="$WORK/index.$1"; shift; GIT_INDEX_FILE="$i" g --literal-pathspecs -C "$M" "$@"; }
 P_DEED_NAME="$(basename "$PDEED")"
 IDENTITY=("$P_DEED_NAME" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc docs/status/ROADMAP.adoc)
 
-snapshot "$WORK/base"; g -C "$M" commit -q --allow-empty -m base
-B="$(g -C "$M" rev-parse HEAD)"
-# theirs: the parent as it stands, with its identity files held at base, so
-# they are never carried (they belong to the parent, not to this repo).
-snapshot "$G"
-# The tree actually carried: the parent as it stands, uncommitted work included
-# (Codex review of #277: HEAD^{tree} named a tree the chain may not have used).
-PARENT_TREE="$(g -C "$M" write-tree)"
-# Held in git's index, never through the work tree: the parent controls that
-# tree, and a symlink at an identity path (CLAUDE.md -> ../../x) would have
-# redirected a write outside this scratch copy (Codex review of #277).
+B="$(g -C "$M" commit-tree "$(tree_of "$WORK/base" base)" -m base)"
+# theirs: the parent as it stands (uncommitted work included), with its
+# identity files held at base, so they are never carried: they belong to the
+# parent. Held in the index, never through the parent's work tree.
+PARENT_TREE="$(tree_of "$G" parent)"
+rm -f "$WORK/index.theirs"; with_index theirs read-tree "$PARENT_TREE"
 for f in "${IDENTITY[@]}"; do
-    g -C "$M" rm -q --cached --ignore-unmatch -- "$f"
+    with_index theirs rm -q --cached --ignore-unmatch -- "$f"
     entry="$(g -C "$M" ls-tree "$B" -- "$f")"
     [ -n "$entry" ] || continue
     read -r mode _ sha _ <<<"$entry"
-    g -C "$M" update-index --add --cacheinfo "$mode,$sha,$f" 2>/dev/null \
+    with_index theirs update-index --add --cacheinfo "$mode,$sha,$f" 2>/dev/null \
         || die "cannot hold $f at the template's version: the parent replaced a directory above it"
 done
-g -C "$M" commit -q --allow-empty -m theirs
-THEIRS="$(g -C "$M" rev-parse HEAD)"
-# The parent's deletions, which shape "ours" below. What this repo finally
-# inherits is measured on the merged result, not here (see "Declare").
-mapfile -d "" -t CARRIED_D < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
+THEIRS="$(g -C "$M" commit-tree "$(with_index theirs write-tree)" -p "$B" -m theirs)"
 
-# -f: the work tree still holds the parent's files, identity paths included.
-g -C "$M" checkout -q -f -b ours "$B"
-snapshot "$WORK/new"
-# The fresh mint itself, kept as a commit: the drift gate replays exactly
-# this, so the declarations are measured against it.
-g -C "$M" commit -q --allow-empty -m fresh
-g -C "$M" branch -q fresh
-# ours differs from base only by rendering (same template commit, other
-# answers), so a file the parent deleted stays deleted: its re-rendering is
-# not a change anyone made. Without this, every deletion of a rendered file
-# was a modify/delete conflict (measured: .machine_readable/ai/PLACEHOLDERS.adoc).
-for f in "${CARRIED_D[@]}"; do g -C "$M" rm -q --cached --ignore-unmatch -- "$f"; rm -f -- "$M/$f"; done
-# Likewise a type change (a file the parent made a symlink, say) replaces the
-# whole path: ours keeps the base version there, so the parent's wins cleanly
-# (it was a "distinct types" conflict against a mere re-rendering).
-while IFS= read -r -d "" f; do
-    [ -n "$f" ] || continue
-    rm -f -- "$M/$f"
-    g -C "$M" checkout -q "$B" -- "$f"
+# ours: the fresh mint, kept as its own commit (the drift gate replays exactly
+# it, so the declarations are measured against it), then shaped by the
+# parent's deletions and type changes. ours differs from base only by
+# rendering, so a file the parent deleted stays deleted (else a modify/delete
+# conflict: .machine_readable/ai/PLACEHOLDERS.adoc), and a path whose type the
+# parent changed keeps base's version there, so the parent's change wins (else
+# a "distinct types" conflict against a mere re-rendering).
+NEW_T="$(tree_of "$WORK/new" new)"
+g -C "$M" branch -q fresh "$(g -C "$M" commit-tree "$NEW_T" -p "$B" -m fresh)"
+rm -f "$WORK/index.ours"; with_index ours read-tree "$NEW_T"
+while IFS= read -r -d '' f; do
+    with_index ours rm -q --cached --ignore-unmatch -- "$f"
+done < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
+while IFS= read -r -d '' f; do
+    with_index ours rm -q --cached --ignore-unmatch -- "$f"
+    read -r mode _ sha _ <<<"$(g -C "$M" ls-tree "$B" -- "$f")"
+    with_index ours update-index --add --cacheinfo "$mode,$sha,$f"
 done < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=T "$B" "$THEIRS")
-g -C "$M" commit -q --allow-empty -m ours
-OURS="$(g -C "$M" rev-parse HEAD)"
+OURS="$(g -C "$M" commit-tree "$(with_index ours write-tree)" -p fresh -m ours)"
 
 if ! g -C "$M" merge-tree --write-tree --name-only --merge-base="$B" "$OURS" "$THEIRS" > "$WORK/merge.out" 2>&1; then
     echo "chain-mint: the parent's own changes conflict with this repo's fresh mint in:" >&2
@@ -167,9 +176,9 @@ if ! g -C "$M" merge-tree --write-tree --name-only --merge-base="$B" "$OURS" "$T
 fi
 RESULT="$(head -n 1 "$WORK/merge.out")"
 
-# Everything below is built and checked in a scratch copy, F; this repo's own
-# tree is replaced only once every step has succeeded, so a failure at any
-# point (a carried placeholder, say) leaves it untouched (Codex review of #277).
+# Everything below is built and checked in a scratch copy, F; this checkout
+# is written only once every step has succeeded, so a failure at any point (a
+# carried placeholder, a failing gate) leaves it untouched (Codex review of #277).
 F="$WORK/final"
 g -C "$M" branch -q result "$(g -C "$M" commit-tree "$RESULT" -m result)"
 g init -q -b main "$F"
@@ -183,8 +192,11 @@ g -C "$F" checkout-index -a -f
 # mint: exactly what the drift gate will compare. Measured on the result, not
 # on the parent's diff, so a path the merge carried through an answer-dependent
 # rename (src/<Old>.jl -> src/<New>.jl) is named where it now lives (Codex
-# review of #277).
+# review of #277). The files the new mint owns (the deed, CLAUDE.md, the map,
+# the roadmap) are declared already, and are regenerated below.
 FRESH="$(g -C "$F" rev-parse refs/chain/fresh)"
+OWNED=("${REPO}_chora.deed" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc docs/status/ROADMAP.adoc)
+is_owned() { local o; for o in "${OWNED[@]}"; do [ "$1" = "$o" ] && return 0; done; return 1; }
 # inherited — "STATUS\0PATH\0" for every path where F differs from the fresh mint.
 inherited() { g -C "$F" add -A; g -C "$F" diff --cached -z --no-renames --name-status "$FRESH"; }
 
@@ -209,27 +221,10 @@ while IFS= read -r -d '' st && IFS= read -r -d '' f; do
     fi
 done < <(inherited)
 
-# Declare: measured after the renames, so each path is declared by what it
-# finally is. The deed's (paths) lists are line-based: a path holding a
-# newline cannot be declared, so it is refused by name.
-: > "$WORK/added.list"; : > "$WORK/removed.list"; : > "$WORK/diverged.list"
-N_A=0 N_D=0 N_M=0
-while IFS= read -r -d '' st && IFS= read -r -d '' f; do
-    case "$f" in *$'\n'*) die "cannot declare a carried path containing a newline: $(printf '%q' "$f"); nothing was written" ;; esac
-    case "$st" in
-        A) printf '%s\n' "$f" >> "$WORK/added.list"; N_A=$((N_A + 1)) ;;
-        D) printf '%s\n' "$f" >> "$WORK/removed.list"; N_D=$((N_D + 1)) ;;
-        *) printf '%s\n' "$f" >> "$WORK/diverged.list"; N_M=$((N_M + 1)) ;;
-    esac
-done < <(inherited)
-
-# Record the lineage and the inherited divergence in the new deed. Paths are
-# written as deed strings (\ and " escaped) by awk, which takes them as data:
-# a path holding &, |, " or \ cannot corrupt the clause or the command.
-DEED="$F/${REPO}_chora.deed"
 # Every path this script writes from here on must be a real path inside F: a
 # symlink the parent carried at one of them, or at a directory above one,
 # would redirect the write (Codex review of #277). Refused by name.
+DEED="$F/${REPO}_chora.deed"
 for w in "${REPO}_chora.deed" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc \
          .machine_readable/arrival-pack/claude-md-data.json; do
     p="$w"
@@ -239,59 +234,118 @@ for w in "${REPO}_chora.deed" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc \
     done
 done
 [ -f "$DEED" ] || die "the new mint produced no ${REPO}_chora.deed"
-awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" \
-    -v fa="$WORK/added.list" -v fr="$WORK/removed.list" -v fd="$WORK/diverged.list" '
-    function load(file,    s, p) {
-        s = ""
-        while ((getline p < file) > 0) {
-            if (p == "") continue
-            gsub(/\\/, "\\\\", p); gsub(/"/, "\\\"", p)
-            s = s " \"" p "\""
-        }
-        close(file); return s
-    }
-    # insert EXTRA before the first ")" that closes the list opened at "(",
-    # skipping parentheses inside strings.
-    function extend(line, extra,    i, c, q, open, out) {
-        open = index(line, "("); q = 0
-        for (i = open + 1; i <= length(line); i++) {
-            c = substr(line, i, 1)
-            if (q && c == "\\") { i++; continue }
-            if (c == "\"") q = !q
-            else if (!q && c == ")") {
-                out = substr(line, 1, i - 1) extra substr(line, i)
-                sub(/\( "/, "(\"", out)
-                return out
+cp "$DEED" "$WORK/deed.fresh"
+
+# declare — the inherited paths, by kind, into the three lists. The deed's
+# (paths) lists are line-based: a path holding a newline is refused by name.
+declare_paths() {
+    : > "$WORK/added.list"; : > "$WORK/removed.list"; : > "$WORK/diverged.list"
+    N_A=0 N_D=0 N_M=0
+    while IFS= read -r -d '' st && IFS= read -r -d '' f; do
+        is_owned "$f" && continue
+        case "$f" in *$'\n'*) die "cannot declare a carried path containing a newline: $(printf '%q' "$f"); nothing was written" ;; esac
+        case "$st" in
+            A) printf '%s\n' "$f" >> "$WORK/added.list"; N_A=$((N_A + 1)) ;;
+            D) printf '%s\n' "$f" >> "$WORK/removed.list"; N_D=$((N_D + 1)) ;;
+            *) printf '%s\n' "$f" >> "$WORK/diverged.list"; N_M=$((N_M + 1)) ;;
+        esac
+    done < <(inherited)
+    cat "$WORK/added.list" "$WORK/removed.list" "$WORK/diverged.list" > "$WORK/declared.now"
+}
+# write_deed — the fresh deed, plus the lineage and the declared lists. Paths
+# are written as deed strings (\ and " escaped) by awk, which takes them as
+# data: a path holding &, |, " or \ cannot corrupt the clause or the command.
+write_deed() {
+    awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" \
+        -v fa="$WORK/added.list" -v fr="$WORK/removed.list" -v fd="$WORK/diverged.list" '
+        function load(file,    s, p) {
+            s = ""
+            while ((getline p < file) > 0) {
+                if (p == "") continue
+                gsub(/\\/, "\\\\", p); gsub(/"/, "\\\"", p)
+                s = s " \"" p "\""
             }
+            close(file); return s
         }
-        return line
-    }
-    BEGIN { A = load(fa); R = load(fr); D = load(fd) }
-    /^      :added \(/    { $0 = extend($0, A) }
-    /^      :removed \(/  { $0 = extend($0, R) }
-    /^      :diverged \(/ { $0 = extend($0, D) }
-    { print }
-    /^    :template-tree "[^"]*"$/ {
-        print "    ; minted from a minted repo: its own work since its mint was carried across"
-        print "    :derived-from \"" slug "\""
-        print "    :derived-from-tree \"" ptree "\""
-    }
-' "$DEED" > "$WORK/deed.new"
-cat "$WORK/deed.new" > "$DEED"
-grep -q ':derived-from "' "$DEED" || die "could not record :derived-from in $(basename "$DEED")"
+        # insert EXTRA before the first ")" that closes the list opened at "(",
+        # skipping parentheses inside strings.
+        function extend(line, extra,    i, c, q, open, out) {
+            open = index(line, "("); q = 0
+            for (i = open + 1; i <= length(line); i++) {
+                c = substr(line, i, 1)
+                if (q && c == "\\") { i++; continue }
+                if (c == "\"") q = !q
+                else if (!q && c == ")") {
+                    out = substr(line, 1, i - 1) extra substr(line, i)
+                    sub(/\( "/, "(\"", out)
+                    return out
+                }
+            }
+            return line
+        }
+        BEGIN { A = load(fa); R = load(fr); D = load(fd) }
+        /^      :added \(/    { $0 = extend($0, A) }
+        /^      :removed \(/  { $0 = extend($0, R) }
+        /^      :diverged \(/ { $0 = extend($0, D) }
+        { print }
+        /^    :template-tree "[^"]*"$/ {
+            print "    ; minted from a minted repo: its own work since its mint was carried across"
+            print "    :derived-from \"" slug "\""
+            print "    :derived-from-tree \"" ptree "\""
+        }
+    ' "$WORK/deed.fresh" > "$WORK/deed.new"
+    cat "$WORK/deed.new" > "$DEED"
+    grep -q ':derived-from "' "$DEED" || die "could not record :derived-from in $(basename "$DEED")"
+}
+# regenerate — the derived files follow the merged tree and the new deed.
+# They run the CARRIED generators, so what they write is measured afterwards.
+regenerate() {
+    ( cd "$F" && bash .machine_readable/arrival-pack/generate.sh >/dev/null ) \
+        || die "the arrival pack could not be regenerated; nothing was written"
+    ( cd "$F" && bash scripts/gen-repo-map.sh --worktree . >/dev/null ) \
+        || die "the repository map could not be regenerated; nothing was written"
+}
+# Declared, written and regenerated until the declaration is stable: a carried
+# generator that writes another file is measured, not missed (Codex review of
+# #277). Twice settles any generator that is a function of the tree.
+declare_paths; write_deed; regenerate
+cp "$WORK/declared.now" "$WORK/declared.before"
+declare_paths
+if ! cmp -s "$WORK/declared.before" "$WORK/declared.now"; then
+    write_deed; regenerate
+    cp "$WORK/declared.now" "$WORK/declared.before"
+    declare_paths
+    cmp -s "$WORK/declared.before" "$WORK/declared.now" \
+        || die "the carried generators keep changing the tree (the declaration does not settle); nothing was written"
+fi
 
-# Derived files follow the merged tree and the new deed; then the gate.
-( cd "$F" && bash .machine_readable/arrival-pack/generate.sh >/dev/null ) \
-    || die "the arrival pack could not be regenerated; nothing was written"
-( cd "$F" && bash scripts/gen-repo-map.sh --worktree . >/dev/null ) \
-    || die "the repository map could not be regenerated; nothing was written"
-( cd "$F" && env -u GITHUB_REPOSITORY bash scripts/check-no-placeholders.sh . >/dev/null ) \
-    || die "the merged tree still holds placeholder tokens; nothing was written"
+# The gates a mint enforces on a child, run on the result before this checkout
+# is written: a chain mint must not finish with a tree its own CI rejects
+# (Codex review of #277).
+gate() { local name="$1"; shift; ( cd "$F" && "$@" ) > "$WORK/gate.log" 2>&1 \
+    || { tail -n 40 "$WORK/gate.log" >&2; die "the result fails $name (above); nothing was written"; }; }
+gate "the placeholder gate" env -u GITHUB_REPOSITORY bash scripts/check-no-placeholders.sh .
+for _gate in check-spdx-headers check-mise-language check-container-pins; do
+    [ -f "$F/scripts/${_gate}.sh" ] && gate "${_gate}" bash "scripts/${_gate}.sh" --root .
+done
+[ ! -f "$F/www/tests/run-all.sh" ] || gate "the www/ suite" bash www/tests/run-all.sh
+gate "just verify" just verify
 
-# Every step succeeded: replace this repo's own files with the result.
-files "$G" | while IFS= read -r -d '' f; do rm -f -- "$G/$f"; done
-find "$G" -mindepth 1 -type d -empty ! -path "$G/.git" ! -path "$G/.git/*" -delete 2>/dev/null || true
+# Every check passed: write the result into this checkout, by git. The scratch
+# index starts as the parent snapshot (which is what the work tree holds), and
+# a two-tree read-tree moves it to the result: git refuses, before writing
+# anything, any path where an untracked or ignored file would be overwritten.
 rm -f "$F/.machine_readable/arrival-pack/claude-md-data.json"
-copy "$F" "$G"
+FINAL_T="$(g -C "$F" add -A && g -C "$F" write-tree)"
+link_objects "$F"
+GIDX="$WORK/index.write"
+rm -f "$GIDX"
+if ! ( cd "$G" && export GIT_INDEX_FILE="$GIDX" \
+        && g --git-dir="$M/.git" --work-tree=. read-tree "$PARENT_TREE" \
+        && g --git-dir="$M/.git" --work-tree=. update-index -q --refresh \
+        && g --git-dir="$M/.git" --work-tree=. read-tree -m -u "$PARENT_TREE" "$FINAL_T" ) 2> "$WORK/write.err"; then
+    sed 's/^/    /' "$WORK/write.err" >&2
+    die "this checkout cannot take the result without overwriting a file it does not track (above); nothing was written"
+fi
 echo "  chain: carried the parent's own work: ${N_M} edited, ${N_A} added, ${N_D} removed (declared in (variant (paths)))"
 echo "  chain: ${REPO} minted from ${TEMPLATE_SLUG} (template ${TSLUG}@${PIN:0:12})"

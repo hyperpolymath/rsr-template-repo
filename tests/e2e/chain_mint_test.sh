@@ -87,6 +87,12 @@ printf 'slash\n' > "$P/notes/back\\slash.txt"
 printf 'dash\n' > "$P/-lead.txt"
 mkdir -p "$P/archetypes"; printf 'mine\n' > "$P/archetypes/custom.txt"
 printf 'sonar.organization=elder-owner\nsonar.projectKey=elder-owner_elder-proj\n' > "$P/notes/extra-sonar.properties"
+# A carried generator that writes one more file when it runs: its output is
+# measured after it runs, and declared (Codex review of #277).
+sed -i 's|^set -euo pipefail$|&\nprintf '"'"'extra\\n'"'"' > "$(git rev-parse --show-toplevel)/generated-extra.txt"|' "$P/.machine_readable/arrival-pack/generate.sh"
+grep -q 'generated-extra.txt' "$P/.machine_readable/arrival-pack/generate.sh" || fail 'fixture: the generator was not changed'
+# A file the grandchild's checkout will turn into a directory (below).
+printf 'plain\n' > "$P/notes/to-become-dir.txt"
 # A file the parent tracks although an ignore rule matches it: still its own.
 mkdir -p "$P/_build"; printf 'kept\n' > "$P/_build/keep.txt"
 g -C "$P" check-ignore -q _build/keep.txt || fail 'fixture: _build/ is not ignored'
@@ -100,6 +106,12 @@ use_template "$P" HEAD "$G" git@github.com:other-owner/grand-check.git
 # Uncommitted work in the checkout is carried too, and :derived-from-tree must
 # name the snapshot actually used, not HEAD^{tree} (Codex review of #277).
 printf 'local\n' > "$G/notes/local.txt"
+# A tracked file turned into a directory holding an ignored file: the ignored
+# file must not be read into the chain (Codex review of #277: tar recursed into
+# the directory and carried it).
+rm "$G/notes/to-become-dir.txt"; mkdir "$G/notes/to-become-dir.txt"
+printf 'not for the chain\n' > "$G/notes/to-become-dir.txt/secret.txt"
+printf '/notes/to-become-dir.txt/secret.txt\n' >> "$G/.git/info/exclude"
 HEAD_TREE=$(g -C "$G" rev-parse 'HEAD^{tree}')
 cp "$G/.git/index" "$work/snap.index"   # tracked files stay, ignore rules or not
 P_TREE=$(cd "$G" && GIT_INDEX_FILE="$work/snap.index" git add -A . && GIT_INDEX_FILE="$work/snap.index" git write-tree)
@@ -126,7 +138,7 @@ pass "provenance names the root template commit and the parent; the answers are 
 leak=$(cd "$G" && git ls-files -co --exclude-standard | grep -vxF grand-check_chora.deed \
        | while IFS= read -r f; do
              [ -f "$f" ] || continue
-             g -C "$T" show "$T_COMMIT:$f" 2>/dev/null | cmp -s - "$f" && continue
+             g -C "$T" show "$T_COMMIT:$f" 2>/dev/null | cmp -s -- - "$f" && continue
              grep -lIE 'elder-proj|Eldra Author|elder@example\.org|Elder tools' -- "$f"
          done || true)
 [ -z "$leak" ] || { echo "$leak" >&2; fail 'the parent'"'"'s identity or contacts survive in the files above'; }
@@ -164,6 +176,13 @@ added() { bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added; }
     || { cat "$G/notes/extra-sonar.properties" >&2; fail 'a carried identity setting kept the parent'"'"'s owner'; }
 pass "the parent's edit, addition and removal are carried, renamed, and declared"
 pass "odd path bytes, an addition under a removed directory and a carried owner setting are handled"
+[ "$(cat "$G/generated-extra.txt" 2>/dev/null)" = extra ] && added | grep -qx generated-extra.txt \
+    || { grep -n ':added' "$DEED" >&2; fail 'a file written by a carried generator was not measured and declared'; }
+if grep -qF 'to-become-dir.txt/secret' "$DEED" || g -C "$G" ls-files -co --exclude-standard | grep -qF 'to-become-dir.txt/secret'; then
+    fail 'an ignored file inside a path that became a directory was carried'
+fi
+[ "$(cat "$G/notes/to-become-dir.txt/secret.txt")" = 'not for the chain' ] || fail 'the ignored file was changed'
+pass "a carried generator's output is declared; an ignored file is never read into the chain"
 
 # The grandchild's drift gate replays ITS mint: green, carried work declared.
 g -C "$G" add -A; g -C "$G" commit -q -m "chain mint"
@@ -276,6 +295,48 @@ grep -q 'this checkout is sparse' "$work/sparse.log" || { tail -20 "$work/sparse
 [ -z "$(g -C "$G7" status --porcelain)" ] || fail 'the refused sparse chain mint wrote to the tree'
 pass "(-) a chain mint in a sparse checkout is refused before anything is written"
 
+# ── Negative controls: a checkout a chain mint cannot read faithfully ───────
+# An unresolved merge, and a tracked path beneath a symlink, are refused before
+# anything is read or written (Codex review of #277).
+GU="$work/grandchild-unmerged"
+use_template "$P" HEAD "$GU" git@github.com:other-owner/grand-check.git
+g -C "$GU" checkout -q -b side; printf 'side\n' >> "$GU/README.adoc"; g -C "$GU" commit -q -am side
+g -C "$GU" checkout -q main; printf 'main\n' >> "$GU/README.adoc"; g -C "$GU" commit -q -am main
+if g -C "$GU" merge -q side >/dev/null 2>&1; then fail 'fixture: the merge did not conflict'; fi
+gu_before=$(g -C "$GU" status --porcelain)
+if mint "$GU" "$work/unmerged.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint ran over an unresolved merge'
+fi
+grep -q 'unresolved merge' "$work/unmerged.log" || { tail -20 "$work/unmerged.log" >&2; fail 'the unresolved merge was not refused by name'; }
+[ "$(g -C "$GU" status --porcelain)" = "$gu_before" ] || fail 'the refused chain mint wrote to the tree'
+GL="$work/grandchild-link"
+use_template "$P" HEAD "$GL" git@github.com:other-owner/grand-check.git
+mv "$GL/notes" "$work/outside-notes"; ln -s "$work/outside-notes" "$GL/notes"
+gl_before=$(g -C "$GL" status --porcelain)
+if mint "$GL" "$work/linkdir.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint read tracked paths through a symlink'
+fi
+grep -q 'lies beneath the symlink notes' "$work/linkdir.log" || { tail -20 "$work/linkdir.log" >&2; fail 'the symlinked directory was not refused by name'; }
+[ "$(g -C "$GL" status --porcelain)" = "$gl_before" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) an unresolved merge, and tracked paths beneath a symlink, are refused before anything is read"
+
+# ── Negative control: the result must pass the child's own gates ────────────
+# A carried shell script without an SPDX header fails check-spdx-headers, as a
+# normal mint would; the chain stops before writing (Codex review of #277).
+P9="$work/parent9"
+g clone -q --no-local "$P" "$P9"
+printf '#!/bin/sh\necho hi\n' > "$P9/notes/tool.sh"
+g -C "$P9" add -A; g -C "$P9" commit -q -m "a script without a header"
+G9="$work/grandchild9"
+use_template "$P9" HEAD "$G9" git@github.com:other-owner/grand-check.git
+if mint "$G9" "$work/gates.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint wrote a tree that fails its own gates'
+fi
+grep -q 'fails check-spdx-headers' "$work/gates.log" && grep -q 'notes/tool.sh' "$work/gates.log" \
+    || { tail -30 "$work/gates.log" >&2; fail 'the gate failure was not named'; }
+[ -z "$(g -C "$G9" status --porcelain)" ] || fail 'the gate-refused chain mint wrote to the tree'
+pass "(-) a result that fails the child's own gates is refused before writing"
+
 # ── An answer-dependent rename: a Julia package's entry point ───────────────
 # The mint names src/<Package>.jl after the project, so a parent's edit to its
 # entry point lives at another path in the grandchild. The merge carries the
@@ -306,5 +367,21 @@ g -C "$JG" add -A; g -C "$JG" commit -q -m "chain mint"
 (cd "$JG" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/jdrift.log" 2>&1 \
     || { cat "$work/jdrift.log" >&2; fail 'the Julia grandchild'"'"'s drift gate is red'; }
 pass "an edit carried across an answer-dependent rename is declared where it lives; the drift gate is green"
+# The result is written by git, which refuses, before writing anything, a path
+# where an ignored file would be overwritten: here an ignored directory at the
+# grandchild's future entry point (Codex review of #277: the checkout used to
+# be emptied before the copy found it).
+JG2="$work/jgrandchild2"
+use_template "$JP" HEAD "$JG2" git@github.com:other-owner/GrandPkg.jl.git
+mkdir -p "$JG2/src/GrandPkg.jl"; printf 'mine\n' > "$JG2/src/GrandPkg.jl/notes.txt"
+printf '/src/GrandPkg.jl/\n' >> "$JG2/.git/info/exclude"
+jg2_before=$(g -C "$JG2" status --porcelain --untracked-files=all)
+if mint "$JG2" "$work/collide.log" GrandPkg.jl other-owner "Other Author" other@example.org "Grand tools" julia-library GrandPkg; then
+    fail 'a chain mint overwrote an ignored directory'
+fi
+grep -q 'without overwriting a file it does not track' "$work/collide.log" || { tail -20 "$work/collide.log" >&2; fail 'the collision was not refused'; }
+[ "$(cat "$JG2/src/GrandPkg.jl/notes.txt")" = mine ] && [ "$(g -C "$JG2" status --porcelain --untracked-files=all)" = "$jg2_before" ] \
+    && [ -f "$JG2/src/ElderPkg.jl" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) an ignored entry where the result writes is refused before anything is written"
 
 echo "PASS: chain mint"

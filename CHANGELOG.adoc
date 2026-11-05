@@ -25,8 +25,15 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   although an ignore rule matches it is carried. Identity files are held in
   git's index, never through the work tree, and a symlink at any path the
   chain writes is refused, so a parent-controlled link cannot redirect a
-  write. A sparse checkout is refused. A conflict with the new rendering
-  stops before anything is written. Provenance records the root
+  write. Every tree is read from, and the result written back into, the
+  checkout by git (a scratch index and a two-tree `read-tree -m -u`), never by
+  tar: git follows no symlink and refuses, before writing anything, a path
+  where an untracked or ignored file would be overwritten. A sparse checkout,
+  an unresolved merge, or a tracked path beneath a symlink is refused. The
+  carried generators run before the final measure, and the result must pass
+  the child's own gates (placeholders, SPDX, toolchain, container pins, www,
+  `just verify`) before it is written. A conflict with the new rendering stops
+  before anything is written. Provenance records the root
   template commit plus `:derived-from` the parent. A parent minted before
   `(mint-answers)` is still refused. `scripts/replay-mint.sh` is now the one
   replay path, shared with the drift gate; only a recorded `(mint-answers)`
