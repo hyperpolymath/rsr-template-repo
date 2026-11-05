@@ -57,23 +57,47 @@ g() {
         -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
 }
 
-# The child as "Use this template" made it, minted again with its own
-# recorded answers and date (scripts/replay-mint.sh, the one replay path).
+# The child as "Use this template" made it: the pinned tree, one root commit.
 R="$WORK/replay"
-# The replay wrapper (and the deed reader it uses) as the template commit has
-# them, not this repo's carried copies, which an edit here could turn against
-# the gate (Codex review of #277). A pin older than the wrapper has none: this
-# repo's own copy is used then, and said so.
-RM_DIR="$WORK/pinned"; mkdir -p "$RM_DIR"
-if g -C "$TDIR" show "${PIN}:scripts/replay-mint.sh" > "$RM_DIR/replay-mint.sh" 2>/dev/null \
-   && g -C "$TDIR" show "${PIN}:scripts/deed-field.sh" > "$RM_DIR/deed-field.sh" 2>/dev/null; then
-    RM_WRAP="$RM_DIR/replay-mint.sh"
-else
-    RM_WRAP="$(dirname "$READ")/replay-mint.sh"
-    echo "NOTE: template commit ${PIN:0:12} has no scripts/replay-mint.sh; replaying with this repo's own copy"
+mkdir -p "$R"
+# Written as a checkout writes it, by git (checkout-index), never git archive,
+# whose export-ignore and export-subst attributes change the tree (Codex review
+# of #275). Through g: no global core.attributesFile shapes it (Codex review
+# of #277).
+GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" read-tree "$PIN"
+# A gitlink has no files to write, so the copy would lose it: refused by name
+# rather than compared inexactly (Codex review of #277).
+GL="$(GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "  " $2 }')"
+[ -z "$GL" ] || die "the template commit carries a submodule (gitlink), which a replay cannot reproduce:
+$GL"
+GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" checkout-index -a -f --prefix="$R/"
+g -C "$R" init -q -b main
+g -C "$R" add -A
+g -C "$R" commit -q -m "Initial commit"
+g -C "$R" remote add origin "git@$(ans forge):$(ans owner)/$(ans repo).git"
+
+ARCH="$(ans archetype)"
+: > "$WORK/gitconfig"
+mkdir -p "$WORK/cfg"
+if ! (cd "$R" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
+        ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
+        XDG_CONFIG_HOME="$WORK/cfg" GIT_CONFIG_GLOBAL="$WORK/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+        RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 \
+        RSR_TEMPLATE_URL="$TDIR" RSR_TEMPLATE_COMMIT="$PIN" RSR_MINT_DATE="$(ans mint-date)" \
+        ${SLUG:+RSR_TEMPLATE_SLUG="$SLUG"} \
+        PROJECT_NAME="$(ans project-name)" REPO="$(ans repo)" OWNER="$(ans owner)" \
+        AUTHOR="$(ans author)" AUTHOR_EMAIL="$(ans author-email)" AUTHOR_ORG="$(ans author-org)" \
+        AUTHOR_EMAIL_ALT="$(ans author-email-alt)" AUTHOR_ORCID="$(ans author-orcid)" \
+        PROJECT_DESCRIPTION="$(ans description)" FORGE="$(ans forge)" \
+        SECURITY_EMAIL="$(ans security-email)" CONDUCT_EMAIL="$(ans conduct-email)" \
+        PROJECT_TYPE="$(ans project-type)" WEBSITE="$(ans website)" \
+        OPENSSF_BP_ID="$(ans openssf-bp-id)" SERVICE_NAME="$(ans service-name)" \
+        PORT="$(ans port)" REGISTRY="$(ans registry)" RSR_PACKAGE_UUID="$(ans package-uuid)" \
+        just repo-init ${ARCH:+"$ARCH"} </dev/null) > "$WORK/replay.log" 2>&1; then
+    tail -n 30 "$WORK/replay.log" >&2
+    die "the replay of the mint failed (above); nothing was compared"
 fi
-bash "$RM_WRAP" "$TDIR" "$PIN" "$R" --answers-from "$DEED" \
-    || die "the replay of the mint failed (above); nothing was compared"
 
 # Declared divergence, from the CHILD's (variant (paths …)) clause, kept by
 # category: each one is a claim the gate checks, not a blanket exemption

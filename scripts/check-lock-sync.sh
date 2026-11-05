@@ -249,10 +249,19 @@ FILENAME == lockfile {
 }
 
 # ---------- pass 2: the workflow YAML ----------
-FNR == 1 { wf = FILENAME }
+FNR == 1 { wf = FILENAME; stepind = -1 }
 {
   line = $0
   sub(/[[:space:]]+#.*$/, "", line)              # strip trailing comment
+  # Track whether this line sits inside a job's `steps:` block, by
+  # indentation: a `uses:` there is a step action, whatever its path looks
+  # like (an action directory may be named tool.yml). Only a `uses:` outside
+  # every `steps:` block is a job-level reusable-workflow call.
+  if (line ~ /[^[:space:]]/) {
+    match(line, /^[[:space:]]*/); ind = RLENGTH
+    if (stepind >= 0 && ind <= stepind) stepind = -1
+    if (line ~ /^[[:space:]]*steps:/) stepind = ind
+  }
   if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
     raw = line
     sub(/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*/, "", raw)
@@ -264,7 +273,7 @@ FNR == 1 { wf = FILENAME }
     # Clause 5's exception needs to know HOW a ref is used: as the target of a
     # job-level reusable-workflow call, or as an action.
     if (n != "") {
-      if (raw ~ /\/\.github\/workflows\/[^\/@]+\.ya?ml@/) reusetgt[ck(n)] = 1
+      if (stepind < 0 && line !~ /^[[:space:]]*-/ && raw ~ /\/\.github\/workflows\/[^\/@]+\.ya?ml@/) reusetgt[ck(n)] = 1
       else actiontgt[ck(n)] = 1
     }
   }
@@ -374,7 +383,11 @@ END {
     k = ck(s)
     # Only the target of job-level reusable calls, never an action and never a
     # nested uses: of another record (see the header, clause 5).
-    if ((k in reusetgt) && !(k in actiontgt) && index(wantsrc[k], " dependencies:") == 0) continue
+    # The record's key must itself be pinned to that same SHA: a mutable key
+    # (@v1) or a key at a different SHA is not "its own SHA".
+    keyref = substr(s, index(s, "@") + 1)
+    if (fullsha(keyref) && tolower(keyref) == tolower(selfsha[s]) &&
+        (k in reusetgt) && !(k in actiontgt) && index(wantsrc[k], " dependencies:") == 0) continue
     nself++
     selflist = selflist sprintf("\n       %s (ref: %s)", s, selfsha[s])
   }

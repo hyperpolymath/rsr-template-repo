@@ -180,6 +180,53 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    (27 controls) mints a Julia package and a Rust CLI and runs the gates on both.
    `.github/workflows/quality.yml` gained a `mint-gates` job that runs them.
 
+* Defects a child inherited, found porting this CI into resource-algebra
+  (resource-algebra#15, fixed there in resource-algebra#16):
+** Secret Scanner: a repository `.gitleaks.toml` replaced the estate
+   gitleaks baseline in all three passes, so a pull request could pass with
+   a weaker local config. The baseline now always runs; a local config adds
+   a second pass;
+** `scripts/check-required-contexts.sh` checked a mapped context's workflow
+   trigger but not that a job with that check-run name exists, so a renamed
+   job could strand pull requests behind an unproducible required check; a
+   job with neither `runs-on` nor `uses` produces nothing. A
+   job that calls a local reusable workflow (one declaring
+   `on: workflow_call`, directly in `.github/workflows/`, called as `./` or
+   `$/`, nested at most ten deep, no
+   cycles) counts as producing
+   `<caller> / <called job>`; one that calls a remote reusable produces
+   nothing the gate can certify. A literal matrix is expanded as GitHub
+   names its runs (property names case-insensitive, and only names GitHub
+   can dereference); a matrix with
+   include/exclude or computed values is
+   refused by name, never assumed to match; a matrix caller of a reusable
+   produces one `<caller run> / <called job>` per run;
+** `repo-init` and `container-init` filled the container tokens without
+   reformatting the KYAML, so a fresh child that keeps its containers failed
+   Estate Rules' "Converted YAML stays KYAML". Both now run
+   `scripts/format-container-kyaml.sh` after their substitution pass, and check
+   for a yq that writes KYAML before they write anything (a mint that prunes
+   `build/container/` needs none), refusing a service name, port or registry
+   that would break the KYAML they fill or the substitution (a service name
+   that is a DNS label, since it is also a TOML table key and the backend's
+   hostname; a registry of a host or a bracketed IPv6 address in RFC 4291 text, an optional port
+   from 1 to 65535 and lower-case path components, the owner lower-cased in
+   its default;
+   `container_kyaml_test.sh` holds the accepted and refused values). yq joins
+   the base toolchain (`MISE_BASE`, so every rendered `mise.toml`, and the
+   template's own); `mise.lock` gains its record with `just toolchain-refresh`.
+   The quick-start docs install the toolchain before `just repo-init` and run
+   every `just` through `mise exec --` unless mise is activated. Estate Rules
+   installs its pinned yq before the mint steps, and `use_template_mint_test.sh`
+   checks the minted configs and that a mint without a KYAML-capable yq stops
+   untouched;
+** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or
+   `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
+   gate then rejected in a child;
+** `tests/ffi_strings_test.sh` named the template's export prefix, so in a
+   child it called functions that do not exist. It now maps the child's exported
+   symbols onto the fixture's, and nothing else that shares their prefix.
+
 * `repo-init` minting a repository created with GitHub's "Use this
   template" (measured on metadatastician/lintel, 2026-10-14):
 ** provenance recorded the CHILD's own HEAD as the template commit. The

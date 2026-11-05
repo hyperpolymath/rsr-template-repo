@@ -105,6 +105,22 @@ jobs:
           echo "a1bc93654f31669fd964ea3011a5e5e9676b9b6f8adcd762606e5140632ea72d  $RUNNER_TEMP/just.tgz" | sha256sum --check --strict
           tar -xzf "$RUNNER_TEMP/just.tgz" -C "$RUNNER_TEMP/just-bin" just
           echo "$RUNNER_TEMP/just-bin" >> "$GITHUB_PATH"
+      # Installed before the mint steps: repo-init and container-init reformat the
+      # container KYAML they fill (scripts/format-container-kyaml.sh), which needs
+      # a yq that can write KYAML. The KYAML ratchet below uses the same install.
+      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)
+        run: |
+          mkdir -p "$RUNNER_TEMP/yq-bin"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
+            https://github.com/mikefarah/yq/releases/download/v4.53.3/yq_linux_amd64 \
+            --output "$RUNNER_TEMP/yq-bin/yq"
+          echo "fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4  $RUNNER_TEMP/yq-bin/yq" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/yq-bin/yq"
+          echo "$RUNNER_TEMP/yq-bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
+            https://raw.githubusercontent.com/metadatastician/standards/e064539116c2dcfdf282a4749dbd58c69961c7e6/scripts/kyaml-format.sh \
+            --output "$RUNNER_TEMP/kyaml-format.sh"
+          echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
       # repo-init recorded the CHILD's own HEAD as the template commit whenever
@@ -188,19 +204,6 @@ jobs:
       # step 6 (standards#1025); files a third-party bot or tool rewrites or
       # finds by schema (Dependabot, FUNDING, issue forms, settings, CodeRabbit,
       # Copilot, GitLab CI, pre-commit) are not listed, as in standards.
-      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)
-        run: |
-          mkdir -p "$RUNNER_TEMP/yq-bin"
-          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://github.com/mikefarah/yq/releases/download/v4.53.3/yq_linux_amd64 \
-            --output "$RUNNER_TEMP/yq-bin/yq"
-          echo "fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4  $RUNNER_TEMP/yq-bin/yq" | sha256sum --check --strict
-          chmod +x "$RUNNER_TEMP/yq-bin/yq"
-          echo "$RUNNER_TEMP/yq-bin" >> "$GITHUB_PATH"
-          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/metadatastician/standards/e064539116c2dcfdf282a4749dbd58c69961c7e6/scripts/kyaml-format.sh \
-            --output "$RUNNER_TEMP/kyaml-format.sh"
-          echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
       # Container narrowing at mint (build/just/container.just) can delete any
       # of these files. The template (archetypes/ present) must keep all of
       # them; a minted repository checks the ones it kept and names the rest.

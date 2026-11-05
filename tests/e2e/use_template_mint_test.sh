@@ -28,6 +28,15 @@
 # Usage: bash tests/e2e/use_template_mint_test.sh [--keep]
 set -euo pipefail
 repo=$(git rev-parse --show-toplevel)
+
+# This test mints the TEMPLATE. A minted child has no archetypes/ (the mint
+# removes it) and no unfilled tokens to answer, so there is nothing to mint.
+# Same guard as tests/e2e/template_instantiation_test.sh.
+if [ ! -d "$repo/archetypes" ]; then
+    echo "Self-skipping: archetypes/ not found (repo is already instantiated)."
+    exit 0
+fi
+
 work=$(mktemp -d)
 if [ "${1:-}" = "--keep" ]; then echo "keeping $work"; else trap 'rm -rf "$work"' EXIT; fi
 
@@ -406,9 +415,15 @@ if grep -q 'notes.mine-local' "$DEED"; then fail 'a file only a global excludesF
 mv "$C/notes.mine-local" "$work/notes.mine-local"   # this test's own git does not ignore it
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
-# Minting this child again is a chain mint now (scripts/chain-mint.sh); that,
-# and the refusal of a child minted before (mint-answers), are covered end to
-# end by tests/e2e/chain_mint_test.sh.
+# Minting the minted child again must stop before it writes: its tokens are
+# filled and build/templates is gone, so it would inherit this child's
+# identity (Codex review of #251). Chain minting is a separate, owner-chosen
+# change; until it lands, this is a loud refusal, not a silent half-mint.
+if mint "$C" "$work/remint.log"; then fail 'a minted repo was minted again'; fi
+grep -q 'already been minted' "$work/remint.log" || { cat "$work/remint.log" >&2; fail 'the re-mint refusal did not say why'; }
+grep -qF "records its template as ${T_SLUG}" "$work/remint.log" || fail 'the re-mint refusal does not name the template to use'
+[ -z "$(g -C "$C" status --porcelain)" ] || fail 'the refused re-mint wrote to the tree'
+pass "(e-) minting an already-minted repo stops before writing and names its template"
 (cd "$C" && bash scripts/check-template-conformance.sh --quiet) > "$work/conf.log" 2>&1 \
     || { cat "$work/conf.log" >&2; fail 'the conformance check fails on a fresh mint'; }
 # A fresh mint is identical to a replay of itself: green, by construction.
@@ -585,5 +600,23 @@ pass "the committed map is fresh (the index-mode control reproduces lintel's sta
 (cd "$C" && env -u GITHUB_REPOSITORY bash scripts/check-no-placeholders.sh .) > "$work/ph.log" 2>&1 \
     || { cat "$work/ph.log" >&2; fail 'the minted child fails its own placeholder gate'; }
 pass "the minted child passes its own placeholder gate"
+
+# The mint removes build/docs-seed/; an exemption left for it is stale, and
+# the child's Hypatia exemption gate fails on it (seen minting
+# unified-api-adapter, 2026-11-05).
+[ ! -e "$C/build/docs-seed" ] || fail 'fixture: the mint kept build/docs-seed/; this check is vacuous'
+(cd "$C" && bash scripts/check-hypatia-ignore.sh .) > "$work/hi.log" 2>&1 \
+    || { cat "$work/hi.log" >&2; fail 'the minted child fails its own Hypatia exemption gate'; }
+pass "the minted child passes its own Hypatia exemption gate"
+# The rule-order policy must lose the same module, or it classifies an
+# exemption that no longer exists.
+(cd "$C" && bash scripts/check-hypatia-rule-order.sh .) > "$work/ro.log" 2>&1 \
+    || { cat "$work/ro.log" >&2; fail 'the minted child fails its own Hypatia rule-order gate'; }
+pass "the minted child passes its own Hypatia rule-order gate"
+if command -v bun >/dev/null 2>&1 || command -v ijson-jcs >/dev/null 2>&1; then
+    (cd "$C" && bash scripts/check-ijson-jcs.sh --enforce .machine_readable/policies/hypatia-rule-order.json) > "$work/jcs.log" 2>&1 \
+        || { cat "$work/jcs.log" >&2; fail 'the minted rule-order policy is not canonical JSON'; }
+    pass "the minted rule-order policy stays canonical JSON"
+fi
 
 echo "PASS: Use-this-template mint"

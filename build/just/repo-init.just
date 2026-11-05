@@ -346,12 +346,16 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-${REPO,,}}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
+        # The values fill double-quoted KYAML scalars: refuse a value that
+        # would break them now, before anything is written.
+        bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
+            || { echo "ERROR: mint aborted before writing anything — see above."; exit 1; }
     else
         SERVICE_NAME="${SERVICE_NAME:-${REPO,,}}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER}}"
+        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
     fi
 
     # --- Derived values ---
@@ -836,6 +840,13 @@ repo-init archetype="":
     LB=$(printf '\x7b\x7b')
     RB=$(printf '\x7d\x7d')
 
+    # Answers are free text, and the right-hand side of s|…|…| is not: `&`
+    # inserts the matched token, `\` escapes, `|` ends the expression. A
+    # description "Tools & proofs" rendered as "Tools <the token> proofs" and
+    # then failed the placeholder gate; a `|` broke the substitution. Every
+    # answer goes through sed_rhs. (A newline was refused before the first write.)
+    sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
     # Build the sed expression list
     # Note: using | as delimiter since URLs contain /
     SED_ARGS=(
@@ -1018,6 +1029,11 @@ repo-init archetype="":
         fi
     done
 
+    # The pass above fills the container tokens too (SERVICE_NAME, PORT,
+    # REGISTRY), which changes how KYAML quotes them; reformat the configs or
+    # Estate Rules' "Converted YAML stays KYAML" fails the child.
+    bash scripts/format-container-kyaml.sh
+
     # [YOUR-REPO-NAME] and [YOUR-NAME/ORG] (the family-7 allocation manifest
     # folded into the deed — standards#837 pilot) are replaced in the deed,
     # found by its shape rather than by the original template's file name: in
@@ -1095,6 +1111,21 @@ repo-init archetype="":
     # after its mint on 2026-10-14. tests/workflows/self_name_pass_test.sh
     # runs these two lines on fixtures.
     if [ "$REPO" != "$TEMPLATE_REPO" ]; then
+        SELF_PROV='instantiated-from|parent|upstream|chain =|lineage|minted from|created from|Template: |reject-if-contains'
+        # The template's name and slug are LITERAL text, not patterns: a Julia
+        # mint's parent may be <Name>.jl, and `.` in a sed pattern matches any
+        # character. Escaped inline so self_name_pass_test.sh can evaluate this
+        # one assignment exactly as the recipe defines it.
+        # The name is matched only where it stands as a whole name: not inside
+        # a longer word or slug (Codex review of #251). Unbounded, a parent
+        # named `app` turned "application mapping" into "newlication mnewing".
+        # A neighbouring letter or digit blocks the match; anything else does
+        # not, so `<owner>_<name>` (sonar.projectKey), `<name>_chora.deed` and
+        # derived names such as `<name>-checkout` or `rm-<name>` still follow. Each pass
+        # loops (:label … t label) because a match consumes its right-hand
+        # neighbour, and marks through a sentinel so a new name that contains
+        # the old one (Geometry -> Geometry.jl) cannot loop forever.
+        SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
         # Paths that are ABOUT the template keep its name wholesale: its ADRs,
         # changelog and audits. Template machinery (this recipe, the tests whose
         # fixtures must stay the template's literal name) is not in mint_files
@@ -1147,10 +1178,11 @@ repo-init archetype="":
     # every child genuinely points at, and rewriting those would break the
     # child's canon, CI and badges.
     if [ "$OWNER" != "$TEMPLATE_OWNER" ]; then
-        # SELF_OWNER_SED (defined once, above): the Justfile OWNER line in
-        # every form the identity parser accepts (Codex review of #274), and
-        # the SonarCloud organization and project key.
-        sed -i -E "$SELF_OWNER_SED" Justfile sonar-project.properties
+        # The same declaration forms the identity parser accepts: optional
+        # `export`, either quote (Codex review of #274).
+        sed -i -E "s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|" Justfile
+        sed -i -E 's|^sonar\.organization='"${TEMPLATE_OWNER}"'$|sonar.organization='"${OWNER}"'|' sonar-project.properties
+        sed -i -E 's|^sonar\.projectKey='"${TEMPLATE_OWNER}"'_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
         echo "  NOTE: confirm the SonarCloud ORG is really '${OWNER}' before provisioning —"
         echo "        the GitHub owner and the SonarCloud org are not always the same."
@@ -1481,6 +1513,31 @@ repo-init archetype="":
     # (same reason build/templates is removed above).
     rm -rf archetypes
     rm -rf build/docs-seed          # template-only; its content now lives in docs/
+    # Its SD022 exemption goes with it: a child keeping an exemption for a path
+    # it does not have fails check-hypatia-ignore.sh (stale exemption). The
+    # block runs from its section header to the entry, plus the blank after.
+    if [ -f .hypatia-ignore ]; then
+        awk '/^# ─── build\/docs-seed\/ describes DOWNSTREAM/ { skip = 1 }
+             skip && /^structural_drift\/SD022:build\/docs-seed\/$/ { skip = 0; blank = 1; next }
+             skip { next }
+             blank && /^$/ { blank = 0; next }
+             { blank = 0; print }' .hypatia-ignore > .hypatia-ignore.mint
+        mv .hypatia-ignore.mint .hypatia-ignore
+    fi
+    # The Hypatia rule-order policy classifies each module .hypatia-ignore
+    # exempts, and check-hypatia-rule-order.sh fails on a classification with
+    # no exemption behind it. With no structural_drift exemption left, drop its
+    # observed_modules entry. The policy is one line of JCS (RFC 8785), so
+    # removing one object and its comma keeps it canonical; no JSON tool needed.
+    POLICY=.machine_readable/policies/hypatia-rule-order.json
+    if [ -f "$POLICY" ] && ! grep -q '^structural_drift/' .hypatia-ignore 2>/dev/null; then
+        SD_OBJ='[{]"layer":[0-9]+,"module":"structural_drift","rationale":"([^"\\]|\\.)*"[}]'
+        sed -E -i -e "s/${SD_OBJ},//" -e "s/,${SD_OBJ}//" "$POLICY"
+        if grep -q '"module":"structural_drift"' "$POLICY"; then
+            echo "ERROR: could not drop structural_drift from $POLICY; the mint stops here." >&2
+            exit 1
+        fi
+    fi
 
     # Overlay .in rule (every archetype): an overlay ships content templates as
     # *.in so a substitution token never survives in a file whose final name is

@@ -150,6 +150,40 @@ sed -i "s/^      HYPATIA_SHA: .*/      HYPATIA_SHA: ''/" "$WORK/repo/.github/wor
 expect_rc 1 "a workflow with no pin cannot validate the policy"
 says "the missing-pin failure says so" "declares no HYPATIA_SHA"
 
+# A caller of the shared reusable pins the scanner with its hypatia-ref input,
+# not an env var: that pin is read and checked like HYPATIA_SHA.
+caller_wf() {
+    local pin="$1"
+    cat > "$WORK/repo/.github/workflows/hypatia-scan.yml" <<YML
+name: Hypatia Security Scan
+on: [push]
+permissions:
+  contents: read
+jobs:
+  scan:
+    uses: metadatastician/standards/.github/workflows/hypatia-scan-reusable.yml@46ee18323305d5b36e2eef936e47dd54c39ea736
+    with:
+      hypatia-ref: ${pin}
+YML
+}
+fresh; caller_wf "$(jq -r '.scanner.commit' "$WORK/repo/.machine_readable/policies/hypatia-rule-order.json")"
+expect_rc 0 "a reusable caller whose hypatia-ref matches the policy is accepted"
+
+fresh; caller_wf 4444444444444444444444444444444444444444
+expect_rc 1 "a reusable caller whose hypatia-ref disagrees with the policy is refused"
+says "the caller-pin failure names the input" "hypatia-ref input in hypatia-scan.yml"
+
+fresh; caller_wf ''
+expect_rc 1 "a reusable caller that passes no hypatia-ref cannot validate the policy"
+says "the missing caller pin is stated" "passes no hypatia-ref input"
+
+# Two pins for one scanner that disagree are refused even when one matches.
+fresh
+printf '      hypatia-ref: 5555555555555555555555555555555555555555\n' >> "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "HYPATIA_SHA and a disagreeing hypatia-ref in one workflow are refused"
+says "the double-pin failure names both" "pins the scanner twice"
+
+
 echo "=== 7. Setup errors ==="
 bash "$CHECK" "$WORK/nowhere" >"$WORK/out" 2>&1
 [ $? -eq 2 ] && ok "a missing repository directory is a setup error" || bad "missing repo must exit 2"

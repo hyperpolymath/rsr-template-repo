@@ -232,7 +232,7 @@ DD="$WORK/detect-depth"; mkdir -p "$DD/src/interface/ffi"
 printf '[package]\nname = "x"\n' > "$DD/Cargo.toml"
 printf 'package x\n' > "$DD/src/interface/abi.ipkg"
 printf 'x\n' > "$DD/src/interface/ffi/build.zig"
-printf '[tools]\njust = "latest"\nshellcheck = "latest"\ntrivy = "latest"\nrust = "latest"\nidris2 = "latest"\nzig = "latest"\n' > "$DD/mise.toml"
+printf '[tools]\njust = "latest"\nshellcheck = "latest"\nyq = "latest"\ntrivy = "latest"\nrust = "latest"\nidris2 = "latest"\nzig = "latest"\n' > "$DD/mise.toml"
 expect_pass "--detect finds markers below the root, as provision-lib does" \
     mise --root "$DD" --detect
 
