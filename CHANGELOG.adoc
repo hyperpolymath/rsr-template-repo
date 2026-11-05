@@ -56,7 +56,10 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   exact. A pre-mint change under a root `.well-known/` (which the mint moves),
   or a work tree that differs from an asserted template tree this repository
   does not hold, is refused before anything is written. The gate clears
-  inherited git location variables.
+  inherited git location variables, and archives the template without global
+  git attributes. A pre-mint file at a path the mint itself writes (the
+  archetype overlay, the docs seed, the deed) is refused, since the mint would
+  overwrite it.
 
 ==== Fixed
 

@@ -70,7 +70,9 @@ mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
-git -C "$TDIR" archive "$PIN" | tar x -C "$OUT"
+# Through g: a global core.attributesFile (export-ignore) must not shape the
+# replay (Codex review of #277).
+g -C "$TDIR" archive "$PIN" | tar x -C "$OUT"
 g -C "$OUT" init -q -b main
 g -C "$OUT" add -A
 g -C "$OUT" commit -q -m "Initial commit"

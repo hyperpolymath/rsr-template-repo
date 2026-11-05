@@ -544,6 +544,36 @@ repo-init archetype="":
                     exit 1 ;;
             esac
         done
+        # The mint writes new files of its own: the archetype overlay (before
+        # and after its .in rename), the docs seed, the deed. A pre-mint file
+        # at one of those paths would be overwritten (lost) and then declared
+        # as this repo's own addition, which the replay contradicts (Codex
+        # review of #275). Refused by name, before anything is written.
+        _writes=("${REPO}_chora.deed")
+        if [ -n "$ARCHETYPE" ] && [ -d "archetypes/${ARCHETYPE}/overlay" ]; then
+            while IFS= read -r -d '' _o; do
+                _o="${_o#./}"; _writes+=("$_o")
+                case "$_o" in
+                    src/PACKAGE.jl.in) _writes+=("src/${PROJECT_NAME}.jl") ;;
+                    *.in) _writes+=("${_o%.in}") ;;
+                esac
+            done < <(cd "archetypes/${ARCHETYPE}/overlay" && find . -type f -print0)
+        fi
+        if [ -d build/docs-seed ]; then
+            while IFS= read -r -d '' _o; do _writes+=("docs/${_o#./}"); done \
+                < <(cd build/docs-seed && find . -type f ! -path ./README.adoc -print0)
+        fi
+        for _p in "${PREMINT_A[@]}"; do
+            for _w in "${_writes[@]}"; do
+                if [ "$_p" = "$_w" ]; then
+                    echo "ERROR: mint aborted before writing anything — $_p is not in the template, and"
+                    echo "       the mint writes that path itself (the archetype overlay, the docs seed or"
+                    echo "       the deed), so your file would be overwritten. Move it aside, mint, then"
+                    echo "       bring it back as a change of your own."
+                    exit 1
+                fi
+            done
+        done
         _n=$(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} ))
         if [ "$_n" -gt 0 ]; then
             echo "NOTE: ${_n} path(s) here already differ from the template tree ${PARENT_TREE:0:12}"

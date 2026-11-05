@@ -208,6 +208,20 @@ grep -q 'the mint moves .well-known/ into www/.well-known/' "$work/wellknown.log
 [ "$(g -C "$WK" status --porcelain --untracked-files=all)" = "$wk_before" ] || fail 'the refused mint wrote to the tree'
 pass "(a-) a pre-mint change under .well-known/, which the mint moves, is refused before writing"
 
+# ── 4f. Control: a pre-mint file at a path the mint itself writes ───────────
+# The docs seed writes docs/usage.adoc; a local file there would be
+# overwritten, then declared as the child's own (Codex review of #275).
+DS="$work/docsseed"
+use_template "$DS"
+mkdir -p "$DS/docs"; printf 'my own usage notes\n' > "$DS/docs/usage.adoc"
+ds_before=$(g -C "$DS" status --porcelain --untracked-files=all)
+if mint "$DS" "$work/docsseed.log"; then fail 'a pre-mint file at a path the mint writes was minted over'; fi
+grep -q 'the mint writes that path itself' "$work/docsseed.log" && grep -q 'docs/usage.adoc' "$work/docsseed.log" \
+    || { tail -20 "$work/docsseed.log" >&2; fail 'the overwrite refusal did not name the file'; }
+[ "$(cat "$DS/docs/usage.adoc")" = 'my own usage notes' ] && [ "$(g -C "$DS" status --porcelain --untracked-files=all)" = "$ds_before" ] \
+    || fail 'the refused mint wrote to the tree'
+pass "(a-) a pre-mint file at a path the mint writes (the docs seed) is refused before writing"
+
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 # The project type is an answer no template file renders: (mint-answers)
 # must not record it (Codex review of #275), and the replay must still be green.
@@ -354,10 +368,13 @@ pass "(d-) a new file declared diverged is named as an addition"
 # global pre-commit hook that rejects every commit changes nothing (Codex
 # review of #275).
 mkdir -p "$work/hooks"; printf '#!/bin/sh\nexit 1\n' > "$work/hooks/pre-commit"; chmod +x "$work/hooks/pre-commit"
-printf '[core]\n\thooksPath = %s\n' "$work/hooks" > "$work/hooky.gitconfig"
+# And a global attributes file that drops README.adoc from every archive: the
+# replay must not lose it (Codex review of #277).
+printf 'README.adoc export-ignore\n' > "$work/global.attributes"
+printf '[core]\n\thooksPath = %s\n\tattributesFile = %s\n' "$work/hooks" "$work/global.attributes" > "$work/hooky.gitconfig"
 (cd "$C" && GIT_CONFIG_GLOBAL="$work/hooky.gitconfig" RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1 \
     || { cat "$work/drift.log" >&2; fail 'a global pre-commit hook broke the replay'; }
-pass "(d) the replay is isolated from global git hooks"
+pass "(d) the replay is isolated from global git hooks and attributes"
 # Inherited git location variables (a hook's GIT_DIR, GIT_INDEX_FILE) cannot
 # redirect the gate's git (CodeRabbit review of #275).
 g init -q "$work/elsewhere"
