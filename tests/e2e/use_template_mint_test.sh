@@ -286,6 +286,22 @@ grep -qF "DRIFT: $AP exists here but the mint did not produce it" "$work/drift.l
 g -C "$C" rm -q --cached -- "$AP"
 drift || { cat "$work/drift.log" >&2; fail 'the drift gate is not green again after the controls'; }
 pass "(d-) a force-added ignored artefact the replay also generates is named; green again once untracked"
+# The most specific declaration wins (Codex review of #277): a file the child
+# adds, and declares added, under archetypes/ (which the mint declares
+# removed) is an addition, not a revived removal.
+cp "$DEED" "$work/deed.before-specific"
+sed -i 's|^      :added ("mint-probe.md")|      :added ("mint-probe.md" "archetypes/custom.txt")|' "$DEED"
+grep -q '"archetypes/custom.txt")' "$DEED" || fail 'fixture: could not declare archetypes/custom.txt'
+mkdir -p "$C/archetypes"; printf 'mine\n' > "$C/archetypes/custom.txt"
+drift || { cat "$work/drift.log" >&2; fail 'a declared addition under a declared-removed directory was flagged'; }
+rm -r "$C/archetypes"; cp "$work/deed.before-specific" "$DEED"
+pass "(d) a declared addition under a declared-removed directory is an addition: the most specific declaration wins"
+# A path the line-based lists cannot hold is refused by name, not misread.
+NLF="$C/two"$'\n'"lines.txt"; printf 'x\n' > "$NLF"
+if drift; then fail 'the drift gate passed a path containing a newline'; fi
+grep -q 'cannot check a path containing a newline' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the newline path was not refused by name'; }
+rm -- "$NLF"
+pass "(d-) a path containing a newline is refused by name"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the

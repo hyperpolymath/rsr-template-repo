@@ -60,21 +60,40 @@ section() { bash "$READ" --list "$DEED" variant/paths "$1" 2>/dev/null || true; 
 ADDED="$(section added)"
 REMOVED="$(section removed)"
 DIVERGED="$(section diverged; section diverged-pending-upstream; section operational-state)"
-in_list() {
-    local p="$1" e
+# match_len P LIST — the length of the longest entry in LIST covering P (0:
+# none); an exact path outranks any directory that holds it.
+match_len() {
+    local p="$1" e best=0 n
     while IFS= read -r e; do
         [ -n "$e" ] || continue
         case "$e" in
-            */) case "$p" in "$e"*) return 0 ;; esac ;;
-            *) [ "$p" = "$e" ] && return 0 ;;
+            */) case "$p" in "$e"*) n=${#e} ;; *) continue ;; esac ;;
+            *) [ "$p" = "$e" ] || continue; n=$(( ${#e} + 1 )) ;;
         esac
+        [ "$n" -gt "$best" ] && best=$n
     done <<< "$2"
-    return 1
+    echo "$best"
+}
+# declared P — the category of the MOST SPECIFIC declaration covering P, so a
+# file added under a directory the mint removes is an addition, not a revived
+# removal (Codex review of #277). Ties keep removed > added > diverged.
+declared() {
+    local r a d
+    r=$(match_len "$1" "$REMOVED"); a=$(match_len "$1" "$ADDED"); d=$(match_len "$1" "$DIVERGED")
+    if [ $((r + a + d)) -eq 0 ]; then echo none
+    elif [ "$r" -ge "$a" ] && [ "$r" -ge "$d" ]; then echo removed
+    elif [ "$a" -ge "$d" ]; then echo added
+    else echo diverged
+    fi
 }
 # files DIR — the repository's own files: tracked, or untracked and not ignored.
+# The lists below are line-based, so a path holding a newline is refused, loudly.
 files() {
     git -C "$1" ls-files -z --cached --others --exclude-standard \
-        | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"; done \
+        | while IFS= read -r -d '' f; do
+            case "$f" in *$'\n'*) echo "check-mint-drift: cannot check a path containing a newline: $(printf '%q' "$f")" >&2; exit 2 ;; esac
+            { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"
+        done \
         | LC_ALL=C sort -u
 }
 # Membership is the repository file set on each side, not bare existence: an
@@ -99,11 +118,12 @@ same() {
 DRIFT=0
 report() { DRIFT=1; echo "DRIFT: $*"; }
 while IFS= read -r f; do
-    if in_list "$f" "$REMOVED"; then
+    kind="$(declared "$f")"
+    if [ "$kind" = removed ]; then
         report "$f exists here but is declared removed"
-    elif in_list "$f" "$ADDED"; then
-        in_replay "$f" && report "$f is declared added, but the mint produces it (declare it diverged)"
-    elif in_list "$f" "$DIVERGED"; then
+    elif [ "$kind" = added ]; then
+        if in_replay "$f"; then report "$f is declared added, but the mint produces it (declare it diverged)"; fi
+    elif [ "$kind" = diverged ]; then
         :
     elif ! in_replay "$f"; then
         report "$f exists here but the mint did not produce it (declare in paths.added)"
@@ -113,8 +133,9 @@ while IFS= read -r f; do
 done < "$CLIST"
 while IFS= read -r f; do
     in_child "$f" && continue
-    in_list "$f" "$REMOVED" && continue
-    if in_list "$f" "$DIVERGED"; then
+    kind="$(declared "$f")"
+    [ "$kind" = removed ] && continue
+    if [ "$kind" = diverged ]; then
         report "$f is declared diverged but is absent here (declare it removed)"
     else
         report "$f was produced by the mint but is absent here (declare in paths.removed)"
