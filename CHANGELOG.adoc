@@ -27,10 +27,17 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   chain writes is refused, so a parent-controlled link cannot redirect a
   write. Every tree is read from, and the result written back into, the
   checkout by git (a scratch index and a two-tree `read-tree -m -u`), never by
-  tar: git follows no symlink and refuses, before writing anything, a path
-  where an untracked or ignored file would be overwritten. A sparse checkout,
-  an unresolved merge, or a tracked path beneath a symlink is refused. The
-  carried generators run before the final measure, and the result must pass
+  tar, so no symlink is followed. The checkout is read and written by its own
+  git, under its own configuration (a linked worktree's common excludes,
+  `core.autocrlf`, a global excludesFile, clean and smudge filters); the
+  replays under none. Every path the result adds is checked on the disk first
+  and refused by name if anything the parent snapshot does not track is there,
+  ignored or not: git's own check lets an ignored entry be overwritten
+  wherever it sees the ignore rule. A sparse checkout, an unresolved merge, or
+  a tracked path beneath a symlink is refused. A parent's deletion is honoured
+  across an answer-dependent rename. The carried generators run before the
+  final measure (their intermediate data is removed before it, and the
+  declaration settles path by path and category by category), and the result must pass
   the child's own gates (placeholders, SPDX, toolchain, container pins, www,
   `just verify`) before it is written. A conflict with the new rendering stops
   before anything is written. Provenance records the root
@@ -168,7 +175,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    fixture token; it is now carried verbatim;
 ** the repository map is generated from the work tree (`gen-repo-map.sh
    --worktree`), after the last tree-changing step, so it no longer lists
-   `archetypes/` and the template's deed name;
+   `archetypes/` and the template's deed name; a path holding a newline,
+   which the line-based map would split into bogus entries, is refused by
+   name in both modes;
 ** stage 8 no longer tells a minted repo to arm `check-variant-drift.sh`,
    which a fresh mint cannot pass (101 rendered files differ); it points at
    `check-template-conformance.sh`. The (variant) clause now declares the

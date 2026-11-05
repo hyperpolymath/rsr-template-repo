@@ -117,6 +117,9 @@ jobs:
       # chain-mint reads checkouts through git: gitlinks kept, no ignored file read.
       - name: Chain snapshots keep gitlinks and read no ignored file
         run: bash tests/workflows/chain_tree_of_test.sh
+      # The repository map is line-based: a path holding a newline is refused by name.
+      - name: Repository map refuses a path holding a newline
+        run: bash tests/workflows/repo_map_newline_test.sh
       # The first CI job to run a FULL mint: a Use-this-template child, checked
       # for provenance, untouched fixtures and ignored files, the map and the
       # closing advice. A fresh mint of main aborted on 2026-10-20 and nothing

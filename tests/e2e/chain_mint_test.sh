@@ -91,6 +91,17 @@ printf 'sonar.organization=elder-owner\nsonar.projectKey=elder-owner_elder-proj\
 # measured after it runs, and declared (Codex review of #277).
 sed -i 's|^set -euo pipefail$|&\nprintf '"'"'extra\\n'"'"' > "$(git rev-parse --show-toplevel)/generated-extra.txt"|' "$P/.machine_readable/arrival-pack/generate.sh"
 grep -q 'generated-extra.txt' "$P/.machine_readable/arrival-pack/generate.sh" || fail 'fixture: the generator was not changed'
+# The same generator recreates a mint-produced file the parent deleted, with
+# other content: its category moves from removed to diverged, and the
+# declaration must follow it (Codex review of #277).
+[ -f "$P/docs/usage.adoc" ] || fail 'fixture: the mint produced no docs/usage.adoc'
+g -C "$P" rm -q docs/usage.adoc
+sed -i 's|^set -euo pipefail$|&\nprintf '"'"'regenerated usage\\n'"'"' > "$(git rev-parse --show-toplevel)/docs/usage.adoc"|' "$P/.machine_readable/arrival-pack/generate.sh"
+grep -q 'regenerated usage' "$P/.machine_readable/arrival-pack/generate.sh" || fail 'fixture: the usage generator was not added'
+# The generator's intermediate data, force-added: an artefact, never carried
+# or declared (Codex review of #277).
+[ -f "$P/.machine_readable/arrival-pack/claude-md-data.json" ] || fail 'fixture: the mint left no claude-md-data.json'
+g -C "$P" add -f .machine_readable/arrival-pack/claude-md-data.json
 # A file the grandchild's checkout will turn into a directory (below).
 printf 'plain\n' > "$P/notes/to-become-dir.txt"
 # A file the parent tracks although an ignore rule matches it: still its own.
@@ -178,6 +189,12 @@ pass "the parent's edit, addition and removal are carried, renamed, and declared
 pass "odd path bytes, an addition under a removed directory and a carried owner setting are handled"
 [ "$(cat "$G/generated-extra.txt" 2>/dev/null)" = extra ] && added | grep -qx generated-extra.txt \
     || { grep -n ':added' "$DEED" >&2; fail 'a file written by a carried generator was not measured and declared'; }
+diverged() { bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths diverged; }
+removed() { bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths removed; }
+[ "$(cat "$G/docs/usage.adoc" 2>/dev/null)" = 'regenerated usage' ] && diverged | grep -qx docs/usage.adoc \
+    && ! removed | grep -qx docs/usage.adoc \
+    || { grep -n ':removed\|:diverged' "$DEED" >&2; fail 'a deleted file a carried generator recreated is not declared diverged'; }
+if grep -qF 'claude-md-data.json' "$DEED"; then fail 'the generator'"'"'s force-added intermediate data was declared'; fi
 if grep -qF 'to-become-dir.txt/secret' "$DEED" || g -C "$G" ls-files -co --exclude-standard | grep -qF 'to-become-dir.txt/secret'; then
     fail 'an ignored file inside a path that became a directory was carried'
 fi
@@ -267,6 +284,7 @@ P6="$work/parent6"
 g clone -q --no-local "$P" "$P6"
 printf 'untouched\n' > "$work/sentinel-identity"; printf 'untouched\n' > "$work/sentinel-output"
 rm "$P6/CLAUDE.md"; ln -s "$work/sentinel-identity" "$P6/CLAUDE.md"
+rm -f "$P6/.machine_readable/arrival-pack/claude-md-data.json"   # the parent force-tracks it
 ln -s "$work/sentinel-output" "$P6/.machine_readable/arrival-pack/claude-md-data.json"
 g -C "$P6" add -f -A; g -C "$P6" commit -q -m "symlinks out"
 G6="$work/grandchild6"
@@ -279,6 +297,33 @@ grep -q 'symlink at .machine_readable/arrival-pack/claude-md-data.json' "$work/l
     || fail 'a chain mint wrote through a parent-controlled symlink'
 [ -z "$(g -C "$G6" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
 pass "(-) parent-controlled symlinks are never written through; one at a written path is refused"
+
+# ── A declaration that changes only in category ─────────────────────────────
+# A parent, just minted, deletes .clinerules and changes its carried generator
+# to recreate it: measured before the generator runs, the path is removed;
+# after, it is diverged, beside the generator itself. Both measures list the
+# same paths in the same order, so only the categories tell them apart (Codex
+# review of #277): the deed must declare it diverged, and the drift gate agree.
+P7="$work/parent7"
+g clone -q --no-local "$P" "$P7"
+g -C "$P7" reset -q --hard HEAD~1   # the parent's mint, before its own work
+[ -f "$P7/.clinerules" ] || fail 'fixture: the mint produced no .clinerules'
+g -C "$P7" rm -q .clinerules
+sed -i 's|^set -euo pipefail$|&\nprintf '"'"'regenerated rules\\n'"'"' > "$(git rev-parse --show-toplevel)/.clinerules"|' "$P7/.machine_readable/arrival-pack/generate.sh"
+g -C "$P7" commit -q -am "the generator owns .clinerules"
+G7="$work/grandchild7"
+use_template "$P7" HEAD "$G7" git@github.com:other-owner/grand-check.git
+mint "$G7" "$work/category.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
+    || { tail -40 "$work/category.log" >&2; fail 'the category-only chain mint failed'; }
+D7="$G7/grand-check_chora.deed"
+[ "$(cat "$G7/.clinerules")" = 'regenerated rules' ] \
+    && bash "$G7/scripts/deed-field.sh" --list "$D7" variant/paths diverged | grep -qx .clinerules \
+    && ! bash "$G7/scripts/deed-field.sh" --list "$D7" variant/paths removed | grep -qx .clinerules \
+    || { grep -n ':removed\|:diverged' "$D7" >&2; fail 'a path whose category alone changed was declared by its first measure'; }
+g -C "$G7" add -A; g -C "$G7" commit -q -m "chain mint"
+(cd "$G7" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/catdrift.log" 2>&1 \
+    || { cat "$work/catdrift.log" >&2; fail 'the drift gate is red after a category-only change'; }
+pass "a path whose category alone changes after the generators run is declared by its final category"
 
 # ── Negative control: a sparse checkout is refused ──────────────────────────
 # Its absent paths would read as deletions of most of the repository (Codex
@@ -367,21 +412,46 @@ g -C "$JG" add -A; g -C "$JG" commit -q -m "chain mint"
 (cd "$JG" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/jdrift.log" 2>&1 \
     || { cat "$work/jdrift.log" >&2; fail 'the Julia grandchild'"'"'s drift gate is red'; }
 pass "an edit carried across an answer-dependent rename is declared where it lives; the drift gate is green"
-# The result is written by git, which refuses, before writing anything, a path
-# where an ignored file would be overwritten: here an ignored directory at the
-# grandchild's future entry point (Codex review of #277: the checkout used to
-# be emptied before the copy found it).
-JG2="$work/jgrandchild2"
-use_template "$JP" HEAD "$JG2" git@github.com:other-owner/GrandPkg.jl.git
-mkdir -p "$JG2/src/GrandPkg.jl"; printf 'mine\n' > "$JG2/src/GrandPkg.jl/notes.txt"
-printf '/src/GrandPkg.jl/\n' >> "$JG2/.git/info/exclude"
-jg2_before=$(g -C "$JG2" status --porcelain --untracked-files=all)
-if mint "$JG2" "$work/collide.log" GrandPkg.jl other-owner "Other Author" other@example.org "Grand tools" julia-library GrandPkg; then
-    fail 'a chain mint overwrote an ignored directory'
-fi
-grep -q 'without overwriting a file it does not track' "$work/collide.log" || { tail -20 "$work/collide.log" >&2; fail 'the collision was not refused'; }
-[ "$(cat "$JG2/src/GrandPkg.jl/notes.txt")" = mine ] && [ "$(g -C "$JG2" status --porcelain --untracked-files=all)" = "$jg2_before" ] \
-    && [ -f "$JG2/src/ElderPkg.jl" ] || fail 'the refused chain mint wrote to the tree'
-pass "(-) an ignored entry where the result writes is refused before anything is written"
+# A path the result writes must be free, before anything is written: here an
+# ignored directory at the grandchild's future entry point (Codex review of
+# #277: the checkout used to be emptied before the copy found it). Ignored
+# through this checkout's info/exclude, and through a .gitignore, where git's
+# own check sees the rule and treats the directory as expendable.
+for how in exclude gitignore; do
+    JG2="$work/jgrandchild2-$how"
+    use_template "$JP" HEAD "$JG2" git@github.com:other-owner/GrandPkg.jl.git
+    mkdir -p "$JG2/src/GrandPkg.jl"; printf 'mine\n' > "$JG2/src/GrandPkg.jl/notes.txt"
+    case "$how" in
+        exclude) printf '/src/GrandPkg.jl/\n' >> "$JG2/.git/info/exclude" ;;
+        gitignore) printf '/src/GrandPkg.jl/\n' >> "$JG2/.gitignore" ;;
+    esac
+    g -C "$JG2" check-ignore -q src/GrandPkg.jl/notes.txt || fail "fixture ($how): the directory is not ignored"
+    jg2_before=$(g -C "$JG2" status --porcelain --untracked-files=all --ignored)
+    if mint "$JG2" "$work/collide-$how.log" GrandPkg.jl other-owner "Other Author" other@example.org "Grand tools" julia-library GrandPkg; then
+        fail "a chain mint overwrote an ignored directory ($how)"
+    fi
+    grep -q 'without overwriting' "$work/collide-$how.log" && grep -qx '    src/GrandPkg.jl/' "$work/collide-$how.log" \
+        || { tail -20 "$work/collide-$how.log" >&2; fail "the collision was not refused by name ($how)"; }
+    [ "$(cat "$JG2/src/GrandPkg.jl/notes.txt")" = mine ] \
+        && [ "$(g -C "$JG2" status --porcelain --untracked-files=all --ignored)" = "$jg2_before" ] \
+        && [ -f "$JG2/src/ElderPkg.jl" ] || fail "the refused chain mint wrote to the tree ($how)"
+done
+pass "(-) an ignored entry where the result writes is refused by name before anything is written (info/exclude and .gitignore)"
+# A parent that deleted its entry point: the deletion wins across the rename
+# too, where the fresh mint has src/GrandPkg.jl, not a rename/delete conflict
+# (Codex review of #277).
+g -C "$JP" checkout -q -b drop-entry
+g -C "$JP" rm -q src/ElderPkg.jl; g -C "$JP" commit -q -m "drop the entry point"
+JG3="$work/jgrandchild3"
+use_template "$JP" drop-entry "$JG3" git@github.com:other-owner/GrandPkg.jl.git
+mint "$JG3" "$work/jdrop.log" GrandPkg.jl other-owner "Other Author" other@example.org "Grand tools" julia-library GrandPkg \
+    || { tail -40 "$work/jdrop.log" >&2; fail 'a parent deletion across an answer-dependent rename stopped the chain'; }
+[ ! -e "$JG3/src/GrandPkg.jl" ] && [ ! -e "$JG3/src/ElderPkg.jl" ] || { ls "$JG3/src" >&2; fail 'the deleted entry point came back'; }
+bash "$JG3/scripts/deed-field.sh" --list "$JG3/GrandPkg.jl_chora.deed" variant/paths removed | grep -qx src/GrandPkg.jl \
+    || { grep -n ':removed' "$JG3/GrandPkg.jl_chora.deed" >&2; fail 'the deletion is not declared where the fresh mint has the file'; }
+g -C "$JG3" add -A; g -C "$JG3" commit -q -m "chain mint"
+(cd "$JG3" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/jdropdrift.log" 2>&1 \
+    || { cat "$work/jdropdrift.log" >&2; fail 'the grandchild of a parent without its entry point has a red drift gate'; }
+pass "a parent deletion is carried across an answer-dependent rename and declared; the drift gate is green"
 
 echo "PASS: chain mint"

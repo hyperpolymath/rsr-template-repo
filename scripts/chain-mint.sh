@@ -113,17 +113,23 @@ link_objects() {
     od="$(g -C "$1" rev-parse --path-format=absolute --git-common-dir)/objects"
     grep -qxF "$od" "$M/.git/objects/info/alternates" 2>/dev/null || printf '%s\n' "$od" >> "$M/.git/objects/info/alternates"
 }
-# tree_of DIR NAME — the tree of DIR's own files, as `git add -A` commits them
-# from DIR's index: tracked files (an ignore rule matching or not) and the
-# untracked files no rule ignores. Written into M; DIR's .git is not written.
+# tree_of DIR NAME [own] — the tree of DIR's own files, as `git add -A` commits
+# them from DIR's index: tracked files (an ignore rule matching or not) and the
+# untracked files no rule ignores. DIR's own git does the reading, on a scratch
+# index, writing its objects into M; DIR's index and objects are not written.
+# With "own", DIR is read under its own configuration, exactly as `git status`
+# there sees it: its exclusion files (a linked worktree's are in the common
+# directory), core.autocrlf, clean filters (Codex review of #277). Without it,
+# under none (g): a replay's tree must not depend on this machine.
 tree_of() {
-    local d="$1" idx="$WORK/index.$2" gd
+    local d="$1" idx="$WORK/index.$2" gx=g od
+    [ "${3:-}" = own ] && gx=git
     link_objects "$d"
-    gd="$(g -C "$d" rev-parse --path-format=absolute --git-dir)"
+    od="$(g -C "$d" rev-parse --path-format=absolute --git-common-dir)/objects"
     rm -f "$idx"
     g -C "$d" ls-files -s -z | GIT_INDEX_FILE="$idx" g --git-dir="$M/.git" update-index -z --index-info
-    ( cd "$d" && GIT_INDEX_FILE="$idx" g --git-dir="$M/.git" --work-tree=. \
-        -c core.excludesFile="$gd/info/exclude" add -A . )
+    GIT_INDEX_FILE="$idx" GIT_OBJECT_DIRECTORY="$M/.git/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$od" \
+        "$gx" -C "$d" -c core.fsmonitor=false -c core.hooksPath=/dev/null add -A .
     GIT_INDEX_FILE="$idx" g --git-dir="$M/.git" write-tree
 }
 # with_index NAME CMD… — run git CMD in M against the scratch index NAME.
@@ -135,7 +141,7 @@ B="$(g -C "$M" commit-tree "$(tree_of "$WORK/base" base)" -m base)"
 # theirs: the parent as it stands (uncommitted work included), with its
 # identity files held at base, so they are never carried: they belong to the
 # parent. Held in the index, never through the parent's work tree.
-PARENT_TREE="$(tree_of "$G" parent)"
+PARENT_TREE="$(tree_of "$G" parent own)"
 rm -f "$WORK/index.theirs"; with_index theirs read-tree "$PARENT_TREE"
 for f in "${IDENTITY[@]}"; do
     with_index theirs rm -q --cached --ignore-unmatch -- "$f"
@@ -157,8 +163,17 @@ THEIRS="$(g -C "$M" commit-tree "$(with_index theirs write-tree)" -p "$B" -m the
 NEW_T="$(tree_of "$WORK/new" new)"
 g -C "$M" branch -q fresh "$(g -C "$M" commit-tree "$NEW_T" -p "$B" -m fresh)"
 rm -f "$WORK/index.ours"; with_index ours read-tree "$NEW_T"
+# A path the new answers rename (src/<Old>.jl -> src/<New>.jl) is deleted where
+# the fresh mint has it. The renames are found by the detection merge-tree
+# itself applies, so exactly the pairs it would see as rename/delete (Codex
+# review of #277). renamed_to P — P's rename destination in the fresh mint.
+declare -A RENAMED=()
+while IFS= read -r -d '' st && IFS= read -r -d '' old && IFS= read -r -d '' new; do
+    RENAMED["$old"]="$new"
+done < <(g -C "$M" diff -z --find-renames --name-status --diff-filter=R "$B" "$NEW_T")
 while IFS= read -r -d '' f; do
     with_index ours rm -q --cached --ignore-unmatch -- "$f"
+    [ -z "${RENAMED[$f]:-}" ] || with_index ours rm -q --cached --ignore-unmatch -- "${RENAMED[$f]}"
 done < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
 while IFS= read -r -d '' f; do
     with_index ours rm -q --cached --ignore-unmatch -- "$f"
@@ -250,7 +265,10 @@ declare_paths() {
             *) printf '%s\n' "$f" >> "$WORK/diverged.list"; N_M=$((N_M + 1)) ;;
         esac
     done < <(inherited)
-    cat "$WORK/added.list" "$WORK/removed.list" "$WORK/diverged.list" > "$WORK/declared.now"
+    # Each path with its category: a path that moves from removed to diverged
+    # (a generator recreated it) changes the declaration (Codex review of #277).
+    { sed 's/^/added /' "$WORK/added.list"; sed 's/^/removed /' "$WORK/removed.list"
+      sed 's/^/diverged /' "$WORK/diverged.list"; } > "$WORK/declared.now"
 }
 # write_deed — the fresh deed, plus the lineage and the declared lists. Paths
 # are written as deed strings (\ and " escaped) by awk, which takes them as
@@ -302,6 +320,10 @@ write_deed() {
 regenerate() {
     ( cd "$F" && bash .machine_readable/arrival-pack/generate.sh >/dev/null ) \
         || die "the arrival pack could not be regenerated; nothing was written"
+    # The generator's intermediate data is a build artefact, never carried: it
+    # goes before the declaration is measured, so a parent that force-added it
+    # does not leave it declared but absent (Codex review of #277).
+    rm -f "$F/.machine_readable/arrival-pack/claude-md-data.json"
     ( cd "$F" && bash scripts/gen-repo-map.sh --worktree . >/dev/null ) \
         || die "the repository map could not be regenerated; nothing was written"
 }
@@ -333,17 +355,40 @@ gate "just verify" just verify
 
 # Every check passed: write the result into this checkout, by git. The scratch
 # index starts as the parent snapshot (which is what the work tree holds), and
-# a two-tree read-tree moves it to the result: git refuses, before writing
-# anything, any path where an untracked or ignored file would be overwritten.
-rm -f "$F/.machine_readable/arrival-pack/claude-md-data.json"
+# a two-tree read-tree moves it to the result. This checkout's own git does the
+# writing, under its own configuration, as it did the reading (tree_of … own):
+# files are checked out as its checkouts are (core.autocrlf, smudge filters),
+# from M's objects; it writes no object.
 FINAL_T="$(g -C "$F" add -A && g -C "$F" write-tree)"
 link_objects "$F"
 GIDX="$WORK/index.write"
 rm -f "$GIDX"
-if ! ( cd "$G" && export GIT_INDEX_FILE="$GIDX" \
-        && g --git-dir="$M/.git" --work-tree=. read-tree "$PARENT_TREE" \
-        && g --git-dir="$M/.git" --work-tree=. update-index -q --refresh \
-        && g --git-dir="$M/.git" --work-tree=. read-tree -m -u "$PARENT_TREE" "$FINAL_T" ) 2> "$WORK/write.err"; then
+own() { git -C "$G" -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
+wown() { GIT_INDEX_FILE="$GIDX" GIT_OBJECT_DIRECTORY="$M/.git/objects" own "$@"; }
+{ wown read-tree "$PARENT_TREE" && wown update-index -q --refresh; } 2> "$WORK/write.err" \
+    || { sed 's/^/    /' "$WORK/write.err" >&2; die "cannot read this checkout's state (above); nothing was written"; }
+# Every path the result adds must be free here: nothing at it, and no file
+# where it needs a directory, that the parent snapshot does not track, ignored
+# or not. Checked by name, on the disk, because git's own check treats an
+# ignored entry as expendable wherever it can see the rule that ignores it (a
+# .gitignore, or this checkout's own excludes) (Codex review of #277).
+occupied() { [ -L "$G/$1" ] || { [ -e "$G/$1" ] && [ ! -d "$G/$1" ]; }; }
+COLLIDE="$WORK/collide.list"; : > "$COLLIDE"
+while IFS= read -r -d '' p; do
+    if occupied "$p"; then printf '%s\n' "$p" >> "$COLLIDE"
+    elif [ -d "$G/$p" ] && [ -n "$(wown ls-files -o -z -- ":(literal)$p/" | head -c 1)" ]; then
+        printf '%s/\n' "$p" >> "$COLLIDE"
+    fi
+    d="$p"
+    while case "$d" in */*) d="${d%/*}"; true ;; *) false ;; esac; do
+        if occupied "$d" && [ -z "$(wown ls-files -z -- ":(literal)$d")" ]; then printf '%s\n' "$d" >> "$COLLIDE"; fi
+    done
+done < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=A "$PARENT_TREE" "$FINAL_T")
+if [ -s "$COLLIDE" ]; then
+    LC_ALL=C sort -u "$COLLIDE" | sed 's/^/    /' >&2
+    die "this checkout cannot take the result without overwriting what it does not track, ignored or not (above); nothing was written"
+fi
+if ! wown read-tree -m -u "$PARENT_TREE" "$FINAL_T" 2> "$WORK/write.err"; then
     sed 's/^/    /' "$WORK/write.err" >&2
     die "this checkout cannot take the result without overwriting a file it does not track (above); nothing was written"
 fi
