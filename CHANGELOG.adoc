@@ -79,6 +79,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 ** Answers go through `sed_rhs`, so `&`, `|` and `\` in a description or name
    render literally; an answer with a newline is refused.
 
+* **`.kyaml` files were invisible to four file scans.** Estate configuration
+  is `.kyaml` (D307), but these selectors matched only `*.yaml`/`*.yml`: the
+  invisible-character scan (`scripts/check-invisible-characters.sh`), the
+  `http://` URL check in `security-policy.yml`, and the VeriSimDB probe in
+  `dogfood-gate.yml` and `dogfood-summary.yml`. A zero-width character or a
+  plain-HTTP URL in a `.kyaml` file passed unseen. Each now includes
+  `*.kyaml`. Ported from `hyperpolymath/panic-attack#246`.
 * **The template's gates could not fail, and the toolchain was not minted.**
   Reported from JuliaPackageSpitter.jl and traced here; see
   `docs/reports/compliance/RSR-TEMPLATE-DAMAGE-2026-10-30.adoc` for the full

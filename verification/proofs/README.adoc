@@ -43,6 +43,28 @@ bounds. For Rust, *Kani* (unsafe and FFI seams, reported `TESTED` with
 bounds) and *Aeneas* (Rust that implements an Agda-proved theorem) are
 standing exceptions that run alongside Creusot, never instead of it.
 
+== Proof grades
+
+The only estate proof grade is the *Proof Witness Grade* (PWG) of policy §8.
+It applies to theory theorems:
+
+* `PWG-3` means the Agda proof checks under the canonical invocation.
+* `PWG-2i` adds one recheck leg (Rocq or Lean) that counts.
+* `PWG-2ii` means both legs count, which discharges the policy's recheck
+  obligation.
+* `PWG-1` adds a current receipt, per commit, from a pinned headless
+  checker for every witness.
+
+A leg counts only when it is kernel-checked and its statement
+correspondence is `RECONCILED`. Grades are derived from receipts and the
+correspondence records, never asserted. Record them in
+`docs/status/PROOF-STATUS.adoc` beside the §5 status tokens, in a separate
+field.
+
+Always write the `PWG-` prefix. A bare "Grade 2" collides with the CRG,
+TRG, ARG and FRG letter grades. Publish counts as a census with their
+denominator, never as a percentage.
+
 == Third-party code
 
 Dependencies (crates, libraries, vendored or forked code) are not converted,

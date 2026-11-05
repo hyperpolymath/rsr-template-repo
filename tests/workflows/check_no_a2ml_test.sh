@@ -34,10 +34,23 @@ printf '[x]\n' > "$REPO/AI.A2ML"
 git -C "$REPO" add AI.A2ML
 expect_fail "$REPO" "AI.A2ML"
 
+# Shrink-only ledger: a listed file passes, an unlisted one beside it still
+# fails, and 9-archive/ is out of scope.
+git -C "$REPO" rm -q --cached AI.A2ML && rm "$REPO/AI.A2ML"
+mkdir -p "$REPO/.machine_readable" "$REPO/9-archive/old"
+printf '[x]\n' > "$REPO/LISTED.a2ml"
+printf '[x]\n' > "$REPO/9-archive/old/ARCHIVED.a2ml"
+printf '# ledger\nLISTED.a2ml  # waiting for kyX\n' > "$REPO/.machine_readable/a2ml-legacy-allow.txt"
+git -C "$REPO" add LISTED.a2ml 9-archive .machine_readable
+bash "$CHECKER" "$REPO" | grep -q '^PASS:'
+printf '[x]\n' > "$REPO/NEW.a2ml"
+git -C "$REPO" add NEW.a2ml
+expect_fail "$REPO" "NEW.a2ml"
+
 PLAIN="$FIXTURE/plain"; mkdir -p "$PLAIN/sub"
 printf '[x]\n' > "$PLAIN/sub/ANCHOR.a2ml"
 expect_fail "$PLAIN" "sub/ANCHOR.a2ml"
 rm "$PLAIN/sub/ANCHOR.a2ml"
 bash "$CHECKER" "$PLAIN" | grep -q '^PASS:'
 
-echo "PASS: check-no-a2ml controls (clean, tracked, upper-case, untracked)"
+echo "PASS: check-no-a2ml controls (clean, tracked, upper-case, untracked, ledger)"

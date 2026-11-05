@@ -328,3 +328,38 @@ sed -i "/^    'Owner\/Repo@/a\        ref: 'main'" "$work/current/actions.lock"
 expect 0 'OK' 'case variants pass when each raw dependency record has its own ref'
 sed -i "/^    'owner\/repo@/,/^        repo_id:/ { /^        ref:/d; }" "$work/current/actions.lock"
 expect 1 'owner/repo@1111111111111111111111111111111111111111 (ref: <missing ref>)' 'an earlier case variant cannot mask a later missing ref'
+
+# Clause 5's one exception: the target of job-level reusable-workflow calls
+# only may record its own SHA as ref: (GitHub runs it; see the script header).
+# reusable_only drops the step that also uses OWNER/REPO as an action.
+reusable_only() { sed -i "/- uses: 'OWNER\/REPO\/subdir@/d" "$work/current/ci.yml"; }
+self_ref() { sed -i "s/ref: 'v1'/ref: '1111111111111111111111111111111111111111'/" "$work/current/actions.lock"; }
+fresh
+reusable_only
+sha_key
+self_ref
+expect 0 'OK' 'a job-level reusable target may record its own SHA as ref'
+fresh
+sha_key
+self_ref
+expect 1 'SELF-SHA REFS' 'the exception does not cover a ref that a step also uses as an action'
+fresh
+reusable_only
+sha_key
+self_ref
+cat >> "$work/current/actions.lock" <<'LOCK'
+    'other/caller@v3':
+        ref: 'v3'
+        commit: 'sha1-3333333333333333333333333333333333333333'
+        owner_id: 5
+        repo_id: 6
+        uses:
+            - 'owner/repo@1111111111111111111111111111111111111111'
+LOCK
+expect 1 'SELF-SHA REFS' 'the exception does not cover a ref that another record names as a nested uses'
+fresh
+reusable_only
+sha_key
+sed -i "s#Owner/Repo/.github/workflows/check.yml@#Owner/Repo/.github/actions/check@#" "$work/current/ci.yml"
+self_ref
+expect 1 'SELF-SHA REFS' 'a path outside .github/workflows is not a reusable workflow'

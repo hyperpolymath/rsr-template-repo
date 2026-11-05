@@ -63,7 +63,7 @@ ORANGE_BADGE='{"schemaVersion":1,"label":"Hypatia grid","message":"indeterminate
 # wrongly resolved ref would otherwise run unreviewed code in a job that holds
 # pull-requests: write.
 STANDARDS_REPO="${VERDICT_GRID_STANDARDS_REPO:-metadatastician/standards}"
-STANDARDS_SHA="${VERDICT_GRID_STANDARDS_SHA:-8e48b1caade08a552646adeab66558ac43b4360d}"
+STANDARDS_SHA="${VERDICT_GRID_STANDARDS_SHA:-e064539116c2dcfdf282a4749dbd58c69961c7e6}"
 RENDERER_SHA256="3ee93552920dfc7c472e763a040cbaed8f38ed4b8af151f5d5076d3124211388"
 JQ_LIB_SHA256="5681fcefe09480d82b7fa13a6fcb0c389f16467fe7abbace66986cca83114544"
 
