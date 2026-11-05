@@ -10,6 +10,25 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **repo-init follow-ups to #251 (the Codex review it merged before).**
+** Re-minting a minted repo silently inherited its parent's author, contacts
+   and identity (its tokens are filled and `build/templates` is gone). It now
+   stops before writing and names the template to mint from. Chain minting is
+   the owner's chosen fix and lands separately; this refusal is the interim.
+** The template identity no longer falls back to the git remote, which in a
+   template-created child is the child itself. A Justfile without readable
+   `OWNER :=`/`REPO :=` (now also `export`) needs `RSR_TEMPLATE_SLUG`.
+** The self-name pass matches the template name only where no letter or
+   digit touches it, so a short parent name such as `app` no longer rewrites
+   "application" into "newlication".
+** `resolve-template-pin.sh` pins a root commit by creation time (the
+   default branch's tip when the child was made) and refuses, listing them,
+   when several commits share a tree; 29 trees repeat on main.
+** `rust-tool.sh` caches each mint tool by the hash of its source, so two
+   checkouts can no longer run each other's binary.
+** Answers go through `sed_rhs`, so `&`, `|` and `\` in a description or name
+   render literally; an answer with a newline is refused.
+
 * **`.kyaml` files were invisible to four file scans.** Estate configuration
   is `.kyaml` (D307), but these selectors matched only `*.yaml`/`*.yml`: the
   invisible-character scan (`scripts/check-invisible-characters.sh`), the

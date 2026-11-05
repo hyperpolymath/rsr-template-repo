@@ -56,32 +56,53 @@ repo-init archetype="":
     # metadatastician/lintel 2026-10-19; first fixed there in lintel#9 (not
     # merged), ported here, where the generator lives.
     #
-    # Derived, never asked: these are facts about the checkout, not choices.
-    # The root Justfile comes first because its OWNER/REPO lines are also the
-    # literals written through the tree, so they are exactly what the rewrite
-    # has to match, and they are still the TEMPLATE's in a repository created
-    # with "Use this template" (whose git remote is already the child's). The
-    # remote is second, for a Justfile that no longer declares them. The
-    # original template is last, so a bare export still mints something valid.
+    # Derived, never guessed: these are facts about the checkout, not choices.
+    # The root Justfile's OWNER/REPO lines are the literals written through the
+    # tree, so they are exactly what the rewrite has to match, and they are
+    # still the TEMPLATE's in a repository created with "Use this template".
+    # When the Justfile does not declare them, RSR_TEMPLATE_SLUG=owner/repo
+    # must say so, or the mint stops. There is deliberately no fallback to the
+    # git remote: in a template-created child the remote is the CHILD, so that
+    # fallback named the child as its own template, and the pin resolver then
+    # recorded the child's HEAD (Codex review of #251). Nor is there a default
+    # template name: a guess here is the hardcoding this block replaced.
     TEMPLATE_OWNER=""
     TEMPLATE_REPO=""
     if [ -f Justfile ]; then
-        TEMPLATE_REPO="$(sed -n -E 's/^REPO[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' Justfile | head -1)"
-        TEMPLATE_OWNER="$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' Justfile | head -1)"
+        TEMPLATE_REPO="$(sed -n -E "s/^(export[[:space:]]+)?REPO[[:space:]]*:=[[:space:]]*[\"']([^\"']+)[\"'].*/\2/p" Justfile | head -1)"
+        TEMPLATE_OWNER="$(sed -n -E "s/^(export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*[\"']([^\"']+)[\"'].*/\2/p" Justfile | head -1)"
     fi
     if [ -z "$TEMPLATE_REPO" ] || [ -z "$TEMPLATE_OWNER" ]; then
-        _origin="$(git config --get remote.origin.url 2>/dev/null || true)"
-        if [ -n "$_origin" ]; then
-            _origin="${_origin%.git}"
-            _origin="${_origin%/}"
-            [ -n "$TEMPLATE_REPO" ] || TEMPLATE_REPO="${_origin##*[/:]}"
-            _origin="${_origin%/*}"
-            [ -n "$TEMPLATE_OWNER" ] || TEMPLATE_OWNER="${_origin##*[/:]}"
+        if [[ "${RSR_TEMPLATE_SLUG:-}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+            TEMPLATE_OWNER="${RSR_TEMPLATE_SLUG%%/*}"
+            TEMPLATE_REPO="${RSR_TEMPLATE_SLUG#*/}"
+        else
+            echo "Error: the root Justfile does not declare OWNER := and REPO :=, so the"
+            echo "       template this tree came from is unknown. Set RSR_TEMPLATE_SLUG=owner/repo."
+            exit 1
         fi
     fi
-    TEMPLATE_REPO="${TEMPLATE_REPO:-rsr-template-repo}"
-    TEMPLATE_OWNER="${TEMPLATE_OWNER:-hyperpolymath}"
     TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
+
+    # --- Only a template can be minted (until chain minting lands) ------------
+    # A minted repo has already filled its tokens and deleted build/templates,
+    # so minting it again renders none of the new answers and skips the
+    # identity splice: the grandchild silently inherited its parent's author,
+    # contacts, clade and maturity (Codex review of #251). The owner chose to
+    # support chains properly (2026-11-04); until a minted repo carries the
+    # pristine inputs that makes possible, stop here, before anything is
+    # asked or written. A variant template keeps build/templates and still mints.
+    if [ ! -f build/templates/identity.deed.in ]; then
+        echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
+        echo "       absent), so it cannot be minted again yet: its tokens are filled and"
+        echo "       its identity template is gone. Mint from the template it came from."
+        _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
+        if [ -n "$_prov_deed" ]; then
+            _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
+            [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
+        fi
+        exit 1
+    fi
 
     # --- What the mint may edit ---------------------------------------------
     # mint_files prints, one per line, every regular file that belongs to the
@@ -316,6 +337,17 @@ repo-init archetype="":
     ask "Proceed? [Y/n] " CONFIRM
     [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
 
+    # An answer is one line: no sed expression, deed string or prompt can carry
+    # a newline. Refused HERE, before the first write (the overlay, the prune
+    # and the docs seed all come next), so a bad answer leaves a clean tree.
+    for _ans in PROJECT_NAME PROJECT_DESCRIPTION OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG \
+                AUTHOR_LAST AUTHOR_FIRST FORGE SECURITY_EMAIL CONDUCT_EMAIL PROJECT_TYPE \
+                WEBSITE SERVICE_NAME PORT REGISTRY AUTHOR_EMAIL_ALT AUTHOR_ORCID OPENSSF_BP_ID; do
+        case "${!_ans:-}" in
+            *$'\n'*) echo "Error: the answer for $_ans contains a newline; answers are one line."; exit 1 ;;
+        esac
+    done
+
     # Template-only paths this recipe deletes, as they stand before it runs.
     # Recorded in the (variant) clause's (paths :removed …) below, so the
     # record says what the mint took away instead of leaving the drift gate to
@@ -425,48 +457,55 @@ repo-init archetype="":
     LB=$(printf '\x7b\x7b')
     RB=$(printf '\x7d\x7d')
 
+    # Answers are free text, and the right-hand side of s|…|…| is not: `&`
+    # inserts the matched token, `\` escapes, `|` ends the expression. A
+    # description "Tools & proofs" rendered as "Tools <the token> proofs" and
+    # then failed the placeholder gate; a `|` broke the substitution. Every
+    # answer goes through sed_rhs. (A newline was refused before the first write.)
+    sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
     # Build the sed expression list
     # Note: using | as delimiter since URLs contain /
     SED_ARGS=(
-        -e "s|${LB}PROJECT_NAME${RB}|${PROJECT_NAME}|g"
-        -e "s|${LB}PROJECT_DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
-        -e "s|${LB}PROJECT${RB}|${PROJECT_UPPER}|g"
-        -e "s|${LB}project${RB}|${PROJECT_LOWER}|g"
-        -e "s|${LB}REPO${RB}|${REPO}|g"
-        -e "s|${LB}OWNER${RB}|${OWNER}|g"
-        -e "s|${LB}AUTHOR${RB}|${AUTHOR}|g"
-        -e "s|${LB}AUTHOR_EMAIL${RB}|${AUTHOR_EMAIL}|g"
-        -e "s|${LB}AUTHOR_ORG${RB}|${AUTHOR_ORG}|g"
-        -e "s|${LB}AUTHOR_LAST${RB}|${AUTHOR_LAST}|g"
-        -e "s|${LB}AUTHOR_FIRST${RB}|${AUTHOR_FIRST}|g"
-        -e "s|${LB}AUTHOR_INITIALS${RB}|${FIRST_INITIAL}|g"
-        -e "s|${LB}FORGE${RB}|${FORGE}|g"
-        -e "s|${LB}CURRENT_YEAR${RB}|${CURRENT_YEAR}|g"
-        -e "s|${LB}CURRENT_DATE${RB}|${CURRENT_DATE}|g"
-        -e "s|${LB}DATE${RB}|${CURRENT_DATE}|g"
-        -e "s|${LB}SECURITY_EMAIL${RB}|${SECURITY_EMAIL}|g"
-        -e "s|${LB}CONDUCT_EMAIL${RB}|${CONDUCT_EMAIL}|g"
+        -e "s|${LB}PROJECT_NAME${RB}|$(sed_rhs "${PROJECT_NAME}")|g"
+        -e "s|${LB}PROJECT_DESCRIPTION${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
+        -e "s|${LB}PROJECT${RB}|$(sed_rhs "${PROJECT_UPPER}")|g"
+        -e "s|${LB}project${RB}|$(sed_rhs "${PROJECT_LOWER}")|g"
+        -e "s|${LB}REPO${RB}|$(sed_rhs "${REPO}")|g"
+        -e "s|${LB}OWNER${RB}|$(sed_rhs "${OWNER}")|g"
+        -e "s|${LB}AUTHOR${RB}|$(sed_rhs "${AUTHOR}")|g"
+        -e "s|${LB}AUTHOR_EMAIL${RB}|$(sed_rhs "${AUTHOR_EMAIL}")|g"
+        -e "s|${LB}AUTHOR_ORG${RB}|$(sed_rhs "${AUTHOR_ORG}")|g"
+        -e "s|${LB}AUTHOR_LAST${RB}|$(sed_rhs "${AUTHOR_LAST}")|g"
+        -e "s|${LB}AUTHOR_FIRST${RB}|$(sed_rhs "${AUTHOR_FIRST}")|g"
+        -e "s|${LB}AUTHOR_INITIALS${RB}|$(sed_rhs "${FIRST_INITIAL}")|g"
+        -e "s|${LB}FORGE${RB}|$(sed_rhs "${FORGE}")|g"
+        -e "s|${LB}CURRENT_YEAR${RB}|$(sed_rhs "${CURRENT_YEAR}")|g"
+        -e "s|${LB}CURRENT_DATE${RB}|$(sed_rhs "${CURRENT_DATE}")|g"
+        -e "s|${LB}DATE${RB}|$(sed_rhs "${CURRENT_DATE}")|g"
+        -e "s|${LB}SECURITY_EMAIL${RB}|$(sed_rhs "${SECURITY_EMAIL}")|g"
+        -e "s|${LB}CONDUCT_EMAIL${RB}|$(sed_rhs "${CONDUCT_EMAIL}")|g"
         -e "s|${LB}LICENSE${RB}|MPL-2.0|g"
         -e "s|${LB}CONDUCT_TEAM${RB}|Code of Conduct Committee|g"
         -e "s|${LB}RESPONSE_TIME${RB}|48 hours|g"
         -e "s|${LB}MAIN_BRANCH${RB}|main|g"
-        -e "s|${LB}PROJECT_PURPOSE${RB}|${PROJECT_DESCRIPTION}|g"
-        -e "s|${LB}PROJECT_ROLE${RB}|${PROJECT_TYPE}|g"
-        -e "s|${LB}PROJECT_TYPE${RB}|${PROJECT_TYPE}|g"
-        -e "s|${LB}WEBSITE${RB}|${WEBSITE}|g"
-        -e "s|${LB}SERVICE_NAME${RB}|${SERVICE_NAME}|g"
-        -e "s|${LB}PORT${RB}|${PORT}|g"
-        -e "s|${LB}REGISTRY${RB}|${REGISTRY}|g"
-        -e "s|${LB}IMAGE${RB}|${REGISTRY}/${SERVICE_NAME}|g"
-        -e "s|${LB}VERSION${RB}|${VERSION}|g"
-        -e "s|${LB}EMAIL${RB}|${AUTHOR_EMAIL}|g"
-        -e "s|${LB}UUID${RB}|${REPO_UUID}|g"
-        -e "s|${LB}DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
+        -e "s|${LB}PROJECT_PURPOSE${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
+        -e "s|${LB}PROJECT_ROLE${RB}|$(sed_rhs "${PROJECT_TYPE}")|g"
+        -e "s|${LB}PROJECT_TYPE${RB}|$(sed_rhs "${PROJECT_TYPE}")|g"
+        -e "s|${LB}WEBSITE${RB}|$(sed_rhs "${WEBSITE}")|g"
+        -e "s|${LB}SERVICE_NAME${RB}|$(sed_rhs "${SERVICE_NAME}")|g"
+        -e "s|${LB}PORT${RB}|$(sed_rhs "${PORT}")|g"
+        -e "s|${LB}REGISTRY${RB}|$(sed_rhs "${REGISTRY}")|g"
+        -e "s|${LB}IMAGE${RB}|$(sed_rhs "${REGISTRY}")/$(sed_rhs "${SERVICE_NAME}")|g"
+        -e "s|${LB}VERSION${RB}|$(sed_rhs "${VERSION}")|g"
+        -e "s|${LB}EMAIL${RB}|$(sed_rhs "${AUTHOR_EMAIL}")|g"
+        -e "s|${LB}UUID${RB}|$(sed_rhs "${REPO_UUID}")|g"
+        -e "s|${LB}DESCRIPTION${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
     )
-    [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
-    [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|${AUTHOR_ORCID}|g")
-    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|${OPENSSF_BP_ID}|g")
-    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|${OPENSSF_BP_ID}|g")
+    [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|$(sed_rhs "${AUTHOR_EMAIL_ALT}")|g")
+    [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|$(sed_rhs "${AUTHOR_ORCID}")|g")
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|$(sed_rhs "${OPENSSF_BP_ID}")|g")
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|$(sed_rhs "${OPENSSF_BP_ID}")|g")
 
     # Archetype-determined tokens (ADR-0003): the archetype contract fills
     # what it can honestly determine. Added BEFORE the UNASSIGNED fallback
@@ -607,7 +646,7 @@ repo-init archetype="":
     # two seds that named rsr-template-repo_chora.deed silently no-opped there.
     DEED_IN="$(bash scripts/deed-field.sh --find .)" \
         || { echo "Error: the tree must carry exactly one *_chora.deed at its root."; exit 1; }
-    sed -i -e "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" -e "s|\[YOUR-NAME/ORG\]|${OWNER}|g" "$DEED_IN"
+    sed -i -e "s|\[YOUR-REPO-NAME\]|$(sed_rhs "${PROJECT_NAME}")|g" -e "s|\[YOUR-NAME/ORG\]|$(sed_rhs "${OWNER}")|g" "$DEED_IN"
 
     # --- Instruction-block pass --------------------------------------------
     # Delete the "TEMPLATE INSTRUCTIONS (delete this block before publishing)"
@@ -682,7 +721,16 @@ repo-init archetype="":
         # mint's parent may be <Name>.jl, and `.` in a sed pattern matches any
         # character. Escaped inline so self_name_pass_test.sh can evaluate this
         # one assignment exactly as the recipe defines it.
-        SELF_NAME_SED="/${SELF_PROV}/!{s|${TEMPLATE_REPO//./\\.}#([0-9])|__TEMPLATE_ISSUE__\\1|g;s|${TEMPLATE_SLUG//./\\.}|${OWNER}/${REPO}|g;s|${TEMPLATE_REPO//./\\.}|${REPO}|g;s|__TEMPLATE_ISSUE__|${TEMPLATE_REPO}#|g;}"
+        # The name is matched only where it stands as a whole name: not inside
+        # a longer word or slug (Codex review of #251). Unbounded, a parent
+        # named `app` turned "application mapping" into "newlication mnewing".
+        # A neighbouring letter or digit blocks the match; anything else does
+        # not, so `<owner>_<name>` (sonar.projectKey), `<name>_chora.deed` and
+        # derived names such as `<name>-checkout` or `rm-<name>` still follow. Each pass
+        # loops (:label … t label) because a match consumes its right-hand
+        # neighbour, and marks through a sentinel so a new name that contains
+        # the old one (Geometry -> Geometry.jl) cannot loop forever.
+        SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
         # Paths that are ABOUT the template keep its name wholesale: its ADRs,
         # changelog and audits. Template machinery (this recipe, the tests whose
         # fixtures must stay the template's literal name) is not in mint_files
@@ -735,7 +783,9 @@ repo-init archetype="":
     # every child genuinely points at, and rewriting those would break the
     # child's canon, CI and badges.
     if [ "$OWNER" != "$TEMPLATE_OWNER" ]; then
-        sed -i -E 's|^(OWNER[[:space:]]*:=[[:space:]]*)"'"${TEMPLATE_OWNER}"'"|\1"'"${OWNER}"'"|' Justfile
+        # The same declaration forms the identity parser accepts: optional
+        # `export`, either quote (Codex review of #274).
+        sed -i -E "s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|" Justfile
         sed -i -E 's|^sonar\.organization='"${TEMPLATE_OWNER}"'$|sonar.organization='"${OWNER}"'|' sonar-project.properties
         sed -i -E 's|^sonar\.projectKey='"${TEMPLATE_OWNER}"'_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"

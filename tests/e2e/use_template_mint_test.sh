@@ -83,6 +83,11 @@ use_template() {
     g -C "$1" remote add origin git@github.com:example-owner/mint-check.git
 }
 
+# The description carries `&` and `|`, which the substitution used to read as
+# sed syntax (`&` inserted the token itself). MINT_ENV adds per-call settings.
+DESC='Tools & proofs | checked'
+MINT_ENV=()
+
 # mint DIR LOG — the non-interactive mint, isolated from this host's defaults
 # file and global git config (an ORCID or signing key there would leak in).
 mint() {
@@ -92,8 +97,8 @@ mint() {
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
         RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$T" RSR_MINT_TOOL_CACHE="$work/tools" \
         PROJECT_NAME="Mint Check" REPO=mint-check OWNER=example-owner \
-        AUTHOR="Example Author" AUTHOR_EMAIL=author@example.org \
-        timeout 900 just repo-init </dev/null) > "$2" 2>&1
+        AUTHOR="Example Author" AUTHOR_EMAIL=author@example.org PROJECT_DESCRIPTION="$DESC" \
+        "${MINT_ENV[@]}" timeout 900 just repo-init </dev/null) > "$2" 2>&1
 }
 
 # ── 2. The child, with an ignored cache and an untracked probe ──────────────
@@ -139,6 +144,32 @@ grep -q 'stale entry' "$work/stale.log" || { cat "$work/stale.log" >&2; fail 'th
 [ -z "$(g -C "$M" status --porcelain)" ] || fail 'the stale-manifest mint wrote to the tree'
 pass "(b-) a stale mint-verbatim entry stops the mint before it writes"
 
+# ── 4b. Control: a Justfile identity repo-init cannot read, no guess from origin
+# The remote of a template-created child is the CHILD; falling back to it
+# named the child as its own template (Codex review of #251).
+J="$work/no-identity"
+use_template "$J"
+sed -i -E 's/^(OWNER|REPO)([[:space:]]*:=[[:space:]]*)"([^"]+)"/\1\2env("RSR_\1", "\3")/' "$J/Justfile"
+grep -qE '^OWNER[[:space:]]*:=[[:space:]]*env\(' "$J/Justfile" || fail 'fixture: the OWNER declaration was not rewritten'
+g -C "$J" commit -q --amend -am "Initial commit"
+if mint "$J" "$work/no-identity.log"; then fail 'a Justfile without OWNER/REPO minted from a guessed template'; fi
+grep -q 'RSR_TEMPLATE_SLUG' "$work/no-identity.log" \
+    || { cat "$work/no-identity.log" >&2; fail 'the missing-identity abort did not say how to fix it'; }
+[ -z "$(g -C "$J" status --porcelain)" ] || fail 'the missing-identity mint wrote to the tree'
+pass "(a-) a Justfile identity repo-init cannot read stops the mint and names RSR_TEMPLATE_SLUG"
+
+# ── 4c. Control: an answer with a newline is refused before the first write ─
+# (Codex review of #274: the refusal used to come after the overlay, the
+# prune and the docs seed had already written.)
+NL="$work/newline"
+use_template "$NL"
+MINT_ENV=(PROJECT_DESCRIPTION=$'line one\nline two')
+if mint "$NL" "$work/newline.log"; then fail 'an answer with a newline was accepted'; fi
+MINT_ENV=()
+grep -q 'contains a newline' "$work/newline.log" || { cat "$work/newline.log" >&2; fail 'the newline refusal did not say why'; }
+[ -z "$(g -C "$NL" status --porcelain)" ] || { g -C "$NL" status --short | head >&2; fail 'the refused mint wrote to the tree'; }
+pass "(a-) an answer containing a newline is refused before anything is written"
+
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2
@@ -161,6 +192,9 @@ field() { bash "$C/scripts/deed-field.sh" "$DEED" "$@"; }
 [ "$(field variant parent-pin)" = "$T_COMMIT" ]         || fail "variant parent-pin is $(field variant parent-pin), want $T_COMMIT"
 if grep -qF "$C_HEAD" "$DEED"; then fail "the deed records the child's own commit $C_HEAD"; fi
 pass "(a) provenance and variant name template commit ${T_COMMIT:0:12} and its tree, never the child's HEAD"
+grep -qF -- "$DESC" "$C/README.adoc" \
+    || { grep -n 'Tools' "$C/README.adoc" >&2; fail 'the description did not render literally'; }
+pass "an answer containing & and | renders literally"
 
 # ── (b) the fixture tests are carried unchanged, and pass in the child ──────
 while IFS= read -r v; do
@@ -193,6 +227,15 @@ if grep -q 'arm the drift gate' "$work/mint.log"; then fail 'repo-init still rec
 grep -q 'scripts/check-template-conformance.sh' "$work/mint.log" || fail 'repo-init does not point at the conformance check'
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
+# Minting the minted child again must stop before it writes: its tokens are
+# filled and build/templates is gone, so it would inherit this child's
+# identity (Codex review of #251). Chain minting is a separate, owner-chosen
+# change; until it lands, this is a loud refusal, not a silent half-mint.
+if mint "$C" "$work/remint.log"; then fail 'a minted repo was minted again'; fi
+grep -q 'already been minted' "$work/remint.log" || { cat "$work/remint.log" >&2; fail 'the re-mint refusal did not say why'; }
+grep -qF "records its template as ${T_SLUG}" "$work/remint.log" || fail 'the re-mint refusal does not name the template to use'
+[ -z "$(g -C "$C" status --porcelain)" ] || fail 'the refused re-mint wrote to the tree'
+pass "(e-) minting an already-minted repo stops before writing and names its template"
 (cd "$C" && bash scripts/check-template-conformance.sh --quiet) > "$work/conf.log" 2>&1 \
     || { cat "$work/conf.log" >&2; fail 'the conformance check fails on a fresh mint'; }
 # The gate itself must still FAIL here (no silent green), say why, and not
