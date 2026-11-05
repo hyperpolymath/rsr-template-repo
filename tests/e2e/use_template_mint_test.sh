@@ -118,6 +118,9 @@ g -C "$C" check-ignore -q _build/dependencies/sibling/README.md || fail 'fixture
 # not-ignored file IS the repository's and must be rewritten. Without it, an
 # untouched cache could mean "the passes never ran" rather than "scoped".
 printf '%s\n' "$probe" > "$C/mint-probe.md"
+# A pre-mint edit to a template file: the replay starts from the pinned tree,
+# so the mint must declare this as the child's own (Codex review of #275).
+printf '\nA local support note, written before the mint.\n' >> "$C/SUPPORT.adoc"
 ignored_list() { (cd "$C" && git ls-files -o -i --exclude-standard | LC_ALL=C sort); }
 IGN_LIST=$(ignored_list)
 IGN_BEFORE=$(cd "$C" && printf '%s\n' "$IGN_LIST" | xargs -d '\n' sha256sum)
@@ -236,10 +239,14 @@ grep -q 'scripts/check-template-conformance.sh' "$work/mint.log" || fail 'repo-i
 # Only values already written into the child are recorded (owner ruling).
 if grep -q 'zq-unrendered-kind\|:project-type' "$DEED"; then fail '(mint-answers) recorded an answer that no file renders'; fi
 grep -q 'not recorded, written into no file here: project-type' "$work/mint.log" || fail 'the mint did not name the unrecorded answer'
-# The probe is the child's own addition after the mint: declared, as a child
-# declares its additions (and this exercises the declared path).
-sed -i 's|^      :added ()|      :added ("mint-probe.md")|' "$DEED"
-grep -q ':added ("mint-probe.md")' "$DEED" || fail 'fixture: could not declare the probe'
+# What the work tree held beyond the pinned tree before the mint (the probe,
+# untracked; the SUPPORT.adoc edit) is the child's own: named, and declared
+# (Codex review of #275), so the replay from the pin stays exact.
+grep -q '^      :added ("mint-probe.md")' "$DEED" || { grep -n ':added' "$DEED" >&2; fail 'the pre-mint addition was not declared added'; }
+bash "$C/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx SUPPORT.adoc \
+    || { grep -n ':diverged' "$DEED" >&2; fail 'the pre-mint edit was not declared diverged'; }
+grep -q 'already differ from the template tree' "$work/mint.log" && grep -q '^        SUPPORT.adoc$' "$work/mint.log" \
+    || fail 'the mint did not name the pre-mint changes'
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
 # Minting this child again is a chain mint now (scripts/chain-mint.sh); that,
@@ -296,6 +303,24 @@ mkdir -p "$C/archetypes"; printf 'mine\n' > "$C/archetypes/custom.txt"
 drift || { cat "$work/drift.log" >&2; fail 'a declared addition under a declared-removed directory was flagged'; }
 rm -r "$C/archetypes"; cp "$work/deed.before-specific" "$DEED"
 pass "(d) a declared addition under a declared-removed directory is an addition: the most specific declaration wins"
+# A path declared diverged must be one the mint produces (Codex review of
+# #275): a new file declared diverged is an undeclared addition.
+cp "$DEED" "$work/deed.before-div"
+sed -i 's|^      :diverged ("|      :diverged ("new-thing.txt" "|' "$DEED"
+grep -q ':diverged ("new-thing.txt"' "$DEED" || fail 'fixture: could not declare new-thing.txt diverged'
+printf 'new\n' > "$C/new-thing.txt"
+if drift; then fail 'the drift gate passed a new file declared diverged'; fi
+grep -q '^DRIFT: new-thing.txt is declared diverged, but the mint did not produce it' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the new file declared diverged was not named'; }
+rm "$C/new-thing.txt"; cp "$work/deed.before-div" "$DEED"
+pass "(d-) a new file declared diverged is named as an addition"
+# The replay's own git runs isolated from this machine's configuration: a
+# global pre-commit hook that rejects every commit changes nothing (Codex
+# review of #275).
+mkdir -p "$work/hooks"; printf '#!/bin/sh\nexit 1\n' > "$work/hooks/pre-commit"; chmod +x "$work/hooks/pre-commit"
+printf '[core]\n\thooksPath = %s\n' "$work/hooks" > "$work/hooky.gitconfig"
+(cd "$C" && GIT_CONFIG_GLOBAL="$work/hooky.gitconfig" RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1 \
+    || { cat "$work/drift.log" >&2; fail 'a global pre-commit hook broke the replay'; }
+pass "(d) the replay is isolated from global git hooks"
 # A path the line-based lists cannot hold is refused by name, not misread.
 NLF="$C/two"$'\n'"lines.txt"; printf 'x\n' > "$NLF"
 if drift; then fail 'the drift gate passed a path containing a newline'; fi

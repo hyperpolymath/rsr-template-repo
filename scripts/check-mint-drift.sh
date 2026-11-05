@@ -43,6 +43,15 @@ git -C "$TDIR" cat-file -e "${PIN}^{commit}" 2>/dev/null \
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+# g — git with no user or system configuration and no hooks, so the synthetic
+# commit and the file sets cannot be changed by this machine's settings (a
+# global core.hooksPath, init.templateDir, excludesFile or autocrlf) (Codex
+# review of #275).
+g() {
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=replay -c user.email=replay@example.invalid \
+        -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+}
+
 # The child as "Use this template" made it, minted again with its own
 # recorded answers and date (scripts/replay-mint.sh, the one replay path).
 R="$WORK/replay"
@@ -54,12 +63,14 @@ bash "$(dirname "$READ")/replay-mint.sh" "$TDIR" "$PIN" "$R" --answers-from "$DE
 # (Codex review of #275). An entry ending in / covers a directory.
 #   added     must exist here, and must NOT be something the mint produces;
 #   removed   must be absent here;
-#   diverged  (and -pending-upstream, operational-state) may differ in
-#             content, but must still exist here.
+#   diverged  (and -pending-upstream) may differ in content, but must still
+#             exist here, and must be something the mint produces;
+#   operational-state  excluded from comparison altogether (ADR-0002).
 section() { bash "$READ" --list "$DEED" variant/paths "$1" 2>/dev/null || true; }
 ADDED="$(section added)"
 REMOVED="$(section removed)"
-DIVERGED="$(section diverged; section diverged-pending-upstream; section operational-state)"
+DIVERGED="$(section diverged; section diverged-pending-upstream)"
+OPSTATE="$(section operational-state)"
 # match_len P LIST — the length of the longest entry in LIST covering P (0:
 # none); an exact path outranks any directory that holds it.
 match_len() {
@@ -76,20 +87,23 @@ match_len() {
 }
 # declared P — the category of the MOST SPECIFIC declaration covering P, so a
 # file added under a directory the mint removes is an addition, not a revived
-# removal (Codex review of #277). Ties keep removed > added > diverged.
+# removal (Codex review of #277). Ties keep removed > added > diverged >
+# operational-state.
 declared() {
-    local r a d
-    r=$(match_len "$1" "$REMOVED"); a=$(match_len "$1" "$ADDED"); d=$(match_len "$1" "$DIVERGED")
-    if [ $((r + a + d)) -eq 0 ]; then echo none
-    elif [ "$r" -ge "$a" ] && [ "$r" -ge "$d" ]; then echo removed
-    elif [ "$a" -ge "$d" ]; then echo added
-    else echo diverged
+    local r a d o
+    r=$(match_len "$1" "$REMOVED"); a=$(match_len "$1" "$ADDED")
+    d=$(match_len "$1" "$DIVERGED"); o=$(match_len "$1" "$OPSTATE")
+    if [ $((r + a + d + o)) -eq 0 ]; then echo none
+    elif [ "$r" -ge "$a" ] && [ "$r" -ge "$d" ] && [ "$r" -ge "$o" ]; then echo removed
+    elif [ "$a" -ge "$d" ] && [ "$a" -ge "$o" ]; then echo added
+    elif [ "$d" -ge "$o" ]; then echo diverged
+    else echo opstate
     fi
 }
 # files DIR — the repository's own files: tracked, or untracked and not ignored.
 # The lists below are line-based, so a path holding a newline is refused, loudly.
 files() {
-    git -C "$1" ls-files -z --cached --others --exclude-standard \
+    g -C "$1" ls-files -z --cached --others --exclude-standard \
         | while IFS= read -r -d '' f; do
             case "$f" in *$'\n'*) echo "check-mint-drift: cannot check a path containing a newline: $(printf '%q' "$f")" >&2; exit 2 ;; esac
             { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"
@@ -124,6 +138,10 @@ while IFS= read -r f; do
     elif [ "$kind" = added ]; then
         if in_replay "$f"; then report "$f is declared added, but the mint produces it (declare it diverged)"; fi
     elif [ "$kind" = diverged ]; then
+        # A diverged path is one the mint produces and this repo changed; a new
+        # path declared diverged is an undeclared addition (Codex review of #275).
+        if ! in_replay "$f"; then report "$f is declared diverged, but the mint did not produce it (declare in paths.added)"; fi
+    elif [ "$kind" = opstate ]; then
         :
     elif ! in_replay "$f"; then
         report "$f exists here but the mint did not produce it (declare in paths.added)"
@@ -134,7 +152,7 @@ done < "$CLIST"
 while IFS= read -r f; do
     in_child "$f" && continue
     kind="$(declared "$f")"
-    [ "$kind" = removed ] && continue
+    [ "$kind" = removed ] || [ "$kind" = opstate ] && continue
     if [ "$kind" = diverged ]; then
         report "$f is declared diverged but is absent here (declare it removed)"
     else
