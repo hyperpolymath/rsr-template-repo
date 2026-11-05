@@ -22,7 +22,10 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   delegates to it for a minted repo, and stage 8 recommends it again. The
   derived files (`CLAUDE.md`, the repository map) are declared diverged at
   mint: their own gates keep them fresh. Each side's file set is its tracked
-  or unignored files, so a force-added build artefact is still named.
+  or unignored files, so a force-added build artefact is still named. The
+  most specific declaration covering a path decides its category, so a file
+  declared added under a directory the mint removes is an addition; a path
+  holding a newline is refused by name.
 
 ==== Fixed
 
