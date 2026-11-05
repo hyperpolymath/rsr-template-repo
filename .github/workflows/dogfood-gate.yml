@@ -43,7 +43,9 @@ jobs:
           repository: metadatastician/standards
           ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-deed
-          sparse-checkout: 1-formats/deed
+          sparse-checkout: |
+            1-formats/deed
+            scripts
           sparse-checkout-cone-mode: true
           persist-credentials: false
       - name: Setup Bun runtime
@@ -55,6 +57,10 @@ jobs:
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/standards-deed"
           mv "$PWD/.standards-deed" "$RUNNER_TEMP/standards-deed"
+          if [ -f .machine_readable/a2ml-legacy-allow.txt ] && [ ! -f "$RUNNER_TEMP/standards-deed/scripts/check-a2ml-archived.sh" ]; then
+            echo "::error::A2ML ledger present but scripts/check-a2ml-archived.sh is missing from the standards checkout"
+            exit 1
+          fi
           STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
 
   # ---------------------------------------------------------------------------
