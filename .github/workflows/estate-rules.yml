@@ -184,7 +184,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/yq-bin/yq"
           echo "$RUNNER_TEMP/yq-bin" >> "$GITHUB_PATH"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/metadatastician/standards/8e48b1caade08a552646adeab66558ac43b4360d/scripts/kyaml-format.sh \
+            https://raw.githubusercontent.com/metadatastician/standards/e064539116c2dcfdf282a4749dbd58c69961c7e6/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
       # Container narrowing at mint (build/just/container.just) can delete any
