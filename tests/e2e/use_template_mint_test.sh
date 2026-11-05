@@ -127,8 +127,10 @@ printf '\nA local support note, written before the mint.\n' >> "$C/SUPPORT.adoc"
 # review of #275).
 printf '\nA local usage note, added to the seed before the mint.\n' >> "$C/build/docs-seed/usage.adoc"
 # A pre-mint file in a directory the mint deletes (archetypes/): gone once the
-# mint is done, so it must not be declared (Codex review of #275).
-printf 'local\n' > "$C/archetypes/premint-local.txt"
+# mint is done, so it must not be declared (Codex review of #275). It carries
+# the unrendered project type: a value found only in a tree the mint deletes
+# must not count as written into the child (CodeRabbit review of #275).
+printf 'local zq-unrendered-kind\n' > "$C/archetypes/premint-local.txt"
 ignored_list() { (cd "$C" && git ls-files -o -i --exclude-standard | LC_ALL=C sort); }
 IGN_LIST=$(ignored_list)
 IGN_BEFORE=$(cd "$C" && printf '%s\n' "$IGN_LIST" | xargs -d '\n' sha256sum)
