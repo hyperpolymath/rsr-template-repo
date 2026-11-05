@@ -65,6 +65,11 @@ mkdir -p "$R"
 # of #275). Through g: no global core.attributesFile shapes it (Codex review
 # of #277).
 GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" read-tree "$PIN"
+# A gitlink has no files to write, so the copy would lose it: refused by name
+# rather than compared inexactly (Codex review of #277).
+GL="$(GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "  " $2 }')"
+[ -z "$GL" ] || die "the template commit carries a submodule (gitlink), which a replay cannot reproduce:
+$GL"
 GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" checkout-index -a -f --prefix="$R/"
 g -C "$R" init -q -b main
 g -C "$R" add -A
