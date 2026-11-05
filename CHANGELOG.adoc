@@ -8,26 +8,78 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Added
+
+* **An exact drift gate for minted repos: the mint is replayed.** repo-init
+  records its answers in a `(mint-answers)` deed clause (owner ruling
+  2026-11-04: only values it already writes into the child's files; the
+  recipe checks each value against those files, not the template-only trees
+  it deletes, and names any it leaves out)
+  and takes its date from `RSR_MINT_DATE`; a replay also takes the recorded
+  Julia package uuid, which an ordinary mint always derives.
+  `scripts/check-mint-drift.sh` re-mints the template at `(provenance :template-commit)` with those answers
+  and diffs the child against the result, so a fresh mint is green by
+  construction and each later edit is named. `check-variant-drift.sh`
+  delegates to it for a minted repo, and stage 8 recommends it again. The
+  derived files (`CLAUDE.md`, the repository map) are declared diverged at
+  mint: their own gates keep them fresh. Each side's file set is its tracked
+  or unignored files (the child's under its own git configuration, as
+  `git add -A` commits it; the replay's under none), so a force-added build
+  artefact is still named. The
+  most specific declaration covering a path decides its category, so a file
+  declared added under a directory the mint removes is an addition; a path
+  holding a newline is refused by name. A path declared diverged must be one
+  the mint produces; `operational-state` stays out of the comparison. The
+  replay's git runs without user or system configuration or hooks. What a
+  work tree already held beyond the pinned tree before the mint (an edit, an
+  untracked file, a deletion) is named by the mint, which then replays itself
+  from the pinned tree before writing anything and declares in
+  `(variant (paths))` exactly what the result differs by: the comparison the
+  drift gate makes, whatever the mint did to a change on the way (moved,
+  rendered, overwritten, or reached through an edited input). The replay
+  passes the recorded `RSR_TEMPLATE_SLUG`. A pre-mint change under a root `.well-known/` (which the mint moves),
+  or a work tree that differs from an asserted template tree this repository
+  does not hold, is refused before anything is written. The gate clears
+  inherited git location variables, and writes the pinned tree as a checkout
+  does (`checkout-index`, never `git archive`, whose `export-ignore` and
+  `export-subst` would change it), without global git attributes. A pre-mint
+  file at a path the mint itself writes (the archetype overlay, the docs seed,
+  the deed), or an edited template file the overlay replaces, is refused,
+  since the mint would overwrite it; and the mint also dry-runs itself on the
+  work tree, refusing by name any pre-mint change it would discard (an edit to
+  the roadmap or `mise.toml`, which it writes whole). repo-init clears any
+  inherited git location (`GIT_DIR`, `GIT_INDEX_FILE`, …) before it runs, so
+  neither its replays nor the tests it runs in scratch repositories can commit
+  into the child; one naming another repository is refused. The replays
+  receive `STANDARDS_UUID_V8_JS`, and a template tree carrying a submodule
+  (a gitlink, which a replay cannot reproduce) is refused by name, at the mint
+  as well, clean or not. A pre-mint change gone from both results (an input
+  the mint never copies, a file in a directory it deletes) is checked by
+  minting without it, and refused by name when it has no effect; a path
+  holding byte 0x01 (the deed reader's record separator) is refused like one
+  holding a newline.
+
 ==== Fixed
 
-* **A minted child failed three template-only checks it inherits.** Found
-  minting `hyperpolymath/unified-api-adapter` (its #8):
-** the mint deletes `build/docs-seed/` but kept its `SD022` exemption in
-   `.hypatia-ignore`, so the child's Hypatia exemption gate failed on a stale
-   path. `repo-init` now drops that exemption block with the directory, and
-   the matching `structural_drift` entry from
-   `.machine_readable/policies/hypatia-rule-order.json` (without it the
-   rule-order gate fails instead). `tests/e2e/use_template_mint_test.sh` checks
-   both of the child's gates and that the policy stays JCS (each observed
-   failing with its mint fix held back);
-** `tests/e2e/use_template_mint_test.sh` mints the template, so in a child
-   (no `archetypes/`) it aborted on a token nothing can answer. It now
-   self-skips there, as `tests/e2e/template_instantiation_test.sh` already
-   does;
-** `tests/workflows/governance_badge_test.sh` required the README badge URL
-   to still carry the unfilled owner and repository tokens, which only the
-   unminted template does.
-   It now also accepts a concrete owner and repository.
+* **repo-init follow-ups to #251 (the Codex review it merged before).**
+** Re-minting a minted repo silently inherited its parent's author, contacts
+   and identity (its tokens are filled and `build/templates` is gone). It now
+   stops before writing and names the template to mint from. Chain minting is
+   the owner's chosen fix and lands separately; this refusal is the interim.
+** The template identity no longer falls back to the git remote, which in a
+   template-created child is the child itself. A Justfile without readable
+   `OWNER :=`/`REPO :=` (now also `export`) needs `RSR_TEMPLATE_SLUG`.
+** The self-name pass matches the template name only where no letter or
+   digit touches it, so a short parent name such as `app` no longer rewrites
+   "application" into "newlication".
+** `resolve-template-pin.sh` pins a root commit by creation time (the
+   default branch's tip when the child was made) and refuses, listing them,
+   when several commits share a tree; 29 trees repeat on main.
+** `rust-tool.sh` caches each mint tool by the hash of its source, so two
+   checkouts can no longer run each other's binary.
+** Answers go through `sed_rhs`, so `&`, `|` and `\` in a description or name
+   render literally; an answer with a newline is refused.
+
 * **`.kyaml` files were invisible to four file scans.** Estate configuration
   is `.kyaml` (D307), but these selectors matched only `*.yaml`/`*.yml`: the
   invisible-character scan (`scripts/check-invisible-characters.sh`), the

@@ -44,6 +44,28 @@ repo-init archetype="":
         echo "Error: repo-init must run inside a git work tree (run 'git init' first)."
         exit 1
     fi
+    # The mint runs git against other repositories too (replays, a template
+    # clone, the tests it runs in scratch repositories), and an inherited
+    # repository location (GIT_DIR, GIT_INDEX_FILE, … from a hook or another git
+    # caller) would redirect every one of them into this repository: the
+    # replay's commits, the tests' fixture commits (CodeRabbit review of #275).
+    # So the location is cleared, once, here, for this recipe and everything it
+    # starts; one that named a different repository than this work tree's own
+    # is refused, since clearing it would mint something else.
+    _git_loc=(GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY
+              GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE)
+    _git_set=""; for _v in "${_git_loc[@]}"; do [ -z "${!_v+x}" ] || _git_set="${_git_set} ${_v}"; done
+    if [ -n "$_git_set" ]; then
+        _here_gd="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+        _bare_gd="$(cd "$(git rev-parse --show-toplevel)" && env $(printf -- '-u %s ' "${_git_loc[@]}") git rev-parse --absolute-git-dir 2>/dev/null || true)"
+        if [ -z "$_bare_gd" ] || [ "$_here_gd" != "$_bare_gd" ]; then
+            echo "Error: mint aborted before writing anything — git location variables are set"
+            echo "      (${_git_set# }) and name a repository other than this work tree's own."
+            echo "      Run repo-init from the repository's work tree without them."
+            exit 1
+        fi
+        unset "${_git_loc[@]}"
+    fi
 
     # --- The template's own identity ---------------------------------------
     # repo-init is carried into every minted repo UNCHANGED (it is listed in
@@ -56,32 +78,53 @@ repo-init archetype="":
     # metadatastician/lintel 2026-10-19; first fixed there in lintel#9 (not
     # merged), ported here, where the generator lives.
     #
-    # Derived, never asked: these are facts about the checkout, not choices.
-    # The root Justfile comes first because its OWNER/REPO lines are also the
-    # literals written through the tree, so they are exactly what the rewrite
-    # has to match, and they are still the TEMPLATE's in a repository created
-    # with "Use this template" (whose git remote is already the child's). The
-    # remote is second, for a Justfile that no longer declares them. The
-    # original template is last, so a bare export still mints something valid.
+    # Derived, never guessed: these are facts about the checkout, not choices.
+    # The root Justfile's OWNER/REPO lines are the literals written through the
+    # tree, so they are exactly what the rewrite has to match, and they are
+    # still the TEMPLATE's in a repository created with "Use this template".
+    # When the Justfile does not declare them, RSR_TEMPLATE_SLUG=owner/repo
+    # must say so, or the mint stops. There is deliberately no fallback to the
+    # git remote: in a template-created child the remote is the CHILD, so that
+    # fallback named the child as its own template, and the pin resolver then
+    # recorded the child's HEAD (Codex review of #251). Nor is there a default
+    # template name: a guess here is the hardcoding this block replaced.
     TEMPLATE_OWNER=""
     TEMPLATE_REPO=""
     if [ -f Justfile ]; then
-        TEMPLATE_REPO="$(sed -n -E 's/^REPO[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' Justfile | head -1)"
-        TEMPLATE_OWNER="$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' Justfile | head -1)"
+        TEMPLATE_REPO="$(sed -n -E "s/^(export[[:space:]]+)?REPO[[:space:]]*:=[[:space:]]*[\"']([^\"']+)[\"'].*/\2/p" Justfile | head -1)"
+        TEMPLATE_OWNER="$(sed -n -E "s/^(export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*[\"']([^\"']+)[\"'].*/\2/p" Justfile | head -1)"
     fi
     if [ -z "$TEMPLATE_REPO" ] || [ -z "$TEMPLATE_OWNER" ]; then
-        _origin="$(git config --get remote.origin.url 2>/dev/null || true)"
-        if [ -n "$_origin" ]; then
-            _origin="${_origin%.git}"
-            _origin="${_origin%/}"
-            [ -n "$TEMPLATE_REPO" ] || TEMPLATE_REPO="${_origin##*[/:]}"
-            _origin="${_origin%/*}"
-            [ -n "$TEMPLATE_OWNER" ] || TEMPLATE_OWNER="${_origin##*[/:]}"
+        if [[ "${RSR_TEMPLATE_SLUG:-}" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+            TEMPLATE_OWNER="${RSR_TEMPLATE_SLUG%%/*}"
+            TEMPLATE_REPO="${RSR_TEMPLATE_SLUG#*/}"
+        else
+            echo "Error: the root Justfile does not declare OWNER := and REPO :=, so the"
+            echo "       template this tree came from is unknown. Set RSR_TEMPLATE_SLUG=owner/repo."
+            exit 1
         fi
     fi
-    TEMPLATE_REPO="${TEMPLATE_REPO:-rsr-template-repo}"
-    TEMPLATE_OWNER="${TEMPLATE_OWNER:-hyperpolymath}"
     TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
+
+    # --- Only a template can be minted (until chain minting lands) ------------
+    # A minted repo has already filled its tokens and deleted build/templates,
+    # so minting it again renders none of the new answers and skips the
+    # identity splice: the grandchild silently inherited its parent's author,
+    # contacts, clade and maturity (Codex review of #251). The owner chose to
+    # support chains properly (2026-11-04); until a minted repo carries the
+    # pristine inputs that makes possible, stop here, before anything is
+    # asked or written. A variant template keeps build/templates and still mints.
+    if [ ! -f build/templates/identity.deed.in ]; then
+        echo "Error: this tree has already been minted (build/templates/identity.deed.in is"
+        echo "       absent), so it cannot be minted again yet: its tokens are filled and"
+        echo "       its identity template is gone. Mint from the template it came from."
+        _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
+        if [ -n "$_prov_deed" ]; then
+            _prov_from="$(bash scripts/deed-field.sh "$_prov_deed" provenance template-repo 2>/dev/null || true)"
+            [ -z "$_prov_from" ] || echo "       This tree records its template as ${_prov_from}."
+        fi
+        exit 1
+    fi
 
     # --- What the mint may edit ---------------------------------------------
     # mint_files prints, one per line, every regular file that belongs to the
@@ -274,8 +317,26 @@ repo-init archetype="":
     # hyphens of a slug and the dot of a Julia slug alike.
     PROJECT_UPPER=$(echo "$REPO" | tr '[:lower:]-.' '[:upper:]__')
     PROJECT_LOWER=$(echo "$REPO" | tr '[:upper:]-.' '[:lower:]__')
-    CURRENT_YEAR=$(date +%Y)
-    CURRENT_DATE=$(date +%Y-%m-%d)
+    # The mint date is an input like any answer: RSR_MINT_DATE replays a mint
+    # exactly (scripts/check-mint-drift.sh re-mints a child with the date it
+    # recorded). Otherwise it is today. The year always follows the date.
+    CURRENT_DATE="${RSR_MINT_DATE:-$(date +%Y-%m-%d)}"
+    # Validated in bash, not with `date -d`: that is GNU-only, and macOS's date
+    # rejected every date, today's included (Codex review of #275).
+    _dm=0
+    if [[ "$CURRENT_DATE" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})$ ]]; then
+        _yy=$((10#${BASH_REMATCH[1]})); _mm=$((10#${BASH_REMATCH[2]})); _dd=$((10#${BASH_REMATCH[3]}))
+        case "$_mm" in
+            1|3|5|7|8|10|12) _dm=31 ;;
+            4|6|9|11) _dm=30 ;;
+            2) if (( (_yy % 4 == 0 && _yy % 100 != 0) || _yy % 400 == 0 )); then _dm=29; else _dm=28; fi ;;
+        esac
+    fi
+    if [ "$_dm" -eq 0 ] || [ "${_dd:-0}" -lt 1 ] || [ "${_dd:-0}" -gt "$_dm" ]; then
+        echo "Error: RSR_MINT_DATE must be a real date, YYYY-MM-DD (got '${CURRENT_DATE}')."
+        exit 1
+    fi
+    CURRENT_YEAR="${CURRENT_DATE:0:4}"
     VERSION="0.1.0"
 
     # --- Derive the repo's uuid --------------------------------------------
@@ -316,6 +377,17 @@ repo-init archetype="":
     ask "Proceed? [Y/n] " CONFIRM
     [[ "${CONFIRM:-Y}" =~ ^[Nn] ]] && echo "Aborted." && exit 0
 
+    # An answer is one line: no sed expression, deed string or prompt can carry
+    # a newline. Refused HERE, before the first write (the overlay, the prune
+    # and the docs seed all come next), so a bad answer leaves a clean tree.
+    for _ans in PROJECT_NAME PROJECT_DESCRIPTION OWNER AUTHOR AUTHOR_EMAIL AUTHOR_ORG \
+                AUTHOR_LAST AUTHOR_FIRST FORGE SECURITY_EMAIL CONDUCT_EMAIL PROJECT_TYPE \
+                WEBSITE SERVICE_NAME PORT REGISTRY AUTHOR_EMAIL_ALT AUTHOR_ORCID OPENSSF_BP_ID; do
+        case "${!_ans:-}" in
+            *$'\n'*) echo "Error: the answer for $_ans contains a newline; answers are one line."; exit 1 ;;
+        esac
+    done
+
     # Template-only paths this recipe deletes, as they stand before it runs.
     # Recorded in the (variant) clause's (paths :removed …) below, so the
     # record says what the mint took away instead of leaving the drift gate to
@@ -353,6 +425,254 @@ repo-init archetype="":
         echo "       tree came from cannot be named (reason above). Re-run with"
         echo "       RSR_ALLOW_UNPINNED=1 only if an unpinned mint is genuinely wanted."
         exit 1
+    fi
+
+    # --- What this work tree holds beyond the pinned tree -------------------
+    # The mint transforms the work tree as it stands; the drift gate replays
+    # from the pinned tree alone. Anything already changed here before the
+    # mint (an edit, an untracked file, a deletion) is this repo's own, not
+    # the mint's, so it is measured now and declared in (variant (paths)):
+    # the replay stays exact and the record says what happened (Codex review
+    # of #275). Measured in a scratch index and object store, so .git is not
+    # written. (A chain mint carries its parent's tree by its own rules.)
+    PREMINT_A=() PREMINT_M=() PREMINT_D=()
+    if [ "${CHAIN_MINT:-0}" != "1" ] && [ "$PARENT_TREE" != "UNASSIGNED" ]; then
+        # The work tree as `git add -A` would commit it, from the current index
+        # (so a tracked file an ignore rule matches stays), in a scratch index
+        # and object store.
+        _pm="$(mktemp -d)"; mkdir -p "$_pm/objects"
+        _gd="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
+        _ix="$(git rev-parse --git-path index)"
+        [ ! -f "$_ix" ] || cp "$_ix" "$_pm/index"
+        _wt() { GIT_INDEX_FILE="$_pm/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" git "$@"; }
+        _wt add -A .
+        # A gitlink (submodule) cannot be replayed (checkout-index writes no files
+        # for one), so the drift gate could never pass: refused by name here,
+        # whether or not anything else changed (Codex review of #275).
+        _gl="$(_wt ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "         " $2 }')"
+        if [ -n "$_gl" ]; then
+            echo "ERROR: mint aborted before writing anything — this tree carries a submodule"
+            echo "       (gitlink), which a replay of the mint cannot reproduce, so its drift gate"
+            echo "       could never pass. Minting such a tree is not supported:"
+            printf '%s\n' "$_gl"
+            rm -rf "$_pm"; exit 1
+        fi
+        if git cat-file -e "${PARENT_TREE}^{tree}" 2>/dev/null; then
+            while IFS= read -r -d '' _st && IFS= read -r -d '' _p; do
+                # A newline splits the deed's line-based lists; byte 0x01 is the deed
+                # reader's record separator (Codex review of #277).
+                case "$_p" in *$'\n'*|*$'\001'*) echo "Error: a path holding a newline or byte 0x01 cannot be declared: $(printf '%q' "$_p")"; rm -rf "$_pm"; exit 1 ;; esac
+                case "$_st" in
+                    A) PREMINT_A+=("$_p") ;;
+                    D) PREMINT_D+=("$_p") ;;
+                    *) PREMINT_M+=("$_p") ;;
+                esac
+            done < <(_wt diff --cached -z --no-renames --name-status "$PARENT_TREE")
+        elif [ "$(_wt write-tree)" != "$PARENT_TREE" ]; then
+            # An asserted pin (RSR_TEMPLATE_COMMIT) whose tree this repository
+            # does not hold: the difference cannot even be listed, so it cannot
+            # be declared, and the replay would report it (Codex review of #275).
+            rm -rf "$_pm"
+            echo "ERROR: mint aborted before writing anything — this work tree differs from the"
+            echo "       template tree ${PARENT_TREE:0:12}, which this repository does not hold, so"
+            echo "       the difference cannot be declared. Fetch it first"
+            echo "       (git fetch <template-url> ${PARENT_PIN}) or mint from a matching tree."
+            exit 1
+        fi
+        # The work tree's own tree: what a dry run of this mint starts from
+        # (below). Its objects stay in $_pm until the replays are done.
+        _WT_TREE="$(_wt write-tree)"
+        # The mint moves a root .well-known/ (the www/ migration, below), so a
+        # path there could not be declared where it ends up: refused by name.
+        for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do
+            case "$_p" in
+                .well-known/*)
+                    echo "ERROR: mint aborted before writing anything — $_p changed before the mint,"
+                    echo "       and the mint moves .well-known/ into www/.well-known/. Commit that move"
+                    echo "       first (bash scripts/migrate-wellknown-to-www.sh), or revert the change."
+                    rm -rf "$_pm"; exit 1 ;;
+            esac
+        done
+        # The mint writes new files of its own: the archetype overlay (before
+        # and after its .in rename), the docs seed, the deed. A pre-mint file
+        # at one of those paths would be overwritten (lost) and then declared
+        # as this repo's own addition, which the replay contradicts (Codex
+        # review of #275). Refused by name, before anything is written.
+        _writes=("${REPO}_chora.deed")
+        if [ -n "$ARCHETYPE" ] && [ -d "archetypes/${ARCHETYPE}/overlay" ]; then
+            while IFS= read -r -d '' _o; do
+                _o="${_o#./}"; _writes+=("$_o")
+                case "$_o" in
+                    src/PACKAGE.jl.in) _writes+=("src/${PROJECT_NAME}.jl") ;;
+                    *.in) _writes+=("${_o%.in}") ;;
+                esac
+            done < <(cd "archetypes/${ARCHETYPE}/overlay" && find . -type f -print0)
+        fi
+        if [ -d build/docs-seed ]; then
+            while IFS= read -r -d '' _o; do _writes+=("docs/${_o#./}"); done \
+                < <(cd build/docs-seed && find . -type f ! -path ./README.adoc -print0)
+        fi
+        # An edited template file the overlay or seed replaces is lost the same way
+        # (Codex review of #275: provisioning_praxis.deed under julia-library).
+        for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}"; do
+            for _w in "${_writes[@]}"; do
+                if [ "$_p" = "$_w" ]; then
+                    echo "ERROR: mint aborted before writing anything — $_p changed before the mint, and"
+                    echo "       the mint writes that path itself (the archetype overlay, the docs seed or"
+                    echo "       the deed), so your file would be overwritten. Move it aside, mint, then"
+                    echo "       bring it back as a change of your own."
+                    rm -rf "$_pm"; exit 1
+                fi
+            done
+        done
+        _n=$(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} ))
+        if [ "$_n" -gt 0 ]; then
+            echo "NOTE: ${_n} path(s) here already differ from the template tree ${PARENT_TREE:0:12}"
+            echo "      (${#PREMINT_A[@]} added, ${#PREMINT_M[@]} changed, ${#PREMINT_D[@]} removed before this mint). They are"
+            echo "      this repo's own. What they change in the result is declared in"
+            echo "      (variant (paths)), measured against a replay of this mint:"
+            for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do echo "        $_p"; done
+        fi
+    fi
+
+    # --- The replay this mint is measured against, when the tree has changed ---
+    # A pre-mint change can reach the result in ways no rule over its own path
+    # predicts: the mint moves, overwrites and renders files, and reads its own
+    # inputs (the overlay, the docs seed, its scripts) from this tree (Codex and
+    # CodeRabbit review of #275). So this mint is replayed, here, before anything
+    # is written, from the pinned tree with the same answers and date, exactly
+    # as the drift gate will replay it; what this tree then differs by is
+    # declared below. The pinned tree is in this repository (checked above).
+    # The inner mint skips pin resolution (RSR_ALLOW_UNPINNED with no template
+    # source): it writes the pin only into its deed, which is not compared.
+    #
+    # And a dry run: the same mint of THIS tree, pre-mint changes and all. A
+    # change at a path where the dry run and the replay agree has no effect on
+    # the result: the mint writes that path itself (the roadmap, mise.toml,
+    # the map, the overlay, the docs seed, the deed) and the change
+    # would be silently discarded. It is refused by name, before anything is
+    # written (Codex review of #275), whatever writes it.
+    # _same A B — identical as git records them: content, executable bit, link target.
+    _same() {
+        if [ -L "$1" ] || [ -L "$2" ]; then
+            [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
+            return
+        fi
+        { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
+        cmp -s "$1" "$2"
+    }
+    _REPLAY=""
+    if [ $(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} )) -gt 0 ]; then
+        # _rg — git with no user or system configuration and no hooks, and no
+        # inherited repository location (GIT_DIR, GIT_INDEX_FILE, … from a hook or
+        # another git caller), which would redirect the replay's commits into
+        # this repository (CodeRabbit review of #275). _rgi IDX — the same, on
+        # the scratch index IDX and object store $_pm (the work tree's objects).
+        _rgclean=(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY
+                  -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_PREFIX -u GIT_NAMESPACE GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1)
+        _rgflags=(-c user.name=replay -c user.email=replay@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null)
+        _rg() { "${_rgclean[@]}" git "${_rgflags[@]}" "$@"; }
+        _rgi() { local _i="$1"; shift
+                 "${_rgclean[@]}" GIT_INDEX_FILE="$_i" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
+                     git "${_rgflags[@]}" "$@"; }
+        _rp="$(mktemp -d)"; _REPLAY="$_rp/r"
+        mkdir -p "$_rp/cfg"; : > "$_rp/gitconfig"
+        # _mint_tree TREE DIR — TREE written into DIR as a checkout writes it
+        # (checkout-index, not git archive, whose export-ignore and export-subst
+        # attributes would change the tree (Codex review of #275)), committed as
+        # "Use this template" commits it, then minted with this mint's answers.
+        _mint_tree() {
+            mkdir -p "$2"
+            _rgi "$_rp/index" read-tree "$1"
+            # A gitlink has no files to write, so the copy would lose it: refused
+            # by name rather than replayed inexactly (Codex review of #277).
+            _gl="$(_rgi "$_rp/index" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "         " $2 }')"
+            if [ -n "$_gl" ]; then
+                echo "ERROR: the tree carries a submodule (gitlink), which the replay of this mint"
+                echo "       cannot reproduce; minting such a tree is not supported:"
+                printf '%s\n' "$_gl"
+                rm -f "$_rp/index"; return 1
+            fi
+            _rgi "$_rp/index" checkout-index -a -f --prefix="$2/"
+            rm -f "$_rp/index"
+            _rg -C "$2" init -q -b main; _rg -C "$2" add -A; _rg -C "$2" commit -q -m "Initial commit"
+            _rg -C "$2" remote add origin "git@${FORGE}:${OWNER}/${REPO}.git"
+            (cd "$2" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+                ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
+                ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
+                ${RSR_TEMPLATE_SLUG:+RSR_TEMPLATE_SLUG="$RSR_TEMPLATE_SLUG"} \
+                ${STANDARDS_UUID_V8_JS:+STANDARDS_UUID_V8_JS="$STANDARDS_UUID_V8_JS"} \
+                XDG_CONFIG_HOME="$_rp/cfg" GIT_CONFIG_GLOBAL="$_rp/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+                RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 RSR_ALLOW_UNPINNED=1 \
+                RSR_TEMPLATE_URL="$_rp/no-template-source" RSR_MINT_DATE="$CURRENT_DATE" \
+                PROJECT_NAME="$PROJECT_NAME" REPO="$REPO" OWNER="$OWNER" AUTHOR="$AUTHOR" \
+                AUTHOR_EMAIL="$AUTHOR_EMAIL" AUTHOR_ORG="${AUTHOR_ORG:-}" AUTHOR_EMAIL_ALT="${AUTHOR_EMAIL_ALT:-}" \
+                AUTHOR_ORCID="${AUTHOR_ORCID:-}" PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION:-}" FORGE="$FORGE" \
+                SECURITY_EMAIL="${SECURITY_EMAIL:-}" CONDUCT_EMAIL="${CONDUCT_EMAIL:-}" \
+                PROJECT_TYPE="${PROJECT_TYPE:-}" WEBSITE="${WEBSITE:-}" OPENSSF_BP_ID="${OPENSSF_BP_ID:-}" \
+                SERVICE_NAME="${SERVICE_NAME:-}" PORT="${PORT:-}" REGISTRY="${REGISTRY:-}" \
+                just repo-init ${ARCHETYPE:+"$ARCHETYPE"} </dev/null) > "$2.log" 2>&1 \
+                || { tail -n 30 "$2.log"; return 1; }
+        }
+        echo "  replaying this mint from the template tree, to measure the pre-mint changes..."
+        if ! _mint_tree "$PARENT_TREE" "$_REPLAY"; then
+            echo "ERROR: mint aborted before writing anything — the replay of this mint, needed to"
+            echo "       measure the pre-mint changes above, failed (its log is above)."
+            rm -rf "$_pm"; exit 1
+        fi
+        echo "  and a dry run of it on this tree, to find a change the mint would discard..."
+        if ! _mint_tree "$_WT_TREE" "$_rp/dry"; then
+            echo "ERROR: mint aborted before writing anything — a dry run of this mint on this"
+            echo "       tree failed (its log is above): a pre-mint change breaks the mint."
+            rm -rf "$_pm"; exit 1
+        fi
+        _lost=()
+        _here() { [ -e "$1" ] || [ -L "$1" ]; }
+        # _result_tree DIR — the mint result in DIR, as the tree git would commit.
+        _result_tree() { _rg -C "$1" add -A >/dev/null && _rg -C "$1" write-tree; }
+        _DRY_T=""
+        _n=0
+        for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do
+            if _here "$_rp/dry/$_p" && _here "$_REPLAY/$_p"; then
+                if _same "$_rp/dry/$_p" "$_REPLAY/$_p"; then _lost+=("$_p"); fi
+            elif ! _here "$_rp/dry/$_p" && ! _here "$_REPLAY/$_p" \
+                 && { _wt ls-files --error-unmatch -- ":(literal)$_p" >/dev/null 2>&1; }; then
+                # Added or changed here, and gone from both results: an input
+                # the mint reads and deletes (the docs seed, the overlay), or a
+                # file in a directory it deletes. Its change had an effect only if
+                # the result differs without it: this mint, minus that one change,
+                # is minted again and compared whole (Codex review of #275: an
+                # edit to build/docs-seed/README.adoc, which is never copied,
+                # was destroyed without a trace).
+                [ -n "$_DRY_T" ] || _DRY_T="$(_result_tree "$_rp/dry")"
+                _n=$((_n + 1))
+                _rgi "$_rp/index" read-tree "$_WT_TREE"
+                if _rgi "$_rp/index" cat-file -e "${PARENT_TREE}:$_p" 2>/dev/null; then
+                    read -r _m _ _s _ <<<"$(_rgi "$_rp/index" ls-tree "$PARENT_TREE" -- "$_p")"
+                    _rgi "$_rp/index" update-index --add --cacheinfo "$_m,$_s,$_p"
+                else
+                    _rgi "$_rp/index" update-index --force-remove -- "$_p"
+                fi
+                _rev_t="$(_rgi "$_rp/index" write-tree)"; rm -f "$_rp/index"
+                echo "  checking that the pre-mint change to $_p has an effect..."
+                if ! _mint_tree "$_rev_t" "$_rp/without.$_n"; then
+                    echo "ERROR: mint aborted before writing anything — a dry run without the change"
+                    echo "       to $_p failed (its log is above)."
+                    rm -rf "$_pm"; exit 1
+                fi
+                if [ "$(_result_tree "$_rp/without.$_n")" = "$_DRY_T" ]; then _lost+=("$_p"); fi
+            fi
+        done
+        rm -rf "$_pm"
+        if [ "${#_lost[@]}" -gt 0 ]; then
+            echo "ERROR: mint aborted before writing anything — these paths changed before the mint,"
+            echo "       and the mint writes or deletes each itself, so the change would be discarded:"
+            for _p in "${_lost[@]}"; do echo "         $_p"; done
+            echo "       Revert them (or move them aside), mint, then make the change again."
+            exit 1
+        fi
+    elif [ -n "${_pm:-}" ]; then
+        rm -rf "$_pm"
     fi
 
     echo ""
@@ -425,48 +745,55 @@ repo-init archetype="":
     LB=$(printf '\x7b\x7b')
     RB=$(printf '\x7d\x7d')
 
+    # Answers are free text, and the right-hand side of s|…|…| is not: `&`
+    # inserts the matched token, `\` escapes, `|` ends the expression. A
+    # description "Tools & proofs" rendered as "Tools <the token> proofs" and
+    # then failed the placeholder gate; a `|` broke the substitution. Every
+    # answer goes through sed_rhs. (A newline was refused before the first write.)
+    sed_rhs() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
     # Build the sed expression list
     # Note: using | as delimiter since URLs contain /
     SED_ARGS=(
-        -e "s|${LB}PROJECT_NAME${RB}|${PROJECT_NAME}|g"
-        -e "s|${LB}PROJECT_DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
-        -e "s|${LB}PROJECT${RB}|${PROJECT_UPPER}|g"
-        -e "s|${LB}project${RB}|${PROJECT_LOWER}|g"
-        -e "s|${LB}REPO${RB}|${REPO}|g"
-        -e "s|${LB}OWNER${RB}|${OWNER}|g"
-        -e "s|${LB}AUTHOR${RB}|${AUTHOR}|g"
-        -e "s|${LB}AUTHOR_EMAIL${RB}|${AUTHOR_EMAIL}|g"
-        -e "s|${LB}AUTHOR_ORG${RB}|${AUTHOR_ORG}|g"
-        -e "s|${LB}AUTHOR_LAST${RB}|${AUTHOR_LAST}|g"
-        -e "s|${LB}AUTHOR_FIRST${RB}|${AUTHOR_FIRST}|g"
-        -e "s|${LB}AUTHOR_INITIALS${RB}|${FIRST_INITIAL}|g"
-        -e "s|${LB}FORGE${RB}|${FORGE}|g"
-        -e "s|${LB}CURRENT_YEAR${RB}|${CURRENT_YEAR}|g"
-        -e "s|${LB}CURRENT_DATE${RB}|${CURRENT_DATE}|g"
-        -e "s|${LB}DATE${RB}|${CURRENT_DATE}|g"
-        -e "s|${LB}SECURITY_EMAIL${RB}|${SECURITY_EMAIL}|g"
-        -e "s|${LB}CONDUCT_EMAIL${RB}|${CONDUCT_EMAIL}|g"
+        -e "s|${LB}PROJECT_NAME${RB}|$(sed_rhs "${PROJECT_NAME}")|g"
+        -e "s|${LB}PROJECT_DESCRIPTION${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
+        -e "s|${LB}PROJECT${RB}|$(sed_rhs "${PROJECT_UPPER}")|g"
+        -e "s|${LB}project${RB}|$(sed_rhs "${PROJECT_LOWER}")|g"
+        -e "s|${LB}REPO${RB}|$(sed_rhs "${REPO}")|g"
+        -e "s|${LB}OWNER${RB}|$(sed_rhs "${OWNER}")|g"
+        -e "s|${LB}AUTHOR${RB}|$(sed_rhs "${AUTHOR}")|g"
+        -e "s|${LB}AUTHOR_EMAIL${RB}|$(sed_rhs "${AUTHOR_EMAIL}")|g"
+        -e "s|${LB}AUTHOR_ORG${RB}|$(sed_rhs "${AUTHOR_ORG}")|g"
+        -e "s|${LB}AUTHOR_LAST${RB}|$(sed_rhs "${AUTHOR_LAST}")|g"
+        -e "s|${LB}AUTHOR_FIRST${RB}|$(sed_rhs "${AUTHOR_FIRST}")|g"
+        -e "s|${LB}AUTHOR_INITIALS${RB}|$(sed_rhs "${FIRST_INITIAL}")|g"
+        -e "s|${LB}FORGE${RB}|$(sed_rhs "${FORGE}")|g"
+        -e "s|${LB}CURRENT_YEAR${RB}|$(sed_rhs "${CURRENT_YEAR}")|g"
+        -e "s|${LB}CURRENT_DATE${RB}|$(sed_rhs "${CURRENT_DATE}")|g"
+        -e "s|${LB}DATE${RB}|$(sed_rhs "${CURRENT_DATE}")|g"
+        -e "s|${LB}SECURITY_EMAIL${RB}|$(sed_rhs "${SECURITY_EMAIL}")|g"
+        -e "s|${LB}CONDUCT_EMAIL${RB}|$(sed_rhs "${CONDUCT_EMAIL}")|g"
         -e "s|${LB}LICENSE${RB}|MPL-2.0|g"
         -e "s|${LB}CONDUCT_TEAM${RB}|Code of Conduct Committee|g"
         -e "s|${LB}RESPONSE_TIME${RB}|48 hours|g"
         -e "s|${LB}MAIN_BRANCH${RB}|main|g"
-        -e "s|${LB}PROJECT_PURPOSE${RB}|${PROJECT_DESCRIPTION}|g"
-        -e "s|${LB}PROJECT_ROLE${RB}|${PROJECT_TYPE}|g"
-        -e "s|${LB}PROJECT_TYPE${RB}|${PROJECT_TYPE}|g"
-        -e "s|${LB}WEBSITE${RB}|${WEBSITE}|g"
-        -e "s|${LB}SERVICE_NAME${RB}|${SERVICE_NAME}|g"
-        -e "s|${LB}PORT${RB}|${PORT}|g"
-        -e "s|${LB}REGISTRY${RB}|${REGISTRY}|g"
-        -e "s|${LB}IMAGE${RB}|${REGISTRY}/${SERVICE_NAME}|g"
-        -e "s|${LB}VERSION${RB}|${VERSION}|g"
-        -e "s|${LB}EMAIL${RB}|${AUTHOR_EMAIL}|g"
-        -e "s|${LB}UUID${RB}|${REPO_UUID}|g"
-        -e "s|${LB}DESCRIPTION${RB}|${PROJECT_DESCRIPTION}|g"
+        -e "s|${LB}PROJECT_PURPOSE${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
+        -e "s|${LB}PROJECT_ROLE${RB}|$(sed_rhs "${PROJECT_TYPE}")|g"
+        -e "s|${LB}PROJECT_TYPE${RB}|$(sed_rhs "${PROJECT_TYPE}")|g"
+        -e "s|${LB}WEBSITE${RB}|$(sed_rhs "${WEBSITE}")|g"
+        -e "s|${LB}SERVICE_NAME${RB}|$(sed_rhs "${SERVICE_NAME}")|g"
+        -e "s|${LB}PORT${RB}|$(sed_rhs "${PORT}")|g"
+        -e "s|${LB}REGISTRY${RB}|$(sed_rhs "${REGISTRY}")|g"
+        -e "s|${LB}IMAGE${RB}|$(sed_rhs "${REGISTRY}")/$(sed_rhs "${SERVICE_NAME}")|g"
+        -e "s|${LB}VERSION${RB}|$(sed_rhs "${VERSION}")|g"
+        -e "s|${LB}EMAIL${RB}|$(sed_rhs "${AUTHOR_EMAIL}")|g"
+        -e "s|${LB}UUID${RB}|$(sed_rhs "${REPO_UUID}")|g"
+        -e "s|${LB}DESCRIPTION${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
     )
-    [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|${AUTHOR_EMAIL_ALT}|g")
-    [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|${AUTHOR_ORCID}|g")
-    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|${OPENSSF_BP_ID}|g")
-    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|${OPENSSF_BP_ID}|g")
+    [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|$(sed_rhs "${AUTHOR_EMAIL_ALT}")|g")
+    [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|$(sed_rhs "${AUTHOR_ORCID}")|g")
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|$(sed_rhs "${OPENSSF_BP_ID}")|g")
+    [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_PROJECT_ID${RB}|$(sed_rhs "${OPENSSF_BP_ID}")|g")
 
     # Archetype-determined tokens (ADR-0003): the archetype contract fills
     # what it can honestly determine. Added BEFORE the UNASSIGNED fallback
@@ -517,7 +844,14 @@ repo-init archetype="":
         # GitHub owner logins are case-insensitive; canonicalize to lowercase
         # before the preimage so owner casing cannot fork the UUID.
         OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
-        if command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
+        # A replay supplies the uuid the mint recorded ((mint-answers
+        # :package-uuid)), so the drift gate does not depend on which of bun or
+        # python3 the checking host has (Codex review of #275). Only a replay:
+        # an ordinary mint always derives it, so a stray RSR_PACKAGE_UUID in the
+        # environment cannot write an unrelated identity into Project.toml.
+        if [ "${RSR_MINT_REPLAY:-0}" = "1" ] && [[ "${RSR_PACKAGE_UUID:-}" =~ ^(UNASSIGNED|[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]]; then
+            PACKAGE_UUID="$RSR_PACKAGE_UUID"
+        elif command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
             PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
         elif command -v python3 >/dev/null 2>&1; then
             PACKAGE_UUID=$(python3 -c '
@@ -607,7 +941,7 @@ repo-init archetype="":
     # two seds that named rsr-template-repo_chora.deed silently no-opped there.
     DEED_IN="$(bash scripts/deed-field.sh --find .)" \
         || { echo "Error: the tree must carry exactly one *_chora.deed at its root."; exit 1; }
-    sed -i -e "s|\[YOUR-REPO-NAME\]|${PROJECT_NAME}|g" -e "s|\[YOUR-NAME/ORG\]|${OWNER}|g" "$DEED_IN"
+    sed -i -e "s|\[YOUR-REPO-NAME\]|$(sed_rhs "${PROJECT_NAME}")|g" -e "s|\[YOUR-NAME/ORG\]|$(sed_rhs "${OWNER}")|g" "$DEED_IN"
 
     # --- Instruction-block pass --------------------------------------------
     # Delete the "TEMPLATE INSTRUCTIONS (delete this block before publishing)"
@@ -682,7 +1016,16 @@ repo-init archetype="":
         # mint's parent may be <Name>.jl, and `.` in a sed pattern matches any
         # character. Escaped inline so self_name_pass_test.sh can evaluate this
         # one assignment exactly as the recipe defines it.
-        SELF_NAME_SED="/${SELF_PROV}/!{s|${TEMPLATE_REPO//./\\.}#([0-9])|__TEMPLATE_ISSUE__\\1|g;s|${TEMPLATE_SLUG//./\\.}|${OWNER}/${REPO}|g;s|${TEMPLATE_REPO//./\\.}|${REPO}|g;s|__TEMPLATE_ISSUE__|${TEMPLATE_REPO}#|g;}"
+        # The name is matched only where it stands as a whole name: not inside
+        # a longer word or slug (Codex review of #251). Unbounded, a parent
+        # named `app` turned "application mapping" into "newlication mnewing".
+        # A neighbouring letter or digit blocks the match; anything else does
+        # not, so `<owner>_<name>` (sonar.projectKey), `<name>_chora.deed` and
+        # derived names such as `<name>-checkout` or `rm-<name>` still follow. Each pass
+        # loops (:label … t label) because a match consumes its right-hand
+        # neighbour, and marks through a sentinel so a new name that contains
+        # the old one (Geometry -> Geometry.jl) cannot loop forever.
+        SELF_NAME_SED="/${SELF_PROV}/!{:i;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}#([0-9])@\\1\\x01I\\x01\\2@;ti;:s;s@(^|[^A-Za-z0-9])${TEMPLATE_SLUG//./\\.}([^A-Za-z0-9]|$)@\\1\\x01S\\x01\\2@;ts;:n;s@(^|[^A-Za-z0-9])${TEMPLATE_REPO//./\\.}([^A-Za-z0-9]|$)@\\1\\x01N\\x01\\2@;tn;s@\\x01S\\x01@${OWNER}/${REPO}@g;s@\\x01N\\x01@${REPO}@g;s@\\x01I\\x01@${TEMPLATE_REPO}#@g;}"
         # Paths that are ABOUT the template keep its name wholesale: its ADRs,
         # changelog and audits. Template machinery (this recipe, the tests whose
         # fixtures must stay the template's literal name) is not in mint_files
@@ -735,7 +1078,9 @@ repo-init archetype="":
     # every child genuinely points at, and rewriting those would break the
     # child's canon, CI and badges.
     if [ "$OWNER" != "$TEMPLATE_OWNER" ]; then
-        sed -i -E 's|^(OWNER[[:space:]]*:=[[:space:]]*)"'"${TEMPLATE_OWNER}"'"|\1"'"${OWNER}"'"|' Justfile
+        # The same declaration forms the identity parser accepts: optional
+        # `export`, either quote (Codex review of #274).
+        sed -i -E "s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|" Justfile
         sed -i -E 's|^sonar\.organization='"${TEMPLATE_OWNER}"'$|sonar.organization='"${OWNER}"'|' sonar-project.properties
         sed -i -E 's|^sonar\.projectKey='"${TEMPLATE_OWNER}"'_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
@@ -929,12 +1274,11 @@ repo-init archetype="":
     {
         echo "  ; variant — provenance contract (ADR-0002 shape; ADR-0003 use)."
         echo "  ; Records what this repo was minted from, for re-templating tooling and"
-        echo "  ; the drift gate (scripts/check-variant-drift.sh). The mint renders"
-        echo "  ; tokens and rewrites files, so most spine files differ from the parent"
-        echo "  ; by design, and (normalise) does not yet fold the mint's answers"
-        echo "  ; (ADR-0003): the gate is not armed for a minted repo. Measured on a"
-        echo "  ; fresh mint (2026-10-20): 101 rendered files differ. The template pin"
-        echo "  ; is checked by scripts/check-template-conformance.sh instead."
+        echo "  ; the drift gate. For a minted repo the gate replays the mint from"
+        echo "  ; (provenance) and (mint-answers) and diffs this tree against the"
+        echo "  ; replay (scripts/check-mint-drift.sh), so only edits made after the"
+        echo "  ; mint count. Declare those in (paths) below; the derived files are"
+        echo "  ; declared already, since their own gates keep them fresh."
         echo "  (variant"
         echo "    :project \"${REPO}\""
         echo "    :schema-version \"0.1.0\""
@@ -948,13 +1292,15 @@ repo-init archetype="":
         echo "    (normalise :rules \"action-pins self-name\")"
         echo "    ; Files a minted repo owns from birth are (paths :diverged …)."
         echo "    (paths"
-        echo "      :added ()"
+        # The paths this work tree changed before the mint are added to these
+        # lists once the mint has moved and deleted what it will (see "What
+        # this work tree held before the mint", below).
+        _list() { local _s="" _x; printf '      :%s (' "$1"; shift; for _x in "$@"; do printf '%s"%s"' "$_s" "$_x"; _s=" "; done; printf ')'; }
         _removed=("${MINT_REMOVES[@]}")
         [ "${DEED_IN#./}" = "${REPO}_chora.deed" ] || _removed+=("${DEED_IN#./}")
-        printf '      :removed ('; _sep=""
-        for _p in "${_removed[@]}"; do printf '%s"%s"' "$_sep" "$_p"; _sep=" "; done
-        printf ')\n'
-        echo "      :diverged (\"${REPO}_chora.deed\" \"docs/status/ROADMAP.adoc\")))"
+        _list added; echo
+        _list removed "${_removed[@]}"; echo
+        _list diverged "${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc; echo "))"
     } | put_clause variant
     if [ "$PARENT_PIN" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (variant) — parent-pin UNASSIGNED (offline?)"
@@ -1004,6 +1350,55 @@ repo-init archetype="":
         echo "    ; the validation step below already fails on a leftover token."
         echo "    (substitutions :rendered 34 :unassigned ()))"
     } | put_clause provenance
+
+    # ── (mint-answers) — the answers, so the mint can be replayed ───────────
+    # Provenance names the template commit; this names what it was rendered
+    # with. Together they make the mint a function that can be run again:
+    # scripts/check-mint-drift.sh re-mints the template at the pin with these
+    # answers and diffs the child against the result, so drift is measured
+    # exactly instead of through hand-written (normalise) rules (ADR-0003).
+    # Owner ruling (2026-11-04): record only values the mint already writes
+    # into the child's own files (names, contacts, description, URLs), so the
+    # record publishes nothing new. Deed strings escape `\` and `"`.
+    deed_str() { printf '%s' "$1" | sed -e 's/[\\"]/\\&/g'; }
+    # The ruling is checked here, not left to a hand-kept list (Codex review of
+    # #275 found project-type recorded, though no template file renders it): a
+    # non-empty answer is recorded only if its value appears verbatim in this
+    # repo's files. An answer left out replays as unanswered; it rendered
+    # nothing here, so the replay is unchanged.
+    # Not the template-only trees the mint deletes below (MINT_REMOVES:
+    # archetypes/, build/docs-seed/): a value found only there is in no file
+    # the child keeps (CodeRabbit review of #275).
+    mapfile -t _MINTED < <(mint_files | awk -v r="${MINT_REMOVES[*]:-}" \
+        'BEGIN { n = split(r, p, " ") } { for (i = 1; i <= n; i++) if (index($0, p[i]) == 1) next; print }')
+    _ANSWERS=() _UNRECORDED=""
+    for _pair in project-name:PROJECT_NAME repo:REPO owner:OWNER author:AUTHOR \
+                 author-email:AUTHOR_EMAIL author-org:AUTHOR_ORG \
+                 author-email-alt:AUTHOR_EMAIL_ALT author-orcid:AUTHOR_ORCID \
+                 description:PROJECT_DESCRIPTION forge:FORGE \
+                 security-email:SECURITY_EMAIL conduct-email:CONDUCT_EMAIL \
+                 project-type:PROJECT_TYPE website:WEBSITE \
+                 openssf-bp-id:OPENSSF_BP_ID service-name:SERVICE_NAME \
+                 port:PORT registry:REGISTRY archetype:ARCHETYPE \
+                 package-uuid:PACKAGE_UUID; do
+        _var="${_pair#*:}"
+        _val="${!_var:-}"
+        if [ -n "$_val" ] && ! grep -qsF -- "$_val" "${_MINTED[@]}" /dev/null; then
+            _UNRECORDED="${_UNRECORDED} ${_pair%%:*}"
+            continue
+        fi
+        _ANSWERS+=("    :${_pair%%:*} \"$(deed_str "$_val")\"")
+    done
+    {
+        echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
+        echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
+        echo "  ; here already appears in this repo's rendered files."
+        echo "  (mint-answers"
+        printf '%s\n' "${_ANSWERS[@]}"
+        echo "    :mint-date \"${CURRENT_DATE}\")"
+    } | put_clause mint-answers
+    echo "  answers:    $DEED_OUT (mint-answers) — replayable with scripts/check-mint-drift.sh"
+    [ -z "$_UNRECORDED" ] || echo "              not recorded, written into no file here:${_UNRECORDED}"
 
     if [ "$CANON_VERSION" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (provenance) — canon pin UNASSIGNED"
@@ -1118,6 +1513,78 @@ repo-init archetype="":
         }
     fi
 
+    # ── What this work tree held before the mint ────────────────────────────
+    # Declared here, after every step that moves or deletes files, as exactly
+    # what this tree now differs by from the replay taken before the first write
+    # (above): the comparison the drift gate makes, so the declaration cannot
+    # disagree with it, whatever the mint did to a pre-mint change on the way
+    # (moved, rendered, overwritten, or reached through an edited input) (Codex
+    # and CodeRabbit review of #275). The files this mint owns are declared
+    # already. Written into the (variant (paths)) lists by awk, which takes the
+    # paths as data and escapes \ and " in deed strings.
+    if [ -n "$_REPLAY" ]; then
+        _owned=("${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc)
+        _is_owned() { local _o; for _o in "${_owned[@]}"; do [ "$1" = "$_o" ] && return 0; done; return 1; }
+        # _files DIR — DIR's own files, one per line (tracked, or untracked and not
+        # ignored), as the drift gate lists them. This tree is read under its own
+        # git configuration, as `git add -A` will commit it (a file only a global
+        # excludesFile ignores is never committed, so never declared); the
+        # replay under none (CodeRabbit review of #275).
+        _files() {
+            { if [ "$1" = "$_REPLAY" ]; then _rg -C "$1" ls-files -z --cached --others --exclude-standard
+              else git -C "$1" ls-files -z --cached --others --exclude-standard; fi; } \
+                | while IFS= read -r -d '' _f; do
+                    if [ -e "$1/$_f" ] || [ -L "$1/$_f" ]; then printf '%s\n' "$_f"; fi
+                done | LC_ALL=C sort -u
+        }
+        _pml="$(mktemp -d)"; : > "$_pml/a"; : > "$_pml/r"; : > "$_pml/d"
+        _files . > "$_pml/child"
+        _files "$_REPLAY" > "$_pml/replay"
+        while IFS= read -r _p; do
+            _is_owned "$_p" && continue
+            if ! grep -qxF -- "$_p" "$_pml/replay"; then printf '%s\n' "$_p" >> "$_pml/a"
+            elif ! _same "$_p" "$_REPLAY/$_p"; then printf '%s\n' "$_p" >> "$_pml/d"
+            fi
+        done < "$_pml/child"
+        while IFS= read -r _p; do
+            _is_owned "$_p" && continue
+            grep -qxF -- "$_p" "$_pml/child" || printf '%s\n' "$_p" >> "$_pml/r"
+        done < "$_pml/replay"
+        awk -v fa="$_pml/a" -v fr="$_pml/r" -v fd="$_pml/d" '
+            function load(file,    s, p) {
+                s = ""
+                while ((getline p < file) > 0) {
+                    gsub(/\\/, "\\\\", p); gsub(/"/, "\\\"", p)
+                    s = s " \"" p "\""
+                }
+                close(file); return s
+            }
+            # insert EXTRA before the ")" that closes the list opened at "(".
+            function extend(line, extra,    i, c, q, open, out) {
+                open = index(line, "("); q = 0
+                for (i = open + 1; i <= length(line); i++) {
+                    c = substr(line, i, 1)
+                    if (q && c == "\\") { i++; continue }
+                    if (c == "\"") q = !q
+                    else if (!q && c == ")") {
+                        out = substr(line, 1, i - 1) extra substr(line, i)
+                        sub(/\( "/, "(\"", out)
+                        return out
+                    }
+                }
+                return line
+            }
+            BEGIN { A = load(fa); R = load(fr); D = load(fd) }
+            /^      :added \(/    { $0 = extend($0, A) }
+            /^      :removed \(/  { $0 = extend($0, R) }
+            /^      :diverged \(/ { $0 = extend($0, D) }
+            { print }
+        ' "$DEED_OUT" > "$_pml/deed" && cat "$_pml/deed" > "$DEED_OUT"
+        echo "  pre-mint: $(wc -l < "$_pml/a") added, $(wc -l < "$_pml/d") diverged, $(wc -l < "$_pml/r") removed;"
+        echo "            declared in $DEED_OUT (variant (paths)) as this repo's own"
+        rm -rf "$_pml" "$(dirname "$_REPLAY")"
+    fi
+
     # ── Regenerate what is DERIVED from the deed and the tree ───────────────
     # CLAUDE.md's arrival pack and the repository map are generated files, and
     # until now the mint left both describing the TEMPLATE. The self-name pass
@@ -1145,6 +1612,18 @@ repo-init archetype="":
     if [ -f scripts/gen-repo-map.sh ]; then
         bash scripts/gen-repo-map.sh --worktree . >/dev/null
         echo "  repo map:     docs/architecture/REPOSITORY-MAP.adoc regenerated"
+    fi
+
+    # Replay (scripts/check-mint-drift.sh): every tree-writing step has run, so
+    # the reconstruction is complete. What follows only checks the tree: the placeholder
+    # gate (a partial mint made with RSR_ALLOW_PLACEHOLDERS=1 would fail it on
+    # replay), the www suite (a past RSR_MINT_DATE fails it: security.txt
+    # expires at the end of the mint year) and the rest. The child's own CI
+    # runs those checks on the child; the replay exists only to be compared.
+    if [ "${RSR_MINT_REPLAY:-0}" = "1" ]; then
+        echo ""
+        echo "Replay complete (RSR_MINT_REPLAY=1): post-write checks left to the child's CI."
+        exit 0
     fi
 
     echo ""
@@ -1329,8 +1808,7 @@ repo-init archetype="":
         echo "     must be set to ci/.gitlab-ci.yml, or GitLab CI silently never"
         echo "     runs - no pipeline and no error. See ci/README.adoc."
     fi
-    echo "  8. HARNESS — check the recorded template pin (provenance):"
-    echo "       scripts/check-template-conformance.sh [--template <template-checkout>]"
-    echo "     scripts/check-variant-drift.sh is not for a minted repo yet: the mint"
-    echo "     renders most spine files, so they differ from the parent by design"
-    echo "     until (normalise) folds the mint's answers (ADR-0003)."
+    echo "  8. HARNESS — check the recorded pin, then arm the drift gate, which replays"
+    echo "     this mint from (provenance) and (mint-answers) and diffs the result:"
+    echo "       scripts/check-template-conformance.sh"
+    echo "       scripts/check-variant-drift.sh <template-checkout>"
