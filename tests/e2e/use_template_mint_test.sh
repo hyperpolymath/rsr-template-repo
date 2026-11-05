@@ -179,8 +179,14 @@ pass "(a-) an answer containing a newline is refused before anything is written"
 # ── 4d. Control: an asserted pin whose tree this child does not hold ────────
 # The difference cannot be listed, so it cannot be declared: refused before
 # writing (Codex review of #275), not minted into certain drift.
-OLD=$(g -C "$T" rev-list -n 1 --skip=3 HEAD)
-[ "$(g -C "$T" rev-parse "$OLD^{tree}")" != "$T_TREE" ] || fail 'fixture: the older template commit has the same tree'
+# The asserted commit is built here, on a side branch of the template, so the
+# test does not depend on how much history the checkout has (CI clones shallow).
+OLDTREE=$(cd "$T" && GIT_INDEX_FILE="$work/old.index" git read-tree "$T_TREE" \
+    && GIT_INDEX_FILE="$work/old.index" git rm -q --cached SUPPORT.adoc \
+    && GIT_INDEX_FILE="$work/old.index" git write-tree)
+OLD=$(g -C "$T" commit-tree "$OLDTREE" -p "$T_COMMIT" -m "another template tree")
+g -C "$T" branch -q another-tree "$OLD"
+[ -n "$OLD" ] && [ "$OLDTREE" != "$T_TREE" ] || fail 'fixture: could not build another template tree'
 AS="$work/asserted"
 use_template "$AS"
 MINT_ENV=(RSR_TEMPLATE_COMMIT="$OLD")
