@@ -158,8 +158,14 @@ says "the publisher-specific diagnostic explains the missing rows" "published gr
 
 fresh >/dev/null
 # A different step's name cannot stand in for an upload-artifact output name.
-sed -i 's/name: hypatia-scan-findings$/name: hypatia-scan-findings-backup/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
-printf '\n      - name: hypatia-scan-findings\n        run: true\n' >> "$WORK/repo/.github/workflows/hypatia-scan.yml"
+# The producer here is a local-upload job written by the test, so the control
+# holds whatever shape this repository's hypatia-scan.yml has (a minted child
+# may delegate its scan to a reusable workflow, section 10).
+wf="$WORK/repo/.github/workflows/hypatia-scan.yml"
+grid_pin="$(grep -o -- '--hypatia-ref [0-9a-f]\{40\}' "$WORK/repo/.github/workflows/fork-governance.yml" | head -n1 | awk '{print $2}')"
+awk '/^jobs:/ { exit } { print }' "$wf" > "$wf.new"
+printf 'jobs:\n  scan:\n    runs-on: ubuntu-latest\n    env:\n      HYPATIA_SHA: %s\n    steps:\n      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9\n        with:\n          name: hypatia-scan-findings-backup\n          path: out\n      - name: hypatia-scan-findings\n        run: true\n' "$grid_pin" >> "$wf.new"
+mv "$wf.new" "$wf"
 expect_rc 1 "an artifact prefix or unrelated step name cannot satisfy the source edge"
 says "the diagnostic requires an actual artifact upload" "never uploads"
 
@@ -173,6 +179,60 @@ rm "$WORK/repo/.github/workflows/verdict-grid-publish.yml"
 expect_rc 2 "a missing trusted publisher is a setup error"
 says "the missing publisher is named" "publisher workflow"
 
+
+echo "=== 10. A producer that delegates to a reusable workflow ==="
+# Offline: the called workflow is served from EDGES_REUSABLE_DIR, never fetched.
+HSHA="$(grep -o -- '--hypatia-ref [0-9a-f]\{40\}' "$REPO_DIR/.github/workflows/fork-governance.yml" | head -n1 | awk '{print $2}')"
+RSHA=1111111111111111111111111111111111111111
+REUSABLES="$WORK/reusables"
+# delegate [WITH] — replace hypatia-scan.yml's jobs with one reusable call.
+delegate() {
+    local wf="$WORK/repo/.github/workflows/hypatia-scan.yml" ref="${2:-$RSHA}"
+    awk '/^jobs:/ { exit } { print }' "$wf" > "$wf.new"
+    printf 'jobs:\n  hypatia:\n    uses: owner/standards/.github/workflows/scan.yml@%s\n' "$ref" >> "$wf.new"
+    [ -z "${1:-}" ] || printf '    with:\n      hypatia-ref: %s\n' "$1" >> "$wf.new"
+    mv "$wf.new" "$wf"
+}
+# reusable [ARTIFACT] — the called workflow at RSHA, uploading ARTIFACT.
+reusable() {
+    local dir="$REUSABLES/owner/standards/$RSHA/.github/workflows"
+    rm -rf "$REUSABLES"; mkdir -p "$dir"
+    printf 'on:\n  workflow_call:\njobs:\n  scan:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9\n        with:\n          name: %s\n          path: out\n' "${1:-hypatia-scan-findings}" > "$dir/scan.yml"
+}
+export EDGES_REUSABLE_DIR="$REUSABLES"
+
+fresh >/dev/null; reusable; delegate "$HSHA"
+expect_rc 0 "a reusable producer passing the verdict's pin resolves both edges"
+
+fresh >/dev/null; reusable; delegate
+expect_rc 1 "a reusable producer that passes no hypatia-ref is caught"
+says "the failure says the default runs instead" "without passing hypatia-ref"
+
+fresh >/dev/null; reusable; delegate 2222222222222222222222222222222222222222
+expect_rc 1 "a reusable producer passing a different pin is caught"
+says "the mismatch names the input it read" "with: hypatia-ref"
+
+fresh >/dev/null; reusable other-artifact; delegate "$HSHA"
+expect_rc 1 "a reusable that does not upload the evidence artifact is caught"
+says "the failure names the missing artifact" "never uploads"
+
+fresh >/dev/null; reusable; delegate "$HSHA" v1
+expect_rc 2 "a reusable call pinned to a tag cannot be followed (setup error)"
+says "the failure asks for a full SHA" "full commit SHA"
+
+fresh >/dev/null; rm -rf "$REUSABLES"; mkdir -p "$REUSABLES"; delegate "$HSHA"
+expect_rc 2 "an unreadable reusable is a setup error, never a pass"
+says "the failure names the unreadable call" "not in EDGES_REUSABLE_DIR"
+
+fresh >/dev/null; reusable; delegate "$HSHA"
+cat >> "$WORK/repo/.github/workflows/hypatia-scan.yml" <<'YML'
+  local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: owner/standards/.github/workflows/scan.yml@2222222222222222222222222222222222222222
+YML
+expect_rc 0 "a step action with a workflow-shaped path is not followed as a reusable call"
+unset EDGES_REUSABLE_DIR
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: workflow edges suite (${pass} passed, ${fail} failed)" >&2
