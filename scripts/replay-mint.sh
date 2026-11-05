@@ -54,7 +54,13 @@ TDIR="$(cd "$TDIR" && pwd)"
 git -C "$TDIR" cat-file -e "${PIN}^{commit}" 2>/dev/null \
     || { echo "replay-mint: $TDIR does not contain commit $PIN" >&2; exit 2; }
 
-g() { git -c user.name=replay -c user.email=replay@example.invalid -c commit.gpgsign=false "$@"; }
+# g — git with no user or system configuration and no hooks (Codex review of
+# #275): the synthetic "Use this template" commit cannot be changed or refused
+# by this machine's settings.
+g() {
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=replay -c user.email=replay@example.invalid \
+        -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+}
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 SCRATCH="$(mktemp -d)"

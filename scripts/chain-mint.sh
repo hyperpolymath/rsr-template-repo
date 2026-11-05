@@ -38,11 +38,23 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 READ="$HERE/deed-field.sh"
 G="$(pwd)"
 die() { echo "chain-mint: $*" >&2; exit 1; }
-g() { git -c user.name=chain -c user.email=chain@example.invalid -c commit.gpgsign=false "$@"; }
+# g — git with no user or system configuration and no hooks, as the drift
+# gate's (Codex review of #275): this machine's settings cannot change the
+# merge, the commits or the file sets.
+g() {
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=chain -c user.email=chain@example.invalid \
+        -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+}
 
 for v in REPO OWNER TEMPLATE_REPO TEMPLATE_OWNER RSR_MINT_DATE; do
     [ -n "${!v:-}" ] || { echo "chain-mint: $v is not set (run through just repo-init)" >&2; exit 2; }
 done
+# A sparse checkout lists paths it has not checked out; read as a tree, their
+# absence is a deletion of most of the repository (Codex review of #277). A
+# chain mint carries and rewrites the whole tree, so it needs all of it.
+_sparse=0
+while IFS= read -r -d '' e; do case "$e" in "S "*) _sparse=$((_sparse + 1)) ;; esac; done < <(g -C "$G" ls-files -t -z)
+[ "$_sparse" -eq 0 ] || die "this checkout is sparse (${_sparse} tracked paths are not checked out); a chain mint carries the whole tree. Run it from a full checkout (git sparse-checkout disable); nothing was written"
 PDEED="$(bash "$READ" --find "$G")" || die "no single *_chora.deed in this tree"
 PIN="$(bash "$READ" "$PDEED" provenance template-commit 2>/dev/null || true)"
 TSLUG="$(bash "$READ" "$PDEED" provenance template-repo 2>/dev/null || true)"
@@ -72,7 +84,7 @@ ARCHETYPE="$P_ARCH" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/n
 # ignored), NUL-separated end to end: a name may hold a backslash, a newline or
 # a leading dash, and tar --null takes each literally (Codex review of #277).
 files() {
-    git -C "$1" ls-files -z --cached --others --exclude-standard \
+    g -C "$1" ls-files -z --cached --others --exclude-standard \
         | while IFS= read -r -d '' f; do { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\0' "$f"; done \
         | LC_ALL=C sort -z -u
 }
@@ -85,6 +97,10 @@ snapshot() {
     find "$M" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
     copy "$1" "$M"
     g -C "$M" add -A
+    # Exactly SRC's file set, including a file it tracks although an ignore
+    # rule matches it: `add -A` alone re-applied .gitignore and dropped such a
+    # file from the chain without a word. Literal pathspecs, NUL-separated.
+    files "$1" | g --literal-pathspecs -C "$M" add -f --pathspec-from-file=- --pathspec-file-nul
 }
 P_DEED_NAME="$(basename "$PDEED")"
 IDENTITY=("$P_DEED_NAME" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc docs/status/ROADMAP.adoc)
@@ -97,20 +113,25 @@ snapshot "$G"
 # The tree actually carried: the parent as it stands, uncommitted work included
 # (Codex review of #277: HEAD^{tree} named a tree the chain may not have used).
 PARENT_TREE="$(g -C "$M" write-tree)"
+# Held in git's index, never through the work tree: the parent controls that
+# tree, and a symlink at an identity path (CLAUDE.md -> ../../x) would have
+# redirected a write outside this scratch copy (Codex review of #277).
 for f in "${IDENTITY[@]}"; do
-    if g -C "$M" cat-file -e "$B:$f" 2>/dev/null; then
-        mkdir -p "$M/$(dirname "$f")"; g -C "$M" show "$B:$f" > "$M/$f"
-    else
-        rm -f "$M/$f"
-    fi
+    g -C "$M" rm -q --cached --ignore-unmatch -- "$f"
+    entry="$(g -C "$M" ls-tree "$B" -- "$f")"
+    [ -n "$entry" ] || continue
+    read -r mode _ sha _ <<<"$entry"
+    g -C "$M" update-index --add --cacheinfo "$mode,$sha,$f" 2>/dev/null \
+        || die "cannot hold $f at the template's version: the parent replaced a directory above it"
 done
-g -C "$M" add -A; g -C "$M" commit -q --allow-empty -m theirs
+g -C "$M" commit -q --allow-empty -m theirs
 THEIRS="$(g -C "$M" rev-parse HEAD)"
 # The parent's deletions, which shape "ours" below. What this repo finally
 # inherits is measured on the merged result, not here (see "Declare").
 mapfile -d "" -t CARRIED_D < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
 
-g -C "$M" checkout -q -b ours "$B"
+# -f: the work tree still holds the parent's files, identity paths included.
+g -C "$M" checkout -q -f -b ours "$B"
 snapshot "$WORK/new"
 # The fresh mint itself, kept as a commit: the drift gate replays exactly
 # this, so the declarations are measured against it.
@@ -145,17 +166,20 @@ RESULT="$(head -n 1 "$WORK/merge.out")"
 # tree is replaced only once every step has succeeded, so a failure at any
 # point (a carried placeholder, say) leaves it untouched (Codex review of #277).
 F="$WORK/final"
+g -C "$M" branch -q result "$(g -C "$M" commit-tree "$RESULT" -m result)"
 g init -q -b main "$F"
-g -C "$M" archive "$RESULT" | tar -x -C "$F"
-g -C "$F" add -A
+g -C "$F" fetch -q "$M" fresh:refs/chain/fresh result:refs/chain/result
+# F's index is the merged tree itself, and git writes its files (never
+# through a symlink); a tracked file an ignore rule matches stays tracked.
+g -C "$F" read-tree refs/chain/result
+g -C "$F" checkout-index -a -f
 
 # What this repo inherits is the merged result's difference from the fresh
 # mint: exactly what the drift gate will compare. Measured on the result, not
 # on the parent's diff, so a path the merge carried through an answer-dependent
 # rename (src/<Old>.jl -> src/<New>.jl) is named where it now lives (Codex
 # review of #277).
-g -C "$F" fetch -q "$M" fresh
-FRESH="$(g -C "$F" rev-parse FETCH_HEAD)"
+FRESH="$(g -C "$F" rev-parse refs/chain/fresh)"
 # inherited — "STATUS\0PATH\0" for every path where F differs from the fresh mint.
 inherited() { g -C "$F" add -A; g -C "$F" diff --cached -z --no-renames --name-status "$FRESH"; }
 
@@ -198,6 +222,17 @@ done < <(inherited)
 # written as deed strings (\ and " escaped) by awk, which takes them as data:
 # a path holding &, |, " or \ cannot corrupt the clause or the command.
 DEED="$F/${REPO}_chora.deed"
+# Every path this script writes from here on must be a real path inside F: a
+# symlink the parent carried at one of them, or at a directory above one,
+# would redirect the write (Codex review of #277). Refused by name.
+for w in "${REPO}_chora.deed" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc \
+         .machine_readable/arrival-pack/claude-md-data.json; do
+    p="$w"
+    while :; do
+        [ ! -L "$F/$p" ] || die "the carried tree has a symlink at $p, where the mint writes $w; nothing was written"
+        case "$p" in */*) p="${p%/*}" ;; *) break ;; esac
+    done
+done
 [ -f "$DEED" ] || die "the new mint produced no ${REPO}_chora.deed"
 awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" \
     -v fa="$WORK/added.list" -v fr="$WORK/removed.list" -v fd="$WORK/diverged.list" '

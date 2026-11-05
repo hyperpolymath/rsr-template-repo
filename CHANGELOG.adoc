@@ -21,8 +21,12 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   the new `(variant (paths))` by comparing the result with the fresh mint, as
   the drift gate does, so an edit carried across an answer-dependent rename
   (a Julia entry point) is declared where it lives. Paths stay NUL-delimited,
-  so a backslash or a leading dash survives. A conflict with the new
-  rendering stops before anything is written. Provenance records the root
+  so a backslash or a leading dash survives, and a file the parent tracks
+  although an ignore rule matches it is carried. Identity files are held in
+  git's index, never through the work tree, and a symlink at any path the
+  chain writes is refused, so a parent-controlled link cannot redirect a
+  write. A sparse checkout is refused. A conflict with the new rendering
+  stops before anything is written. Provenance records the root
   template commit plus `:derived-from` the parent. A parent minted before
   `(mint-answers)` is still refused. `scripts/replay-mint.sh` is now the one
   replay path, shared with the drift gate; only a recorded `(mint-answers)`

@@ -48,7 +48,8 @@ T_SLUG="$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Jus
 use_template() {
     rm -rf "$3"; mkdir -p "$3"
     g -C "$1" archive "$2" | tar x -C "$3"
-    g -C "$3" init -q -b main; g -C "$3" add -A; g -C "$3" commit -q -m "Initial commit"
+    # -f: a template copy keeps every tracked file, ignore rules or not.
+    g -C "$3" init -q -b main; g -C "$3" add -f -A; g -C "$3" commit -q -m "Initial commit"
     g -C "$3" remote add origin "$4"
 }
 # mint DIR LOG REPO OWNER AUTHOR EMAIL DESC [ARCHETYPE [PROJECT_NAME]] — a
@@ -86,6 +87,10 @@ printf 'slash\n' > "$P/notes/back\\slash.txt"
 printf 'dash\n' > "$P/-lead.txt"
 mkdir -p "$P/archetypes"; printf 'mine\n' > "$P/archetypes/custom.txt"
 printf 'sonar.organization=elder-owner\nsonar.projectKey=elder-owner_elder-proj\n' > "$P/notes/extra-sonar.properties"
+# A file the parent tracks although an ignore rule matches it: still its own.
+mkdir -p "$P/_build"; printf 'kept\n' > "$P/_build/keep.txt"
+g -C "$P" check-ignore -q _build/keep.txt || fail 'fixture: _build/ is not ignored'
+g -C "$P" add -f _build/keep.txt
 g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
 pass "fixture: a minted parent with its own edit, addition and removal"
 
@@ -96,6 +101,7 @@ use_template "$P" HEAD "$G" git@github.com:other-owner/grand-check.git
 # name the snapshot actually used, not HEAD^{tree} (Codex review of #277).
 printf 'local\n' > "$G/notes/local.txt"
 HEAD_TREE=$(g -C "$G" rev-parse 'HEAD^{tree}')
+cp "$G/.git/index" "$work/snap.index"   # tracked files stay, ignore rules or not
 P_TREE=$(cd "$G" && GIT_INDEX_FILE="$work/snap.index" git add -A . && GIT_INDEX_FILE="$work/snap.index" git write-tree)
 [ "$P_TREE" != "$HEAD_TREE" ] || fail 'fixture: the uncommitted file did not change the tree'
 mint "$G" "$work/chain.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
@@ -152,7 +158,8 @@ added() { bash "$G/scripts/deed-field.sh" --list "$DEED" variant/paths added; }
     && added | grep -qxF 'notes/back\slash.txt' && added | grep -qxF -- '-lead.txt' \
     || { grep -n ':added' "$DEED" >&2; fail 'a path holding a backslash or a leading dash was not carried and declared intact'; }
 [ -f "$G/archetypes/custom.txt" ] && added | grep -qx archetypes/custom.txt \
-    || fail 'a file under the mint-removed archetypes/ was not carried and declared added'
+ && added | grep -qx _build/keep.txt && [ -n "$(g -C "$G" ls-files -- _build/keep.txt)" ] \
+    || fail 'a tracked file an ignore rule matches was not carried, tracked and declared'
 [ "$(cat "$G/notes/extra-sonar.properties")" = "$(printf 'sonar.organization=other-owner\nsonar.projectKey=other-owner_grand-check')" ] \
     || { cat "$G/notes/extra-sonar.properties" >&2; fail 'a carried identity setting kept the parent'"'"'s owner'; }
 pass "the parent's edit, addition and removal are carried, renamed, and declared"
@@ -230,6 +237,44 @@ fi
 grep -q "was minted as archetype 'none'; a chain mint keeps it" "$work/arch.log" || { cat "$work/arch.log" >&2; fail 'the archetype refusal did not say why'; }
 [ -z "$(g -C "$G5" status --porcelain)" ] || fail 'the refused archetype wrote to the tree'
 pass "(-) a chain mint refuses an archetype other than the parent's, before writing"
+
+# ── Negative control: parent-controlled symlinks never redirect a write ─────
+# The parent makes its identity file CLAUDE.md, and a path the mint writes
+# (the arrival pack's generated data), symlinks to files outside the chain's
+# scratch copy (Codex review of #277). The identity file is held in git's
+# index, so its link is never written through; the generated path is refused
+# by name before anything is written. Neither target changes.
+P6="$work/parent6"
+g clone -q --no-local "$P" "$P6"
+printf 'untouched\n' > "$work/sentinel-identity"; printf 'untouched\n' > "$work/sentinel-output"
+rm "$P6/CLAUDE.md"; ln -s "$work/sentinel-identity" "$P6/CLAUDE.md"
+ln -s "$work/sentinel-output" "$P6/.machine_readable/arrival-pack/claude-md-data.json"
+g -C "$P6" add -f -A; g -C "$P6" commit -q -m "symlinks out"
+G6="$work/grandchild6"
+use_template "$P6" HEAD "$G6" git@github.com:other-owner/grand-check.git
+if mint "$G6" "$work/links.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint wrote through a carried symlink'
+fi
+grep -q 'symlink at .machine_readable/arrival-pack/claude-md-data.json' "$work/links.log" || { tail -20 "$work/links.log" >&2; fail 'the carried output symlink was not refused by name'; }
+[ "$(cat "$work/sentinel-identity")" = untouched ] && [ "$(cat "$work/sentinel-output")" = untouched ] \
+    || fail 'a chain mint wrote through a parent-controlled symlink'
+[ -z "$(g -C "$G6" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) parent-controlled symlinks are never written through; one at a written path is refused"
+
+# ── Negative control: a sparse checkout is refused ──────────────────────────
+# Its absent paths would read as deletions of most of the repository (Codex
+# review of #277).
+G7="$work/grandchild7"
+use_template "$P" HEAD "$G7" git@github.com:other-owner/grand-check.git
+# The mint machinery stays checked out; docs/ and tests/ do not.
+g -C "$G7" sparse-checkout set scripts build .machine_readable notes
+[ ! -e "$G7/docs" ] && [ -e "$G7/scripts/chain-mint.sh" ] || fail 'fixture: the checkout is not sparse'
+if mint "$G7" "$work/sparse.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint ran in a sparse checkout'
+fi
+grep -q 'this checkout is sparse' "$work/sparse.log" || { tail -20 "$work/sparse.log" >&2; fail 'the sparse refusal did not say why'; }
+[ -z "$(g -C "$G7" status --porcelain)" ] || fail 'the refused sparse chain mint wrote to the tree'
+pass "(-) a chain mint in a sparse checkout is refused before anything is written"
 
 # ── An answer-dependent rename: a Julia package's entry point ───────────────
 # The mint names src/<Package>.jl after the project, so a parent's edit to its
