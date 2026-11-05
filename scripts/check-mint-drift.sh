@@ -24,6 +24,11 @@
 # Needs what a mint needs: just, rustc, nickel, uuidgen.
 # Exit: 0 no undeclared drift; 1 drift (listed); 2 usage or cannot replay.
 set -euo pipefail
+# This script runs git against other repositories (-C does not override
+# these), so an inherited location (a hook, another git caller) cannot redirect
+# it (CodeRabbit review of #275).
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE
 
 TDIR="${1:?usage: check-mint-drift.sh <template-checkout> [child-dir]}"
 CDIR="${2:-.}"
@@ -131,7 +136,8 @@ files() {
     g -C "$1" ls-files -z --cached --others --exclude-standard \
         | while IFS= read -r -d '' f; do
             case "$f" in *$'\n'*) echo "check-mint-drift: cannot check a path containing a newline: $(printf '%q' "$f")" >&2; exit 2 ;; esac
-            { [ -e "$1/$f" ] || [ -L "$1/$f" ]; } && printf '%s\n' "$f"
+            # if, not &&: an absent last path must not fail the pipeline (CodeRabbit).
+            if [ -e "$1/$f" ] || [ -L "$1/$f" ]; then printf '%s\n' "$f"; fi
         done \
         | LC_ALL=C sort -u
 }

@@ -30,8 +30,12 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   replay's git runs without user or system configuration or hooks. What a
   work tree already held beyond the pinned tree before the mint (an edit, an
   untracked file, a deletion) is named by the mint and declared in
-  `(variant (paths))` as the repo's own, so the replay from the pin stays
-  exact.
+  `(variant (paths))` as the repo's own, by how each path stands once the
+  mint has moved and deleted what it will, so the replay from the pin stays
+  exact. A pre-mint change under a root `.well-known/` (which the mint moves),
+  or a work tree that differs from an asserted template tree this repository
+  does not hold, is refused before anything is written. The gate clears
+  inherited git location variables.
 
 ==== Fixed
 
