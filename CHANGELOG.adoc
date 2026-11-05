@@ -10,6 +10,21 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **A minted child failed three template-only checks it inherits.** Found
+  minting `hyperpolymath/unified-api-adapter` (its #8):
+** the mint deletes `build/docs-seed/` but kept its `SD022` exemption in
+   `.hypatia-ignore`, so the child's Hypatia exemption gate failed on a stale
+   path. `repo-init` now drops that exemption block with the directory, and
+   `tests/e2e/use_template_mint_test.sh` checks the child's gate (observed
+   failing with the mint fix held back);
+** `tests/e2e/use_template_mint_test.sh` mints the template, so in a child
+   (no `archetypes/`) it aborted on a token nothing can answer. It now
+   self-skips there, as `tests/e2e/template_instantiation_test.sh` already
+   does;
+** `tests/workflows/governance_badge_test.sh` required the README badge URL
+   to still carry the unfilled owner and repository tokens, which only the
+   unminted template does.
+   It now also accepts a concrete owner and repository.
 * **`.kyaml` files were invisible to four file scans.** Estate configuration
   is `.kyaml` (D307), but these selectors matched only `*.yaml`/`*.yml`: the
   invisible-character scan (`scripts/check-invisible-characters.sh`), the

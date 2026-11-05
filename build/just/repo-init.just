@@ -1018,6 +1018,17 @@ repo-init archetype="":
     # (same reason build/templates is removed above).
     rm -rf archetypes
     rm -rf build/docs-seed          # template-only; its content now lives in docs/
+    # Its SD022 exemption goes with it: a child keeping an exemption for a path
+    # it does not have fails check-hypatia-ignore.sh (stale exemption). The
+    # block runs from its section header to the entry, plus the blank after.
+    if [ -f .hypatia-ignore ]; then
+        awk '/^# ─── build\/docs-seed\/ describes DOWNSTREAM/ { skip = 1 }
+             skip && /^structural_drift\/SD022:build\/docs-seed\/$/ { skip = 0; blank = 1; next }
+             skip { next }
+             blank && /^$/ { blank = 0; next }
+             { blank = 0; print }' .hypatia-ignore > .hypatia-ignore.mint
+        mv .hypatia-ignore.mint .hypatia-ignore
+    fi
 
     # Overlay .in rule (every archetype): an overlay ships content templates as
     # *.in so a substitution token never survives in a file whose final name is
