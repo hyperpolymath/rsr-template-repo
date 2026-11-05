@@ -111,6 +111,9 @@ jobs:
       # a repo was created with "Use this template" (metadatastician/lintel).
       - name: Template pin resolves by tree equality (controls)
         run: bash tests/workflows/resolve_template_pin_test.sh
+      # A replay trusts RSR_PACKAGE_UUID; only recorded answers may supply it.
+      - name: Replay passes a package uuid only from recorded answers
+        run: bash tests/workflows/replay_mint_env_test.sh
       # The first CI job to run a FULL mint: a Use-this-template child, checked
       # for provenance, untouched fixtures and ignored files, the map and the
       # closing advice. A fresh mint of main aborted on 2026-10-20 and nothing

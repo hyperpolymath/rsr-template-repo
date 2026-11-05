@@ -44,6 +44,10 @@ if [ $# -gt 3 ]; then
     PORT="$(ans port)" REGISTRY="$(ans registry)" RSR_MINT_DATE="$(ans mint-date)"
     RSR_PACKAGE_UUID="$(ans package-uuid)"
     ARCH="$(ans archetype)"
+else
+    # A fresh mint (a chain mint's new side) derives its package uuid: only a
+    # recorded (mint-answers) may supply one, never the caller's environment.
+    RSR_PACKAGE_UUID=""
 fi
 TDIR="$(cd "$TDIR" && pwd)"
 [ ! -e "$OUT" ] || { echo "replay-mint: $OUT already exists" >&2; exit 2; }

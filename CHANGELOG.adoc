@@ -21,7 +21,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   rendering stops before anything is written. Provenance records the root
   template commit plus `:derived-from` the parent. A parent minted before
   `(mint-answers)` is still refused. `scripts/replay-mint.sh` is now the one
-  replay path, shared with the drift gate.
+  replay path, shared with the drift gate; only a recorded `(mint-answers)`
+  supplies its package uuid, so the new side of a chain mint derives its own.
 * **An exact drift gate for minted repos: the mint is replayed.** repo-init
   records its answers in a `(mint-answers)` deed clause (owner ruling
   2026-11-04: only values it already writes into the child's files; the
