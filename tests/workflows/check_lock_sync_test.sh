@@ -363,3 +363,61 @@ sha_key
 sed -i "s#Owner/Repo/.github/workflows/check.yml@#Owner/Repo/.github/actions/check@#" "$work/current/ci.yml"
 self_ref
 expect 1 'SELF-SHA REFS' 'a path outside .github/workflows is not a reusable workflow'
+
+# The exception needs the key itself pinned to the same full SHA as ref:.
+fresh
+reusable_only
+self_ref
+expect 1 'SELF-SHA REFS' 'a mutable key (@v1) with a SHA ref is not covered by the exception'
+fresh
+reusable_only
+sha_key
+sed -i "s/ref: 'v1'/ref: '2222222222222222222222222222222222222222'/" "$work/current/actions.lock"
+expect 1 'SELF-SHA REFS' 'a SHA key whose ref names a different SHA is not covered'
+
+# Job-level vs step position is read from the YAML, not inferred from the
+# path: a step action may live in a directory named like a workflow file.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Owner/Repo/.github/workflows/tool.yml@v1
+YML
+sha_key
+self_ref
+expect 1 'SELF-SHA REFS' 'a step action with a workflow-shaped path is not a reusable call'
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    steps:
+      - name: build
+        uses: Owner/Repo/.github/workflows/tool.yml@v1
+  reusable:
+    uses: Owner/Repo/.github/workflows/check.yml@v1
+YML
+sha_key
+self_ref
+expect 1 'SELF-SHA REFS' 'a non-first step key with a workflow-shaped path still counts as an action'
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo build
+  reusable:
+    uses: Owner/Repo/.github/workflows/check.yml@v1
+YML
+sha_key
+self_ref
+expect 0 'OK' 'a job-level call after another job with steps is still a reusable call'
