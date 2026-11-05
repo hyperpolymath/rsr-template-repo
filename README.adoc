@@ -53,11 +53,15 @@ mise install                  # the toolchain, including the yq repo-init needs
 mise exec -- just repo-init   # interactive bootstrap: fills every {{PLACEHOLDER}}
 
 # 2. See the available tasks:
-just                     # lists all phases (build, test, validate, audit, ...)
+mise exec -- just             # lists all phases (build, test, validate, audit, ...)
 
 # 3. Check the repo still satisfies the RSR shape:
-just validate            # structure + metadata checks
+mise exec -- just validate    # structure + metadata checks
 ----
+
+`mise exec --` puts the toolchain on `PATH` for that one command. Once mise is
+activated in your shell (`eval "$(mise activate bash)"`, or your shell's
+equivalent), plain `just` works and the prefix can be dropped.
 
 `just repo-init` prompts for the project name, owner, author, licence contact, and the
 other values listed in `.machine_readable/ai/PLACEHOLDERS.adoc`, substitutes them

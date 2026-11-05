@@ -78,6 +78,10 @@ mise trust          # allow this repository's mise.toml
 mise install        # installs everything mise.toml lists, at mise.lock's versions
 ----
 
+The `just` commands from here on expect the toolchain on `PATH`: activate mise in
+your shell (`eval "$(mise activate bash)"`, or your shell's equivalent), or run each
+one as `mise exec -- just …`.
+
 That installs:
 
 [cols="1,2,3"]

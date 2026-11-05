@@ -26,7 +26,8 @@
 #   --check-values  fail unless SERVICE_NAME is an image-name component (the
 #                   distribution/reference grammar),
 #                   PORT is 1-65535 and REGISTRY is an image prefix
-#                   (host[:port] then lower-case path components).
+#                   (a host or [IPv6] address, an optional :port, then
+#                   lower-case path components).
 # Exit: 0 = formatted (or nothing to format: an archetype may prune
 #       build/container/), or values accepted; 1 = no KYAML-capable yq, a
 #       value refused, or the formatter refused a file (unparseable, data
@@ -38,12 +39,14 @@ if [ "${1:-}" = --check-values ]; then
         || { echo "error: service name '$name' is not an OCI image name (lower-case letters, digits, . _ -)." >&2; bad=1; }
     [[ "$port" =~ ^[0-9]{1,5}$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] \
         || { echo "error: port '$port' is not a number from 1 to 65535." >&2; bad=1; }
-    # A registry is the image prefix: a host (DNS labels, optional :port) and
-    # lower-case path components, as the distribution reference grammar has it.
+    # A registry is the image prefix: a host (DNS labels, or a bracketed IPv6
+    # address), an optional :port, then lower-case path components, as the
+    # distribution reference grammar has it.
     label='[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?'
+    host="($label(\.$label)*|\[[A-Fa-f0-9:]+\])"
     comp='[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*'
-    [[ "$registry" =~ ^$label(\.$label)*(:[0-9]+)?(/$comp)*$ ]] \
-        || { echo "error: registry '$registry' is not an image prefix: host[:port] then lower-case path components (letters, digits, . _ -)." >&2; bad=1; }
+    [[ "$registry" =~ ^$host(:[0-9]+)?(/$comp)*$ ]] \
+        || { echo "error: registry '$registry' is not an image prefix: a host or [IPv6] address, an optional :port, then lower-case path components (letters, digits, . _ -)." >&2; bad=1; }
     exit "$bad"
 fi
 PREFLIGHT=0

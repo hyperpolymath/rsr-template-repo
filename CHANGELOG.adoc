@@ -86,13 +86,16 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    for a yq that writes KYAML before they write anything (a mint that prunes
    `build/container/` needs none), refusing a service name, port or registry
    that would break the KYAML they fill or the substitution (the image-name
-   grammar; a registry of host[:port] and lower-case path components, the
-   owner lower-cased in its default). yq joins the base toolchain (`MISE_BASE`,
-   so every rendered `mise.toml`, and the template's own); `mise.lock` gains
-   its record with `just toolchain-refresh`. The quick-start docs install the
-   toolchain before `just repo-init`. Estate Rules installs its pinned yq
-   before the mint steps, and `use_template_mint_test.sh` checks the minted
-   configs and that a mint without a KYAML-capable yq stops untouched;
+   grammar; a registry of a host or bracketed IPv6 address, an optional port
+   and lower-case path components, the owner lower-cased in its default;
+   `container_kyaml_test.sh` holds the accepted and refused values). yq joins
+   the base toolchain (`MISE_BASE`, so every rendered `mise.toml`, and the
+   template's own); `mise.lock` gains its record with `just toolchain-refresh`.
+   The quick-start docs install the toolchain before `just repo-init` and run
+   every `just` through `mise exec --` unless mise is activated. Estate Rules
+   installs its pinned yq before the mint steps, and `use_template_mint_test.sh`
+   checks the minted configs and that a mint without a KYAML-capable yq stops
+   untouched;
 ** `mint-verbatim.txt` did not list `tests/ffi_strings_test.sh` or
    `tests/workflows/container_kyaml_test.sh`, token fixtures the placeholder
    gate then rejected in a child;
