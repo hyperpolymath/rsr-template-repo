@@ -116,9 +116,15 @@ jobs:
             echo "::error::A2ML ledger present but scripts/check-a2ml-archived.sh is missing from the standards checkout"
             exit 1
           fi
-          # Shrink-only: the base branch's ledger bounds this one.
+          # Shrink-only: the base branch's ledger bounds this one. A base that
+          # cannot be fetched fails the step: skipping the comparison would let
+          # a new ledger entry through exactly when it cannot be checked.
           A2ML_BASE=""
-          if [ -n "$BASE_REF" ] && git fetch -q --depth=1 origin "$BASE_REF"; then
+          if [ -n "$BASE_REF" ]; then
+            if ! git fetch -q --depth=1 origin "$BASE_REF"; then
+              echo "::error::could not fetch the base branch $BASE_REF to bound the A2ML ledger"
+              exit 1
+            fi
             A2ML_BASE=FETCH_HEAD
           fi
           A2ML_BASE="$A2ML_BASE" STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
