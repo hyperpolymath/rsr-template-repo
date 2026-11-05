@@ -121,6 +121,9 @@ printf '%s\n' "$probe" > "$C/mint-probe.md"
 # A pre-mint edit to a template file: the replay starts from the pinned tree,
 # so the mint must declare this as the child's own (Codex review of #275).
 printf '\nA local support note, written before the mint.\n' >> "$C/SUPPORT.adoc"
+# A pre-mint file in a directory the mint deletes (archetypes/): gone once the
+# mint is done, so it must not be declared (Codex review of #275).
+printf 'local\n' > "$C/archetypes/premint-local.txt"
 ignored_list() { (cd "$C" && git ls-files -o -i --exclude-standard | LC_ALL=C sort); }
 IGN_LIST=$(ignored_list)
 IGN_BEFORE=$(cd "$C" && printf '%s\n' "$IGN_LIST" | xargs -d '\n' sha256sum)
@@ -172,6 +175,32 @@ MINT_ENV=()
 grep -q 'contains a newline' "$work/newline.log" || { cat "$work/newline.log" >&2; fail 'the newline refusal did not say why'; }
 [ -z "$(g -C "$NL" status --porcelain)" ] || { g -C "$NL" status --short | head >&2; fail 'the refused mint wrote to the tree'; }
 pass "(a-) an answer containing a newline is refused before anything is written"
+
+# ── 4d. Control: an asserted pin whose tree this child does not hold ────────
+# The difference cannot be listed, so it cannot be declared: refused before
+# writing (Codex review of #275), not minted into certain drift.
+OLD=$(g -C "$T" rev-list -n 1 --skip=3 HEAD)
+[ "$(g -C "$T" rev-parse "$OLD^{tree}")" != "$T_TREE" ] || fail 'fixture: the older template commit has the same tree'
+AS="$work/asserted"
+use_template "$AS"
+MINT_ENV=(RSR_TEMPLATE_COMMIT="$OLD")
+if mint "$AS" "$work/asserted.log"; then fail 'a mint against an asserted tree it cannot compare went ahead'; fi
+MINT_ENV=()
+grep -q 'which this repository does not hold' "$work/asserted.log" || { tail -20 "$work/asserted.log" >&2; fail 'the uncomparable asserted pin was not refused by name'; }
+[ -z "$(g -C "$AS" status --porcelain)" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) an asserted template tree this child does not hold, and differs from, is refused before writing"
+
+# ── 4e. Control: a pre-mint change the mint would move is refused ───────────
+# The mint moves a root .well-known/ into www/.well-known/, so such a path
+# could not be declared where it ends up (Codex review of #275).
+WK="$work/wellknown"
+use_template "$WK"
+mkdir -p "$WK/.well-known"; printf 'local\n' > "$WK/.well-known/local.txt"
+wk_before=$(g -C "$WK" status --porcelain --untracked-files=all)
+if mint "$WK" "$work/wellknown.log"; then fail 'a pre-mint change under .well-known/ was minted'; fi
+grep -q 'the mint moves .well-known/ into www/.well-known/' "$work/wellknown.log" || { tail -20 "$work/wellknown.log" >&2; fail 'the .well-known refusal did not say why'; }
+[ "$(g -C "$WK" status --porcelain --untracked-files=all)" = "$wk_before" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) a pre-mint change under .well-known/, which the mint moves, is refused before writing"
 
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 # The project type is an answer no template file renders: (mint-answers)
@@ -247,6 +276,8 @@ bash "$C/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx
     || { grep -n ':diverged' "$DEED" >&2; fail 'the pre-mint edit was not declared diverged'; }
 grep -q 'already differ from the template tree' "$work/mint.log" && grep -q '^        SUPPORT.adoc$' "$work/mint.log" \
     || fail 'the mint did not name the pre-mint changes'
+[ ! -e "$C/archetypes/premint-local.txt" ] && ! grep -q 'premint-local.txt' "$DEED" \
+    || fail 'a pre-mint file the mint deleted was declared'
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
 # Minting the minted child again must stop before it writes: its tokens are
@@ -327,6 +358,21 @@ printf '[core]\n\thooksPath = %s\n' "$work/hooks" > "$work/hooky.gitconfig"
 (cd "$C" && GIT_CONFIG_GLOBAL="$work/hooky.gitconfig" RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1 \
     || { cat "$work/drift.log" >&2; fail 'a global pre-commit hook broke the replay'; }
 pass "(d) the replay is isolated from global git hooks"
+# Inherited git location variables (a hook's GIT_DIR, GIT_INDEX_FILE) cannot
+# redirect the gate's git (CodeRabbit review of #275).
+g init -q "$work/elsewhere"
+(cd "$C" && GIT_DIR="$work/elsewhere/.git" GIT_INDEX_FILE="$work/elsewhere/.git/index" \
+    RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1 \
+    || { cat "$work/drift.log" >&2; fail 'an inherited GIT_DIR redirected the drift gate'; }
+pass "(d) inherited git location variables do not redirect the gate"
+# The last path git lists, deleted, is named like any other: it used to fail
+# the file listing itself and stop the gate silently (CodeRabbit review of #275).
+LAST=$(g -C "$C" ls-files | tail -n 1)
+rm -- "$C/$LAST"
+if drift; then fail "the drift gate missed the deletion of $LAST"; fi
+grep -qF "DRIFT: $LAST was produced by the mint but is absent here" "$work/drift.log" || { cat "$work/drift.log" >&2; fail "the deleted last path $LAST was not named"; }
+g -C "$C" checkout -q -- "$LAST"
+pass "(d-) the deletion of the last path git lists is named"
 # A path the line-based lists cannot hold is refused by name, not misread.
 NLF="$C/two"$'\n'"lines.txt"; printf 'x\n' > "$NLF"
 if drift; then fail 'the drift gate passed a path containing a newline'; fi
