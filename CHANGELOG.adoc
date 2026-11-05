@@ -24,14 +24,17 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   replay path, shared with the drift gate.
 * **An exact drift gate for minted repos: the mint is replayed.** repo-init
   records its answers in a `(mint-answers)` deed clause (owner ruling
-  2026-11-04: only values it already writes into the child's files) and takes
-  its date from `RSR_MINT_DATE` when replaying. `scripts/check-mint-drift.sh`
-  re-mints the template at `(provenance :template-commit)` with those answers
+  2026-11-04: only values it already writes into the child's files; the
+  recipe checks each value against those files and names any it leaves out)
+  and takes its date from `RSR_MINT_DATE`; a replay also takes the recorded
+  Julia package uuid, which an ordinary mint always derives.
+  `scripts/check-mint-drift.sh` re-mints the template at `(provenance :template-commit)` with those answers
   and diffs the child against the result, so a fresh mint is green by
   construction and each later edit is named. `check-variant-drift.sh`
   delegates to it for a minted repo, and stage 8 recommends it again. The
   derived files (`CLAUDE.md`, the repository map) are declared diverged at
-  mint: their own gates keep them fresh.
+  mint: their own gates keep them fresh. Each side's file set is its tracked
+  or unignored files, so a force-added build artefact is still named.
 
 ==== Fixed
 

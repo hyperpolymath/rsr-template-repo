@@ -171,6 +171,9 @@ grep -q 'contains a newline' "$work/newline.log" || { cat "$work/newline.log" >&
 pass "(a-) an answer containing a newline is refused before anything is written"
 
 # ── 5. The mint ─────────────────────────────────────────────────────────────
+# The project type is an answer no template file renders: (mint-answers)
+# must not record it (Codex review of #275), and the replay must still be green.
+MINT_ENV=(PROJECT_TYPE=zq-unrendered-kind)
 mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
@@ -179,6 +182,7 @@ mint "$C" "$work/mint.log" || {
     fi
     fail 'just repo-init failed on a Use-this-template child'
 }
+MINT_ENV=()
 pass "the non-interactive mint completes on a Use-this-template child"
 DEED="$C/mint-check_chora.deed"
 [ -f "$DEED" ] || fail 'the child deed was not renamed to mint-check_chora.deed'
@@ -229,6 +233,9 @@ grep -q 'scripts/check-template-conformance.sh' "$work/mint.log" || fail 'repo-i
 [ "$(field mint-answers description)" = "$DESC" ] || fail "(mint-answers :description) is '$(field mint-answers description)'"
 [ "$(field mint-answers repo)" = mint-check ] && [ -n "$(field mint-answers mint-date)" ] \
     || fail '(mint-answers) lacks the repo or the mint date'
+# Only values already written into the child are recorded (owner ruling).
+if grep -q 'zq-unrendered-kind\|:project-type' "$DEED"; then fail '(mint-answers) recorded an answer that no file renders'; fi
+grep -q 'not recorded, written into no file here: project-type' "$work/mint.log" || fail 'the mint did not name the unrecorded answer'
 # The probe is the child's own addition after the mint: declared, as a child
 # declares its additions (and this exercises the declared path).
 sed -i 's|^      :added ()|      :added ("mint-probe.md")|' "$DEED"
@@ -268,6 +275,17 @@ grep -q '^DRIFT: declared-added mint-probe.md is missing' "$work/drift.log" || f
 [ "$(grep -c '^DRIFT:' "$work/drift.log")" -eq 3 ] || { cat "$work/drift.log" >&2; fail 'the drift gate reported more than the three changes'; }
 chmod -x "$C/README.adoc"; rm -r "$C/archetypes"; g -C "$C" checkout -q -- mint-probe.md
 pass "(d-) a mode change, a revived removal and a missing addition are each named"
+# Membership is the repository file set (Codex review of #275): an ignored
+# artefact the replay also generates, force-added here, is still an addition.
+AP=.machine_readable/arrival-pack/claude-md-data.json
+[ -f "$C/$AP" ] || fail "fixture: the mint did not generate $AP"
+g -C "$C" add -f -- "$AP"
+if drift; then fail 'the drift gate passed a force-added ignored artefact'; fi
+grep -qF "DRIFT: $AP exists here but the mint did not produce it" "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the force-added artefact was not named'; }
+[ "$(grep -c '^DRIFT:' "$work/drift.log")" -eq 1 ] || { cat "$work/drift.log" >&2; fail 'the drift gate reported more than the force-added artefact'; }
+g -C "$C" rm -q --cached -- "$AP"
+drift || { cat "$work/drift.log" >&2; fail 'the drift gate is not green again after the controls'; }
+pass "(d-) a force-added ignored artefact the replay also generates is named; green again once untracked"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the
