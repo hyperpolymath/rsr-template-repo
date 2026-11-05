@@ -69,8 +69,10 @@ container-init:
     read -rp "Primary port [8080]: " _PORT
     PORT="${_PORT:-8080}"
 
-    read -rp "Container registry [ghcr.io/${OWNER:-{{OWNER}}}]: " _REGISTRY
-    REGISTRY="${_REGISTRY:-ghcr.io/${OWNER:-{{OWNER}}}}"
+    # Image paths are lower case; an owner login may not be.
+    _OWNER="${OWNER:-{{OWNER}}}"; _OWNER="${_OWNER,,}"
+    read -rp "Container registry [ghcr.io/${_OWNER}]: " _REGISTRY
+    REGISTRY="${_REGISTRY:-ghcr.io/${_OWNER}}"
     bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY"
 
     echo ""

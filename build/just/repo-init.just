@@ -260,8 +260,8 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-${REPO,,}}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
         # The values fill double-quoted KYAML scalars: refuse a value that
         # would break them now, before anything is written.
         bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
@@ -269,7 +269,7 @@ repo-init archetype="":
     else
         SERVICE_NAME="${SERVICE_NAME:-${REPO,,}}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER}}"
+        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
     fi
 
     # --- Derived values ---
