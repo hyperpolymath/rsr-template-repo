@@ -4,7 +4,7 @@
 #
 # fork-governance.yml — PR-time entry point for DEED syntax, K9-DEED L0–L2
 # conformance, the gitbot-fleet report-backs, and THE Hypatia verdict grid.
-# Everything is pinned to metadatastician/standards@8e48b1caade08a552646adeab66558ac43b4360d.
+# Everything is pinned to metadatastician/standards@e064539116c2dcfdf282a4749dbd58c69961c7e6.
 #
 # ── HOW THIS FILE RELATES TO THE SCANNERS (read before editing) ──────────────
 #
@@ -90,9 +90,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-deed
-          sparse-checkout: 1-formats/deed
+          sparse-checkout: |
+            1-formats/deed
+            scripts
           sparse-checkout-cone-mode: true
           persist-credentials: false
 
@@ -102,12 +104,30 @@ jobs:
           bun-version: '1.3.12'
 
       - name: Validate DEED manifests and block retired .a2ml files
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           STANDARDS_ABS="$PWD/.standards-deed"
           rm -rf "$RUNNER_TEMP/standards-deed"
           mv "$STANDARDS_ABS" "$RUNNER_TEMP/standards-deed"
-          STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
+          # The lane is the gate: a ledger with no canonical gate to read it fails.
+          if [ -f .machine_readable/a2ml-legacy-allow.txt ] && [ ! -f "$RUNNER_TEMP/standards-deed/scripts/check-a2ml-archived.sh" ]; then
+            echo "::error::A2ML ledger present but scripts/check-a2ml-archived.sh is missing from the standards checkout"
+            exit 1
+          fi
+          # Shrink-only: the base branch's ledger bounds this one. A base that
+          # cannot be fetched fails the step: skipping the comparison would let
+          # a new ledger entry through exactly when it cannot be checked.
+          A2ML_BASE=""
+          if [ -n "$BASE_REF" ]; then
+            if ! git fetch -q --depth=1 origin "$BASE_REF"; then
+              echo "::error::could not fetch the base branch $BASE_REF to bound the A2ML ledger"
+              exit 1
+            fi
+            A2ML_BASE=FETCH_HEAD
+          fi
+          A2ML_BASE="$A2ML_BASE" STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
 
   k9:
     name: K9-DEED conformance
@@ -128,7 +148,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-k9
           sparse-checkout: 1-formats/k9
           sparse-checkout-cone-mode: true
@@ -148,6 +168,14 @@ jobs:
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/standards-k9"
           mv "$PWD/.standards-k9" "$RUNNER_TEMP/standards-k9"
+          if [ ! -f "$RUNNER_TEMP/standards-k9/1-formats/k9/tools/k9-validate.sh" ]; then
+            echo "::error::K9 validator is missing from the standards checkout"
+            exit 1
+          fi
+          if ! command -v nickel >/dev/null 2>&1; then
+            echo "::error::nickel is required for K9 layer L2 validation"
+            exit 1
+          fi
           STANDARDS_DIR="$RUNNER_TEMP/standards-k9" bash .github/hooks/validate-k9.sh
 
   # Fleet report-backs: the evidence behind each gitbot-fleet row of the verdict
@@ -165,12 +193,14 @@ jobs:
   fleet:
     name: Fleet report-backs
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Worst case, so a stalled phase never kills the job before the upload: the
+    # 2400 s build budget + seven adapters at 300 s + checkout, cache and upload.
+    timeout-minutes: 85
     permissions:
       contents: read
     env:
       # hyperpolymath/gitbot-fleet commit whose driver and adapters run.
-      FLEET_REF: e85b71bf139a61f956c7e0717a2912cd6e347cc5
+      FLEET_REF: e44af8144789594fcce891ccc7b77fc9a464a520
       # panic-attack commit for panicbot. Deliberately the SAME commit
       # static-analysis-gate.yml builds: panicbot is not enrolled today (the
       # grid's own panic-attack row already grades that scanner, so a second
@@ -322,7 +352,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-grid
           persist-credentials: false
           sparse-checkout: |
