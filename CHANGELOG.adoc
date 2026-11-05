@@ -25,7 +25,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   or unignored files, so a force-added build artefact is still named. The
   most specific declaration covering a path decides its category, so a file
   declared added under a directory the mint removes is an addition; a path
-  holding a newline is refused by name.
+  holding a newline is refused by name. A path declared diverged must be one
+  the mint produces; `operational-state` stays out of the comparison. The
+  replay's git runs without user or system configuration or hooks. What a
+  work tree already held beyond the pinned tree before the mint (an edit, an
+  untracked file, a deletion) is named by the mint and declared in
+  `(variant (paths))` as the repo's own, so the replay from the pin stays
+  exact.
 
 ==== Fixed
 

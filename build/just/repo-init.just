@@ -405,6 +405,44 @@ repo-init archetype="":
         exit 1
     fi
 
+    # --- What this work tree holds beyond the pinned tree -------------------
+    # The mint transforms the work tree as it stands; the drift gate replays
+    # from the pinned tree alone. Anything already changed here before the
+    # mint (an edit, an untracked file, a deletion) is this repo's own, not
+    # the mint's, so it is measured now and declared in (variant (paths)):
+    # the replay stays exact and the record says what happened (Codex review
+    # of #275). Measured in a scratch index and object store, so .git is not
+    # written. (A chain mint carries its parent's tree by its own rules.)
+    PREMINT_A=() PREMINT_M=() PREMINT_D=()
+    if [ "${CHAIN_MINT:-0}" != "1" ] && [ "$PARENT_TREE" != "UNASSIGNED" ]; then
+        if git cat-file -e "${PARENT_TREE}^{tree}" 2>/dev/null; then
+            _pm="$(mktemp -d)"; mkdir -p "$_pm/objects"
+            _gd="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
+            while IFS= read -r -d '' _st && IFS= read -r -d '' _p; do
+                case "$_p" in *$'\n'*) echo "Error: a path holding a newline cannot be declared: $(printf '%q' "$_p")"; rm -rf "$_pm"; exit 1 ;; esac
+                case "$_st" in
+                    A) PREMINT_A+=("$_p") ;;
+                    D) PREMINT_D+=("$_p") ;;
+                    *) PREMINT_M+=("$_p") ;;
+                esac
+            done < <(GIT_INDEX_FILE="$_pm/index" GIT_OBJECT_DIRECTORY="$_pm/objects" \
+                     GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
+                     sh -c 'git read-tree "$1" && git add -A . && git diff --cached -z --no-renames --name-status "$1"' _ "$PARENT_TREE")
+            rm -rf "$_pm"
+        else
+            # The pin was matched on the template's own history, i.e. by this
+            # work tree's tree itself: nothing differs.
+            :
+        fi
+        _n=$(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} ))
+        if [ "$_n" -gt 0 ]; then
+            echo "NOTE: ${_n} path(s) here already differ from the template tree ${PARENT_TREE:0:12}"
+            echo "      (${#PREMINT_A[@]} added, ${#PREMINT_M[@]} changed, ${#PREMINT_D[@]} removed before this mint). They are"
+            echo "      this repo's own, and are declared in (variant (paths)) as such:"
+            for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do echo "        $_p"; done
+        fi
+    fi
+
     echo ""
     echo "Replacing placeholders..."
 
@@ -1022,13 +1060,23 @@ repo-init archetype="":
         echo "    (normalise :rules \"action-pins self-name\")"
         echo "    ; Files a minted repo owns from birth are (paths :diverged …)."
         echo "    (paths"
-        echo "      :added ()"
+        # The paths this work tree changed before the mint (measured above),
+        # as they stand now: what the mint deleted is not declared, nor what
+        # is already declared below. Deed strings escape \ and ".
+        _dq() { printf '%s' "$1" | sed -e 's/[\\"]/\\&/g'; }
+        _owned=("${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc)
+        _is_owned() { local _o; for _o in "${_owned[@]}"; do [ "$1" = "$_o" ] && return 0; done; return 1; }
+        _there() { [ -e "$1" ] || [ -L "$1" ]; }
+        _list() { local _s="" _x; printf '      :%s (' "$1"; shift; for _x in "$@"; do printf '%s"%s"' "$_s" "$(_dq "$_x")"; _s=" "; done; printf ')'; }
+        _added=() _divs=("${_owned[@]}")
+        for _p in "${PREMINT_A[@]}"; do _there "$_p" && ! _is_owned "$_p" && _added+=("$_p"); done
+        for _p in "${PREMINT_M[@]}"; do _there "$_p" && ! _is_owned "$_p" && _divs+=("$_p"); done
         _removed=("${MINT_REMOVES[@]}")
         [ "${DEED_IN#./}" = "${REPO}_chora.deed" ] || _removed+=("${DEED_IN#./}")
-        printf '      :removed ('; _sep=""
-        for _p in "${_removed[@]}"; do printf '%s"%s"' "$_sep" "$_p"; _sep=" "; done
-        printf ')\n'
-        echo "      :diverged (\"${REPO}_chora.deed\" \"docs/status/ROADMAP.adoc\" \"CLAUDE.md\" \"docs/architecture/REPOSITORY-MAP.adoc\")))"
+        for _p in "${PREMINT_D[@]}"; do _there "$_p" || _is_owned "$_p" || _removed+=("$_p"); done
+        _list added "${_added[@]}"; echo
+        _list removed "${_removed[@]}"; echo
+        _list diverged "${_divs[@]}"; echo "))"
     } | put_clause variant
     if [ "$PARENT_PIN" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (variant) — parent-pin UNASSIGNED (offline?)"
