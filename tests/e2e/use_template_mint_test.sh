@@ -87,6 +87,7 @@ use_template() {
 # sed syntax (`&` inserted the token itself). MINT_ENV adds per-call settings.
 DESC='Tools & proofs | checked'
 MINT_ENV=()
+MINT_ARCH=""
 
 # mint DIR LOG — the non-interactive mint, isolated from this host's defaults
 # file and global git config (an ORCID or signing key there would leak in).
@@ -98,7 +99,7 @@ mint() {
         RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$T" RSR_MINT_TOOL_CACHE="$work/tools" \
         PROJECT_NAME="Mint Check" REPO=mint-check OWNER=example-owner \
         AUTHOR="Example Author" AUTHOR_EMAIL=author@example.org PROJECT_DESCRIPTION="$DESC" \
-        "${MINT_ENV[@]}" timeout 900 just repo-init </dev/null) > "$2" 2>&1
+        "${MINT_ENV[@]}" timeout 900 just repo-init ${MINT_ARCH:+"$MINT_ARCH"} </dev/null) > "$2" 2>&1
 }
 
 # ── 2. The child, with an ignored cache and an untracked probe ──────────────
@@ -121,6 +122,10 @@ printf '%s\n' "$probe" > "$C/mint-probe.md"
 # A pre-mint edit to a template file: the replay starts from the pinned tree,
 # so the mint must declare this as the child's own (Codex review of #275).
 printf '\nA local support note, written before the mint.\n' >> "$C/SUPPORT.adoc"
+# A pre-mint edit to an INPUT of the mint: the docs seed it renders into
+# docs/usage.adoc, then deletes. Only a replay sees what that changes (CodeRabbit
+# review of #275).
+printf '\nA local usage note, added to the seed before the mint.\n' >> "$C/build/docs-seed/usage.adoc"
 # A pre-mint file in a directory the mint deletes (archetypes/): gone once the
 # mint is done, so it must not be declared (Codex review of #275).
 printf 'local\n' > "$C/archetypes/premint-local.txt"
@@ -221,6 +226,20 @@ grep -q 'the mint writes that path itself' "$work/docsseed.log" && grep -q 'docs
 [ "$(cat "$DS/docs/usage.adoc")" = 'my own usage notes' ] && [ "$(g -C "$DS" status --porcelain --untracked-files=all)" = "$ds_before" ] \
     || fail 'the refused mint wrote to the tree'
 pass "(a-) a pre-mint file at a path the mint writes (the docs seed) is refused before writing"
+# The same for an edited template file the overlay replaces: julia-library's
+# overlay writes .machine_readable/descriptiles/provisioning_praxis.deed
+# (Codex review of #275).
+JO="$work/juliaoverlay"
+use_template "$JO"
+printf '; edited before the mint\n' >> "$JO/.machine_readable/descriptiles/provisioning_praxis.deed"
+jo_before=$(g -C "$JO" status --porcelain --untracked-files=all)
+MINT_ARCH=julia-library
+if mint "$JO" "$work/juliaoverlay.log"; then fail 'an edited file the overlay replaces was minted over'; fi
+MINT_ARCH=""
+grep -q 'provisioning_praxis.deed changed before the mint' "$work/juliaoverlay.log" \
+    || { tail -20 "$work/juliaoverlay.log" >&2; fail 'the overlay overwrite was not refused by name'; }
+[ "$(g -C "$JO" status --porcelain --untracked-files=all)" = "$jo_before" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) an edited template file the archetype overlay replaces is refused before writing"
 
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 # The project type is an answer no template file renders: (mint-answers)
@@ -298,6 +317,9 @@ grep -q 'already differ from the template tree' "$work/mint.log" && grep -q '^  
     || fail 'the mint did not name the pre-mint changes'
 [ ! -e "$C/archetypes/premint-local.txt" ] && ! grep -q 'premint-local.txt' "$DEED" \
     || fail 'a pre-mint file the mint deleted was declared'
+bash "$C/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx docs/usage.adoc \
+    && grep -q 'A local usage note' "$C/docs/usage.adoc" \
+    || { grep -n ':diverged' "$DEED" >&2; fail 'a pre-mint edit to the docs seed was not declared where it lands'; }
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
 # Minting the minted child again must stop before it writes: its tokens are
@@ -402,6 +424,29 @@ if drift; then fail 'the drift gate passed a path containing a newline'; fi
 grep -q 'cannot check a path containing a newline' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the newline path was not refused by name'; }
 rm -- "$NLF"
 pass "(d-) a path containing a newline is refused by name"
+
+# ── A template whose identity needs RSR_TEMPLATE_SLUG, replayed ─────────────
+# repo-init supports a template whose Justfile names its identity through
+# env(...), given RSR_TEMPLATE_SLUG. The drift gate's replay must pass the
+# recorded slug on, or it cannot run at all (Codex review of #275).
+SL_TREE=$(cd "$T" && GIT_INDEX_FILE="$work/slug.index" git read-tree "$T_TREE" && cp Justfile "$work/Justfile.slug" \
+    && sed -i -E 's/^(OWNER|REPO)([[:space:]]*:=[[:space:]]*)"([^"]+)"/\1\2env("RSR_\1", "\3")/' "$work/Justfile.slug" \
+    && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "100644,$(git hash-object -w "$work/Justfile.slug"),Justfile" \
+    && GIT_INDEX_FILE="$work/slug.index" git write-tree)
+SL_COMMIT=$(g -C "$T" commit-tree "$SL_TREE" -p "$T_COMMIT" -m "a template naming itself through env()")
+g -C "$T" branch -q env-identity "$SL_COMMIT"
+SLC="$work/slugchild"
+rm -rf "$SLC"; mkdir -p "$SLC"
+g -C "$T" archive "$SL_COMMIT" | tar x -C "$SLC"
+g -C "$SLC" init -q -b main; g -C "$SLC" add -A; g -C "$SLC" commit -q -m "Initial commit"
+g -C "$SLC" remote add origin git@github.com:example-owner/mint-check.git
+MINT_ENV=(RSR_TEMPLATE_SLUG="$T_SLUG" RSR_TEMPLATE_COMMIT="$SL_COMMIT")
+mint "$SLC" "$work/slug.log" || { tail -30 "$work/slug.log" >&2; fail 'the env()-identity template did not mint with RSR_TEMPLATE_SLUG'; }
+MINT_ENV=()
+g -C "$SLC" add -A; g -C "$SLC" commit -q -m mint
+(cd "$SLC" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/slugdrift.log" 2>&1 \
+    || { cat "$work/slugdrift.log" >&2; fail 'the drift gate could not replay a template that needs RSR_TEMPLATE_SLUG'; }
+pass "(d) a template naming itself through env() is replayed with its recorded slug: green"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the
