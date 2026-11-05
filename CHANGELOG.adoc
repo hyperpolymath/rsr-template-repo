@@ -85,7 +85,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    `scripts/format-container-kyaml.sh` after their substitution pass, and check
    for a yq that writes KYAML before they write anything (a mint that prunes
    `build/container/` needs none), refusing a service name, port or registry
-   that would break the KYAML they fill. yq joins the base toolchain (`MISE_BASE`,
+   that would break the KYAML they fill or the substitution (the image-name
+   grammar; registry characters `. _ : / -` only). yq joins the base toolchain (`MISE_BASE`,
    so every rendered `mise.toml`, and the template's own); `mise.lock` gains
    its record with `just toolchain-refresh`. The quick-start docs install the
    toolchain before `just repo-init`. Estate Rules installs its pinned yq

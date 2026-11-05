@@ -23,9 +23,10 @@
 #        format-container-kyaml.sh --check-values SERVICE_NAME PORT REGISTRY
 #   --preflight     write nothing; fail when configs are present and no
 #                   KYAML-capable yq is on PATH.
-#   --check-values  fail unless SERVICE_NAME is an OCI image-name component,
-#                   PORT is 1-65535 and REGISTRY has no quote, backslash or
-#                   whitespace.
+#   --check-values  fail unless SERVICE_NAME is an image-name component (the
+#                   distribution/reference grammar),
+#                   PORT is 1-65535 and REGISTRY uses only letters, digits
+#                   and . _ : / - (no quote, backslash or sed metacharacter).
 # Exit: 0 = formatted (or nothing to format: an archetype may prune
 #       build/container/), or values accepted; 1 = no KYAML-capable yq, a
 #       value refused, or the formatter refused a file (unparseable, data
@@ -33,12 +34,12 @@
 set -euo pipefail
 if [ "${1:-}" = --check-values ]; then
     name="${2:-}" port="${3:-}" registry="${4:-}" bad=0
-    [[ "$name" =~ ^[a-z0-9]+([._-]+[a-z0-9]+)*$ ]] \
+    [[ "$name" =~ ^[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*$ ]] \
         || { echo "error: service name '$name' is not an OCI image name (lower-case letters, digits, . _ -)." >&2; bad=1; }
     [[ "$port" =~ ^[0-9]{1,5}$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] \
         || { echo "error: port '$port' is not a number from 1 to 65535." >&2; bad=1; }
-    [[ -n "$registry" && ! "$registry" =~ [[:space:]\"\\] ]] \
-        || { echo "error: registry '$registry' is empty or contains a quote, backslash or whitespace." >&2; bad=1; }
+    [[ "$registry" =~ ^[A-Za-z0-9._:/-]+$ ]] \
+        || { echo "error: registry '$registry' must be a host[:port][/path] of letters, digits and . _ : / - only." >&2; bad=1; }
     exit "$bad"
 fi
 PREFLIGHT=0

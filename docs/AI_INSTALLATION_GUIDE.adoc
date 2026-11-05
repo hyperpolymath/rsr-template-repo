@@ -43,6 +43,7 @@ with no git ancestry; `just repo-init` recovers the template tip via
 
 [source,bash]
 ----
+mise trust                 # allow this repository's mise.toml (no prompt without a TTY)
 mise install              # the toolchain, including the yq repo-init needs
 mise exec -- just repo-init   # or: mise exec -- just repo-init <archetype>
 ----

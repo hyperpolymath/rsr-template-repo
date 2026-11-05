@@ -48,6 +48,7 @@ Replace this section with a description of *your* project once initialised.
 [source,bash]
 ----
 # 1. Create a repo from this template (or clone it), then from the repo root:
+mise trust                    # allow this repository's mise.toml (needed without a TTY)
 mise install                  # the toolchain, including the yq repo-init needs
 mise exec -- just repo-init   # interactive bootstrap: fills every {{PLACEHOLDER}}
 
