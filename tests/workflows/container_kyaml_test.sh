@@ -133,10 +133,11 @@ echo 'PASS: container-init substitutions preserve service references and string 
 # image reference container tooling rejects. Each refused value is a mutant
 # of an accepted one, so a check that accepts everything fails here.
 check_values() { bash "$repo/scripts/format-container-kyaml.sh" --check-values "$@" 2>/dev/null; }
-for registry in ghcr.io/acme localhost:5000/team host:65535/team registry.example.com '[2001:db8::1]:5000/team' '[::1]/x'; do
+for registry in ghcr.io/acme localhost:5000/team host:65535/team registry.example.com '[2001:db8::1]:5000/team' '[::1]/x' '[::]' '[1:2:3:4:5:6:7:8]' '[1:2:3:4:5:6::8]'; do
     check_values demo-api 8080 "$registry" || fail "registry '$registry' was refused"
 done
-for registry in / ghcr.io/Acme host:bad-port ghcr.io//acme ghcr.io/ '[]' '[2001:db8::1' '2001:db8::1:5000/team' '[g::1]' '[::1]:' 'ghcr.io/a|b' host:0/team host:65536/team '[::1]:70000/team'; do
+for registry in / ghcr.io/Acme host:bad-port ghcr.io//acme ghcr.io/ '[]' '[2001:db8::1' '2001:db8::1:5000/team' '[g::1]' '[::1]:' 'ghcr.io/a|b' host:0/team host:65536/team '[::1]:70000/team' \
+    '[::::]:5000/team' '[1::2::3]/team' '[:1::2]' '[1::2:]' '[1:2:3]' '[1:2:3:4:5:6:7:8:9]' '[1::2:3:4:5:6:7:8]' '[12345::1]'; do
     ! check_values demo-api 8080 "$registry" || fail "registry '$registry' was accepted"
 done
 # The service name is also a bare TOML key and a hostname, so it is a DNS

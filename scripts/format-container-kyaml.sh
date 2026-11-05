@@ -25,8 +25,9 @@
 #                   KYAML-capable yq is on PATH.
 #   --check-values  fail unless SERVICE_NAME is a DNS label (lower-case
 #                   letters, digits and inner hyphens, at most 63), PORT is
-#                   1-65535 and REGISTRY is an image prefix (a host or [IPv6]
-#                   address, an optional :port from 1 to 65535, then
+#                   1-65535 and REGISTRY is an image prefix (a host or an
+#                   [IPv6] address in RFC 4291 text, an optional :port from
+#                   1 to 65535, then
 #                   lower-case path components).
 # Exit: 0 = formatted (or nothing to format: an archetype may prune
 #       build/container/), or values accepted; 1 = no KYAML-capable yq, a
@@ -54,8 +55,31 @@ if [ "${1:-}" = --check-values ]; then
     # IPv6 host ends in "]", so a trailing ":digits" before the path is a port.
     registry_port=""
     if [[ "${registry%%/*}" =~ :([0-9]+)$ ]]; then registry_port="${BASH_REMATCH[1]}"; fi
+    # The grammar's bracket form is any hex and colons; an address is RFC 4291
+    # text: eight groups of 1-4 hex digits, or fewer around a single "::".
+    is_ipv6() {
+        local a="$1" g n=0 groups
+        [[ "$a" =~ ^[0-9A-Fa-f:]+$ ]] || return 1
+        [[ "$a" != *:::* ]] || return 1
+        [[ "$a" != :* || "$a" == ::* ]] || return 1
+        [[ "$a" != *: || "$a" == *:: ]] || return 1
+        IFS=: read -ra groups <<< "$a"
+        for g in "${groups[@]}"; do
+            [ -n "$g" ] || continue
+            [ "${#g}" -le 4 ] || return 1
+            n=$((n + 1))
+        done
+        case "$a" in
+            *::*::*) return 1 ;;
+            *::*) [ "$n" -le 7 ] ;;
+            *) [ "$n" -eq 8 ] ;;
+        esac
+    }
+    registry_v6=""
+    if [[ "$registry" == \[* ]]; then registry_v6="${registry#\[}"; registry_v6="${registry_v6%%\]*}"; fi
     if ! [[ "$registry" =~ ^$host(:[0-9]+)?(/$comp)*$ ]] \
-        || { [ -n "$registry_port" ] && ! in_port_range "$registry_port"; }; then
+        || { [ -n "$registry_port" ] && ! in_port_range "$registry_port"; } \
+        || { [[ "$registry" == \[* ]] && ! is_ipv6 "$registry_v6"; }; then
         echo "error: registry '$registry' is not an image prefix: a host or [IPv6] address, an optional :port from 1 to 65535, then lower-case path components (letters, digits, . _ -)." >&2; bad=1
     fi
     exit "$bad"

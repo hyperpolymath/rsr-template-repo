@@ -87,7 +87,7 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    `build/container/` needs none), refusing a service name, port or registry
    that would break the KYAML they fill or the substitution (a service name
    that is a DNS label, since it is also a TOML table key and the backend's
-   hostname; a registry of a host or bracketed IPv6 address, an optional port
+   hostname; a registry of a host or a bracketed IPv6 address in RFC 4291 text, an optional port
    from 1 to 65535 and lower-case path components, the owner lower-cased in
    its default;
    `container_kyaml_test.sh` holds the accepted and refused values). yq joins
