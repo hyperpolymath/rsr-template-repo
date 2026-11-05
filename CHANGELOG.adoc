@@ -108,9 +108,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 * **repo-init follow-ups to #251 (the Codex review it merged before).**
 ** Re-minting a minted repo silently inherited its parent's author, contacts
-   and identity (its tokens are filled and `build/templates` is gone). It now
-   stops before writing and names the template to mint from. Chain minting is
-   the owner's chosen fix and lands separately; this refusal is the interim.
+   and identity (its tokens are filled and `build/templates` is gone). A
+   minted repo that records `(mint-answers)` is now chain-minted (see Added);
+   one that does not is refused before writing, naming its template.
 ** The template identity no longer falls back to the git remote, which in a
    template-created child is the child itself. A Justfile without readable
    `OWNER :=`/`REPO :=` (now also `export`) needs `RSR_TEMPLATE_SLUG`.
