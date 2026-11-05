@@ -15,8 +15,11 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 ** the mint deletes `build/docs-seed/` but kept its `SD022` exemption in
    `.hypatia-ignore`, so the child's Hypatia exemption gate failed on a stale
    path. `repo-init` now drops that exemption block with the directory, and
-   `tests/e2e/use_template_mint_test.sh` checks the child's gate (observed
-   failing with the mint fix held back);
+   the matching `structural_drift` entry from
+   `.machine_readable/policies/hypatia-rule-order.json` (without it the
+   rule-order gate fails instead). `tests/e2e/use_template_mint_test.sh` checks
+   both of the child's gates and that the policy stays JCS (each observed
+   failing with its mint fix held back);
 ** `tests/e2e/use_template_mint_test.sh` mints the template, so in a child
    (no `archetypes/`) it aborted on a token nothing can answer. It now
    self-skips there, as `tests/e2e/template_instantiation_test.sh` already
