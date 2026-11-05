@@ -59,7 +59,7 @@ use_template() {
 # mint DIR LOG REPO OWNER AUTHOR EMAIL DESC [ARCHETYPE [PROJECT_NAME]] — a
 # non-interactive mint, isolated. The project name defaults to the repo name.
 mint() {
-    local cfg="$work/cfg"; mkdir -p "$cfg"; : > "$cfg/gitconfig"
+    local cfg="$work/cfg"; mkdir -p "$cfg"; printf '%s' "${MINT_GITCONFIG:-}" > "$cfg/gitconfig"
     (cd "$1" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
@@ -112,6 +112,13 @@ printf 'plain\n' > "$P/notes/to-become-dir.txt"
 mkdir -p "$P/_build"; printf 'kept\n' > "$P/_build/keep.txt"
 g -C "$P" check-ignore -q _build/keep.txt || fail 'fixture: _build/ is not ignored'
 g -C "$P" add -f _build/keep.txt
+# A file under a filter the grandchild's checkout configures (below), whose
+# content the rename pass changes, so the write-back must check it out.
+printf 'elder-proj filtered note\n' > "$P/notes/elder.bad"
+# A carried gate with a side effect: what it writes while the gates run is
+# not part of the result (Codex review of #277).
+sed -i '1a printf "side\\n" > gate-output.txt' "$P/scripts/check-container-pins.sh"
+grep -q 'gate-output.txt' "$P/scripts/check-container-pins.sh" || fail 'fixture: the gate side effect was not added'
 g -C "$P" add -A; g -C "$P" commit -q -m "the parent's own work"
 pass "fixture: a minted parent with its own edit, addition and removal"
 
@@ -131,8 +138,14 @@ HEAD_TREE=$(g -C "$G" rev-parse 'HEAD^{tree}')
 cp "$G/.git/index" "$work/snap.index"   # tracked files stay, ignore rules or not
 P_TREE=$(cd "$G" && GIT_INDEX_FILE="$work/snap.index" git add -A . && GIT_INDEX_FILE="$work/snap.index" git write-tree)
 [ "$P_TREE" != "$HEAD_TREE" ] || fail 'fixture: the uncommitted file did not change the tree'
+# Under a global init.templateDir whose info/attributes would re-encode the
+# template clone's checkouts: the chain's clone must not take it (Codex review
+# of #277).
+mkdir -p "$work/inittpl/info"; printf 'README.adoc working-tree-encoding=UTF-16\n' > "$work/inittpl/info/attributes"
+MINT_GITCONFIG="$(printf '[init]\n\ttemplateDir = %s\n' "$work/inittpl")"
 mint "$G" "$work/chain.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
     || { tail -40 "$work/chain.log" >&2; fail 'the chain mint failed'; }
+MINT_GITCONFIG=""
 grep -q 'minted as a chain' "$work/chain.log" || fail 'repo-init did not take the chain path'
 pass "a minted repo is minted again, as a chain"
 
@@ -204,6 +217,9 @@ if grep -qF 'to-become-dir.txt/secret' "$DEED" || g -C "$G" ls-files -co --exclu
 fi
 [ "$(cat "$G/notes/to-become-dir.txt/secret.txt")" = 'not for the chain' ] || fail 'the ignored file was changed'
 pass "a carried generator's output is declared; an ignored file is never read into the chain"
+[ ! -e "$G/gate-output.txt" ] && ! grep -q 'gate-output.txt' "$DEED" \
+    || fail 'a file a gate wrote while the gates ran was carried into the result'
+pass "what the gates write while they run is not part of the result"
 
 # The grandchild's drift gate replays ITS mint: green, carried work declared.
 g -C "$G" add -A; g -C "$G" commit -q -m "chain mint"
@@ -301,6 +317,58 @@ grep -q 'symlink at .machine_readable/arrival-pack/claude-md-data.json' "$work/l
     || fail 'a chain mint wrote through a parent-controlled symlink'
 [ -z "$(g -C "$G6" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
 pass "(-) parent-controlled symlinks are never written through; one at a written path is refused"
+# The arrival-pack generator writes temporary files too: a carried symlink at
+# one is refused by name (Codex review of #277).
+P8="$work/parent8"
+g clone -q --no-local "$P" "$P8"
+printf 'untouched\n' > "$work/sentinel-region"
+ln -s "$work/sentinel-region" "$P8/.machine_readable/arrival-pack/.region.tmp"
+g -C "$P8" add -f .machine_readable/arrival-pack/.region.tmp; g -C "$P8" commit -q -m "a symlink at a temporary path"
+G8="$work/grandchild8"
+use_template "$P8" HEAD "$G8" git@github.com:other-owner/grand-check.git
+if mint "$G8" "$work/region.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint ran with a symlink at the generator'"'"'s temporary path'
+fi
+grep -q 'symlink at .machine_readable/arrival-pack/.region.tmp' "$work/region.log" \
+    || { tail -20 "$work/region.log" >&2; fail 'the symlink at the temporary path was not refused by name'; }
+[ "$(cat "$work/sentinel-region")" = untouched ] && [ -z "$(g -C "$G8" status --porcelain)" ] \
+    || fail 'the refused chain mint wrote through the symlink or to the tree'
+pass "(-) a symlink at the generator's temporary path is refused before anything is written"
+
+# The baselines replay the mint with the wrapper at the pin: a parent that
+# edited its own copy cannot change what counts as its own work (Codex review
+# of #277). This one removes README.adoc after every replay.
+P11="$work/parent11"
+g clone -q --no-local "$P" "$P11"
+g -C "$P11" reset -q --hard HEAD~1   # the parent's mint, before its own work
+printf 'rm -f "$OUT/README.adoc"\n' >> "$P11/scripts/replay-mint.sh"
+g -C "$P11" commit -q -am "an edited replay wrapper"
+G11="$work/grandchild11"
+use_template "$P11" HEAD "$G11" git@github.com:other-owner/grand-check.git
+mint "$G11" "$work/wrapper.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
+    || { tail -40 "$work/wrapper.log" >&2; fail 'the chain mint of a parent with an edited replay wrapper failed'; }
+if grep -qE 'elder-proj|Elder tools|Eldra Author' "$G11/README.adoc" \
+   || bash "$G11/scripts/deed-field.sh" --list "$G11/grand-check_chora.deed" variant/paths added | grep -qx README.adoc; then
+    fail 'the parent'"'"'s edited replay wrapper redefined the baseline: its README was carried as its own work'
+fi
+grep -qF 'Grand tools' "$G11/README.adoc" || fail 'the README was not rendered for the grandchild'
+pass "the baselines replay with the wrapper at the pin, not the parent's edited copy"
+
+# A smudge filter that fails during the write-back stops the chain before the
+# checkout is touched: read-tree -u is not atomic (Codex review of #277).
+G10="$work/grandchild10"
+use_template "$P" HEAD "$G10" git@github.com:other-owner/grand-check.git
+g -C "$G10" config filter.bad.clean cat; g -C "$G10" config filter.bad.smudge false; g -C "$G10" config filter.bad.required true
+printf '*.bad filter=bad\n' >> "$G10/.gitattributes"
+g10_before=$(g -C "$G10" status --porcelain --untracked-files=all); g10_readme=$(sha256sum < "$G10/README.adoc")
+if mint "$G10" "$work/filter.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint went ahead with a smudge filter that fails'
+fi
+grep -q 'a filter failed' "$work/filter.log" || { tail -20 "$work/filter.log" >&2; fail 'the failing filter was not reported'; }
+[ "$(g -C "$G10" status --porcelain --untracked-files=all)" = "$g10_before" ] \
+    && [ "$(sha256sum < "$G10/README.adoc")" = "$g10_readme" ] && [ "$(cat "$G10/notes/elder.bad")" = 'elder-proj filtered note' ] \
+    || { g -C "$G10" status --porcelain >&2; fail 'the chain mint wrote part of the result before the filter failed'; }
+pass "(-) a smudge filter that fails is found before anything is written"
 
 # ── A declaration that changes only in category ─────────────────────────────
 # A parent, just minted, deletes .clinerules and changes its carried generator
@@ -457,5 +525,21 @@ g -C "$JG3" add -A; g -C "$JG3" commit -q -m "chain mint"
 (cd "$JG3" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/jdropdrift.log" 2>&1 \
     || { cat "$work/jdropdrift.log" >&2; fail 'the grandchild of a parent without its entry point has a red drift gate'; }
 pass "a parent deletion is carried across an answer-dependent rename and declared; the drift gate is green"
+
+# A parent that changed its entry point's type (a file to a symlink): the
+# fresh mint puts that file elsewhere, so the change cannot be carried there.
+# Refused by name, not carried beside the fresh file (Codex review of #277).
+g -C "$JP" checkout -q -b retype-entry main 2>/dev/null || g -C "$JP" checkout -q -b retype-entry master
+g -C "$JP" rm -q src/ElderPkg.jl; ln -s ../README.adoc "$JP/src/ElderPkg.jl"; g -C "$JP" add src/ElderPkg.jl
+g -C "$JP" commit -q -m "the entry point becomes a symlink"
+JG4="$work/jgrandchild4"
+use_template "$JP" retype-entry "$JG4" git@github.com:other-owner/GrandPkg.jl.git
+if mint "$JG4" "$work/jretype.log" GrandPkg.jl other-owner "Other Author" other@example.org "Grand tools" julia-library GrandPkg; then
+    fail 'a type change across an answer-dependent rename was carried'
+fi
+grep -q 'changed the type of src/ElderPkg.jl, which this mint renames to src/GrandPkg.jl' "$work/jretype.log" \
+    || { tail -20 "$work/jretype.log" >&2; fail 'the type change across the rename was not refused by name'; }
+[ -z "$(g -C "$JG4" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) a type change across an answer-dependent rename is refused before anything is written"
 
 echo "PASS: chain mint"

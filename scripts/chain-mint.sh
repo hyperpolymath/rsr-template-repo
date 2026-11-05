@@ -84,16 +84,27 @@ trap 'rm -rf "$WORK"' EXIT
 URL="${RSR_TEMPLATE_URL:-https://github.com/${TSLUG}.git}"
 FILTER=(--filter=blob:none)
 case "$URL" in *://*|*@*:*) ;; *) FILTER=() ;; esac
-git clone -q --no-checkout "${FILTER[@]}" "$URL" "$WORK/template" 2>"$WORK/clone.err" \
+# --template= (none): a global init.templateDir must not put an info/attributes
+# into the clone, which every checkout from it would then honour (Codex review
+# of #277). Transport settings (credentials, insteadOf) still apply.
+git clone -q --no-checkout --template= "${FILTER[@]}" "$URL" "$WORK/template" 2>"$WORK/clone.err" \
     || { cat "$WORK/clone.err" >&2; die "cannot read ${TSLUG} from $URL (set RSR_TEMPLATE_URL)"; }
 git -C "$WORK/template" cat-file -e "${PIN}^{commit}" 2>/dev/null \
     || die "$URL does not contain the parent's template commit $PIN"
 
+# Both baselines are functions of the pin and the answers alone: they run the
+# replay wrapper as the template commit has it, not the parent's carried copy,
+# which the parent may have edited (Codex review of #277).
+PINNED="$WORK/pinned"; mkdir -p "$PINNED"
+for s in replay-mint.sh deed-field.sh; do
+    git -C "$WORK/template" show "${PIN}:scripts/$s" > "$PINNED/$s" 2>/dev/null \
+        || die "the template commit ${PIN:0:12} has no scripts/$s, so its mint cannot be replayed for a chain; nothing was written"
+done
 echo "  chain: replaying the parent's mint (${TSLUG}@${PIN:0:12}, its own answers)"
-bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/base" --answers-from "$PDEED" \
+bash "$PINNED/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/base" --answers-from "$PDEED" \
     || die "the replay of the parent's mint failed (above); nothing was written"
 echo "  chain: minting ${TSLUG}@${PIN:0:12} with this repo's answers"
-ARCHETYPE="$P_ARCH" RSR_TEMPLATE_SLUG="$TSLUG" bash "$HERE/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/new" \
+ARCHETYPE="$P_ARCH" RSR_TEMPLATE_SLUG="$TSLUG" bash "$PINNED/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/new" \
     || die "the mint with the new answers failed (above); nothing was written"
 
 
@@ -176,6 +187,11 @@ while IFS= read -r -d '' f; do
     [ -z "${RENAMED[$f]:-}" ] || with_index ours rm -q --cached --ignore-unmatch -- "${RENAMED[$f]}"
 done < <(g -C "$M" diff -z --no-renames --name-only --diff-filter=D "$B" "$THEIRS")
 while IFS= read -r -d '' f; do
+    # The fresh mint has this path elsewhere: the parent's new type cannot be
+    # put where the new answers put the file. Refused by name, rather than
+    # carried at the old path beside the fresh one (Codex review of #277).
+    [ -z "${RENAMED[$f]:-}" ] \
+        || die "the parent changed the type of $f, which this mint renames to ${RENAMED[$f]}; a chain mint cannot carry that across the rename. Restore it in the parent (or mint from the template); nothing was written"
     with_index ours rm -q --cached --ignore-unmatch -- "$f"
     read -r mode _ sha _ <<<"$(g -C "$M" ls-tree "$B" -- "$f")"
     with_index ours update-index --add --cacheinfo "$mode,$sha,$f"
@@ -240,8 +256,11 @@ done < <(inherited)
 # symlink the parent carried at one of them, or at a directory above one,
 # would redirect the write (Codex review of #277). Refused by name.
 DEED="$F/${REPO}_chora.deed"
+# The arrival-pack generator's temporary files included (CLAUDE.md.tmp is
+# moved over CLAUDE.md) (Codex review of #277).
 for w in "${REPO}_chora.deed" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc \
-         .machine_readable/arrival-pack/claude-md-data.json; do
+         .machine_readable/arrival-pack/claude-md-data.json CLAUDE.md.tmp \
+         .machine_readable/arrival-pack/.region.tmp; do
     p="$w"
     while :; do
         [ ! -L "$F/$p" ] || die "the carried tree has a symlink at $p, where the mint writes $w; nothing was written"
@@ -341,6 +360,11 @@ if ! cmp -s "$WORK/declared.before" "$WORK/declared.now"; then
         || die "the carried generators keep changing the tree (the declaration does not settle); nothing was written"
 fi
 
+# The result, fixed here: the gates below run on F, and whatever they write
+# there (a report, a cache) is theirs, not the result's (Codex review of #277).
+FINAL_T="$(g -C "$F" add -A && g -C "$F" write-tree)"
+link_objects "$F"
+
 # The gates a mint enforces on a child, run on the result before this checkout
 # is written: a chain mint must not finish with a tree its own CI rejects
 # (Codex review of #277).
@@ -359,8 +383,6 @@ gate "just verify" just verify
 # writing, under its own configuration, as it did the reading (tree_of … own):
 # files are checked out as its checkouts are (core.autocrlf, smudge filters),
 # from M's objects; it writes no object.
-FINAL_T="$(g -C "$F" add -A && g -C "$F" write-tree)"
-link_objects "$F"
 GIDX="$WORK/index.write"
 rm -f "$GIDX"
 own() { git -C "$G" -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"; }
@@ -388,9 +410,25 @@ if [ -s "$COLLIDE" ]; then
     LC_ALL=C sort -u "$COLLIDE" | sed 's/^/    /' >&2
     die "this checkout cannot take the result without overwriting what it does not track, ignored or not (above); nothing was written"
 fi
+# Every file the write changes is first checked out into scratch, by this
+# checkout's own git, so a smudge filter that fails (a missing LFS, a
+# required custom filter) stops the chain here: read-tree -u is not atomic,
+# and would have written the files before it (Codex review of #277).
+PRE="$WORK/precheckout"; mkdir -p "$PRE"
+{ GIT_INDEX_FILE="$WORK/index.pre" GIT_OBJECT_DIRECTORY="$M/.git/objects" own read-tree "$FINAL_T" \
+  && g -C "$M" diff -z --no-renames --name-only --diff-filter=AMT "$PARENT_TREE" "$FINAL_T" \
+     | GIT_INDEX_FILE="$WORK/index.pre" GIT_OBJECT_DIRECTORY="$M/.git/objects" own checkout-index -f -z --stdin --prefix="$PRE/"; } \
+    2> "$WORK/write.err" \
+    || { sed 's/^/    /' "$WORK/write.err" >&2; die "this checkout cannot check the result out (a filter failed, above); nothing was written"; }
 if ! wown read-tree -m -u "$PARENT_TREE" "$FINAL_T" 2> "$WORK/write.err"; then
     sed 's/^/    /' "$WORK/write.err" >&2
-    die "this checkout cannot take the result without overwriting a file it does not track (above); nothing was written"
+    # It may have written part of the result. The scratch repository holds
+    # every object of both trees: kept, so the checkout can be put back.
+    trap - EXIT
+    echo "chain-mint: the write into this checkout failed part-way (above). Its state before the chain is" >&2
+    echo "    tree ${PARENT_TREE}, kept in ${M}/.git; to put it back, try" >&2
+    echo "    GIT_INDEX_FILE=${GIDX} GIT_OBJECT_DIRECTORY=${M}/.git/objects git read-tree -m -u ${FINAL_T} ${PARENT_TREE}" >&2
+    exit 1
 fi
 echo "  chain: carried the parent's own work: ${N_M} edited, ${N_A} added, ${N_D} removed (declared in (variant (paths)))"
 echo "  chain: ${REPO} minted from ${TEMPLATE_SLUG} (template ${TSLUG}@${PIN:0:12})"

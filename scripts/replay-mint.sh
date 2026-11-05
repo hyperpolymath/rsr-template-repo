@@ -80,6 +80,14 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # of #275). Through g: no global core.attributesFile shapes it (Codex review
 # of #277).
 GIT_INDEX_FILE="$SCRATCH/index" g -C "$TDIR" read-tree "$PIN"
+# A gitlink has no files to write, so the copy would lose it: refused by name
+# rather than replayed inexactly (Codex review of #277).
+GL="$(GIT_INDEX_FILE="$SCRATCH/index" g -C "$TDIR" ls-files -s | awk -F '\t' '$1 ~ /^160000 / { print "  " $2 }')"
+if [ -n "$GL" ]; then
+    echo "replay-mint: the template commit $PIN carries a submodule (gitlink), which a replay cannot reproduce:" >&2
+    printf '%s\n' "$GL" >&2
+    exit 2
+fi
 GIT_INDEX_FILE="$SCRATCH/index" g -C "$TDIR" checkout-index -a -f --prefix="$OUT/"
 g -C "$OUT" init -q -b main
 g -C "$OUT" add -A
@@ -91,6 +99,7 @@ mkdir -p "$SCRATCH/cfg"
 if ! (cd "$OUT" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
+        ${STANDARDS_UUID_V8_JS:+STANDARDS_UUID_V8_JS="$STANDARDS_UUID_V8_JS"} \
         XDG_CONFIG_HOME="$SCRATCH/cfg" GIT_CONFIG_GLOBAL="$SCRATCH/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
         RSR_NON_INTERACTIVE=1 RSR_MINT_REPLAY=1 \
         RSR_TEMPLATE_URL="$TDIR" RSR_TEMPLATE_COMMIT="$PIN" RSR_MINT_DATE="${RSR_MINT_DATE:-}" \
