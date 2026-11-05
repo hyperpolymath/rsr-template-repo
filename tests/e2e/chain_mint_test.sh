@@ -47,7 +47,11 @@ T_SLUG="$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Jus
 # use_template FROM COMMITISH DIR ORIGIN — what "Use this template" makes.
 use_template() {
     rm -rf "$3"; mkdir -p "$3"
-    g -C "$1" archive "$2" | tar x -C "$3"
+    # The tree as a checkout writes it: GitHub copies the tree, it does not
+    # git archive it (export-ignore, export-subst).
+    GIT_INDEX_FILE="$work/use_template.index" g -C "$1" read-tree "$2"
+    GIT_INDEX_FILE="$work/use_template.index" g -C "$1" checkout-index -a -f --prefix="$3/"
+    rm -f "$work/use_template.index"
     # -f: a template copy keeps every tracked file, ignore rules or not.
     g -C "$3" init -q -b main; g -C "$3" add -f -A; g -C "$3" commit -q -m "Initial commit"
     g -C "$3" remote add origin "$4"
