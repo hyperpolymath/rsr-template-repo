@@ -158,3 +158,10 @@ Third-party code (crates such as Bevy, libraries, forks) is **not** converted
 or re-proved. State what a proof relies on as an `ASSUMED` boundary
 specification, and when choosing between dependencies that fit equally well,
 prefer one that carries its own verification. A preference, not a gate.
+
+Proof grades are policy §8, *Proof Witness Grades*: `PWG-3` < `PWG-2i` <
+`PWG-2ii` < `PWG-1`, where `PWG-1` is strongest. A grade is derived from
+receipts, never asserted. A "verified" or "machine-checked" claim needs
+current receipts. Report a census with its denominator, never a
+percentage. Always write the `PWG-` prefix: CRG, TRG, ARG and FRG letters,
+and ECHIDNA's `TrustLevel`, are different schemes.
