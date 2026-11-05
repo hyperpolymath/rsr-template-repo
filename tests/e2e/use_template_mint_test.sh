@@ -274,11 +274,28 @@ grep -q 'the change would be discarded' "$work/roadmap.log" && grep -qx '       
     || { tail -20 "$work/roadmap.log" >&2; fail 'the discarded edits were not refused by name (and only they)'; }
 [ "$(g -C "$RM" status --porcelain --untracked-files=all)" = "$rm_before" ] || fail 'the refused mint wrote to the tree'
 pass "(a-) an edit the mint would discard (a regenerated file) is refused by name before writing"
+# A git location naming ANOTHER repository cannot just be cleared: the mint
+# would then act on a different repository than the caller named. Refused.
+GD="$work/other-gitdir"
+use_template "$GD"
+gd_before=$(g -C "$GD" status --porcelain --untracked-files=all); gd_head=$(g -C "$T" rev-parse HEAD)
+MINT_ENV=(GIT_DIR="$T/.git")
+if mint "$GD" "$work/othergd.log"; then fail 'a mint ran with GIT_DIR naming another repository'; fi
+MINT_ENV=()
+grep -q 'name a repository other than this work tree' "$work/othergd.log" \
+    || { tail -20 "$work/othergd.log" >&2; fail 'a foreign GIT_DIR was not refused by name'; }
+[ "$(g -C "$GD" status --porcelain --untracked-files=all)" = "$gd_before" ] && [ "$(g -C "$T" rev-parse HEAD)" = "$gd_head" ] \
+    || fail 'the refused mint wrote to a tree'
+pass "(a-) a git location naming another repository is refused before anything is written"
 
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 # The project type is an answer no template file renders: (mint-answers)
 # must not record it (Codex review of #275), and the replay must still be green.
-MINT_ENV=(PROJECT_TYPE=zq-unrendered-kind)
+# GIT_DIR inherited, as a hook or another git caller leaves it, naming this
+# child: the replay the pre-mint changes need must not commit into it
+# (CodeRabbit review of #275).
+C_HEAD=$(g -C "$C" rev-parse HEAD); C_COUNT=$(g -C "$C" rev-list --count HEAD)
+MINT_ENV=(PROJECT_TYPE=zq-unrendered-kind GIT_DIR="$C/.git")
 mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
@@ -288,6 +305,8 @@ mint "$C" "$work/mint.log" || {
     fail 'just repo-init failed on a Use-this-template child'
 }
 MINT_ENV=()
+[ "$(g -C "$C" rev-parse HEAD)" = "$C_HEAD" ] && [ "$(g -C "$C" rev-list --count HEAD)" = "$C_COUNT" ] \
+    || { g -C "$C" log --oneline -3 >&2; fail 'the replay committed into the child through an inherited GIT_DIR'; }
 pass "the non-interactive mint completes on a Use-this-template child"
 DEED="$C/mint-check_chora.deed"
 [ -f "$DEED" ] || fail 'the child deed was not renamed to mint-check_chora.deed'
@@ -466,6 +485,20 @@ if drift; then fail 'the drift gate passed a path containing a newline'; fi
 grep -q 'cannot check a path containing a newline' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the newline path was not refused by name'; }
 rm -- "$NLF"
 pass "(d-) a path containing a newline is refused by name"
+# A template commit carrying a submodule (a gitlink: no files to copy) cannot
+# be replayed exactly: the gate refuses it by name (Codex review of #277).
+GL_TREE=$(cd "$T" && GIT_INDEX_FILE="$work/gl.index" git read-tree "$T_TREE" \
+    && GIT_INDEX_FILE="$work/gl.index" git update-index --add --cacheinfo "160000,$T_COMMIT,vendor/sub" \
+    && GIT_INDEX_FILE="$work/gl.index" git write-tree)
+GL_COMMIT=$(g -C "$T" commit-tree "$GL_TREE" -p "$T_COMMIT" -m "a template carrying a submodule")
+g -C "$T" branch -q with-gitlink "$GL_COMMIT"
+GLC="$work/gitlinkchild"; cp -a "$C" "$GLC"
+sed -i -E "s/(:template-commit \")[0-9a-f]{40}\"/\1${GL_COMMIT}\"/" "$GLC/mint-check_chora.deed"
+grep -q ":template-commit \"$GL_COMMIT\"" "$GLC/mint-check_chora.deed" || fail 'fixture: the gitlink pin was not written'
+rc=0; (cd "$GLC" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-mint-drift.sh "$T") > "$work/gldrift.log" 2>&1 || rc=$?
+[ "$rc" -eq 2 ] && grep -q 'carries a submodule' "$work/gldrift.log" && grep -q 'vendor/sub' "$work/gldrift.log" \
+    || { cat "$work/gldrift.log" >&2; fail "a template commit carrying a gitlink was not refused by name (exit $rc)"; }
+pass "(d-) a template commit carrying a submodule is refused by name, not replayed inexactly"
 
 # ── A template whose identity needs RSR_TEMPLATE_SLUG, replayed ─────────────
 # repo-init supports a template whose Justfile names its identity through
