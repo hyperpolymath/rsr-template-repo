@@ -158,8 +158,14 @@ says "the publisher-specific diagnostic explains the missing rows" "published gr
 
 fresh >/dev/null
 # A different step's name cannot stand in for an upload-artifact output name.
-sed -i 's/name: hypatia-scan-findings$/name: hypatia-scan-findings-backup/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
-printf '\n      - name: hypatia-scan-findings\n        run: true\n' >> "$WORK/repo/.github/workflows/hypatia-scan.yml"
+# The producer here is a local-upload job written by the test, so the control
+# holds whatever shape this repository's hypatia-scan.yml has (a minted child
+# may delegate its scan to a reusable workflow, section 10).
+wf="$WORK/repo/.github/workflows/hypatia-scan.yml"
+grid_pin="$(grep -o -- '--hypatia-ref [0-9a-f]\{40\}' "$WORK/repo/.github/workflows/fork-governance.yml" | head -n1 | awk '{print $2}')"
+awk '/^jobs:/ { exit } { print }' "$wf" > "$wf.new"
+printf 'jobs:\n  scan:\n    runs-on: ubuntu-latest\n    env:\n      HYPATIA_SHA: %s\n    steps:\n      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9\n        with:\n          name: hypatia-scan-findings-backup\n          path: out\n      - name: hypatia-scan-findings\n        run: true\n' "$grid_pin" >> "$wf.new"
+mv "$wf.new" "$wf"
 expect_rc 1 "an artifact prefix or unrelated step name cannot satisfy the source edge"
 says "the diagnostic requires an actual artifact upload" "never uploads"
 
@@ -176,7 +182,7 @@ says "the missing publisher is named" "publisher workflow"
 
 echo "=== 10. A producer that delegates to a reusable workflow ==="
 # Offline: the called workflow is served from EDGES_REUSABLE_DIR, never fetched.
-HSHA=be98f74ce93df200752f3798efa1305bfa3e0e10
+HSHA="$(grep -o -- '--hypatia-ref [0-9a-f]\{40\}' "$REPO_DIR/.github/workflows/fork-governance.yml" | head -n1 | awk '{print $2}')"
 RSHA=1111111111111111111111111111111111111111
 REUSABLES="$WORK/reusables"
 # delegate [WITH] — replace hypatia-scan.yml's jobs with one reusable call.
