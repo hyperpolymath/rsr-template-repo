@@ -48,10 +48,10 @@ git -C "$TDIR" cat-file -e "${PIN}^{commit}" 2>/dev/null \
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-# g — git with no user or system configuration and no hooks, so the synthetic
-# commit and the file sets cannot be changed by this machine's settings (a
+# g — git with no user or system configuration and no hooks, so the replay's
+# synthetic commit and file set cannot be changed by this machine's settings (a
 # global core.hooksPath, init.templateDir, excludesFile or autocrlf) (Codex
-# review of #275).
+# review of #275). The child's own file set is its own git's (files … own).
 g() {
     GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=replay -c user.email=replay@example.invalid \
         -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
@@ -105,10 +105,15 @@ declared() {
     else echo opstate
     fi
 }
-# files DIR — the repository's own files: tracked, or untracked and not ignored.
-# The lists below are line-based, so a path holding a newline is refused, loudly.
+# files DIR [own] — the repository's own files: tracked, or untracked and not
+# ignored. With "own", DIR is listed under its own git configuration, as
+# `git add -A` there would commit it (a file only a global excludesFile ignores
+# is not this repo's); the replay is listed under none (CodeRabbit review of
+# #275). The lists below are line-based, so a path holding a newline is
+# refused, loudly.
 files() {
-    g -C "$1" ls-files -z --cached --others --exclude-standard \
+    local gx=g; [ "${2:-}" = own ] && gx=git
+    "$gx" -C "$1" -c core.hooksPath=/dev/null ls-files -z --cached --others --exclude-standard \
         | while IFS= read -r -d '' f; do
             case "$f" in *$'\n'*) echo "check-mint-drift: cannot check a path containing a newline: $(printf '%q' "$f")" >&2; exit 2 ;; esac
             # if, not &&: an absent last path must not fail the pipeline (CodeRabbit).
@@ -120,7 +125,7 @@ files() {
 # ignored artifact the replay also generates (arrival-pack output) is not a
 # file the mint produced, even if a child force-adds it (Codex review of #275).
 CLIST="$WORK/child.files"; RLIST="$WORK/replay.files"
-files "$CDIR" > "$CLIST"
+files "$CDIR" own > "$CLIST"
 files "$R" > "$RLIST"
 in_child() { grep -qxF -- "$1" "$CLIST"; }
 in_replay() { grep -qxF -- "$1" "$RLIST"; }
