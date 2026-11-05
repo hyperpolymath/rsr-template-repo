@@ -136,11 +136,6 @@ printf '\nA local support note, written before the mint.\n' >> "$C/SUPPORT.adoc"
 # docs/usage.adoc, then deletes. Only a replay sees what that changes (CodeRabbit
 # review of #275).
 printf '\nA local usage note, added to the seed before the mint.\n' >> "$C/build/docs-seed/usage.adoc"
-# A pre-mint file in a directory the mint deletes (archetypes/): gone once the
-# mint is done, so it must not be declared (Codex review of #275). It carries
-# the unrendered project type: a value found only in a tree the mint deletes
-# must not count as written into the child (CodeRabbit review of #275).
-printf 'local zq-unrendered-kind\n' > "$C/archetypes/premint-local.txt"
 # A file only the user's global excludesFile ignores: git add -A never commits
 # it, so the mint must not declare it (CodeRabbit review of #275).
 printf 'mine\n' > "$C/notes.mine-local"
@@ -274,6 +269,33 @@ grep -q 'the change would be discarded' "$work/roadmap.log" && grep -qx '       
     || { tail -20 "$work/roadmap.log" >&2; fail 'the discarded edits were not refused by name (and only they)'; }
 [ "$(g -C "$RM" status --porcelain --untracked-files=all)" = "$rm_before" ] || fail 'the refused mint wrote to the tree'
 pass "(a-) an edit the mint would discard (a regenerated file) is refused by name before writing"
+# And a change gone from both results: an input the mint never copies (the
+# seed's own README), a file in a directory it deletes. Each is checked by
+# minting without it; one with an effect (a seed file it copies) is not
+# refused (Codex review of #275).
+LO="$work/lostinput"
+use_template "$LO"
+printf '\nmy own seed note\n' >> "$LO/build/docs-seed/README.adoc"
+printf 'local\n' > "$LO/archetypes/premint-local.txt"
+printf '\nA usage note of my own.\n' >> "$LO/build/docs-seed/usage.adoc"
+lo_before=$(g -C "$LO" status --porcelain --untracked-files=all)
+if mint "$LO" "$work/lostinput.log"; then fail 'pre-mint changes the mint destroys were minted over'; fi
+grep -qx '         build/docs-seed/README.adoc' "$work/lostinput.log" && grep -qx '         archetypes/premint-local.txt' "$work/lostinput.log" \
+    && ! grep -qx '         build/docs-seed/usage.adoc' "$work/lostinput.log" \
+    || { tail -20 "$work/lostinput.log" >&2; fail 'the destroyed changes were not refused by name (and only they)'; }
+[ "$(g -C "$LO" status --porcelain --untracked-files=all)" = "$lo_before" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) a pre-mint change the mint would destroy without effect is refused by name before writing"
+# A pre-mint path holding byte 0x01 (the deed reader's record separator) or a
+# newline cannot be declared: refused by name (Codex review of #277).
+SO="$work/sohpath"
+use_template "$SO"
+printf 'x\n' > "$SO/notes-soh"$'\001'"name.txt"
+so_before=$(g -C "$SO" status --porcelain --untracked-files=all)
+if mint "$SO" "$work/sohpath.log"; then fail 'a pre-mint path holding byte 0x01 was minted'; fi
+grep -q 'a path holding a newline or byte 0x01 cannot be declared' "$work/sohpath.log" \
+    || { tail -20 "$work/sohpath.log" >&2; fail 'the 0x01 path was not refused by name'; }
+[ "$(g -C "$SO" status --porcelain --untracked-files=all)" = "$so_before" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) a pre-mint path holding byte 0x01 is refused before writing"
 # A git location naming ANOTHER repository cannot just be cleared: the mint
 # would then act on a different repository than the caller named. Refused.
 GD="$work/other-gitdir"
@@ -295,7 +317,16 @@ pass "(a-) a git location naming another repository is refused before anything i
 # child: the replay the pre-mint changes need must not commit into it
 # (CodeRabbit review of #275).
 C_HEAD=$(g -C "$C" rev-parse HEAD); C_COUNT=$(g -C "$C" rev-list --count HEAD)
-MINT_ENV=(PROJECT_TYPE=zq-unrendered-kind GIT_DIR="$C/.git")
+# The project type is a value found only in archetypes/julia-library/
+# actions.lock, which this mint (no archetype) deletes: it must not count as
+# written into the child (CodeRabbit review of #275). Chosen here, not written
+# into this test, which the child keeps.
+UNRENDERED=""
+for w in $(tr -cs '0-9' '\n' < "$C/archetypes/julia-library/actions.lock" | awk 'length($0) >= 8' | sort -u); do
+    if [ "$(g -C "$C" grep -l -F "$w" | tr '\n' ' ')" = 'archetypes/julia-library/actions.lock ' ]; then UNRENDERED=$w; break; fi
+done
+[ -n "$UNRENDERED" ] || fail 'fixture: no value is found only in archetypes/julia-library/actions.lock'
+MINT_ENV=(PROJECT_TYPE="$UNRENDERED" GIT_DIR="$C/.git")
 mint "$C" "$work/mint.log" || {
     cat "$work/mint.log" >&2
     if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
@@ -358,7 +389,7 @@ grep -q 'scripts/check-template-conformance.sh' "$work/mint.log" || fail 'repo-i
 [ "$(field mint-answers repo)" = mint-check ] && [ -n "$(field mint-answers mint-date)" ] \
     || fail '(mint-answers) lacks the repo or the mint date'
 # Only values already written into the child are recorded (owner ruling).
-if grep -q 'zq-unrendered-kind\|:project-type' "$DEED"; then fail '(mint-answers) recorded an answer that no file renders'; fi
+if grep -q "$UNRENDERED\|:project-type" "$DEED"; then fail '(mint-answers) recorded an answer that no file renders'; fi
 grep -q 'not recorded, written into no file here: project-type' "$work/mint.log" || fail 'the mint did not name the unrecorded answer'
 # What the work tree held beyond the pinned tree before the mint (the probe,
 # untracked; the SUPPORT.adoc edit) is the child's own: named, and declared
@@ -368,8 +399,6 @@ bash "$C/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx
     || { grep -n ':diverged' "$DEED" >&2; fail 'the pre-mint edit was not declared diverged'; }
 grep -q 'already differ from the template tree' "$work/mint.log" && grep -q '^        SUPPORT.adoc$' "$work/mint.log" \
     || fail 'the mint did not name the pre-mint changes'
-[ ! -e "$C/archetypes/premint-local.txt" ] && ! grep -q 'premint-local.txt' "$DEED" \
-    || fail 'a pre-mint file the mint deleted was declared'
 bash "$C/scripts/deed-field.sh" --list "$DEED" variant/paths diverged | grep -qx docs/usage.adoc \
     && grep -q 'A local usage note' "$C/docs/usage.adoc" \
     || { grep -n ':diverged' "$DEED" >&2; fail 'a pre-mint edit to the docs seed was not declared where it lands'; }
@@ -499,6 +528,21 @@ rc=0; (cd "$GLC" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-mint-dr
 [ "$rc" -eq 2 ] && grep -q 'carries a submodule' "$work/gldrift.log" && grep -q 'vendor/sub' "$work/gldrift.log" \
     || { cat "$work/gldrift.log" >&2; fail "a template commit carrying a gitlink was not refused by name (exit $rc)"; }
 pass "(d-) a template commit carrying a submodule is refused by name, not replayed inexactly"
+# …and the mint refuses such a tree itself, clean or not: its drift gate could
+# never pass (Codex review of #275).
+GLM="$work/gitlinkmint"
+rm -rf "$GLM"; mkdir -p "$GLM"; materialize "$GL_COMMIT" "$GLM"
+g -C "$GLM" init -q -b main; g -C "$GLM" add -A
+g -C "$GLM" update-index --add --cacheinfo "160000,$T_COMMIT,vendor/sub"; g -C "$GLM" commit -q -m "Initial commit"
+g -C "$GLM" remote add origin git@github.com:example-owner/mint-check.git
+[ "$(g -C "$GLM" rev-parse 'HEAD^{tree}')" = "$GL_TREE" ] || fail 'fixture: the gitlink child is not the gitlink template tree'
+MINT_ENV=(RSR_TEMPLATE_COMMIT="$GL_COMMIT")
+if mint "$GLM" "$work/glmint.log"; then fail 'a tree carrying a gitlink was minted'; fi
+MINT_ENV=()
+grep -q 'carries a submodule' "$work/glmint.log" && grep -q 'vendor/sub' "$work/glmint.log" \
+    || { tail -20 "$work/glmint.log" >&2; fail 'the gitlink was not refused by name at mint'; }
+[ -z "$(g -C "$GLM" status --porcelain)" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) a tree carrying a submodule is refused at mint, clean or not"
 
 # ── A template whose identity needs RSR_TEMPLATE_SLUG, replayed ─────────────
 # repo-init supports a template whose Justfile names its identity through
