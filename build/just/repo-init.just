@@ -503,9 +503,16 @@ repo-init archetype="":
     # written. (A chain mint carries its parent's tree by its own rules.)
     PREMINT_A=() PREMINT_M=() PREMINT_D=()
     if [ "${CHAIN_MINT:-0}" != "1" ] && [ "$PARENT_TREE" != "UNASSIGNED" ]; then
+        # The work tree as `git add -A` would commit it, from the current index
+        # (so a tracked file an ignore rule matches stays), in a scratch index
+        # and object store.
+        _pm="$(mktemp -d)"; mkdir -p "$_pm/objects"
+        _gd="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
+        _ix="$(git rev-parse --git-path index)"
+        [ ! -f "$_ix" ] || cp "$_ix" "$_pm/index"
+        _wt() { GIT_INDEX_FILE="$_pm/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" git "$@"; }
+        _wt add -A .
         if git cat-file -e "${PARENT_TREE}^{tree}" 2>/dev/null; then
-            _pm="$(mktemp -d)"; mkdir -p "$_pm/objects"
-            _gd="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
             while IFS= read -r -d '' _st && IFS= read -r -d '' _p; do
                 case "$_p" in *$'\n'*) echo "Error: a path holding a newline cannot be declared: $(printf '%q' "$_p")"; rm -rf "$_pm"; exit 1 ;; esac
                 case "$_st" in
@@ -513,20 +520,36 @@ repo-init archetype="":
                     D) PREMINT_D+=("$_p") ;;
                     *) PREMINT_M+=("$_p") ;;
                 esac
-            done < <(GIT_INDEX_FILE="$_pm/index" GIT_OBJECT_DIRECTORY="$_pm/objects" \
-                     GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
-                     sh -c 'git read-tree "$1" && git add -A . && git diff --cached -z --no-renames --name-status "$1"' _ "$PARENT_TREE")
+            done < <(_wt diff --cached -z --no-renames --name-status "$PARENT_TREE")
+        elif [ "$(_wt write-tree)" != "$PARENT_TREE" ]; then
+            # An asserted pin (RSR_TEMPLATE_COMMIT) whose tree this repository
+            # does not hold: the difference cannot even be listed, so it cannot
+            # be declared, and the replay would report it (Codex review of #275).
             rm -rf "$_pm"
-        else
-            # The pin was matched on the template's own history, i.e. by this
-            # work tree's tree itself: nothing differs.
-            :
+            echo "ERROR: mint aborted before writing anything — this work tree differs from the"
+            echo "       template tree ${PARENT_TREE:0:12}, which this repository does not hold, so"
+            echo "       the difference cannot be declared. Fetch it first"
+            echo "       (git fetch <template-url> ${PARENT_PIN}) or mint from a matching tree."
+            exit 1
         fi
+        rm -rf "$_pm"
+        # The mint moves a root .well-known/ (the www/ migration, below), so a
+        # path there could not be declared where it ends up: refused by name.
+        for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do
+            case "$_p" in
+                .well-known/*)
+                    echo "ERROR: mint aborted before writing anything — $_p changed before the mint,"
+                    echo "       and the mint moves .well-known/ into www/.well-known/. Commit that move"
+                    echo "       first (bash scripts/migrate-wellknown-to-www.sh), or revert the change."
+                    exit 1 ;;
+            esac
+        done
         _n=$(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} ))
         if [ "$_n" -gt 0 ]; then
             echo "NOTE: ${_n} path(s) here already differ from the template tree ${PARENT_TREE:0:12}"
             echo "      (${#PREMINT_A[@]} added, ${#PREMINT_M[@]} changed, ${#PREMINT_D[@]} removed before this mint). They are"
-            echo "      this repo's own, and are declared in (variant (paths)) as such:"
+            echo "      this repo's own, and are declared in (variant (paths)) as such, by how"
+            echo "      each stands once the mint is done:"
             for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do echo "        $_p"; done
         fi
     fi
@@ -1125,23 +1148,15 @@ repo-init archetype="":
         echo "    (normalise :rules \"action-pins self-name\")"
         echo "    ; Files a minted repo owns from birth are (paths :diverged …)."
         echo "    (paths"
-        # The paths this work tree changed before the mint (measured above),
-        # as they stand now: what the mint deleted is not declared, nor what
-        # is already declared below. Deed strings escape \ and ".
-        _dq() { printf '%s' "$1" | sed -e 's/[\\"]/\\&/g'; }
-        _owned=("${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc)
-        _is_owned() { local _o; for _o in "${_owned[@]}"; do [ "$1" = "$_o" ] && return 0; done; return 1; }
-        _there() { [ -e "$1" ] || [ -L "$1" ]; }
-        _list() { local _s="" _x; printf '      :%s (' "$1"; shift; for _x in "$@"; do printf '%s"%s"' "$_s" "$(_dq "$_x")"; _s=" "; done; printf ')'; }
-        _added=() _divs=("${_owned[@]}")
-        for _p in "${PREMINT_A[@]}"; do _there "$_p" && ! _is_owned "$_p" && _added+=("$_p"); done
-        for _p in "${PREMINT_M[@]}"; do _there "$_p" && ! _is_owned "$_p" && _divs+=("$_p"); done
+        # The paths this work tree changed before the mint are added to these
+        # lists once the mint has moved and deleted what it will (see "What
+        # this work tree held before the mint", below).
+        _list() { local _s="" _x; printf '      :%s (' "$1"; shift; for _x in "$@"; do printf '%s"%s"' "$_s" "$_x"; _s=" "; done; printf ')'; }
         _removed=("${MINT_REMOVES[@]}")
         [ "${DEED_IN#./}" = "${REPO}_chora.deed" ] || _removed+=("${DEED_IN#./}")
-        for _p in "${PREMINT_D[@]}"; do _there "$_p" || _is_owned "$_p" || _removed+=("$_p"); done
-        _list added "${_added[@]}"; echo
+        _list added; echo
         _list removed "${_removed[@]}"; echo
-        _list diverged "${_divs[@]}"; echo "))"
+        _list diverged "${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc; echo "))"
     } | put_clause variant
     if [ "$PARENT_PIN" = "UNASSIGNED" ]; then
         echo "  provenance: $DEED_OUT (variant) — parent-pin UNASSIGNED (offline?)"
@@ -1323,6 +1338,56 @@ repo-init archetype="":
             echo "ERROR: mise.toml could not be rendered from this tree's languages."
             exit 1
         }
+    fi
+
+    # ── What this work tree held before the mint ────────────────────────────
+    # Declared here, after every step that moves or deletes files (the
+    # archetype and docs-seed removals, the overlay renames, the www/
+    # migration), so each path is declared by how it finally stands (Codex
+    # review of #275): one the mint deleted is not declared; a deletion the
+    # mint re-created is not either. The derived files are declared already.
+    # Written into the (variant (paths)) lists by awk, which takes the paths as
+    # data and escapes \ and " in deed strings.
+    if [ $(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} )) -gt 0 ]; then
+        _owned=("${REPO}_chora.deed" docs/status/ROADMAP.adoc CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc)
+        _is_owned() { local _o; for _o in "${_owned[@]}"; do [ "$1" = "$_o" ] && return 0; done; return 1; }
+        _there() { [ -e "$1" ] || [ -L "$1" ]; }
+        _pml="$(mktemp -d)"; : > "$_pml/a"; : > "$_pml/r"; : > "$_pml/d"
+        for _p in "${PREMINT_A[@]}"; do if _there "$_p" && ! _is_owned "$_p"; then printf '%s\n' "$_p" >> "$_pml/a"; fi; done
+        for _p in "${PREMINT_M[@]}"; do if _there "$_p" && ! _is_owned "$_p"; then printf '%s\n' "$_p" >> "$_pml/d"; fi; done
+        for _p in "${PREMINT_D[@]}"; do if ! _there "$_p" && ! _is_owned "$_p"; then printf '%s\n' "$_p" >> "$_pml/r"; fi; done
+        awk -v fa="$_pml/a" -v fr="$_pml/r" -v fd="$_pml/d" '
+            function load(file,    s, p) {
+                s = ""
+                while ((getline p < file) > 0) {
+                    gsub(/\\/, "\\\\", p); gsub(/"/, "\\\"", p)
+                    s = s " \"" p "\""
+                }
+                close(file); return s
+            }
+            # insert EXTRA before the ")" that closes the list opened at "(".
+            function extend(line, extra,    i, c, q, open, out) {
+                open = index(line, "("); q = 0
+                for (i = open + 1; i <= length(line); i++) {
+                    c = substr(line, i, 1)
+                    if (q && c == "\\") { i++; continue }
+                    if (c == "\"") q = !q
+                    else if (!q && c == ")") {
+                        out = substr(line, 1, i - 1) extra substr(line, i)
+                        sub(/\( "/, "(\"", out)
+                        return out
+                    }
+                }
+                return line
+            }
+            BEGIN { A = load(fa); R = load(fr); D = load(fd) }
+            /^      :added \(/    { $0 = extend($0, A) }
+            /^      :removed \(/  { $0 = extend($0, R) }
+            /^      :diverged \(/ { $0 = extend($0, D) }
+            { print }
+        ' "$DEED_OUT" > "$_pml/deed" && cat "$_pml/deed" > "$DEED_OUT"
+        rm -rf "$_pml"
+        echo "  pre-mint: declared in $DEED_OUT (variant (paths)) as this repo's own"
     fi
 
     # ── Regenerate what is DERIVED from the deed and the tree ───────────────
