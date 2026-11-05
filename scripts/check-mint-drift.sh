@@ -60,9 +60,12 @@ g() {
 # The child as "Use this template" made it: the pinned tree, one root commit.
 R="$WORK/replay"
 mkdir -p "$R"
-# Through g: a global core.attributesFile (export-ignore) must not shape the
-# replay (Codex review of #277).
-g -C "$TDIR" archive "$PIN" | tar x -C "$R"
+# Written as a checkout writes it, by git (checkout-index), never git archive,
+# whose export-ignore and export-subst attributes change the tree (Codex review
+# of #275). Through g: no global core.attributesFile shapes it (Codex review
+# of #277).
+GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" read-tree "$PIN"
+GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" checkout-index -a -f --prefix="$R/"
 g -C "$R" init -q -b main
 g -C "$R" add -A
 g -C "$R" commit -q -m "Initial commit"
