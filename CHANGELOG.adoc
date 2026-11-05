@@ -41,7 +41,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 * **An exact drift gate for minted repos: the mint is replayed.** repo-init
   records its answers in a `(mint-answers)` deed clause (owner ruling
   2026-11-04: only values it already writes into the child's files; the
-  recipe checks each value against those files and names any it leaves out)
+  recipe checks each value against those files, not the template-only trees
+  it deletes, and names any it leaves out)
   and takes its date from `RSR_MINT_DATE`; a replay also takes the recorded
   Julia package uuid, which an ordinary mint always derives.
   `scripts/check-mint-drift.sh` re-mints the template at `(provenance :template-commit)` with those answers

@@ -1295,7 +1295,11 @@ repo-init archetype="":
     # non-empty answer is recorded only if its value appears verbatim in this
     # repo's files. An answer left out replays as unanswered; it rendered
     # nothing here, so the replay is unchanged.
-    mapfile -t _MINTED < <(mint_files)
+    # Not the template-only trees the mint deletes below (MINT_REMOVES:
+    # archetypes/, build/docs-seed/): a value found only there is in no file
+    # the child keeps (CodeRabbit review of #275).
+    mapfile -t _MINTED < <(mint_files | awk -v r="${MINT_REMOVES[*]:-}" \
+        'BEGIN { n = split(r, p, " ") } { for (i = 1; i <= n; i++) if (index($0, p[i]) == 1) next; print }')
     _ANSWERS=() _UNRECORDED=""
     for _pair in project-name:PROJECT_NAME repo:REPO owner:OWNER author:AUTHOR \
                  author-email:AUTHOR_EMAIL author-org:AUTHOR_ORG \
@@ -1308,7 +1312,7 @@ repo-init archetype="":
                  package-uuid:PACKAGE_UUID; do
         _var="${_pair#*:}"
         _val="${!_var:-}"
-        if [ -n "$_val" ] && ! grep -qsF -- "$_val" "${_MINTED[@]}"; then
+        if [ -n "$_val" ] && ! grep -qsF -- "$_val" "${_MINTED[@]}" /dev/null; then
             _UNRECORDED="${_UNRECORDED} ${_pair%%:*}"
             continue
         fi
