@@ -40,10 +40,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   passes the recorded `RSR_TEMPLATE_SLUG`. A pre-mint change under a root `.well-known/` (which the mint moves),
   or a work tree that differs from an asserted template tree this repository
   does not hold, is refused before anything is written. The gate clears
-  inherited git location variables, and archives the template without global
-  git attributes. A pre-mint file at a path the mint itself writes (the
-  archetype overlay, the docs seed, the deed), or an edited template file the
-  overlay replaces, is refused, since the mint would overwrite it.
+  inherited git location variables, and writes the pinned tree as a checkout
+  does (`checkout-index`, never `git archive`, whose `export-ignore` and
+  `export-subst` would change it), without global git attributes. A pre-mint
+  file at a path the mint itself writes (the archetype overlay, the docs seed,
+  the deed), or an edited template file the overlay replaces, is refused,
+  since the mint would overwrite it; and the mint also dry-runs itself on the
+  work tree, refusing by name any pre-mint change it would discard (an edit to
+  the roadmap or `mise.toml`, which it writes whole).
 
 ==== Fixed
 

@@ -72,11 +72,19 @@ T_OWNER=$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Jus
 TEMPLATE_REPO=$(sed -n -E 's/^REPO[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Justfile" | head -1)
 T_SLUG="$T_OWNER/$TEMPLATE_REPO"
 
+# materialize COMMIT DIR — COMMIT's tree written into DIR as a checkout writes
+# it. Not git archive: "Use this template" copies the tree, and archive drops
+# export-ignore paths and expands export-subst (Codex review of #275).
+materialize() {
+    GIT_INDEX_FILE="$work/materialize.index" g -C "$T" read-tree "$1"
+    GIT_INDEX_FILE="$work/materialize.index" g -C "$T" checkout-index -a -f --prefix="$2/"
+    rm -f "$work/materialize.index"
+}
 # use_template DIR — what "Use this template" creates: one root commit with
 # the template's tree, no shared history, origin = the new repository.
 use_template() {
     rm -rf "$1"; mkdir -p "$1"
-    g -C "$T" archive "$T_COMMIT" | tar x -C "$1"
+    materialize "$T_COMMIT" "$1"
     g -C "$1" init -q -b main
     g -C "$1" add -A
     g -C "$1" commit -q -m "Initial commit"
@@ -247,6 +255,25 @@ grep -q 'provisioning_praxis.deed changed before the mint' "$work/juliaoverlay.l
     || { tail -20 "$work/juliaoverlay.log" >&2; fail 'the overlay overwrite was not refused by name'; }
 [ "$(g -C "$JO" status --porcelain --untracked-files=all)" = "$jo_before" ] || fail 'the refused mint wrote to the tree'
 pass "(a-) an edited template file the archetype overlay replaces is refused before writing"
+# And for any file the mint regenerates whole, whatever writes it: a dry run
+# of the mint on this tree finds the edit has no effect (Codex review of #275:
+# the roadmap is copied over, mise.toml rendered from the languages). Edits the
+# mint keeps are not refused: README.adoc is rendered, and a CLAUDE.md note
+# outside the arrival pack's markers is preserved by its generator.
+RM="$work/roadmap"
+use_template "$RM"
+printf '\nmy own milestone\n' >> "$RM/docs/status/ROADMAP.adoc"
+printf '\nmy own agent note\n' >> "$RM/CLAUDE.md"
+printf '\n# my own tool pin\n' >> "$RM/mise.toml"
+printf '\nA README note of my own.\n' >> "$RM/README.adoc"
+rm_before=$(g -C "$RM" status --porcelain --untracked-files=all)
+if mint "$RM" "$work/roadmap.log"; then fail 'an edit to a file the mint regenerates was minted over'; fi
+grep -q 'the change would be discarded' "$work/roadmap.log" && grep -qx '         docs/status/ROADMAP.adoc' "$work/roadmap.log" \
+    && grep -qx '         mise.toml' "$work/roadmap.log" \
+    && ! grep -qx '         README.adoc' "$work/roadmap.log" && ! grep -qx '         CLAUDE.md' "$work/roadmap.log" \
+    || { tail -20 "$work/roadmap.log" >&2; fail 'the discarded edits were not refused by name (and only they)'; }
+[ "$(g -C "$RM" status --porcelain --untracked-files=all)" = "$rm_before" ] || fail 'the refused mint wrote to the tree'
+pass "(a-) an edit the mint would discard (a regenerated file) is refused by name before writing"
 
 # ── 5. The mint ─────────────────────────────────────────────────────────────
 # The project type is an answer no template file renders: (mint-answers)
@@ -443,16 +470,22 @@ pass "(d-) a path containing a newline is refused by name"
 # ── A template whose identity needs RSR_TEMPLATE_SLUG, replayed ─────────────
 # repo-init supports a template whose Justfile names its identity through
 # env(...), given RSR_TEMPLATE_SLUG. The drift gate's replay must pass the
-# recorded slug on, or it cannot run at all (Codex review of #275).
+# recorded slug on, or it cannot run at all (Codex review of #275). The same
+# template marks SUPPORT.adoc export-ignore: the replay must write the tree as
+# a checkout does, not as git archive does (Codex review of #275).
 SL_TREE=$(cd "$T" && GIT_INDEX_FILE="$work/slug.index" git read-tree "$T_TREE" && cp Justfile "$work/Justfile.slug" \
     && sed -i -E 's/^(OWNER|REPO)([[:space:]]*:=[[:space:]]*)"([^"]+)"/\1\2env("RSR_\1", "\3")/' "$work/Justfile.slug" \
     && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "100644,$(git hash-object -w "$work/Justfile.slug"),Justfile" \
+    && { cat .gitattributes; printf 'SUPPORT.adoc export-ignore\n'; } > "$work/gitattributes.slug" \
+    && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "100644,$(git hash-object -w "$work/gitattributes.slug"),.gitattributes" \
     && GIT_INDEX_FILE="$work/slug.index" git write-tree)
 SL_COMMIT=$(g -C "$T" commit-tree "$SL_TREE" -p "$T_COMMIT" -m "a template naming itself through env()")
 g -C "$T" branch -q env-identity "$SL_COMMIT"
 SLC="$work/slugchild"
 rm -rf "$SLC"; mkdir -p "$SLC"
-g -C "$T" archive "$SL_COMMIT" | tar x -C "$SLC"
+materialize "$SL_COMMIT" "$SLC"
+[ -f "$SLC/SUPPORT.adoc" ] && ! g -C "$T" archive "$SL_COMMIT" | tar t | grep -qx SUPPORT.adoc \
+    || fail 'fixture: SUPPORT.adoc is not export-ignored in the second template commit'
 g -C "$SLC" init -q -b main; g -C "$SLC" add -A; g -C "$SLC" commit -q -m "Initial commit"
 g -C "$SLC" remote add origin git@github.com:example-owner/mint-check.git
 MINT_ENV=(RSR_TEMPLATE_SLUG="$T_SLUG" RSR_TEMPLATE_COMMIT="$SL_COMMIT")
@@ -461,7 +494,7 @@ MINT_ENV=()
 g -C "$SLC" add -A; g -C "$SLC" commit -q -m mint
 (cd "$SLC" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/slugdrift.log" 2>&1 \
     || { cat "$work/slugdrift.log" >&2; fail 'the drift gate could not replay a template that needs RSR_TEMPLATE_SLUG'; }
-pass "(d) a template naming itself through env() is replayed with its recorded slug: green"
+pass "(d) a template naming itself through env() and marking a path export-ignore is replayed exactly: green"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the

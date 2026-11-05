@@ -444,7 +444,9 @@ repo-init archetype="":
             echo "       (git fetch <template-url> ${PARENT_PIN}) or mint from a matching tree."
             exit 1
         fi
-        rm -rf "$_pm"
+        # The work tree's own tree: what a dry run of this mint starts from
+        # (below). Its objects stay in $_pm until the replays are done.
+        _WT_TREE="$(_wt write-tree)"
         # The mint moves a root .well-known/ (the www/ migration, below), so a
         # path there could not be declared where it ends up: refused by name.
         for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do
@@ -453,7 +455,7 @@ repo-init archetype="":
                     echo "ERROR: mint aborted before writing anything — $_p changed before the mint,"
                     echo "       and the mint moves .well-known/ into www/.well-known/. Commit that move"
                     echo "       first (bash scripts/migrate-wellknown-to-www.sh), or revert the change."
-                    exit 1 ;;
+                    rm -rf "$_pm"; exit 1 ;;
             esac
         done
         # The mint writes new files of its own: the archetype overlay (before
@@ -484,7 +486,7 @@ repo-init archetype="":
                     echo "       the mint writes that path itself (the archetype overlay, the docs seed or"
                     echo "       the deed), so your file would be overwritten. Move it aside, mint, then"
                     echo "       bring it back as a change of your own."
-                    exit 1
+                    rm -rf "$_pm"; exit 1
                 fi
             done
         done
@@ -508,17 +510,42 @@ repo-init archetype="":
     # declared below. The pinned tree is in this repository (checked above).
     # The inner mint skips pin resolution (RSR_ALLOW_UNPINNED with no template
     # source): it writes the pin only into its deed, which is not compared.
+    #
+    # And a dry run: the same mint of THIS tree, pre-mint changes and all. A
+    # change at a path where the dry run and the replay agree has no effect on
+    # the result: the mint writes that path itself (the roadmap, mise.toml,
+    # the map, the overlay, the docs seed, the deed) and the change
+    # would be silently discarded. It is refused by name, before anything is
+    # written (Codex review of #275), whatever writes it.
+    # _same A B — identical as git records them: content, executable bit, link target.
+    _same() {
+        if [ -L "$1" ] || [ -L "$2" ]; then
+            [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
+            return
+        fi
+        { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
+        cmp -s "$1" "$2"
+    }
     _REPLAY=""
     if [ $(( ${#PREMINT_A[@]} + ${#PREMINT_M[@]} + ${#PREMINT_D[@]} )) -gt 0 ]; then
         _rg() { GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -c user.name=replay -c user.email=replay@example.invalid \
                     -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
         _rp="$(mktemp -d)"; _REPLAY="$_rp/r"
-        mkdir -p "$_REPLAY" "$_rp/cfg"; : > "$_rp/gitconfig"
-        _rg archive "$PARENT_TREE" | tar -x -C "$_REPLAY"
-        _rg -C "$_REPLAY" init -q -b main; _rg -C "$_REPLAY" add -A; _rg -C "$_REPLAY" commit -q -m "Initial commit"
-        _rg -C "$_REPLAY" remote add origin "git@${FORGE}:${OWNER}/${REPO}.git"
-        echo "  replaying this mint from the template tree, to measure the pre-mint changes..."
-        if ! (cd "$_REPLAY" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        mkdir -p "$_rp/cfg"; : > "$_rp/gitconfig"
+        # _mint_tree TREE DIR — TREE written into DIR as a checkout writes it
+        # (checkout-index, not git archive, whose export-ignore and export-subst
+        # attributes would change the tree (Codex review of #275)), committed as
+        # "Use this template" commits it, then minted with this mint's answers.
+        _mint_tree() {
+            mkdir -p "$2"
+            GIT_INDEX_FILE="$_rp/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
+                _rg read-tree "$1"
+            GIT_INDEX_FILE="$_rp/index" GIT_OBJECT_DIRECTORY="$_pm/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$_gd/objects" \
+                _rg checkout-index -a -f --prefix="$2/"
+            rm -f "$_rp/index"
+            _rg -C "$2" init -q -b main; _rg -C "$2" add -A; _rg -C "$2" commit -q -m "Initial commit"
+            _rg -C "$2" remote add origin "git@${FORGE}:${OWNER}/${REPO}.git"
+            (cd "$2" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
                 ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
                 ${RSR_MINT_TOOL_CACHE:+RSR_MINT_TOOL_CACHE="$RSR_MINT_TOOL_CACHE"} \
                 ${RSR_TEMPLATE_SLUG:+RSR_TEMPLATE_SLUG="$RSR_TEMPLATE_SLUG"} \
@@ -531,12 +558,37 @@ repo-init archetype="":
                 SECURITY_EMAIL="${SECURITY_EMAIL:-}" CONDUCT_EMAIL="${CONDUCT_EMAIL:-}" \
                 PROJECT_TYPE="${PROJECT_TYPE:-}" WEBSITE="${WEBSITE:-}" OPENSSF_BP_ID="${OPENSSF_BP_ID:-}" \
                 SERVICE_NAME="${SERVICE_NAME:-}" PORT="${PORT:-}" REGISTRY="${REGISTRY:-}" \
-                just repo-init ${ARCHETYPE:+"$ARCHETYPE"} </dev/null) > "$_rp/replay.log" 2>&1; then
-            tail -n 30 "$_rp/replay.log"
+                just repo-init ${ARCHETYPE:+"$ARCHETYPE"} </dev/null) > "$2.log" 2>&1 \
+                || { tail -n 30 "$2.log"; return 1; }
+        }
+        echo "  replaying this mint from the template tree, to measure the pre-mint changes..."
+        if ! _mint_tree "$PARENT_TREE" "$_REPLAY"; then
             echo "ERROR: mint aborted before writing anything — the replay of this mint, needed to"
             echo "       measure the pre-mint changes above, failed (its log is above)."
+            rm -rf "$_pm"; exit 1
+        fi
+        echo "  and a dry run of it on this tree, to find a change the mint would discard..."
+        if ! _mint_tree "$_WT_TREE" "$_rp/dry"; then
+            echo "ERROR: mint aborted before writing anything — a dry run of this mint on this"
+            echo "       tree failed (its log is above): a pre-mint change breaks the mint."
+            rm -rf "$_pm"; exit 1
+        fi
+        rm -rf "$_pm"
+        _lost=()
+        for _p in "${PREMINT_A[@]}" "${PREMINT_M[@]}" "${PREMINT_D[@]}"; do
+            { [ -e "$_rp/dry/$_p" ] || [ -L "$_rp/dry/$_p" ]; } || continue
+            { [ -e "$_REPLAY/$_p" ] || [ -L "$_REPLAY/$_p" ]; } || continue
+            if _same "$_rp/dry/$_p" "$_REPLAY/$_p"; then _lost+=("$_p"); fi
+        done
+        if [ "${#_lost[@]}" -gt 0 ]; then
+            echo "ERROR: mint aborted before writing anything — these paths changed before the mint,"
+            echo "       and the mint writes each of them itself, so the change would be discarded:"
+            for _p in "${_lost[@]}"; do echo "         $_p"; done
+            echo "       Revert them (or move them aside), mint, then make the change again."
             exit 1
         fi
+    elif [ -n "${_pm:-}" ]; then
+        rm -rf "$_pm"
     fi
 
     echo ""
@@ -1375,15 +1427,6 @@ repo-init archetype="":
                 | while IFS= read -r -d '' _f; do
                     if [ -e "$1/$_f" ] || [ -L "$1/$_f" ]; then printf '%s\n' "$_f"; fi
                 done | LC_ALL=C sort -u
-        }
-        # _same A B — identical as git records them: content, executable bit, link target.
-        _same() {
-            if [ -L "$1" ] || [ -L "$2" ]; then
-                [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
-                return
-            fi
-            { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
-            cmp -s "$1" "$2"
         }
         _pml="$(mktemp -d)"; : > "$_pml/a"; : > "$_pml/r"; : > "$_pml/d"
         _files . > "$_pml/child"
