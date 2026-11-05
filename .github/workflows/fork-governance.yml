@@ -4,7 +4,7 @@
 #
 # fork-governance.yml — PR-time entry point for DEED syntax, K9-DEED L0–L2
 # conformance, the gitbot-fleet report-backs, and THE Hypatia verdict grid.
-# Everything is pinned to metadatastician/standards@8e48b1caade08a552646adeab66558ac43b4360d.
+# Everything is pinned to metadatastician/standards@e064539116c2dcfdf282a4749dbd58c69961c7e6.
 #
 # ── HOW THIS FILE RELATES TO THE SCANNERS (read before editing) ──────────────
 #
@@ -90,7 +90,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-deed
           sparse-checkout: 1-formats/deed
           sparse-checkout-cone-mode: true
@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-k9
           sparse-checkout: 1-formats/k9
           sparse-checkout-cone-mode: true
@@ -322,7 +322,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 8e48b1caade08a552646adeab66558ac43b4360d
+          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-grid
           persist-credentials: false
           sparse-checkout: |
