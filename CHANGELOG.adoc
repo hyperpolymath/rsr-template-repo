@@ -52,7 +52,12 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   neither its replays nor the tests it runs in scratch repositories can commit
   into the child; one naming another repository is refused. The replays
   receive `STANDARDS_UUID_V8_JS`, and a template tree carrying a submodule
-  (a gitlink, which a replay cannot reproduce) is refused by name.
+  (a gitlink, which a replay cannot reproduce) is refused by name, at the mint
+  as well, clean or not. A pre-mint change gone from both results (an input
+  the mint never copies, a file in a directory it deletes) is checked by
+  minting without it, and refused by name when it has no effect; a path
+  holding byte 0x01 (the deed reader's record separator) is refused like one
+  holding a newline.
 
 ==== Fixed
 
