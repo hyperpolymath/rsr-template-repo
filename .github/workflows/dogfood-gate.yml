@@ -581,7 +581,7 @@ jobs:
           else
             GROOVE_STATUS=":ballot_box_with_check:"
           fi
-          if grep -rl 'verisimdb\|VeriSimDB' --include='*.toml' --include='*.yaml' --include='*.yml' --include='*.json' --include='*.rs' --include='*.ex' . 2>/dev/null | head -1 | grep -q .; then
+          if grep -rl 'verisimdb\|VeriSimDB' --include='*.toml' --include='*.yaml' --include='*.yml' --include='*.kyaml' --include='*.json' --include='*.rs' --include='*.ex' . 2>/dev/null | head -1 | grep -q .; then
             SCORE=$((SCORE + 1)); VSDB_STATUS=":white_check_mark:"
           else
             VSDB_STATUS=":ballot_box_with_check:"
