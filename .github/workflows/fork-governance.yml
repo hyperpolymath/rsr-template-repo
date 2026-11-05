@@ -92,7 +92,9 @@ jobs:
           repository: metadatastician/standards
           ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
           path: .standards-deed
-          sparse-checkout: 1-formats/deed
+          sparse-checkout: |
+            1-formats/deed
+            scripts
           sparse-checkout-cone-mode: true
           persist-credentials: false
 
@@ -102,12 +104,24 @@ jobs:
           bun-version: '1.3.12'
 
       - name: Validate DEED manifests and block retired .a2ml files
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           STANDARDS_ABS="$PWD/.standards-deed"
           rm -rf "$RUNNER_TEMP/standards-deed"
           mv "$STANDARDS_ABS" "$RUNNER_TEMP/standards-deed"
-          STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
+          # The lane is the gate: a ledger with no canonical gate to read it fails.
+          if [ -f .machine_readable/a2ml-legacy-allow.txt ] && [ ! -f "$RUNNER_TEMP/standards-deed/scripts/check-a2ml-archived.sh" ]; then
+            echo "::error::A2ML ledger present but scripts/check-a2ml-archived.sh is missing from the standards checkout"
+            exit 1
+          fi
+          # Shrink-only: the base branch's ledger bounds this one.
+          A2ML_BASE=""
+          if [ -n "$BASE_REF" ] && git fetch -q --depth=1 origin "$BASE_REF"; then
+            A2ML_BASE=FETCH_HEAD
+          fi
+          A2ML_BASE="$A2ML_BASE" STANDARDS_DIR="$RUNNER_TEMP/standards-deed" bash .github/hooks/validate-deed.sh
 
   k9:
     name: K9-DEED conformance
