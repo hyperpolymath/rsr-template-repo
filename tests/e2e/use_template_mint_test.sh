@@ -415,15 +415,23 @@ if grep -q 'notes.mine-local' "$DEED"; then fail 'a file only a global excludesF
 mv "$C/notes.mine-local" "$work/notes.mine-local"   # this test's own git does not ignore it
 g -C "$C" add -A
 g -C "$C" commit -q -m "mint"
-# Minting the minted child again must stop before it writes: its tokens are
-# filled and build/templates is gone, so it would inherit this child's
-# identity (Codex review of #251). Chain minting is a separate, owner-chosen
-# change; until it lands, this is a loud refusal, not a silent half-mint.
-if mint "$C" "$work/remint.log"; then fail 'a minted repo was minted again'; fi
+# Chain minting now supports children with recorded answers (owner ruling
+# 2026-11-04; tests/e2e/chain_mint_test.sh). The refusal applies to legacy
+# children without those replay inputs. Keep the fresh child intact for the
+# conformance and drift checks below, and construct that legacy case explicitly.
+LEGACY="$work/legacy-child"
+cp -a "$C" "$LEGACY"
+bash "$LEGACY/scripts/deed-clause.sh" delete "$LEGACY/$(basename "$DEED")" mint-answers
+if bash "$LEGACY/scripts/deed-field.sh" --has "$LEGACY/$(basename "$DEED")" mint-answers; then
+    fail 'legacy fixture still records mint answers'
+fi
+g -C "$LEGACY" add -A
+g -C "$LEGACY" commit -q -m "legacy child without replay inputs"
+if mint "$LEGACY" "$work/remint.log"; then fail 'a legacy child without mint answers was minted again'; fi
 grep -q 'already been minted' "$work/remint.log" || { cat "$work/remint.log" >&2; fail 'the re-mint refusal did not say why'; }
 grep -qF "records its template as ${T_SLUG}" "$work/remint.log" || fail 'the re-mint refusal does not name the template to use'
-[ -z "$(g -C "$C" status --porcelain)" ] || fail 'the refused re-mint wrote to the tree'
-pass "(e-) minting an already-minted repo stops before writing and names its template"
+[ -z "$(g -C "$LEGACY" status --porcelain)" ] || fail 'the refused re-mint wrote to the tree'
+pass "(e-) a legacy child without replay inputs stops before writing and names its template"
 (cd "$C" && bash scripts/check-template-conformance.sh --quiet) > "$work/conf.log" 2>&1 \
     || { cat "$work/conf.log" >&2; fail 'the conformance check fails on a fresh mint'; }
 # A fresh mint is identical to a replay of itself: green, by construction.
