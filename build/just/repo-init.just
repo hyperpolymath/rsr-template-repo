@@ -337,13 +337,16 @@ repo-init archetype="":
     ask "OpenSSF Best Practices project ID (blank if not yet registered) []: " OPENSSF_BP_ID
 
     # --- Container values (optional — only relevant if build/container/ exists) ---
-    # The default service name is the slug in lower case: an OCI image name
-    # may not contain capitals, and a Julia slug (`<Name>.jl`) has them.
+    # Derive the default for a DNS hostname and bare TOML service key, not
+    # only an OCI image name: Julia dots and slug underscores need hyphens.
+    # Explicit service answers still go through the validator unchanged.
+    DEFAULT_SERVICE_NAME="${REPO,,}"
+    DEFAULT_SERVICE_NAME="${DEFAULT_SERVICE_NAME//[._]/-}"
     if [ -d "build/container" ]; then
         echo ""
         echo "── Container configuration (optional) ─────────"
-        ask "Service name [${SERVICE_NAME:-${REPO,,}}]: " _SERVICE_NAME
-        SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-${REPO,,}}}"
+        ask "Service name [${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}]: " _SERVICE_NAME
+        SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
         ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
@@ -353,7 +356,7 @@ repo-init archetype="":
         bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
             || { echo "ERROR: mint aborted before writing anything — see above."; exit 1; }
     else
-        SERVICE_NAME="${SERVICE_NAME:-${REPO,,}}"
+        SERVICE_NAME="${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}"
         PORT="${PORT:-8080}"
         REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
     fi
