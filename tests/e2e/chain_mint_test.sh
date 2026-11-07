@@ -259,8 +259,7 @@ pass "(-) a conflicting parent edit stops the chain before it writes, and names 
 # ── Negative control: a parent minted before (mint-answers) is refused ──────
 G3="$work/grandchild3"
 use_template "$P" HEAD "$G3" git@github.com:other-owner/grand-check.git
-bash "$G3/scripts/deed-clause.sh" delete "$G3/elder-proj_chora.deed" mint-answers 2>/dev/null \
-    || perl -0pi -e 's/\n  ; mint-answers.*?\n  \(mint-answers.*?\)\n/\n/s' "$G3/elder-proj_chora.deed"
+bash "$G3/scripts/deed-clause.sh" replace "$G3/elder-proj_chora.deed" mint-answers /dev/null
 ! bash "$G3/scripts/deed-field.sh" --has "$G3/elder-proj_chora.deed" mint-answers || fail 'fixture: (mint-answers) still present'
 # Nor the identity template the main parent added back: an old child has neither.
 g -C "$G3" rm -q build/templates/identity.deed.in

@@ -421,7 +421,7 @@ g -C "$C" commit -q -m "mint"
 # conformance and drift checks below, and construct that legacy case explicitly.
 LEGACY="$work/legacy-child"
 cp -a "$C" "$LEGACY"
-bash "$LEGACY/scripts/deed-clause.sh" delete "$LEGACY/$(basename "$DEED")" mint-answers
+bash "$LEGACY/scripts/deed-clause.sh" replace "$LEGACY/$(basename "$DEED")" mint-answers /dev/null
 if bash "$LEGACY/scripts/deed-field.sh" --has "$LEGACY/$(basename "$DEED")" mint-answers; then
     fail 'legacy fixture still records mint answers'
 fi
