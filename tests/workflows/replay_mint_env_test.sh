@@ -16,10 +16,10 @@ T="$work/template"; mkdir -p "$T"; printf 'x\n' > "$T/f"
 g -C "$T" init -q -b main; g -C "$T" add -A; g -C "$T" commit -q -m t
 PIN=$(g -C "$T" rev-parse HEAD)
 mkdir -p "$work/bin"
-cat > "$work/bin/just" <<'STUB'
+cat > "$work/bin/just" <<'FAKE_JUST'
 #!/usr/bin/env bash
 printf '%s|%s\n' "${RSR_PACKAGE_UUID:-}" "${RSR_MINT_REPLAY:-}" > .env-probe
-STUB
+FAKE_JUST
 chmod +x "$work/bin/just"
 replay() { PATH="$work/bin:$PATH" bash "$repo/scripts/replay-mint.sh" "$T" "$PIN" "$@" >/dev/null; }
 STRAY=00000000-0000-8000-8000-000000000000

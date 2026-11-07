@@ -1180,9 +1180,7 @@ repo-init archetype="":
     if [ "$OWNER" != "$TEMPLATE_OWNER" ]; then
         # The same declaration forms the identity parser accepts: optional
         # `export`, either quote (Codex review of #274).
-        sed -i -E "s|^((export[[:space:]]+)?OWNER[[:space:]]*:=[[:space:]]*)([\"'])${TEMPLATE_OWNER}([\"'])|\\1\\3$(sed_rhs "${OWNER}")\\4|" Justfile
-        sed -i -E 's|^sonar\.organization='"${TEMPLATE_OWNER}"'$|sonar.organization='"${OWNER}"'|' sonar-project.properties
-        sed -i -E 's|^sonar\.projectKey='"${TEMPLATE_OWNER}"'_|sonar.projectKey='"${OWNER}"'_|' sonar-project.properties
+        sed -i -E "$SELF_OWNER_SED" Justfile sonar-project.properties
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
         echo "  NOTE: confirm the SonarCloud ORG is really '${OWNER}' before provisioning —"
         echo "        the GitHub owner and the SonarCloud org are not always the same."
