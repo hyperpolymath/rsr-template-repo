@@ -64,8 +64,8 @@ ORANGE_BADGE='{"schemaVersion":1,"label":"Hypatia grid","message":"indeterminate
 # pull-requests: write.
 STANDARDS_REPO="${VERDICT_GRID_STANDARDS_REPO:-metadatastician/standards}"
 STANDARDS_SHA="${VERDICT_GRID_STANDARDS_SHA:-e064539116c2dcfdf282a4749dbd58c69961c7e6}"
-RENDERER_SHA256="3ee93552920dfc7c472e763a040cbaed8f38ed4b8af151f5d5076d3124211388"
-JQ_LIB_SHA256="5681fcefe09480d82b7fa13a6fcb0c389f16467fe7abbace66986cca83114544"
+RENDERER_SHA256="1053d1704c53eae5ba0c0da966ffe8f41b13106007bd7e6db1ff0d9f931fdab0"
+JQ_LIB_SHA256="b02da89ecdc1017f4bac45b68fcbc724e8202342379c06c52b15771f2eb613ba"
 
 usage() {
     sed -n '5,60p' "$0" | sed 's/^# \{0,1\}//' >&2
