@@ -284,3 +284,9 @@ jobs:
           set -euo pipefail
           bash tests/workflows/squabble_gate_test.sh
           bash scripts/check-required-contexts.sh .
+      # The three scanner contexts, their least privilege and their pinning are
+      # this repository's own: a job-level reusable wrapper would make them the
+      # CALLEE's job names, and `secrets: inherit` would forward every secret to
+      # a scanner that declares none. Every property is mutated in the test.
+      - name: Secret scanner contract (three stable contexts)
+        run: bash tests/workflows/secret_scanner_contract_test.sh

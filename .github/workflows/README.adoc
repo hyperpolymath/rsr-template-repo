@@ -11,17 +11,35 @@ not "tidied away" into a real coverage gap.
   Independent; this is the repo's own Hypatia coverage.
 * `static-analysis-gate.yml` -> `hypatia-scan` job — runs Hypatia as part of the
   **gate**, then the `deposit-findings` job hands the results to the
-  **gitbot-fleet learning** pipeline. This job is also a *required status check*.
+  **gitbot-fleet learning** pipeline. This job is *documented here as a
+  required status check*, but as of 2026-11-08 no live rule requires it:
+  `GET /rules/branches/main` returns only `required_linear_history`. It is a
+  gate in the sense that it reddens a run; it is not a merge blocker until a
+  ruleset says so.
 
 Same tool, two different consumers (security scan vs fleet learning). Removing
 either loses real function — keep both.
 
 == Secret scanning is single-sourced *in CI* — and two-tier overall
 
-`secret-scanner.yml` calls the standards reusable (gitleaks + a Rust-secrets
-check). An inline TruffleHog job was removed: the reusable deliberately retired
+`secret-scanner.yml` runs all three estate scanners inline: `scan / gitleaks`,
+`scan / rust-secrets` and `scan / shell-secrets`. An inline TruffleHog job was
+removed earlier: the standards reusable it was paired with deliberately retired
 TruffleHog as redundant with gitleaks, so re-adding it was duplicated work, not
 extra coverage.
+
+The three jobs are inline rather than one `uses:` of the standards
+`secret-scanner-reusable.yml`, and that is deliberate. A job-level reusable call
+reports `<caller job> / <called job>`, so the wrapper's three public check names
+would depend on job names inside a *remote* workflow: rename one there and three
+required contexts move in every generated repository. Inline jobs whose `name:`
+is the context make the names this repository's own, and the whole file stays
+inside `gh actions-lock`'s model — every `uses:` is a step-level action the
+official generator can lock, so regenerating never leaves a dangling edge. Do
+not "simplify" this back into a single wrapper call;
+
+`metadatastician/standards` does it as a wrapper because it *owns* the reusable
+and can keep `./`-local, so its own names cannot re-stale.
 
 **That retirement is scoped to CI.** The estate runs a deliberate *two-tier*
 secret defence, and the second tier is not in this directory:
@@ -32,7 +50,7 @@ secret defence, and the second tier is not in this directory:
 
 | CI
 | gitleaks (+ rust-secrets, shell-secrets)
-| `secret-scanner.yml` -> standards reusable. Runs on pull_request and on push
+| `secret-scanner.yml`, three inline jobs. Runs on pull_request and on push
   to main — i.e. on what has *already reached* the remote.
 
 | Local

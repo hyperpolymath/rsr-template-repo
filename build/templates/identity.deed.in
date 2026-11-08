@@ -27,9 +27,14 @@
   ;   ax  AI & Neurosymbolic             ML, neural proof synthesis, AI governance
   ;   gm  Games & Interactive            game engines, interactive experiences
   ;   sc  Security                       scanning, vulnerability management, access control
-  ; paint-type once chose `pt` reading it as "PainT-type" (an image editor is
-  ; `ap`); gossamer chose `gv` reading it as "Graphical/Visual" (`gv` is
-  ; GoVernance). Both codes were valid, so every check passed.
+  ; A CODE CAN BE VALID AND STILL BE WRONG. Two real mis-choices happened
+  ; because the code was read as an ABBREVIATION OF THE REPOSITORY'S NAME
+  ; rather than of the clade's name: a project whose slug contained a
+  ; two-letter sequence read `pt` as that sequence (its work was an
+  ; application, so `ap`), and a project read `gv` as "graphical/visual"
+  ; (`gv` is GoVernance; graphical work is `ap`). Both codes were valid, so
+  ; every mechanical check passed and only a human caught it. Read the code
+  ; off the RIGHT-HAND column, never off the repository name.
   ; HOW TO CHOOSE: the primary clade reflects the project's core value
   ; proposition, not its implementation. A game written in Idris2 is `gm`.
   ; Set BOTH :primary and :primary-name, and make them agree; then set
