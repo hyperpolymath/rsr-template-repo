@@ -579,23 +579,35 @@ pass "(-) a type change across an answer-dependent rename is refused before anyt
 # only this user's git configuration resolves (insteadOf, as credentials
 # would be): its blobs must be fetched while that configuration applies, not
 # later by replays that run without it (CodeRabbit review of #277).
+# The served template must not be shallow, as a real one is not: T is a clone
+# of this (often shallow) checkout, and git cannot serve a shallow partial
+# clone onward. TN is T's tree as a root commit.
+TN="$work/template-full"
+g init -q -b main "$TN"
+(cd "$T" && git ls-files -z | tar --null -T - -cf -) | (cd "$TN" && tar xf -)
+g -C "$TN" add -f -A; g -C "$TN" commit -q -m "template under test (unshallow)"
+[ "$(g -C "$TN" rev-parse 'HEAD^{tree}')" = "$(g -C "$T" rev-parse "$T_COMMIT^{tree}")" ] \
+    && [ "$(g -C "$TN" rev-parse --is-shallow-repository)" = false ] || fail 'fixture: the unshallow template is not the template under test'
+g -C "$TN" config uploadpack.allowFilter true
+g -C "$TN" config uploadpack.allowAnySHA1InWant true
 PR="$work/parent-renamed"
-g clone -q --no-local "$P" "$PR"
+use_template "$TN" HEAD "$PR" git@github.com:elder-owner/elder-proj.git
+MINT_TEMPLATE_URL="$TN" mint "$PR" "$work/parent-renamed.log" elder-proj elder-owner "Eldra Author" elder@example.org "Elder tools" \
+    || { tail -30 "$work/parent-renamed.log" >&2; fail 'the unshallow parent mint failed'; }
+g -C "$PR" add -A; g -C "$PR" commit -q -m mint
 g -C "$PR" mv elder-proj_chora.deed elder-renamed_chora.deed
 g -C "$PR" commit -q -m "the parent renames its deed"
-g -C "$T" config uploadpack.allowFilter true
-g -C "$T" config uploadpack.allowAnySHA1InWant true
 GR="$work/grandchild-renamed"
-use_template "$PR" HEAD "$GR" git.com:other-owner/grand-check.git
+use_template "$PR" HEAD "$GR" git@github.com:other-owner/grand-check.git
 MINT_TEMPLATE_URL="https://template.invalid/rsr-template-repo.git" \
-MINT_GITCONFIG="[url \"file://$T\"]
+MINT_GITCONFIG="[url \"file://$TN\"]
 	insteadOf = https://template.invalid/rsr-template-repo.git
 " mint "$GR" "$work/renamed.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
     || { tail -40 "$work/renamed.log" >&2; fail 'a chain mint from a parent that renamed its deed, through a private-style URL, failed'; }
 [ -f "$GR/grand-check_chora.deed" ] && [ ! -e "$GR/elder-renamed_chora.deed" ] && [ ! -e "$GR/elder-proj_chora.deed" ] \
     || { ls "$GR"/*_chora.deed >&2; fail 'the grandchild does not hold exactly its own deed'; }
 g -C "$GR" add -A; g -C "$GR" commit -q -m "chain mint"
-(cd "$GR" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/renameddrift.log" 2>&1 \
+(cd "$GR" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$TN") > "$work/renameddrift.log" 2>&1 \
     || { cat "$work/renameddrift.log" >&2; fail 'the grandchild of a parent that renamed its deed has a red drift gate'; }
 pass "a parent's renamed deed is identity, not carried; a private-style template URL is read under the user's configuration; drift gate green"
 
