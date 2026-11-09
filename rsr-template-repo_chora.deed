@@ -29,6 +29,10 @@
   ; build/just/repo-init.just (writes the child's (provenance) clause at mint). Every hash MUST
   ; equal canon.lock [canon.artifacts]; canon.lock [canon.lockstep].order is
   ; spine-adopts-then-canon-releases, so this clause moves FIRST.
+  ; Two-phase: to adopt a canon AHEAD of its release, pin the open canon
+  ; PR's canon.lock and name it with :proposed-by "metadatastician/standards#N".
+  ; scripts/canon-pin-check.sh then checks the pin against that PR's head
+  ; while it is open; once it merges the field is spent and can be dropped.
   (canon
     :version "2.1.4"
     :criteria-sha256 "6a5aa8857bd0d0d58ef48827938ca17c251b6b854dacf59d306388d61694d82a"

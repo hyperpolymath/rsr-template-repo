@@ -1283,7 +1283,7 @@ repo-init archetype="":
     # deed's one (canon …) clause, or nothing when the clause or key is
     # absent or the clause is not unique. A ";" outside a string starts a
     # comment that runs to line-end (deed.abnf), whole-line or inline. The SAME function is in
-    # .github/workflows/dogfood-gate.yml and standards
+    # scripts/canon-pin-check.sh and standards
     # scripts/check-canon-lockstep.sh; keep the three identical.
     deed_canon() {
         _clauses="$(awk 'BEGIN { bs = sprintf("%c", 92); dq = sprintf("%c", 34) } { o = ""; q = 0; for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); if (q && c == bs) { o = o c substr($0, i + 1, 1); i++; continue } if (c == dq) q = !q; else if (!q && c == ";") break; o = o c } printf "%s ", o }' "$2" | grep -oE '[(]canon[[:space:]][^()]*[)]')" || true
@@ -1508,6 +1508,13 @@ repo-init archetype="":
         echo "              from a template commit that has one."
     else
         echo "  provenance: $DEED_OUT (provenance)  (canon v${CANON_VERSION} ${CANON_CRITERIA_SHA:0:12})"
+        CANON_PROPOSED_BY="$(deed_canon proposed-by "$DEED_OUT")"
+        if [ -n "$CANON_PROPOSED_BY" ]; then
+            echo "  WARNING:    the template pins canon v${CANON_VERSION} ahead of its release"
+            echo "              (:proposed-by \"${CANON_PROPOSED_BY}\"). This repo inherits that pin;"
+            echo "              its Canon lockstep passes only while that canon PR is open and"
+            echo "              unchanged, and once it merges. Re-mint or re-pin if it is closed."
+        fi
     fi
 
     # archetypes/ is template-only overlay data, not part of your repo
