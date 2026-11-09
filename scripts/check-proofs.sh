@@ -162,7 +162,7 @@ found="$(cd "$ROOT" && find "$PROOF_DIR" -name "*.$EXT" -not -path '*/build/*' 2
 unlisted="$(comm -13 <(printf '%s\n' "$listed") <(printf '%s\n' "$found") || true)"
 # A listed module is stale when its file is absent. Entries may sit outside
 # $PROOF_DIR (for example the coaptation core), so test the path itself.
-missing="$(while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$ROOT/$p" ] && echo "$p"; done <<<"$listed" || true)"
+missing="$(while IFS= read -r p; do [[ -n "$p" && ! -f "$ROOT/$p" ]] && echo "$p"; done <<<"$listed" || true)"
 
 if [ -n "${unlisted//[[:space:]]/}" ]; then
   echo "FAIL: .$EXT proofs on disk but absent from $MANIFEST_FILE:"
