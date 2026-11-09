@@ -31,8 +31,9 @@
 # github.com/o/r, the uuid5 name (uuidgen --sha1 --namespace @url --name …).
 #
 # --uuid derives the uuid5 (RFC 9562, URL namespace) of the header :repo-uuid
-# name. It uses uuidgen when that supports --sha1, else bun, and exits 2 when
-# neither is available or the result is not uuid-shaped: it never guesses.
+# name. It uses uuidgen when that supports --sha1, else scripts/uuid5-url.sh
+# (sha1sum, shasum or openssl), else bun, and exits 2 when none is available
+# or the result is not uuid-shaped: it never guesses.
 #
 # Exit: 0 found; 1 clause or key absent (nothing printed); 2 usage error or no
 # readable deed. --find exits 1 unless exactly one deed is present.
@@ -161,6 +162,9 @@ END {
 uuid5_url() {
   if uuidgen --sha1 --namespace @url --name x >/dev/null 2>&1; then
     uuidgen --sha1 --namespace @url --name "$1"
+  elif [ -f "$(dirname "${BASH_SOURCE[0]}")/uuid5-url.sh" ] && bash "$(dirname "${BASH_SOURCE[0]}")/uuid5-url.sh" x >/dev/null 2>&1; then
+    # The same derivation repo-init mints with (sha1sum, shasum or openssl).
+    bash "$(dirname "${BASH_SOURCE[0]}")/uuid5-url.sh" "$1"
   elif command -v bun >/dev/null 2>&1; then
     bun -e '
       const h = new Bun.CryptoHasher("sha1");
@@ -173,7 +177,7 @@ uuid5_url() {
       console.log([x.slice(0, 8), x.slice(8, 12), x.slice(12, 16), x.slice(16, 20), x.slice(20)].join("-"));
     ' "$1"
   else
-    echo "deed-field.sh: --uuid needs uuidgen with --sha1, or bun" >&2; return 2
+    echo "deed-field.sh: --uuid needs uuidgen with --sha1, sha1sum, shasum, openssl, or bun" >&2; return 2
   fi
 }
 
