@@ -106,6 +106,15 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **Canon 2.1.5 adopted (Canon lockstep red since 2026-11-08).**
+  `standards` advanced `canon.lock` to 2.1.5 (standards #1419, #1424):
+  its gate table moved to 0.3.1, which only widens the accepted layouts
+  (a second proof layout, a deed carrying the manifest records, a root
+  Containerfile on its own). The deed's `(canon …)` clause and the pinned
+  identity in `tests/workflows/governance_policy_test.sh` now carry 2.1.5
+  and gates `5c510bba…`; criteria are unchanged. Minted repos bump the same
+  two fields (`:version`, `:gates-sha256`).
+
 * **repo-init follow-ups to #251 (the Codex review it merged before).**
 ** Re-minting a minted repo silently inherited its parent's author, contacts
    and identity (its tokens are filled and `build/templates` is gone). A
