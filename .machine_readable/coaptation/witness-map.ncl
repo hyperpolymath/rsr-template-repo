@@ -34,9 +34,11 @@
     note = "anchor.authority is read from the deed's (anchor) clause, so its presence IS the clause's presence",
   },
   # must.six-directory-present has NO descriptile witness. Its probe needs
-  # descriptiles/PLAYBOOK + NEUROSYM and exactly one deed, and no fact here
-  # attests that: state and ecosystem are deed clauses since rsr-template-repo#209,
-  # and the anchor facts come from the deed. It is probe-deferred to the Hunt tier.
+  # exactly one deed carrying the (anchor), (neurosym) and (playbook) clauses.
+  # The neurosym. and playbook. facts are fields inside those clauses, and a
+  # missing field is not a missing clause, so their presence cannot attest the
+  # clauses without risking a false refutation. It is probe-deferred to the
+  # Hunt tier.
 
   # --- TRUST: deliberately NO descriptile witness. ---
   # Every Trust obligation here (no-secrets / no-private-keys / author-correct /
