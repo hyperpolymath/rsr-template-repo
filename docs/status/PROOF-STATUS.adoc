@@ -14,7 +14,7 @@ it, and the README scorecard's *Proofs* row counts its rows.
 
 == Census
 
-0 rows `proven`, 0 `tested-only`, 0 `argued`, 7 `open`: 7 rows in all.
+3 rows `proven`, 2 `tested-only`, 0 `argued`, 6 `open`: 11 rows in all.
 
 Write the census as a count of rows by status, with the denominator. Never
 write a percentage: a count of rows is not a measure of confidence
@@ -28,22 +28,53 @@ open. Status is one of `proven`, `proven-with-postulates`, `argued`,
 `tested-only` or `open`. A `proven` row names the checker, its version and
 flags. A row is never stronger than the weakest step it depends on.
 
-The seven rows below are the template's mandatory obligations from
-`PROOF-NEEDS.adoc`. The files under `verification/proofs/` prove example
-statements about the template's example ABI, not this repository's. Restate
-each obligation for this repository's own seam, and move a row out of
-`open` only on a receipt below.
+The SEAM rows are proved or tested on the ABI seam itself
+(`src/interface/Abi/` against `src/interface/ffi/src/main.zig`), which a
+minted repository inherits as its own: they hold for as long as that code is
+unchanged, and must be rechecked after any edit to it. The ABI and TP rows
+are the template's mandatory obligations from `PROOF-NEEDS.adoc`. The files
+under `verification/proofs/` prove example statements, not this
+repository's. Restate each obligation for this repository's own seam, and
+move a row out of `open` only on a receipt below.
 
 [cols="1,3,1,3,2,3",options="header"]
 |===
 |ID |Obligation |Status |Checker (version, flags) |Where |Trust boundary
 
+|SEAM-1
+|The `Result` code table round-trips: `fromCode (resultCode r) = Just r`.
+|`proven`
+|Idris2 0.7.0, `%default total`; `scripts/check-proofs.sh idris2` (`--check` with no `Error:`, and `:m` answering `No holes`)
+|`src/interface/Abi/Types.idr:fromCodeResultCode`
+|The Idris2 table only; SEAM-3 ties it to Zig.
+
+|SEAM-2
+|The `Result` code table is injective.
+|`proven`
+|As SEAM-1
+|`src/interface/Abi/Types.idr:resultCodeInjective`
+|Derived from SEAM-1 alone.
+
+|SEAM-3
+|The Zig `Result = enum(c_int)` values equal the Idris2 codes, member by member.
+|`tested-only`
+|`tests/aspect_tests.sh` Aspect 3, every run
+|`tests/aspect_tests.sh`
+|Text comparison of the two source tables; fails on entries it cannot parse.
+
+|SEAM-4
+|Every `%foreign` symbol is declared `export fn` in the Zig source, and the library name matches the one `build.zig` builds.
+|`tested-only`
+|`tests/aspect_tests.sh` Aspect 3, every run
+|`tests/aspect_tests.sh`
+|Source text, names only. `build.zig` builds no library yet, so the library half is a warning, not a pass.
+
 |ABI-1
-|Non-null pointers: a handle can never hold a null pointer.
-|`open`
-|-
-|`verification/proofs/idris2/ABI/Pointers.idr` (template example, quarantined)
-|Restate for this repository's handle type.
+|Non-null pointers: a `Handle` can never hold a null pointer.
+|`proven`
+|As SEAM-1; watched to fail: `MkHandle 0 Oh` is rejected (2026-11-09)
+|`src/interface/Abi/Types.idr:Handle` (erased `So (ptr /= 0)`)
+|Idris2 side only: not that the pointer is live, aligned or owned.
 
 |ABI-2
 |Memory layout of every struct that crosses the seam (`HasSize`, `HasAlignment`).
@@ -118,7 +149,12 @@ it names. Rerun the check after any change to the files it covers.
 |===
 |Run |Record
 
-|- |No runs recorded yet.
+|2026-11-09, Idris2
+|Idris2 0.7.0 built from the `v0.7.0` tag on Chez Scheme 9.5.8.
+`bash scripts/check-proofs.sh idris2`: `src/interface/Abi/{Types,Layout,Foreign}.idr`
+PASS with no holes. Watched to fail: a proof replaced by a hole, and a null
+`Handle`. Also typechecked after substituting `{{project}}` as
+`just repo-init` does. A minted repository records its own receipts.
 |===
 
 == Verification commands

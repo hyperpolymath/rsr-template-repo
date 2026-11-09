@@ -9,3 +9,10 @@ verification/proofs/idris2|ABI/Layout.idr|quarantine| Undefined name NonZero (ne
 verification/proofs/idris2|ABI/Platform.idr|quarantine| Undefined name LTE (needs Data.Nat); then Undefined name lteRefl
 verification/proofs/idris2|ABI/Pointers.idr|quarantine| .nonNull declared at quantity 0 (erased) yet projected into a value position, plus a unification failure — design decision, not a typo
 verification/proofs/idris2|ABI/Compliance.idr|quarantine| depends on quarantined ABI.Layout / ABI.Platform
+#
+# The repository's own ABI seam (src/interface/Abi/), checked from its source
+# root so module names match paths. Every repo minted from this template
+# inherits these entries; restate the obligations in PROOF-STATUS.adoc.
+src/interface|Abi/Types.idr|gated| Result code table: fromCodeResultCode (round trip), resultCodeInjective; non-null Handle
+src/interface|Abi/Layout.idr|gated| example struct only; no struct crosses this seam by value (Handle is opaque)
+src/interface|Abi/Foreign.idr|gated| Aspect 3 compares each %foreign name with the export fn text of main.zig (source text, not a built library)
