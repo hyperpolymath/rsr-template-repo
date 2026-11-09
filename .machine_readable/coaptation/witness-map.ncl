@@ -17,10 +17,12 @@
 #   'present | 'absent | 'zero | 'nonzero | 'equals | 'contains | 'not_contains
 # 'equals/'contains/'not_contains take `arg`. A clause's witnesses ALL must hold.
 #
-# Soundness-critical entries (the Must/Trust gates) are the ones to graduate to
-# Idris2 `Witnesses` proofs in a later session (build-path step 6); today they are
-# declarative. Keep this list HONEST: only assert a witness you can defend — the
-# whole point is to make boundary-erosion visible, not to manufacture green.
+# The Must/Trust gate over these entries is modelled in core/Coaptation.idr and
+# proved sound against a content-bearing witness relation; the entries
+# themselves stay declarative (a human judges which fact witnesses which clause).
+# Keep this list HONEST: only assert a witness you can defend — the whole point
+# is to make boundary-erosion visible, not to manufacture green. Every
+# `descriptile` entry needs at least one witness: an empty list is refuted.
 {
   # --- MUST: presence obligations ---
   # must.machine-readable-dir has NO descriptile witness any more. It was

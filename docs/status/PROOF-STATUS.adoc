@@ -6,21 +6,21 @@
 
 == Summary
 
-[cols="2,1,1,1,1,1", options="header"]
+[cols="2,1,1,1,1,1,1", options="header"]
 |===
-| Category | Total | Done | In Progress | Blocked | Remaining
+| Category | Total | PROVEN | PROVEN-WITH-AXIOMS | TESTED | ASSUMED | OPEN
 
-| ABI/FFI (ABI) | 5 | 0 | 0 | 0 | 5
-| Typing (TP) | 2 | 0 | 0 | 0 | 2
-| Invariant (INV) | 0 | 0 | 0 | 0 | 0
-| Security (SEC) | 0 | 0 | 0 | 0 | 0
-| Concurrency (CONC) | 0 | 0 | 0 | 0 | 0
-| Algorithm (ALG) | 0 | 0 | 0 | 0 | 0
-| Domain (DOM) | 0 | 0 | 0 | 0 | 0
-| *Total* | *7* | *0* | *0* | *0* | *7*
+| ABI/FFI (ABI) | 5 | 0 | 0 | 0 | 0 | 5
+| Typing (TP) | 2 | 0 | 0 | 0 | 0 | 2
+| Invariant (INV) | 0 | 0 | 0 | 0 | 0 | 0
+| Security (SEC) | 0 | 0 | 0 | 0 | 0 | 0
+| Concurrency (CONC) | 0 | 0 | 0 | 0 | 0 | 0
+| Algorithm (ALG) | 0 | 0 | 0 | 0 | 0 | 0
+| Domain (DOM) | 0 | 0 | 0 | 0 | 0 | 0
+| *Total* | *7* | *0* | *0* | *0* | *0* | *7*
 |===
 
-*Overall*: 0% proven
+*Census*: 0 of 7 obligations `PROVEN`; 7 `OPEN`. Status tokens are the §5 vocabulary of `3-practice/PROOF-POLICY.adoc` (standards). Report a census with its denominator, never a percentage (policy §8.4). Theory theorems also carry a Proof Witness Grade (`PWG-…` or `ungraded`) in a separate field.
 
 == Proofs Done
 
@@ -65,7 +65,7 @@
 | ABI-4 | FFI function return type proofs | ABI | Idris2 | P1 | 2h
 | ABI-5 | C ABI compliance | ABI | Idris2 | P1 | 4h
 | TP-1 | Core data type well-formedness | TP | Idris2 | P1 | 4h
-| TP-2 | Public API type safety | TP | Lean4 | P2 | 4h
+| TP-2 | Public API type safety | TP | Idris2 | P2 | 4h
 |===
 
 == Verification Commands

@@ -48,7 +48,7 @@ These proofs come from the rsr-template-repo and MUST be present in every repo:
 | # | Proof | Status | File
 
 | TP-1 | Core data type well-formedness | Needed | `verification/proofs/idris2/Types.idr`
-| TP-2 | Public API type safety (exported functions) | Needed | `verification/proofs/lean4/ApiTypes.lean`
+| TP-2 | Public API type safety (exported functions) | Needed | Idris2 (an interface property, policy §1). The shipped `lean4/ApiTypes.lean` is a layout example, not this proof.
 |===
 
 == Project-Specific Proofs
@@ -85,16 +85,17 @@ CI will reject any PR introducing these patterns (enforced by `panic-attack assa
 
 == Prover Selection Guide
 
+This table mirrors `3-practice/PROOF-POLICY.adoc` in `hyperpolymath/standards`, which governs. Another tool needs a recorded §4 exception.
+
 [cols="2,2,3", options="header"]
 |===
 | Use Case | Recommended Prover | Why
 
-| ABI/FFI boundaries | *Idris2* | Dependent types model layouts precisely
-| Type system proofs | *Coq* or *Lean4* | Mature proof assistants for metatheory
-| Algebraic properties | *Lean4* | Good mathlib support
-| Inductive/coinductive | *Agda* | Native support for (co)induction
-| Distributed systems | *TLA+* | Model checking for protocols
-| Numerical properties | *Isabelle* | Strong real analysis library
+| Rust code | *Creusot* with Pearlite contracts, and *Verus* | Policy §1.2: on the implementation itself
+| Ada code | *SPARK* | `gnatprove` on code under `SPARK_Mode`
+| APIs, ABIs, interface and engineering properties | *Idris2* | Policy §1: types, layouts, wire formats, protocols
+| Theory (true of any implementation) | *Agda*, rechecked in *Rocq* and *Lean* | Policy §1–§2: Agda is the source; no Mathlib
+| Protocol model checks | *TLA+* | A recorded §4 exception, reported `TESTED` with its bounds
 |===
 
 == Proof File Locations
@@ -104,13 +105,13 @@ verification/proofs/
 ├── idris2/          # Idris2 proofs (ABI, dependent types)
 │   ├── ABI/         # ABI-specific proofs
 │   └── *.idr        # Project-specific Idris2 proofs
-├── lean4/           # Lean4 proofs (algebra, lattices)
+├── lean4/           # Lean recheck legs of agda/ (theory; no Mathlib)
 │   └── *.lean
-├── agda/            # Agda proofs (induction, metatheory)
+├── agda/            # Theory: the source of truth
 │   └── *.agda
-├── coq/             # Coq proofs (type systems, compilation)
+├── coq/             # Rocq recheck legs of agda/ (theory)
 │   └── *.v
-└── tlaplus/         # TLA+ specs (distributed protocols)
+└── tlaplus/         # Recorded §4 exception: protocol model checks (TESTED)
     └── *.tla
 ----
 

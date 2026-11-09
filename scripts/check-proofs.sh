@@ -82,7 +82,8 @@ check_one() {
   case "$PROVER" in
     idris2) out="$(cd "$ROOT/$root" && idris2 --check "$rel" 2>&1)"; rc=$? ;;
     lean4)  out="$(cd "$ROOT/$root" && lean          "$rel" 2>&1)"; rc=$? ;;
-    agda)   out="$(cd "$ROOT/$root" && agda --safe    "$rel" 2>&1)"; rc=$? ;;
+    # Canonical theory invocation, PROOF-POLICY §2.1 (standards). Do not weaken.
+    agda)   out="$(cd "$ROOT/$root" && agda --safe --without-K --cubical-compatible "$rel" 2>&1)"; rc=$? ;;
     coq)    out="$(cd "$ROOT/$root" && coqc           "$rel" 2>&1)"; rc=$? ;;
   esac
   set -e
@@ -159,7 +160,9 @@ echo "=== manifest coverage ($PROOF_DIR) ==="
 listed="$(sort -u "$listed_tmp")"
 found="$(cd "$ROOT" && find "$PROOF_DIR" -name "*.$EXT" -not -path '*/build/*' 2>/dev/null | sort)"
 unlisted="$(comm -13 <(printf '%s\n' "$listed") <(printf '%s\n' "$found") || true)"
-missing="$(comm -23 <(printf '%s\n' "$listed") <(printf '%s\n' "$found") || true)"
+# A listed module is stale when its file is absent. Entries may sit outside
+# $PROOF_DIR (for example the coaptation core), so test the path itself.
+missing="$(while IFS= read -r p; do [ -n "$p" ] && [ ! -f "$ROOT/$p" ] && echo "$p"; done <<<"$listed" || true)"
 
 if [ -n "${unlisted//[[:space:]]/}" ]; then
   echo "FAIL: .$EXT proofs on disk but absent from $MANIFEST_FILE:"
