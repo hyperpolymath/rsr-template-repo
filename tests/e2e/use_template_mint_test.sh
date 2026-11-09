@@ -95,7 +95,8 @@ use_template() {
     rm -rf "$1"; mkdir -p "$1"
     materialize "$T_COMMIT" "$1"
     g -C "$1" init -q -b main
-    g -C "$1" add -A
+    # -f: a template copy keeps every tracked file, ignore rules or not.
+    g -C "$1" add -f -A
     g -C "$1" commit -q -m "Initial commit"
     g -C "$1" remote add origin git@github.com:example-owner/mint-check.git
 }
@@ -199,6 +200,16 @@ MINT_ENV=()
 grep -q 'contains a newline' "$work/newline.log" || { cat "$work/newline.log" >&2; fail 'the newline refusal did not say why'; }
 [ -z "$(g -C "$NL" status --porcelain)" ] || { g -C "$NL" status --short | head >&2; fail 'the refused mint wrote to the tree'; }
 pass "(a-) an answer containing a newline is refused before anything is written"
+# Byte 0x01 is the deed reader's record separator: an answer holding it was
+# rendered everywhere and then could not be recorded (Codex review of #275).
+SOH="$work/sohanswer"
+use_template "$SOH"
+MINT_ENV=(PROJECT_DESCRIPTION=$'one\001two')
+if mint "$SOH" "$work/sohanswer.log"; then fail 'an answer holding byte 0x01 was accepted'; fi
+MINT_ENV=()
+grep -q 'contains byte 0x01' "$work/sohanswer.log" || { cat "$work/sohanswer.log" >&2; fail 'the 0x01 refusal did not say why'; }
+[ -z "$(g -C "$SOH" status --porcelain)" ] || { g -C "$SOH" status --short | head >&2; fail 'the refused mint wrote to the tree'; }
+pass "(a-) an answer holding byte 0x01 is refused before anything is written"
 
 # ── 4d. Control: an asserted pin whose tree this child does not hold ────────
 # The difference cannot be listed, so it cannot be declared: refused before
@@ -434,7 +445,7 @@ grep -qF "records its template as ${T_SLUG}" "$work/remint.log" || fail 'the re-
 pass "(e-) a legacy child without replay inputs stops before writing and names its template"
 (cd "$C" && bash scripts/check-template-conformance.sh --quiet) > "$work/conf.log" 2>&1 \
     || { cat "$work/conf.log" >&2; fail 'the conformance check fails on a fresh mint'; }
-# A fresh mint is identical to a replay of itself: green, by construction.
+# A fresh mint is identical to a replay of itself (the design; checked here).
 drift() { (cd "$C" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/drift.log" 2>&1; }
 drift || { cat "$work/drift.log" >&2; fail 'the drift gate is red on a fresh mint'; }
 grep -q 'identical to a replay of the mint' "$work/drift.log" || fail 'the drift gate did not replay the mint'
@@ -468,6 +479,15 @@ grep -q '^DRIFT: declared-added mint-probe.md is missing' "$work/drift.log" || f
 [ "$(grep -c '^DRIFT:' "$work/drift.log")" -eq 3 ] || { cat "$work/drift.log" >&2; fail 'the drift gate reported more than the three changes'; }
 chmod -x "$C/README.adoc"; rm -r "$C/archetypes"; g -C "$C" checkout -q -- mint-probe.md
 pass "(d-) a mode change, a revived removal and a missing addition are each named"
+# git records only the owner's execute bit: group and other execute bits are
+# no change to it, so no drift. (`-x` asked about the caller, and as root it
+# is true for such a file: this control bites when run as root, as in a
+# container.) (Codex review of #275.)
+chmod go+x "$C/README.adoc"
+[ -z "$(g -C "$C" status --porcelain -- README.adoc)" ] || fail 'fixture: git sees a group/other execute bit as a change'
+drift || { cat "$work/drift.log" >&2; fail 'the drift gate named a group/other execute bit git does not record'; }
+chmod go-x "$C/README.adoc"
+pass "(d) execute bits git does not record (group, other) are not drift, as root too"
 # Membership is the repository file set (Codex review of #275): an ignored
 # artefact the replay also generates, force-added here, is still an addition.
 AP=.machine_readable/arrival-pack/claude-md-data.json
@@ -572,6 +592,8 @@ SL_TREE=$(cd "$T" && GIT_INDEX_FILE="$work/slug.index" git read-tree "$T_TREE" &
     && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "100644,$(git hash-object -w "$work/Justfile.slug"),Justfile" \
     && { cat .gitattributes; printf 'SUPPORT.adoc export-ignore\n'; } > "$work/gitattributes.slug" \
     && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "100644,$(git hash-object -w "$work/gitattributes.slug"),.gitattributes" \
+    && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "100644,$(printf 'forced\n' | git hash-object -w --stdin),_build/forced.txt" \
+    && GIT_INDEX_FILE="$work/slug.index" git update-index --add --cacheinfo "120000,$(printf 'README.adoc' | git hash-object -w --stdin),readme-link" \
     && GIT_INDEX_FILE="$work/slug.index" git write-tree)
 SL_COMMIT=$(g -C "$T" commit-tree "$SL_TREE" -p "$T_COMMIT" -m "a template naming itself through env()")
 g -C "$T" branch -q env-identity "$SL_COMMIT"
@@ -580,7 +602,12 @@ rm -rf "$SLC"; mkdir -p "$SLC"
 materialize "$SL_COMMIT" "$SLC"
 [ -f "$SLC/SUPPORT.adoc" ] && ! g -C "$T" archive "$SL_COMMIT" | tar t | grep -qx SUPPORT.adoc \
     || fail 'fixture: SUPPORT.adoc is not export-ignored in the second template commit'
-g -C "$SLC" init -q -b main; g -C "$SLC" add -A; g -C "$SLC" commit -q -m "Initial commit"
+# The same template tracks _build/forced.txt although _build/ is ignored, and
+# a symlink: "Use this template" copies both, so the replay must keep them
+# (Codex and CodeRabbit review of #277).
+g -C "$T" check-ignore -q --no-index _build/forced.txt || fail 'fixture: _build/ is not ignored'
+g -C "$SLC" init -q -b main; g -C "$SLC" add -f -A; g -C "$SLC" commit -q -m "Initial commit"
+[ "$(g -C "$SLC" rev-parse 'HEAD^{tree}')" = "$SL_TREE" ] || fail 'fixture: the env()-identity child is not its template tree'
 g -C "$SLC" remote add origin git@github.com:example-owner/mint-check.git
 MINT_ENV=(RSR_TEMPLATE_SLUG="$T_SLUG" RSR_TEMPLATE_COMMIT="$SL_COMMIT")
 mint "$SLC" "$work/slug.log" || { tail -30 "$work/slug.log" >&2; fail 'the env()-identity template did not mint with RSR_TEMPLATE_SLUG'; }
@@ -588,7 +615,31 @@ MINT_ENV=()
 g -C "$SLC" add -A; g -C "$SLC" commit -q -m mint
 (cd "$SLC" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/slugdrift.log" 2>&1 \
     || { cat "$work/slugdrift.log" >&2; fail 'the drift gate could not replay a template that needs RSR_TEMPLATE_SLUG'; }
-pass "(d) a template naming itself through env() and marking a path export-ignore is replayed exactly: green"
+pass "(d) a template naming itself through env(), marking a path export-ignore and force-tracking an ignored file is replayed exactly: green"
+# A symlink target differing only by a trailing newline is a different blob
+# to git, so drift: command substitution strips it (Codex review of #275).
+rm "$SLC/readme-link"; ln -s 'README.adoc
+' "$SLC/readme-link"
+[ -n "$(g -C "$SLC" status --porcelain -- readme-link)" ] || fail 'fixture: git does not see the retargeted link'
+if (cd "$SLC" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/slugdrift.log" 2>&1; then
+    fail 'the drift gate missed a symlink target changed by a trailing newline'
+fi
+grep -q '^DRIFT: readme-link differs' "$work/slugdrift.log" || { cat "$work/slugdrift.log" >&2; fail 'the retargeted link was not named'; }
+g -C "$SLC" checkout -q -- readme-link
+pass "(d-) a symlink retargeted only by a trailing newline is named"
+# A checkout that does not read back as its tree (a CRLF blob under eol=lf:
+# add normalises it) cannot be replayed exactly, and says so (the replay's
+# commit must BE the pinned tree).
+CR_TREE=$(cd "$T" && GIT_INDEX_FILE="$work/crlf.index" git read-tree "$T_TREE" \
+    && { cat .gitattributes; printf 'crlf.txt text eol=lf\n'; } > "$work/gitattributes.crlf" \
+    && GIT_INDEX_FILE="$work/crlf.index" git update-index --add --cacheinfo "100644,$(git hash-object -w "$work/gitattributes.crlf"),.gitattributes" \
+    && GIT_INDEX_FILE="$work/crlf.index" git update-index --add --cacheinfo "100644,$(printf 'a\r\n' | git hash-object -w --stdin),crlf.txt" \
+    && GIT_INDEX_FILE="$work/crlf.index" git write-tree)
+CR_COMMIT=$(g -C "$T" commit-tree "$CR_TREE" -p "$T_COMMIT" -m "a template whose checkout does not read back")
+rc=0; bash "$T/scripts/replay-mint.sh" "$T" "$CR_COMMIT" "$work/crreplay" > "$work/crreplay.log" 2>&1 || rc=$?
+[ "$rc" -eq 1 ] && grep -q 'does not read back as its own tree' "$work/crreplay.log" \
+    || { cat "$work/crreplay.log" >&2; fail "a checkout that does not read back was replayed (exit $rc)"; }
+pass "(d-) a template commit whose checkout does not read back as its tree is refused, not replayed inexactly"
 
 # ── The repository map is regenerated last ──────────────────────────────────
 # Same check Estate Rules runs, on the committed mint: regenerate from the

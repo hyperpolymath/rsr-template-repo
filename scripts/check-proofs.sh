@@ -21,10 +21,16 @@
 #      SOURCE ROOT (declared in the MANIFEST).
 #   3. Path-filtered CI that only looked at one directory — nothing checked the
 #      rest.  Here, a proof file present on disk but absent from the MANIFEST is
-#      an ERROR, so new proofs are gated by default, not by remembering.
+#      an ERROR, so new proofs are gated by default, not by remembering.  The
+#      scan covers verification/proofs/<prover>/ and every source root the
+#      MANIFEST names, and an entry must name a .<ext> source with status
+#      gated or quarantine, so a quarantined README cannot pass as a proof.
 #   4. `idris2 --check X && ok` — `idris2 --check` EXITS 0 ON A MISSING IMPORT
 #      (verified against 0.7.0) while printing `Error: ...`.  Testing the exit
 #      code alone is unsound; for idris2 we require exit 0 AND no `Error:` line.
+#   5. `idris2 --check` also exits 0, with no `Error:`, on a module whose proof
+#      is an unsolved hole (`= ?todo`), verified against 0.7.0 on 2026-11-09.
+#      For idris2 we also require the REPL's `:m` to answer `No holes`.
 #
 # They share one shape: a null check that emits reassuring text.  If you extend
 # this script, the test to apply is not "does it pass?" but "have I watched it
@@ -80,7 +86,14 @@ check_one() {
   local root="$1" rel="$2" out rc
   set +e
   case "$PROVER" in
-    idris2) out="$(cd "$ROOT/$root" && idris2 --check "$rel" 2>&1)"; rc=$? ;;
+    idris2) out="$(cd "$ROOT/$root" && idris2 --check "$rel" 2>&1)"; rc=$?
+            # Hole #5: --check accepts unsolved holes (?name). Ask the REPL.
+            if [ "$rc" -eq 0 ] && ! grep -qE "$ERROR_RE" <<<"$out"; then
+              holes="$(cd "$ROOT/$root" && printf ':m\n:q\n' | idris2 --no-banner "$rel" 2>&1)"
+              if ! grep -q 'No holes' <<<"$holes"; then
+                out="$out"$'\n'"Error: unsolved holes: $(grep -o '[0-9]* holes\{0,1\}:.*' <<<"$holes" | head -1)"
+              fi
+            fi ;;
     lean4)  out="$(cd "$ROOT/$root" && lean          "$rel" 2>&1)"; rc=$? ;;
     agda)   out="$(cd "$ROOT/$root" && agda --safe --without-K --cubical-compatible "$rel" 2>&1)"; rc=$? ;;
     coq)    out="$(cd "$ROOT/$root" && coqc           "$rel" 2>&1)"; rc=$? ;;
@@ -123,14 +136,38 @@ fi
 fails=0
 unexpected_pass=0
 listed_tmp="$(mktemp)"
-trap 'rm -f "$listed_tmp"' EXIT
+roots_tmp="$(mktemp)"
+trap 'rm -f "$listed_tmp" "$roots_tmp"' EXIT
 
 while IFS='|' read -r root rel status note; do
   # skip blank lines and comments
-  [ -z "${root// }" ] && continue
+  [[ -z "${root//[[:space:]]/}${rel//[[:space:]]/}${status//[[:space:]]/}${note//[[:space:]]/}" ]] && continue
   case "${root#"${root%%[![:space:]]*}"}" in \#*) continue ;; esac
+  # A source root may be written with trailing slashes; record it without, so
+  # listed paths match what the coverage scan finds.
+  while [[ "$root" == */ ]]; do root="${root%/}"; done
+  # A non-blank entry with no source root would be skipped above and its
+  # directory never scanned; reject it instead.
+  if [[ -z "${root//[[:space:]]/}" ]]; then
+    printf '  %-30s %-24s FAIL: entry has no source root\n' "(none)" "$rel"
+    fails=$((fails + 1))
+    continue
+  fi
   printf '  %-30s %-24s ' "$root" "$rel"
   echo "$root/$rel" >>"$listed_tmp"
+  echo "$root" >>"$roots_tmp"
+  # An entry must name a .$EXT source. Otherwise a quarantined README or
+  # build file would "keep failing" and be accepted as an expected failure.
+  if [[ "$rel" != *."$EXT" ]]; then
+    echo "FAIL: not a .$EXT proof source"
+    fails=$((fails + 1))
+    continue
+  fi
+  if [[ "$status" != gated && "$status" != quarantine ]]; then
+    echo "FAIL: status '$status' is neither 'gated' nor 'quarantine'"
+    fails=$((fails + 1))
+    continue
+  fi
   if check_one "$root" "$rel"; then
     if [ "$status" = gated ]; then
       echo "PASS"
@@ -155,21 +192,30 @@ done < "$MANIFEST_FILE"
 # The anti-recurrence rule: proofs went unchecked for months because nothing
 # forced them onto anyone's list.  A file absent from the MANIFEST is an error.
 echo
-echo "=== manifest coverage ($PROOF_DIR) ==="
-listed="$(sort -u "$listed_tmp")"
-found="$(cd "$ROOT" && find "$PROOF_DIR" -name "*.$EXT" -not -path '*/build/*' 2>/dev/null | sort)"
+# The scan covers $PROOF_DIR and every source root the MANIFEST names, so a new
+# module beside a gated one outside $PROOF_DIR (src/interface/Abi/, say) is
+# caught too, not only one under verification/proofs/.
+mapfile -t scan_dirs < <({ echo "$PROOF_DIR"; sort -u "$roots_tmp"; } | sed 's#/*$##' | sort -u)
+echo "=== manifest coverage (${scan_dirs[*]}) ==="
+listed="$(sed 's#^\./##' "$listed_tmp" | sort -u)"
+found="$(cd "$ROOT" && find -H "${scan_dirs[@]}" -name "*.$EXT" -not -path '*/build/*' -not -path '*/.git/*' 2>/dev/null | sed 's#^\./##' | sort -u)"
 unlisted="$(comm -13 <(printf '%s\n' "$listed") <(printf '%s\n' "$found") || true)"
-missing="$(comm -23 <(printf '%s\n' "$listed") <(printf '%s\n' "$found") || true)"
+# Stale means "the listed file does not exist". A MANIFEST may also gate
+# modules outside $PROOF_DIR, such as the repository's own ABI seam under
+# src/, so existence is checked on disk, not against the $PROOF_DIR scan.
+missing="$(while IFS= read -r entry; do
+  if [ -n "$entry" ] && [ ! -f "$ROOT/$entry" ]; then printf '%s\n' "$entry"; fi
+done <<<"$listed")"
 
 if [ -n "${unlisted//[[:space:]]/}" ]; then
   echo "FAIL: .$EXT proofs on disk but absent from $MANIFEST_FILE:"
-  printf '  %s\n' $unlisted
+  printf '%s\n' "$unlisted" | sed 's/^/  /'
   echo "      List each as 'gated' or 'quarantine'; new proofs are gated by default."
   fails=$((fails + 1))
 fi
 if [ -n "${missing//[[:space:]]/}" ]; then
   echo "FAIL: MANIFEST lists modules that do not exist (stale entries):"
-  printf '  %s\n' $missing
+  printf '%s\n' "$missing" | sed 's/^/  /'
   fails=$((fails + 1))
 fi
 [ -z "${unlisted//[[:space:]]/}${missing//[[:space:]]/}" ] && \
