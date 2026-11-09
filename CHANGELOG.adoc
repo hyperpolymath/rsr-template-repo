@@ -235,9 +235,10 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    unresolvable tree aborts the mint (`RSR_TEMPLATE_URL`,
    `RSR_TEMPLATE_COMMIT`, `RSR_ALLOW_UNPINNED=1` for the exceptions);
 ** the template's name, owner and deed file are derived from the checkout
-   (Justfile, then remote), not hardcoded, so a mint from a minted repo works
-   (ported from lintel#9, which did not merge; its removal of the
-   `[YOUR-REPO-NAME]` deed seds was not ported, since only they fill it);
+   (the root Justfile, else `RSR_TEMPLATE_SLUG`; never the git remote, which in
+   a "Use this template" child names the child), not hardcoded (ported from
+   lintel#9, which did not merge; its removal of the `[YOUR-REPO-NAME]` deed
+   seds was not ported, since only they fill it);
 ** every rewrite pass and completeness check reads one file list: the
    repository's own files (`git ls-files`, plus untracked not-ignored), minus
    `.machine_readable/mint-verbatim.txt`. The strip pass no longer edits

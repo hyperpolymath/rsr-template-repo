@@ -63,7 +63,7 @@ mint() {
     (cd "$1" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
-        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$T" RSR_MINT_TOOL_CACHE="$work/tools" \
+        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="${MINT_TEMPLATE_URL:-$T}" RSR_MINT_TOOL_CACHE="$work/tools" \
         PROJECT_NAME="${9:-$3}" REPO="$3" OWNER="$4" AUTHOR="$5" AUTHOR_EMAIL="$6" \
         PROJECT_DESCRIPTION="$7" timeout 1200 just repo-init ${8:+"$8"} </dev/null) > "$2" 2>&1
 }
@@ -571,5 +571,68 @@ grep -q 'changed the type of src/ElderPkg.jl, which this mint renames to src/Gra
     || { tail -20 "$work/jretype.log" >&2; fail 'the type change across the rename was not refused by name'; }
 [ -z "$(g -C "$JG4" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
 pass "(-) a type change across an answer-dependent rename is refused before anything is written"
+
+# ── A parent that renamed its deed, from a template reached as a user would ─
+# The replayed base still has the deed's old name: it is identity, held like
+# the live name, not a deletion that takes the fresh deed with it (Codex
+# review of #277). The template is fetched as a partial clone through a URL
+# only this user's git configuration resolves (insteadOf, as credentials
+# would be): its blobs must be fetched while that configuration applies, not
+# later by replays that run without it (CodeRabbit review of #277).
+PR="$work/parent-renamed"
+g clone -q --no-local "$P" "$PR"
+g -C "$PR" mv elder-proj_chora.deed elder-renamed_chora.deed
+g -C "$PR" commit -q -m "the parent renames its deed"
+g -C "$T" config uploadpack.allowFilter true
+g -C "$T" config uploadpack.allowAnySHA1InWant true
+GR="$work/grandchild-renamed"
+use_template "$PR" HEAD "$GR" git.com:other-owner/grand-check.git
+MINT_TEMPLATE_URL="https://template.invalid/rsr-template-repo.git" \
+MINT_GITCONFIG="[url \"file://$T\"]
+	insteadOf = https://template.invalid/rsr-template-repo.git
+" mint "$GR" "$work/renamed.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
+    || { tail -40 "$work/renamed.log" >&2; fail 'a chain mint from a parent that renamed its deed, through a private-style URL, failed'; }
+[ -f "$GR/grand-check_chora.deed" ] && [ ! -e "$GR/elder-renamed_chora.deed" ] && [ ! -e "$GR/elder-proj_chora.deed" ] \
+    || { ls "$GR"/*_chora.deed >&2; fail 'the grandchild does not hold exactly its own deed'; }
+g -C "$GR" add -A; g -C "$GR" commit -q -m "chain mint"
+(cd "$GR" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$T") > "$work/renameddrift.log" 2>&1 \
+    || { cat "$work/renameddrift.log" >&2; fail 'the grandchild of a parent that renamed its deed has a red drift gate'; }
+pass "a parent's renamed deed is identity, not carried; a private-style template URL is read under the user's configuration; drift gate green"
+
+# ── Negative control: a carried generator that edits the deed ───────────────
+# The deed is owned, so the measurement skips it: an edit there would reach
+# the result unseen (Codex review of #277). Refused before anything is written.
+PD="$work/parent-deededit"
+g clone -q --no-local "$P" "$PD"
+sed -i 's|^set -euo pipefail$|&\nsed -i "s/:description \\"/:description \\"edited /" "$(git rev-parse --show-toplevel)"/*_chora.deed|' "$PD/.machine_readable/arrival-pack/generate.sh"
+grep -q ':description' "$PD/.machine_readable/arrival-pack/generate.sh" || fail 'fixture: the deed-editing generator was not added'
+g -C "$PD" commit -q -am "a generator that edits the deed"
+GD="$work/grandchild-deededit"
+use_template "$PD" HEAD "$GD" git@github.com:other-owner/grand-check.git
+if mint "$GD" "$work/deededit.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint kept a deed its carried generator edited'
+fi
+grep -q 'a carried generator edited grand-check_chora.deed' "$work/deededit.log" \
+    || { tail -20 "$work/deededit.log" >&2; fail 'the deed edit was not refused by name'; }
+[ -z "$(g -C "$GD" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) a carried generator that edits the deed is refused before anything is written"
+
+# ── Negative control: a minted parent without the chain script ──────────────
+# Its deed records (mint-answers), so it is minted, whatever else it holds (it
+# also carries build/templates/identity.deed.in): never minted as a template,
+# which would keep its author and contacts (Codex review of #277).
+PL="$work/parent-nochain"
+g clone -q --no-local "$P" "$PL"
+g -C "$PL" rm -q scripts/chain-mint.sh; g -C "$PL" commit -q -m "drop the chain script"
+[ -f "$PL/build/templates/identity.deed.in" ] || fail 'fixture: the parent does not carry identity.deed.in'
+GL2="$work/grandchild-nochain"
+use_template "$PL" HEAD "$GL2" git@github.com:other-owner/grand-check.git
+if mint "$GL2" "$work/nochain.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a minted repo without scripts/chain-mint.sh was minted'
+fi
+grep -q 'scripts/chain-mint.sh, which mints a minted repo again, is absent' "$work/nochain.log" \
+    || { tail -20 "$work/nochain.log" >&2; fail 'the missing chain script was not refused by name'; }
+[ -z "$(g -C "$GL2" status --porcelain)" ] || fail 'the refused mint wrote to the tree'
+pass "(-) a minted repo without the chain script is refused, not minted as a template"
 
 echo "PASS: chain mint"
