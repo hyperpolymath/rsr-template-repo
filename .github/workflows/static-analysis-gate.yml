@@ -314,7 +314,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [panic-attack-assail, patch-bridge-triage]
-    if: always()
+    # !cancelled(), not always(): deposit what the scans found even when one
+    # failed, but not after the run was cancelled (a superseding push), when
+    # the artifacts were never uploaded and the download step can only fail.
+    if: ${{ !cancelled() }}
     steps:
       - name: Download panic-attack & pons envelopes
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
