@@ -141,8 +141,18 @@ trap 'rm -f "$listed_tmp" "$roots_tmp"' EXIT
 
 while IFS='|' read -r root rel status note; do
   # skip blank lines and comments
-  [ -z "${root// }" ] && continue
+  [[ -z "${root//[[:space:]]/}${rel//[[:space:]]/}${status//[[:space:]]/}${note//[[:space:]]/}" ]] && continue
   case "${root#"${root%%[![:space:]]*}"}" in \#*) continue ;; esac
+  # A source root may be written with trailing slashes; record it without, so
+  # listed paths match what the coverage scan finds.
+  while [[ "$root" == */ ]]; do root="${root%/}"; done
+  # A non-blank entry with no source root would be skipped above and its
+  # directory never scanned; reject it instead.
+  if [[ -z "${root//[[:space:]]/}" ]]; then
+    printf '  %-30s %-24s FAIL: entry has no source root\n' "(none)" "$rel"
+    fails=$((fails + 1))
+    continue
+  fi
   printf '  %-30s %-24s ' "$root" "$rel"
   echo "$root/$rel" >>"$listed_tmp"
   echo "$root" >>"$roots_tmp"
@@ -188,7 +198,7 @@ echo
 mapfile -t scan_dirs < <({ echo "$PROOF_DIR"; sort -u "$roots_tmp"; } | sed 's#/*$##' | sort -u)
 echo "=== manifest coverage (${scan_dirs[*]}) ==="
 listed="$(sed 's#^\./##' "$listed_tmp" | sort -u)"
-found="$(cd "$ROOT" && find "${scan_dirs[@]}" -name "*.$EXT" -not -path '*/build/*' -not -path '*/.git/*' 2>/dev/null | sed 's#^\./##' | sort -u)"
+found="$(cd "$ROOT" && find -H "${scan_dirs[@]}" -name "*.$EXT" -not -path '*/build/*' -not -path '*/.git/*' 2>/dev/null | sed 's#^\./##' | sort -u)"
 unlisted="$(comm -13 <(printf '%s\n' "$listed") <(printf '%s\n' "$found") || true)"
 # Stale means "the listed file does not exist". A MANIFEST may also gate
 # modules outside $PROOF_DIR, such as the repository's own ABI seam under

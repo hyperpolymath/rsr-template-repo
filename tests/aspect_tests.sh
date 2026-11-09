@@ -153,7 +153,7 @@ if [ -d "$ABI_DIR" ] && [ -d "$FFI_SRC" ]; then
     # Every entry must parse: a member or clause in another form (a hex
     # value, a trailing comment) would otherwise drop out of both lists and
     # let a mismatch pass. Count the raw entries and compare.
-    ZIG_RAW=$(sed -n '/pub const Result = enum(c_int) {/,/};/p' "$FFI_SRC"/main.zig 2>/dev/null | grep -v 'pub const Result' | grep -c '=' || true)
+    ZIG_RAW=$(sed -n '/pub const Result = enum(c_int) {/,/};/p' "$FFI_SRC"/main.zig 2>/dev/null | grep -v -e 'pub const Result' -e '^[[:space:]]*};' -e '^[[:space:]]*//' -e '^[[:space:]]*$' | grep -c . || true)
     IDR_RAW=$(grep -c '^resultCode [A-Za-z]' "$ABI_DIR"/Types.idr 2>/dev/null || true)
     ZIG_N=$(printf '%s\n' "$ZIG_CODES" | grep -c . || true)
     IDR_N=$(printf '%s\n' "$IDR_CODES" | grep -c . || true)
