@@ -14,7 +14,7 @@ it, and the README scorecard's *Proofs* row counts its rows.
 
 == Census
 
-3 rows `proven`, 2 `tested-only`, 0 `argued`, 6 `open`: 11 rows in all.
+3 rows `proven`, 2 `tested-only`, 0 `argued`, 7 `open`: 12 rows in all.
 
 Write the census as a count of rows by status, with the denominator. Never
 write a percentage: a count of rows is not a measure of confidence
@@ -28,7 +28,7 @@ open. Status is one of `proven`, `proven-with-postulates`, `argued`,
 `tested-only` or `open`. A `proven` row names the checker, its version and
 flags. A row is never stronger than the weakest step it depends on.
 
-The SEAM rows are proved or tested on the ABI seam itself
+The SEAM rows are proved, tested or open on the ABI seam itself
 (`src/interface/Abi/` against `src/interface/ffi/src/main.zig`), which a
 minted repository inherits as its own: they hold for as long as that code is
 unchanged, and must be rechecked after any edit to it. The ABI and TP rows
@@ -63,11 +63,18 @@ move a row out of `open` only on a receipt below.
 |Text comparison of the two source tables; fails on entries it cannot parse.
 
 |SEAM-4
-|Every `%foreign` symbol is declared `export fn` in the Zig source, and the library name matches the one `build.zig` builds.
+|Every `%foreign` symbol is declared `export fn` in the Zig source.
 |`tested-only`
 |`tests/aspect_tests.sh` Aspect 3, every run
 |`tests/aspect_tests.sh`
-|Source text, names only. `build.zig` builds no library yet, so the library half is a warning, not a pass.
+|Source text, names only; not the built library.
+
+|SEAM-5
+|The library every `%foreign` names is the one `build.zig` builds.
+|`open`
+|-
+|`src/interface/ffi/build.zig`
+|`build.zig` builds no library yet; Aspect 3 warns. Becomes `tested-only` when a `b.addLibrary` step exists and Aspect 3 passes on it.
 
 |ABI-1
 |Non-null pointers: a `Handle` can never hold a null pointer.
@@ -151,10 +158,18 @@ it names. Rerun the check after any change to the files it covers.
 
 |2026-11-09, Idris2
 |Idris2 0.7.0 built from the `v0.7.0` tag on Chez Scheme 9.5.8.
-`bash scripts/check-proofs.sh idris2`: `src/interface/Abi/{Types,Layout,Foreign}.idr`
-PASS with no holes. Watched to fail: a proof replaced by a hole, and a null
-`Handle`. Also typechecked after substituting `{{project}}` as
-`just repo-init` does. A minted repository records its own receipts.
+`bash scripts/check-proofs.sh idris2` at commit `ad2688b`:
+`src/interface/Abi/{Types,Layout,Foreign}.idr` PASS with no holes. Watched to
+fail: a proof replaced by a hole, and a null `Handle`. Also typechecked after
+substituting `{{project}}` as `just repo-init` does. A minted repository
+records its own receipts.
+
+|2026-11-09, Aspect 3
+|`bash tests/aspect_tests.sh` at commit `ad2688b`: exit 0, PASS=5 WARN=2.
+Aspect 3 passes on 6 bound symbols (SEAM-4) and 5 result codes (SEAM-3), and
+warns that `build.zig` builds no library (SEAM-5, open) and that five Zig
+exports are unbound. Watched to fail: the previous `rsr_*` seam, a changed
+`resultCode`, and a wrong library name in `build.zig`.
 |===
 
 == Verification commands
