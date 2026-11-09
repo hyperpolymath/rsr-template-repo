@@ -106,6 +106,21 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **Proof spine: `just proof-check-all` failed in this template and in every
+  fresh mint.** `verification/proofs/idris2/Types.idr` (Idris2 0.7.0) and
+  `verification/proofs/lean4/ApiTypes.lean` (Lean 4.15.0) compile, but their
+  MANIFESTs still listed them as quarantined, and `scripts/check-proofs.sh`
+  fails on an unexpected pass. Both are now gated, and all four prover gates
+  pass. Found downstream in heron-polyfeed-reader, where no workflow runs the
+  gate, so nothing showed it red.
+* **`docs/status/PROOF-NEEDS.adoc` credited the child.** "These proofs come
+  from the <template name>" went through the mint's self-name pass, so every
+  child's copy named itself as the source. The line now names no repository.
+  The Prover Selection Guide now follows PROOF-POLICY §1 (APIs and ABIs in
+  Idris2; theory in Agda, rechecked in Rocq and Lean) instead of an older
+  table that sent API typing to Lean. TP-2 says so in PROOF-NEEDS and
+  PROOF-STATUS.
+
 * **repo-init follow-ups to #251 (the Codex review it merged before).**
 ** Re-minting a minted repo silently inherited its parent's author, contacts
    and identity (its tokens are filled and `build/templates` is gone). A
