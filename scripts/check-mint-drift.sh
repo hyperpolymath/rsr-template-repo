@@ -15,13 +15,16 @@
 #
 # modulo the paths the child declares in its (variant (paths …)) clause. The
 # replay runs the REAL recipe from the pinned template commit, with the answers
-# and date the child recorded, so a fresh mint is green by construction and
-# every later edit to a file the mint produced shows up, by name.
+# and date the child recorded, so a fresh mint is designed to replay to
+# itself (tested end to end on fixtures by tests/e2e/use_template_mint_test.sh,
+# not proven), and every later edit to a file the mint produced shows up, by
+# name.
 #
 # Usage: check-mint-drift.sh <template-checkout> [child-dir]
 #   <template-checkout>  a clone of the template that contains :template-commit
 #   [child-dir]          the minted repo (default .)
-# Needs what a mint needs: just, rustc, nickel, uuidgen.
+# Needs what a mint needs: just, rustc, nickel, and sha1sum, shasum or openssl
+# (uuidgen too, to replay a template commit older than scripts/uuid5-url.sh).
 # Exit: 0 no undeclared drift; 1 drift (listed); 2 usage or cannot replay.
 set -euo pipefail
 # This script runs git against other repositories (-C does not override
@@ -72,7 +75,12 @@ GL="$(GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" ls-files -s | awk -F '\t'
 $GL"
 GIT_INDEX_FILE="$WORK/replay.index" g -C "$TDIR" checkout-index -a -f --prefix="$R/"
 g -C "$R" init -q -b main
-g -C "$R" add -A
+# Forced, and then checked to BE the pinned tree, as in scripts/replay-mint.sh:
+# a template file its own .gitignore matches is still tracked (Codex and
+# CodeRabbit review of #277).
+g -C "$R" add -f -A
+[ "$(g -C "$R" write-tree)" = "$(g -C "$TDIR" rev-parse "$PIN^{tree}")" ] \
+    || die "the checkout of $PIN does not read back as its own tree (an attribute rewrites a file), so the mint cannot be replayed exactly"
 g -C "$R" commit -q -m "Initial commit"
 g -C "$R" remote add origin "git@$(ans forge):$(ans owner)/$(ans repo).git"
 
@@ -167,12 +175,18 @@ in_child() { grep -qxF -- "$1" "$CLIST"; }
 in_replay() { grep -qxF -- "$1" "$RLIST"; }
 # same A B — identical as git would record them: content, the executable bit,
 # and for a symlink its target (cmp alone follows links and ignores modes).
+# The target is read with a trailing sentinel, because command substitution
+# strips trailing newlines and "foo\n" would equal "foo" (Codex review of
+# #275). The executable bit is git's: the OWNER's execute bit (0100), not
+# `-x`, which asks whether the caller may execute and, as root, is true for a
+# file only its group or others may execute (Codex review of #275).
+ux() { [ -n "$(find "$1" -prune -perm -0100 2>/dev/null)" ]; }
 same() {
     if [ -L "$1" ] || [ -L "$2" ]; then
-        [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
+        [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1"; echo .)" = "$(readlink "$2"; echo .)" ]
         return
     fi
-    { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
+    { ux "$1" && ux "$2"; } || { ! ux "$1" && ! ux "$2"; } || return 1
     cmp -s "$1" "$2"
 }
 
