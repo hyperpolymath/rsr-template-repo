@@ -146,12 +146,13 @@ console.log("PASS: proof locations preserve mandatory ABI proofs and both theory
 const obligations = prose(mapping);
 assert.match(obligations, /types, functions or wire formats are engineering \(Idris2\)/);
 assert.match(obligations, /any implementation are theory \(Agda\)/);
-assert.match(obligations, /first-party Rust or Ada code.*Creusot or SPARK on that code, not restated in Idris2/);
+assert.match(obligations, /first-party Rust or Ada code.*Creusot\/Pearlite and Verus \(Rust\) or SPARK \(Ada\) on that code, not restated in Idris2/);
+assert.match(obligations, /Plan scopes for both Rust verifiers/);
 assert.match(obligations, /recorded beside the artefact and in docs\/status\/PROOF-STATUS\.adoc/);
 assert.match(obligations, /tlaplus\/.*finite model check is reported as TESTED, with its bounds/);
 assert.match(obligations, /Kani \(unsafe and FFI seams, reported TESTED with bounds\)/);
 assert.match(obligations, /Aeneas \(Rust that implements an Agda-proved theorem\)/);
-assert.match(obligations, /alongside Creusot, never instead of it/);
+assert.match(obligations, /alongside the default toolset, never instead of it/);
 assert.match(prose(arrival), /Kani for unsafe\/FFI seams and Aeneas.*Agda theorem.*alongside, never instead/);
 console.log("PASS: engineering boundaries and bounded exceptions preserve the primary verifier");
 
