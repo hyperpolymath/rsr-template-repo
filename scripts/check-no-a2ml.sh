@@ -15,7 +15,7 @@
 # (.github/hooks/validate-deed.sh).
 #
 # Usage: check-no-a2ml.sh [REPO_ROOT]
-# Inspects tracked files when REPO_ROOT is a git work tree, and every file
+# Inspects tracked and untracked (not ignored) files when REPO_ROOT is a git work tree, and every file
 # under it (minus .git/) otherwise, so an untracked mint is covered too.
 # Exit: 0 none found; 1 one or more .a2ml files (listed); 2 bad path.
 set -euo pipefail
@@ -24,9 +24,14 @@ REPO_ROOT="${1:-.}"
 [ -d "$REPO_ROOT" ] || { echo "ERROR: repository path does not exist: $REPO_ROOT" >&2; exit 2; }
 
 if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  FOUND=$(git -C "$REPO_ROOT" ls-files -- '*.a2ml' '*.A2ML')
+  # Tracked and untracked (not ignored) files, any case of the extension,
+  # NUL-delimited so no path is quoted; a tracked file already deleted from
+  # the work tree is not a file in it.
+  FOUND=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard -- ':(icase)*.a2ml' \
+    | while IFS= read -r -d '' f; do [ -e "$REPO_ROOT/$f" ] && printf '%s\n' "$f"; done | sort -u)
 else
-  FOUND=$(find "$REPO_ROOT" -path '*/.git' -prune -o -type f -iname '*.a2ml' -printf '%P\n')
+  # Portable find (no GNU -printf): paths relative to REPO_ROOT.
+  FOUND=$(cd "$REPO_ROOT" && find . -path ./.git -prune -o -type f -iname '*.a2ml' -print | sed 's#^\./##')
 fi
 
 LEDGER="$REPO_ROOT/.machine_readable/a2ml-legacy-allow.txt"
@@ -43,5 +48,5 @@ if [ -z "$FOUND" ]; then
   exit 0
 fi
 echo "FAIL: .a2ml is a retired format; move these facts into the repo deed or a .k9 contract (or, for a file that predates the ledger, list it in .machine_readable/a2ml-legacy-allow.txt):"
-printf '  %s\n' $FOUND
+printf '%s\n' "$FOUND" | sed 's/^/  /'
 exit 1

@@ -27,9 +27,18 @@ import Data.Fin
 public export
 data Verb = Intend | Must | Trust | Adjust | Dust | Bust
 
-||| The descriptive families that emit evidence (the descriptiles).
+||| The descriptive families that emit evidence (the descriptiles). Each one is
+||| read from clauses of the repo deed (`<repo>_chora.deed`) by extract-facts.sh,
+||| and its name, lower-cased, is the prefix of the fact IDs it emits:
+|||   CLADE     (identity) (clade) (lineage) (forges) — what the repo IS
+|||   STATE     (status) (maturity)                   — where it is now
+|||   ECOSYSTEM (ecosystem)                           — where it sits, what it is not
+|||   AGENTIC   (agentic)                             — may I act now?
+|||   NEUROSYM  (neurosym)                            — the meaning of operations
+|||   PLAYBOOK  (playbook)                            — how permitted actions run
+|||   ANCHOR    (anchor)                              — semantic authority + golden path
 public export
-data Family = CLADE | STATE | ECOSYSTEM | AGENTIC | ANCHOR
+data Family = CLADE | STATE | ECOSYSTEM | AGENTIC | NEUROSYM | PLAYBOOK | ANCHOR
 
 ||| A contractile obligation, indexed by its verb.
 public export

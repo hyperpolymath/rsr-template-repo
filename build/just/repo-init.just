@@ -106,13 +106,12 @@ repo-init archetype="":
     fi
     TEMPLATE_SLUG="${TEMPLATE_OWNER}/${TEMPLATE_REPO}"
 
-    # --- Only a template can be minted (until chain minting lands) ------------
+    # --- A template is minted; a minted repo is minted as a chain ------------
     # A minted repo has already filled its tokens and deleted build/templates,
-    # so minting it again renders none of the new answers and skips the
-    # identity splice: the grandchild silently inherited its parent's author,
-    # contacts, clade and maturity (Codex review of #251). The owner chose to
-    # support chains properly (2026-11-04); until a minted repo carries the
-    # pristine inputs that makes possible, stop here, before anything is
+    # so minting it like a template renders none of the new answers and skips
+    # the identity splice: the grandchild silently inherited its parent's
+    # author, contacts, clade and maturity (Codex review of #251). So it is
+    # never minted that way: it is chain-minted, or refused, before anything is
     # asked or written. A variant template keeps build/templates and still mints.
     #
     # Chain minting (owner ruling 2026-11-04): a minted repo that recorded its
@@ -125,10 +124,19 @@ repo-init archetype="":
     # (or a variant template, which is maintained, never minted) records no
     # (mint-answers). A minted repo that added build/templates/identity.deed.in
     # back as its own work is still a minted repo (Codex review of #277).
+    # The recorded state alone decides; the chain script's presence does not:
+    # a minted repo that deleted scripts/chain-mint.sh is still minted, and
+    # minting it as a template would keep its author and contacts (Codex
+    # review of #277). It is refused instead.
     CHAIN_MINT=0
     _prov_deed="$(bash scripts/deed-field.sh --find . 2>/dev/null || true)"
     if [ -n "$_prov_deed" ] && bash scripts/deed-field.sh --has "$_prov_deed" mint-answers \
-       && [ -f scripts/chain-mint.sh ]; then
+       && [ ! -f scripts/chain-mint.sh ]; then
+        echo "Error: this tree is a minted repo (its deed records (mint-answers)), but"
+        echo "       scripts/chain-mint.sh, which mints a minted repo again, is absent."
+        echo "       Restore it from the template, or mint from the template itself."
+        exit 1
+    elif [ -n "$_prov_deed" ] && bash scripts/deed-field.sh --has "$_prov_deed" mint-answers; then
         CHAIN_MINT=1
         echo "This tree is a minted repo (${TEMPLATE_SLUG}): it will be minted as a chain,"
         echo "from its template, carrying its own work since its mint."
@@ -396,11 +404,19 @@ repo-init archetype="":
     # We know OWNER and REPO, so this is computable here and must never be
     # guessed or copied. The owner segment is part of the derived name, so it is
     # part of the identity — a repo hosted elsewhere derives a different uuid.
-    if command -v uuidgen >/dev/null 2>&1; then
-        REPO_UUID=$(uuidgen --sha1 --namespace @url --name "${FORGE}/${OWNER}/${REPO}")
-    else
-        REPO_UUID="UNASSIGNED"
-    fi
+    # Derived here, the same way on every machine: it was UNASSIGNED without
+    # uuidgen, so a mint's bytes depended on the machine and the drift gate's
+    # replay (which has uuidgen) reported an unchanged child as drift (Codex
+    # review of #275); and macOS's uuidgen has no --sha1 at all. RFC 9562
+    # §5.5: SHA-1 over the URL namespace's 16 bytes then the name, truncated
+    # to 16 bytes, version 5 and the RFC variant set. It equals
+    # `uuidgen --sha1 --namespace @url --name …` (scripts/uuid5-url.sh, tested by
+    # tests/workflows/uuid5_url_test.sh).
+    REPO_UUID="$(bash scripts/uuid5-url.sh "${FORGE}/${OWNER}/${REPO}")" || {
+        echo "Error: the repo uuid is derived (UUIDv5), and this machine has none of"
+        echo "       sha1sum, shasum or openssl to derive it with."
+        exit 1
+    }
 
     # Derive citation name parts (best-effort split on last space)
     AUTHOR_LAST="${AUTHOR##* }"
@@ -435,6 +451,10 @@ repo-init archetype="":
                 WEBSITE SERVICE_NAME PORT REGISTRY AUTHOR_EMAIL_ALT AUTHOR_ORCID OPENSSF_BP_ID; do
         case "${!_ans:-}" in
             *$'\n'*) echo "Error: the answer for $_ans contains a newline; answers are one line."; exit 1 ;;
+            # 0x01 is the record separator deed-field.sh and deed-clause.sh read the
+            # deed with: an answer holding it renders everywhere, then cannot be
+            # recorded in (mint-answers) (Codex review of #275).
+            *$'\001'*) echo "Error: the answer for $_ans contains byte 0x01, which the deed cannot record."; exit 1 ;;
         esac
     done
 
@@ -651,12 +671,18 @@ repo-init archetype="":
     # would be silently discarded. It is refused by name, before anything is
     # written (Codex review of #275), whatever writes it.
     # _same A B — identical as git records them: content, executable bit, link target.
+    # As scripts/check-mint-drift.sh's same(): a link target is read with a
+    # sentinel (command substitution strips trailing newlines), and the
+    # executable bit is the owner's (0100), as git records it, not `-x`
+    # (effective access, true as root for a group-executable file) (Codex
+    # review of #275).
+    _ux() { [ -n "$(find "$1" -prune -perm -0100 2>/dev/null)" ]; }
     _same() {
         if [ -L "$1" ] || [ -L "$2" ]; then
-            [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1")" = "$(readlink "$2")" ]
+            [ -L "$1" ] && [ -L "$2" ] && [ "$(readlink "$1"; echo .)" = "$(readlink "$2"; echo .)" ]
             return
         fi
-        { [ -x "$1" ] && [ -x "$2" ]; } || { [ ! -x "$1" ] && [ ! -x "$2" ]; } || return 1
+        { _ux "$1" && _ux "$2"; } || { ! _ux "$1" && ! _ux "$2"; } || return 1
         cmp -s "$1" "$2"
     }
     _REPLAY=""
@@ -693,7 +719,16 @@ repo-init archetype="":
             fi
             _rgi "$_rp/index" checkout-index -a -f --prefix="$2/"
             rm -f "$_rp/index"
-            _rg -C "$2" init -q -b main; _rg -C "$2" add -A; _rg -C "$2" commit -q -m "Initial commit"
+            # Forced, then checked to BE the tree: a file the tree tracks although
+            # its .gitignore matches it is still copied by "Use this template"
+            # (Codex and CodeRabbit review of #277).
+            _rg -C "$2" init -q -b main; _rg -C "$2" add -f -A
+            if [ "$(_rg -C "$2" write-tree)" != "$(_rgi "$_rp/index" rev-parse "$1^{tree}")" ]; then
+                echo "ERROR: the checkout of the tree does not read back as itself (an attribute"
+                echo "       rewrites a file), so this mint cannot be replayed exactly."
+                return 1
+            fi
+            _rg -C "$2" commit -q -m "Initial commit"
             _rg -C "$2" remote add origin "git@${FORGE}:${OWNER}/${REPO}.git"
             (cd "$2" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
                 ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
@@ -1597,7 +1632,7 @@ repo-init archetype="":
     if [ -d .well-known ] && [ -f scripts/migrate-wellknown-to-www.sh ]; then
         echo ""
         echo "Migrating legacy root .well-known/ into www/.well-known/..."
-        bash scripts/migrate-wellknown-to-www.sh
+        bash scripts/migrate-wellknown-to-www.sh --date "$CURRENT_DATE"
     fi
 
     # ── Toolchain (mise.toml) ───────────────────────────────────────────────
