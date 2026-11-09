@@ -65,18 +65,21 @@ MANIFEST_FILE="$PROOF_DIR/MANIFEST"
 # CMD      : executable that must be on PATH (absent => FAIL, never skip).
 # EXT      : file extension, for the "unlisted proof" coverage scan.
 # ERROR_RE : if non-empty, output must not match it even when the exit code is 0.
-#            Only idris2 needs this (its --check exits 0 on a missing import);
-#            for lean4 it is a harmless belt-and-braces guard.
+#            idris2 needs it (its --check exits 0 on a missing import), and so
+#            does lean4: `lean` exits 0 on `sorry`, reporting only a warning.
+#            coqc exits 0, silently, on `Admitted`, so no pattern can catch it;
+#            check_one therefore also runs scripts/scan-dangerous.sh on every
+#            module, for every prover.
 case "$PROVER" in
   idris2) CMD=idris2; EXT=idr;  ERROR_RE='^Error:' ;;
-  lean4)  CMD=lean;   EXT=lean; ERROR_RE='error:'  ;;
+  lean4)  CMD=lean;   EXT=lean; ERROR_RE="error:|declaration uses 'sorry'" ;;
   agda)   CMD=agda;   EXT=agda; ERROR_RE=''        ;;
   coq)    CMD=coqc;   EXT=v;    ERROR_RE=''        ;;
 esac
 
 check_one() {
   # $1 source-root (rel to ROOT), $2 module (rel to source-root).
-  # Sets LAST_OUT to the tool output on failure; returns 0 iff the module compiles.
+  # Sets LAST_OUT to the tool output on failure; returns 0 iff the module compiles and uses no escape hatch in code.
   local root="$1" rel="$2" out rc
   set +e
   case "$PROVER" in
@@ -87,10 +90,15 @@ check_one() {
     coq)    out="$(cd "$ROOT/$root" && coqc           "$rel" 2>&1)"; rc=$? ;;
   esac
   set -e
-  if [ "$rc" -eq 0 ] && { [ -z "$ERROR_RE" ] || ! grep -qE "$ERROR_RE" <<<"$out"; }; then
-    LAST_OUT=""; return 0
+  if [[ "$rc" -ne 0 ]] || { [[ -n "$ERROR_RE" ]] && grep -qE "$ERROR_RE" <<<"$out"; }; then
+    LAST_OUT="$out"; return 1
   fi
-  LAST_OUT="$out"; return 1
+  # A module that compiles but uses an escape hatch (believe_me, sorry,
+  # Admitted, ...) in code is not a proof. Comments are ignored.
+  if ! out="$(bash "$ROOT/scripts/scan-dangerous.sh" "$root/$rel" 2>&1)"; then
+    LAST_OUT="$out"; return 1
+  fi
+  LAST_OUT=""; return 0
 }
 
 echo "=== $PROVER proof check ==="
@@ -130,8 +138,15 @@ while IFS='|' read -r root rel status note; do
   # skip blank lines and comments
   [ -z "${root// }" ] && continue
   case "${root#"${root%%[![:space:]]*}"}" in \#*) continue ;; esac
-  printf '  %-30s %-24s ' "$root" "$rel"
   echo "$root/$rel" >>"$listed_tmp"
+  # Fail closed on a mistyped status: anything but these two would otherwise
+  # be read as quarantine, letting a failing module pass unnoticed.
+  if [[ "$status" != gated && "$status" != quarantine ]]; then
+    echo "  FAIL: $MANIFEST_FILE entry '$root|$rel' has status '$status' (expected gated or quarantine)"
+    fails=$((fails + 1))
+    continue
+  fi
+  printf '  %-30s %-24s ' "$root" "$rel"
   if check_one "$root" "$rel"; then
     if [ "$status" = gated ]; then
       echo "PASS"

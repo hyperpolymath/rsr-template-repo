@@ -77,8 +77,12 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 \* State is always valid
 TypeInvariant == state \in States
 
-\* Processed count never decreases (monotonicity)
-ProcessedMonotonic == processed >= 0
+\* Processed count is never negative (a state invariant)
+ProcessedNonNegative == processed >= 0
+
+\* Processed count never decreases between states (an action property: the
+\* invariant above would accept a step from 4 to 3)
+ProcessedMonotonic == [][processed' >= processed]_processed
 
 \* Queue never exceeds max
 QueueBounded == Len(queue) <= MaxRequests
@@ -90,7 +94,9 @@ NoSkipStates ==
 
 \* ---- LIVENESS PROPERTIES ----
 
-\* Every request eventually completes or fails
+\* The pipeline eventually reaches a terminal state (done or failed) at least
+\* once. This is NOT per-request completion: this template never dequeues, so
+\* requests can stay in `queue`. Model per-request progress before claiming it.
 EventualCompletion == <>(state = "done" \/ state = "failed")
 
 ============================================================================

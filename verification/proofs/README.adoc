@@ -13,8 +13,8 @@ this page only maps it onto this directory.
 |Code or obligation |Verifier |Where it lives
 
 |Rust code
-|*Creusot*
-|On the Rust code itself (contracts in the crate), not in this directory.
+|*Creusot* with *Pearlite* contracts, and *Verus* (policy §1.2)
+|On the Rust code itself (contracts in the crate), not in this directory. Plan a scope for both verifiers and record unsupported or pending work explicitly.
 
 |Ada code
 |*SPARK*
@@ -34,14 +34,14 @@ Statements about one repository's types, functions or wire formats are
 engineering (Idris2). Statements that would hold for any implementation are
 theory (Agda). Behaviour of first-party Rust or Ada code (pre- and
 postconditions, loop invariants, absence of run-time errors) is proved with
-Creusot or SPARK on that code, not restated in Idris2.
+Creusot/Pearlite and Verus, or SPARK, on that code, not restated in Idris2.
 
 Another tool only where it is plainly the right one, recorded beside the
 artefact and in `docs/status/PROOF-STATUS.adoc` (policy §4). `tlaplus/` is
 such an exception: a finite model check is reported as `TESTED`, with its
 bounds. For Rust, *Kani* (unsafe and FFI seams, reported `TESTED` with
 bounds) and *Aeneas* (Rust that implements an Agda-proved theorem) are
-standing exceptions that run alongside Creusot, never instead of it.
+standing exceptions that run alongside Creusot and Verus, never instead of them.
 
 == Proof grades
 
@@ -118,6 +118,24 @@ just proof-check-lean4     # Lean4 only
 just proof-check-agda      # Agda only
 just proof-check-coq       # Coq only
 ----
+
+Each gated module must compile *and* use no escape hatch in code (comments are
+ignored): `lean` exits 0 on `sorry` and `coqc` exits 0 on `Admitted`, so the
+compiler alone cannot tell a proof from a placeholder. `check-proofs.sh` runs
+`scripts/scan-dangerous.sh` on every gated module, including ones outside
+`verification/proofs/` such as the coaptation core.
+
+`tlaplus/` is *not* covered by `check-proofs.sh` or `just proof-check-all`.
+Run TLC on the bounded model yourself (TLA+ tools 1.8.0 or later):
+
+[source,bash]
+----
+cd verification/proofs/tlaplus
+java -cp tla2tools.jar tlc2.TLC -workers auto -config MC.cfg MC
+----
+
+A pass is `TESTED` with the bounds in `MC.tla` (`MaxProcessed`) and `MC.cfg`
+(`MaxRequests`), never `PROVEN`.
 
 == Banned patterns
 
