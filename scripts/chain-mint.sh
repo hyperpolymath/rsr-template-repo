@@ -91,6 +91,15 @@ git clone -q --no-checkout --template= "${FILTER[@]}" "$URL" "$WORK/template" 2>
     || { cat "$WORK/clone.err" >&2; die "cannot read ${TSLUG} from $URL (set RSR_TEMPLATE_URL)"; }
 git -C "$WORK/template" cat-file -e "${PIN}^{commit}" 2>/dev/null \
     || die "$URL does not contain the parent's template commit $PIN"
+# A partial clone fetches blobs when they are first read, and the replays read
+# them under no global configuration, so without the credentials and insteadOf
+# rules a private template needs. The pin's files are fetched here, in one
+# batch, while this machine's configuration still applies (CodeRabbit review
+# of #277). The replays read through their own index, not this work tree.
+if [ "${#FILTER[@]}" -gt 0 ]; then
+    git -C "$WORK/template" -c advice.detachedHead=false checkout -q --detach "$PIN" 2>"$WORK/clone.err" \
+        || { cat "$WORK/clone.err" >&2; die "cannot fetch the files of ${TSLUG}@${PIN:0:12} from $URL; nothing was written"; }
+fi
 
 # Both baselines are functions of the pin and the answers alone: they run the
 # replay wrapper as the template commit has it, not the parent's carried copy,
@@ -147,6 +156,12 @@ tree_of() {
 with_index() { local i="$WORK/index.$1"; shift; GIT_INDEX_FILE="$i" g --literal-pathspecs -C "$M" "$@"; }
 P_DEED_NAME="$(basename "$PDEED")"
 IDENTITY=("$P_DEED_NAME" CLAUDE.md docs/architecture/REPOSITORY-MAP.adoc docs/status/ROADMAP.adoc)
+# The deed's name in the replayed base is held too: a parent that renamed its
+# deed would otherwise carry the old name's deletion, which also removes the
+# fresh mint's deed (it is a rename of that same file) (Codex review of #277).
+shopt -s nullglob; _bd=("$WORK/base/"*_chora.deed); shopt -u nullglob
+[ "${#_bd[@]}" -eq 1 ] || die "the replay of the parent's mint holds ${#_bd[@]} *_chora.deed files, not one; nothing was written"
+[ "$(basename "${_bd[0]}")" = "$P_DEED_NAME" ] || IDENTITY+=("$(basename "${_bd[0]}")")
 
 B="$(g -C "$M" commit-tree "$(tree_of "$WORK/base" base)" -m base)"
 # theirs: the parent as it stands (uncommitted work included), with its
@@ -347,6 +362,12 @@ regenerate() {
     rm -f "$F/.machine_readable/arrival-pack/claude-md-data.json"
     ( cd "$F" && bash scripts/gen-repo-map.sh --worktree . >/dev/null ) \
         || die "the repository map could not be regenerated; nothing was written"
+    # The deed is owned, so the measurement below skips it: a carried generator
+    # that edits it (an answer, the provenance) would reach the result unseen
+    # and corrupt every later replay. It is the one file they must not write
+    # (Codex review of #277).
+    [ ! -L "$DEED" ] && cmp -s "$WORK/deed.new" "$DEED" \
+        || die "a carried generator edited $(basename "$DEED") after it was written; the deed belongs to this mint. Nothing was written"
 }
 # Declared, written and regenerated until the declaration is stable: a carried
 # generator that writes another file is measured, not missed (Codex review of
