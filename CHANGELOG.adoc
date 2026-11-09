@@ -8,17 +8,6 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
-==== Changed
-
-* **Agda proofs use PROOF-POLICY §2.1's invocation.** `scripts/check-proofs.sh
-  agda` runs `agda --safe --without-K --cubical-compatible`, the canonical
-  theory invocation (metadatastician/standards `3-practice/PROOF-POLICY.adoc`
-  §2.1), instead of `agda --safe`. Every repository minted from the template
-  inherits the gate, so this is the source of the fix that
-  hyperpolymath/resource-algebra#19 and hyperpolymath/occupancy-types#18 make
-  to their copies. `Properties.agda` checks under the new flags (Agda 2.6.3,
-  standard library 1.7.3); the manifest records it.
-
 ==== Added
 
 * **Chain minting: a minted repo can be minted again.** "Use this template"
@@ -114,6 +103,18 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   minting without it, and refused by name when it has no effect; a path
   holding byte 0x01 (the deed reader's record separator) is refused like one
   holding a newline.
+
+==== Changed
+
+* **Agda proofs use PROOF-POLICY §2.1's invocation.** `scripts/check-proofs.sh
+  agda` runs `agda --safe --without-K --cubical-compatible`, the canonical
+  theory invocation (metadatastician/standards `3-practice/PROOF-POLICY.adoc`
+  §2.1), instead of `agda --safe`. Every repository minted from the template
+  inherits the gate, so this is the source of the fix that
+  hyperpolymath/resource-algebra#19 and hyperpolymath/occupancy-types#18 make
+  to their copies. `Properties.agda` checks under the new flags (Agda 2.6.3,
+  standard library 1.7.3); the manifest records it.
+
 
 ==== Fixed
 
