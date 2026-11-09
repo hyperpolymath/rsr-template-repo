@@ -164,6 +164,11 @@ fi
 #      default branch's tip at that moment, so the first-parent tip of the
 #      default branch as of that time is the exact source when its tree
 #      matches. That is a fact about the history, not a guess.
+#      It trusts committer dates: a commit pushed after the child was made,
+#      backdated before it and carrying the same tree, would be named instead
+#      (CodeRabbit review of #277). Its files are the same bytes, so the
+#      replay is unchanged; only the recorded commit differs, and
+#      RSR_TEMPLATE_COMMIT corrects it. git keeps no push time to do better.
 #   2. Otherwise every commit with a matching tree is collected. One is the
 #      answer; more than one is refused, loudly, with RSR_TEMPLATE_COMMIT as
 #      the way to say which. Equal trees are equal content, but provenance
