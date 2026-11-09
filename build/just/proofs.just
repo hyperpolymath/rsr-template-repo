@@ -54,10 +54,7 @@ proof-status:
     # PROOF-STATUS may live at root, docs/status/ (post-#20), .md or .adoc (post-#23)
     for candidate in docs/status/PROOF-STATUS.adoc docs/status/PROOF-STATUS.md PROOF-STATUS.adoc PROOF-STATUS.md; do
         if [ -f "$candidate" ]; then
-            # The census (README-EXPLAINME §5): the first non-blank line under
-            # "== Census", a count of rows by status, never a percentage.
-            census="$(awk '/^== Census/ { f = 1; next } /^== / { f = 0 } f && NF { print; exit }' "$candidate")"
-            echo "${census:-(No census in $candidate)}"
+            grep -E "^\| \*\*Total\*\*|^\| \*Total\*" "$candidate" 2>/dev/null || echo "(No summary row in $candidate)"
             exit 0
         fi
     done

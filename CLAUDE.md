@@ -149,7 +149,7 @@ Read it there; `verification/proofs/README.adoc` maps it onto this repo.
 
 | Code or obligation | Verifier |
 |---|---|
-| Rust code | **Creusot** with **Pearlite** contracts, and **Verus**, on the code (policy §1.2, owner ruling 2026-11-07; Kani for `unsafe`/FFI seams and Aeneas for Rust that implements an Agda theorem run alongside, never instead) |
+| Rust code | **Creusot**, on the code (Kani for `unsafe`/FFI seams and Aeneas for Rust that implements an Agda theorem run alongside, never instead) |
 | Ada code | **SPARK** |
 | APIs, ABIs, engineering properties | **Idris2** |
 | Theory | **Agda**, rechecked in **Rocq** and **Lean** (no Mathlib) |

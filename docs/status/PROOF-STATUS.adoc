@@ -1,183 +1,93 @@
 // SPDX-License-Identifier: CC-BY-SA-4.0
 // Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
 // Template: rsr-template-repo/docs/status/PROOF-STATUS.adoc
-// Requirements defined in PROOF-NEEDS.adoc.
+// Tracks proof completion. Requirements defined in PROOF-NEEDS.adoc
 = Proof Status — {{PROJECT}}
-:toc:
 
-The proof-status file for this repository, under
-`hyperpolymath/standards` `3-practice/PROOF-POLICY.adoc` (prover mapping,
-§5 status vocabulary, §8 Proof Witness Grades) and
-`docs/README-EXPLAINME-STANDARD.adoc` §5 (the ledger format). This file is
-canonical. Any proof table in `EXPLAINME.adoc#proof-ledger` is derived from
-it, and the README scorecard's *Proofs* row counts its rows.
+== Summary
 
-== Census
-
-3 rows `proven`, 2 `tested-only`, 0 `argued`, 7 `open`: 12 rows in all.
-
-Write the census as a count of rows by status, with the denominator. Never
-write a percentage: a count of rows is not a measure of confidence
-(README-EXPLAINME §5, PROOF-POLICY §8.4).
-
-[[ledger]]
-== Ledger
-
-One row per obligation, including the ones that are only argued or still
-open. Status is one of `proven`, `proven-with-postulates`, `argued`,
-`tested-only` or `open`. A `proven` row names the checker, its version and
-flags. A row is never stronger than the weakest step it depends on.
-
-The SEAM rows are proved, tested or open on the ABI seam itself
-(`src/interface/Abi/` against `src/interface/ffi/src/main.zig`), which a
-minted repository inherits as its own: they hold for as long as that code is
-unchanged, and must be rechecked after any edit to it. The ABI and TP rows
-are the template's mandatory obligations from `PROOF-NEEDS.adoc`. The files
-under `verification/proofs/` prove example statements, not this
-repository's. Restate each obligation for this repository's own seam, and
-move a row out of `open` only on a receipt below.
-
-[cols="1,3,1,3,2,3",options="header"]
+[cols="2,1,1,1,1,1", options="header"]
 |===
-|ID |Obligation |Status |Checker (version, flags) |Where |Trust boundary
+| Category | Total | Done | In Progress | Blocked | Remaining
 
-|SEAM-1
-|The `Result` code table round-trips: `fromCode (resultCode r) = Just r`.
-|`proven`
-|Idris2 0.7.0, `%default total`; `scripts/check-proofs.sh idris2` (`--check` with no `Error:`, and `:m` answering `No holes`)
-|`src/interface/Abi/Types.idr:fromCodeResultCode`
-|The Idris2 table only; SEAM-3 ties it to Zig.
-
-|SEAM-2
-|The `Result` code table is injective.
-|`proven`
-|As SEAM-1
-|`src/interface/Abi/Types.idr:resultCodeInjective`
-|Derived from SEAM-1 alone.
-
-|SEAM-3
-|The Zig `Result = enum(c_int)` values equal the Idris2 codes, member by member.
-|`tested-only`
-|`tests/aspect_tests.sh` Aspect 3, every run
-|`tests/aspect_tests.sh`
-|Text comparison of the two source tables; fails on entries it cannot parse.
-
-|SEAM-4
-|Every `%foreign` symbol is declared `export fn` in the Zig source.
-|`tested-only`
-|`tests/aspect_tests.sh` Aspect 3, every run
-|`tests/aspect_tests.sh`
-|Source text, names only; not the built library.
-
-|SEAM-5
-|The library every `%foreign` names is the one `build.zig` builds.
-|`open`
-|-
-|`src/interface/ffi/build.zig`
-|`build.zig` builds no library yet; Aspect 3 warns. Becomes `tested-only` when a `b.addLibrary` step exists and Aspect 3 passes on it.
-
-|ABI-1
-|Non-null pointers: a `Handle` can never hold a null pointer.
-|`proven`
-|As SEAM-1; watched to fail: `MkHandle 0 Oh` is rejected (2026-11-09)
-|`src/interface/Abi/Types.idr:Handle` (erased `So (ptr /= 0)`)
-|Idris2 side only: not that the pointer is live, aligned or owned.
-
-|ABI-2
-|Memory layout of every struct that crosses the seam (`HasSize`, `HasAlignment`).
-|`open`
-|-
-|`verification/proofs/idris2/ABI/Layout.idr` (template example, quarantined)
-|If no struct crosses by value, record that argument as `argued`.
-
-|ABI-3
-|Platform type sizes, per target.
-|`open`
-|-
-|`verification/proofs/idris2/ABI/Platform.idr` (template example, quarantined)
-|Name the targets covered.
-
-|ABI-4
-|FFI function return types match the C side.
-|`open`
-|-
-|`verification/proofs/idris2/ABI/Foreign.idr` (template example, gated)
-|The template file checks; it speaks about the template's example functions only.
-
-|ABI-5
-|C ABI compliance (`CABICompliant`, `FieldsAligned`).
-|`open`
-|-
-|`verification/proofs/idris2/ABI/Compliance.idr` (template example, quarantined)
-|As ABI-2.
-
-|TP-1
-|Core data types are well formed.
-|`open`
-|-
-|`verification/proofs/idris2/Types.idr` (template example, gated)
-|The template file checks; it speaks about the template's example types only.
-
-|TP-2
-|Public API type safety for exported functions.
-|`open`
-|-
-|-
-|An API obligation is Idris2's (PROOF-POLICY §1). The template's
-`lean4/ApiTypes.lean` is an example statement, not this row's checker.
+| ABI/FFI (ABI) | 5 | 0 | 0 | 0 | 5
+| Typing (TP) | 2 | 0 | 0 | 0 | 2
+| Invariant (INV) | 0 | 0 | 0 | 0 | 0
+| Security (SEC) | 0 | 0 | 0 | 0 | 0
+| Concurrency (CONC) | 0 | 0 | 0 | 0 | 0
+| Algorithm (ALG) | 0 | 0 | 0 | 0 | 0
+| Domain (DOM) | 0 | 0 | 0 | 0 | 0
+| *Total* | *7* | *0* | *0* | *0* | *7*
 |===
 
-Project-specific obligations get their own rows, with their own IDs.
-First-party Rust is verified on the code with Creusot (Pearlite contracts)
-and Verus (§1.2). A verifier that is not applicable, blocked or not yet run
-stays `open`, with the reason in the trust-boundary column.
+*Overall*: 0% proven
 
-== Theory obligations and Proof Witness Grades
+== Proofs Done
 
-List each theory obligation (Agda, rechecked in Rocq and Lean) with its
-`pwg` grade, `foundation_diverse` flag and the state of each recheck leg. A
-row with no Agda source is `ungraded`. Grades are derived from receipts,
-never written by hand (§8).
+// Format:
+// | ID | Proof | Prover | File | Date | Verified By |
+// | ABI-1 | Non-null pointer proofs | Idris2 | verification/proofs/idris2/ABI/Pointers.idr | 2026-XX-XX | idris2 --check |
 
-[cols="1,1,1,1,1",options="header"]
+[cols="1,3,1,3,1,2", options="header"]
 |===
-|ID |`pwg` |`foundation_diverse` |Agda |Rocq leg / Lean leg
+| ID | Proof | Prover | File | Date | Verified By
 
-|- |- |- |- |-
+| — | No proofs completed yet | — | — | — | —
 |===
 
-== Receipts
+== Proofs In Progress
 
-One row per checker run: the tool version, the invocation, the commit, the
-result, and what it was watched to fail on. A receipt holds for the commit
-it names. Rerun the check after any change to the files it covers.
-
-[cols="1,4",options="header"]
+[cols="1,3,1,2,1,2", options="header"]
 |===
-|Run |Record
+| ID | Proof | Prover | Assignee | Started | Blocker
 
-|2026-11-09, Idris2
-|Idris2 0.7.0 built from the `v0.7.0` tag on Chez Scheme 9.5.8.
-`bash scripts/check-proofs.sh idris2` at commit `ad2688b`:
-`src/interface/Abi/{Types,Layout,Foreign}.idr` PASS with no holes. Watched to
-fail: a proof replaced by a hole, and a null `Handle`. Also typechecked after
-substituting `{{project}}` as `just repo-init` does. A minted repository
-records its own receipts.
-
-|2026-11-09, Aspect 3
-|`bash tests/aspect_tests.sh` at commit `ad2688b`: exit 0, PASS=5 WARN=2.
-Aspect 3 passes on 6 bound symbols (SEAM-4) and 5 result codes (SEAM-3), and
-warns that `build.zig` builds no library (SEAM-5, open) and that five Zig
-exports are unbound. Watched to fail: the previous `rsr_*` seam, a changed
-`resultCode`, and a wrong library name in `build.zig`.
+| — | — | — | — | — | —
 |===
 
-== Verification commands
+== Proofs Blocked
+
+[cols="1,3,2,3", options="header"]
+|===
+| ID | Proof | Blocked By | Notes
+
+| — | — | — | —
+|===
+
+== Proofs Remaining
+
+[cols="1,3,1,1,1,1", options="header"]
+|===
+| ID | Proof | Category | Prover | Priority | Est. Effort
+
+| ABI-1 | Non-null pointer proofs | ABI | Idris2 | P1 | 2h
+| ABI-2 | Memory layout correctness | ABI | Idris2 | P1 | 4h
+| ABI-3 | Platform type size proofs | ABI | Idris2 | P1 | 2h
+| ABI-4 | FFI function return type proofs | ABI | Idris2 | P1 | 2h
+| ABI-5 | C ABI compliance | ABI | Idris2 | P1 | 4h
+| TP-1 | Core data type well-formedness | TP | Idris2 | P1 | 4h
+| TP-2 | Public API type safety | TP | Lean4 | P2 | 4h
+|===
+
+== Verification Commands
 
 [source,bash]
 ----
-just proof-check-idris2    # also: lean4, agda, coq; or proof-check-all
-bash scripts/check-proofs.sh idris2
+# Check all Idris2 proofs
+just proof-check-idris2
+
+# Check all Lean4 proofs
+just proof-check-lean4
+
+# Check all Agda proofs
+just proof-check-agda
+
+# Check all Coq proofs
+just proof-check-coq
+
+# Run all proof checks
+just proof-check-all
+
+# Scan for dangerous patterns
 panic-attack assail --proofs-only
 ----
 
@@ -188,5 +98,4 @@ panic-attack assail --proofs-only
 | Date | Change | By
 
 | 2026-04-04 | Initial proof status tracking | Template
-| 2026-11-09 | Ledger format (README-EXPLAINME §5): status vocabulary, census, receipts; Rust toolset per PROOF-POLICY §1.2 | Template
 |===
