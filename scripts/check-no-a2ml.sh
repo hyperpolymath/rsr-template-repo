@@ -43,5 +43,5 @@ if [ -z "$FOUND" ]; then
   exit 0
 fi
 echo "FAIL: .a2ml is a retired format; move these facts into the repo deed or a .k9 contract (or, for a file that predates the ledger, list it in .machine_readable/a2ml-legacy-allow.txt):"
-printf '  %s\n' $FOUND
+printf '%s\n' "$FOUND" | sed 's/^/  /'
 exit 1
