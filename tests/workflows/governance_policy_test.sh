@@ -136,6 +136,8 @@ for (const [label, arrivalLabel, verifier] of [
 }
 const location = (label) => adocRows.find((row) => row[0] === label)[2];
 assert.match(location("Rust code"), /on the Rust code itself/i);
+// PROOF-POLICY section 1.2: agent-facing summaries name Creusot, Pearlite and Verus.
+assert.match(adocRows.find((row) => row[0] === "Rust code")[1], /^Creusot with Pearlite contracts, and Verus$/);
 assert.match(location("Ada code"), /on the Ada code itself.*gnatprove/i);
 assert.match(location("APIs, ABIs and engineering properties"), /idris2\/.*ABI proofs are mandatory/);
 assert.match(location("Theory"), /agda\/ is the source of truth; coq\/ and lean4\/ hold the recheck legs/);
@@ -146,12 +148,12 @@ console.log("PASS: proof locations preserve mandatory ABI proofs and both theory
 const obligations = prose(mapping);
 assert.match(obligations, /types, functions or wire formats are engineering \(Idris2\)/);
 assert.match(obligations, /any implementation are theory \(Agda\)/);
-assert.match(obligations, /first-party Rust or Ada code.*Creusot or SPARK on that code, not restated in Idris2/);
+assert.match(obligations, /first-party Rust or Ada code.*Creusot\/Pearlite and Verus \(Rust\) or SPARK \(Ada\) on that code, not restated in Idris2/);
 assert.match(obligations, /recorded beside the artefact and in docs\/status\/PROOF-STATUS\.adoc/);
 assert.match(obligations, /tlaplus\/.*finite model check is reported as TESTED, with its bounds/);
 assert.match(obligations, /Kani \(unsafe and FFI seams, reported TESTED with bounds\)/);
 assert.match(obligations, /Aeneas \(Rust that implements an Agda-proved theorem\)/);
-assert.match(obligations, /alongside Creusot, never instead of it/);
+assert.match(obligations, /alongside Creusot and Verus, never instead of them/);
 assert.match(prose(arrival), /Kani for unsafe\/FFI seams and Aeneas.*Agda theorem.*alongside, never instead/);
 console.log("PASS: engineering boundaries and bounded exceptions preserve the primary verifier");
 

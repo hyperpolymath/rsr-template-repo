@@ -97,7 +97,7 @@ tree. In short:
 
 | APIs, ABIs and engineering properties | *Idris2* | Statements about one repository's types, functions or wire formats
 | Theory | *Agda*, rechecked in *Rocq* and *Lean* | `agda/` is the source of truth; no Mathlib
-| Rust code | *Creusot* | On the code itself (Kani for `unsafe`/FFI seams)
+| Rust code | *Creusot* with *Pearlite* contracts, and *Verus* | On the code itself (policy §1.2: plan scopes for both verifiers; Kani for `unsafe`/FFI seams)
 | Ada code | *SPARK* | On the code itself, via `gnatprove`
 | Distributed protocols | *TLA+* | Policy §4 exception; report results as TESTED with their bounds
 |===
