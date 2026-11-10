@@ -28,7 +28,7 @@ rc=0
 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.file://$work/remotes/.insteadOf" GIT_CONFIG_VALUE_0="https://github.com/" \
     bash "$repo/scripts/rsr-campaign.sh" --manifest "$work/m.campaign" --repos-file "$work/repos.txt" \
     --spine "$S" --work-dir "$work/run" --report "$work/report.tsv" >"$work/out" 2>&1 || rc=$?
-[ "$rc" -eq 0 ] || { cat "$work/out" >&2; fail "the dry run exited $rc on a tokenless path"; }
+[[ "$rc" -eq 0 ]] || { cat "$work/out" >&2; fail "the dry run exited $rc on a tokenless path"; }
 for name in first second; do
     grep -qP "^owner/$name\tnotes/plain.txt\tUPDATED\t" "$work/report.tsv" \
         || { cat "$work/report.tsv" >&2; fail "owner/$name has no UPDATED row"; }
