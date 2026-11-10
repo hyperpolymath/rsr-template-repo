@@ -7,11 +7,15 @@
 # in gv-clade-index found the script in 6 of them; the other 263 would have had
 # it ADDED, which this campaign must not do. Run it only with this repos file:
 #
-#   metadatastician/enterglide-ncc-137-k
-#   metadatastician/planer-1
-#   metadatastician/stealth-glider-ecosystem
-#   metadatastician/tardis-rule-disruption
-#   metadatastician/x15-rocket-glider
+#   catachresis-colloquium/enterglide-ncc-137-k
+#   catachresis-colloquium/planer-1
+#   catachresis-colloquium/stealth-glider-ecosystem
+#   catachresis-colloquium/tardis-rule-disruption
+#   catachresis-colloquium/x15-rocket-glider
+#
+# (These 5 moved from metadatastician to catachresis-colloquium. Use the new
+# names: a repo-scoped GitHub proxy (as in Claude Code cloud sessions) does
+# not follow the redirect, so pushes to the old names are refused.)
 #
 # Each holds a copy that matches an earlier template version (no local edits),
 # and regenerating its map with the fixed script changes nothing, so no gate
