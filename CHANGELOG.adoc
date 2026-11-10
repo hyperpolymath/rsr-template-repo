@@ -104,7 +104,44 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   holding byte 0x01 (the deed reader's record separator) is refused like one
   holding a newline.
 
+==== Changed
+
+* **Agda proofs use PROOF-POLICY §2.1's invocation.** `scripts/check-proofs.sh
+  agda` runs `agda --safe --without-K --cubical-compatible`, the canonical
+  theory invocation (metadatastician/standards `3-practice/PROOF-POLICY.adoc`
+  §2.1), instead of `agda --safe`. Every repository minted from the template
+  inherits the gate, so this is the source of the fix that
+  hyperpolymath/resource-algebra#19 and hyperpolymath/occupancy-types#18 make
+  to their copies. `Properties.agda` checks under the new flags (Agda 2.6.3,
+  standard library 1.7.3); the manifest records it.
+
+
 ==== Fixed
+
+* **Mint, drift gate and chain mint: the review findings left open on #275
+  and #277.**
+** An answer holding byte 0x01, the deed reader's record separator, is
+   refused before the first write.
+** The drift gate and the pre-mint check compare a symlink's target byte for
+   byte (a trailing newline was stripped) and the execute bit git records
+   (the owner's), not `-x`, which as root is true for a file only its group
+   or others may execute.
+** The repo uuid is derived the same on every machine
+   (`scripts/uuid5-url.sh`: sha1sum, shasum or openssl, equal to
+   `uuidgen --sha1`); without uuidgen it used to be `UNASSIGNED`, which a
+   replay then reported as drift. `deed-field.sh --uuid` falls back to it.
+** A divergent legacy `.well-known/` file is quarantined under the mint
+   date (`migrate-wellknown-to-www.sh --date`), so a later replay names it
+   the same.
+** Replays keep a file the template tracks although its `.gitignore`
+   matches it, and refuse a template commit whose checkout does not read
+   back as its own tree, instead of replaying it inexactly.
+** A chain mint holds the parent's original deed name as identity (a parent
+   that renamed its deed chain-mints), refuses a carried generator that
+   edits the deed, and fetches a partial clone's pinned files while the
+   user's git configuration (credentials, `insteadOf`) still applies.
+** A minted repo without `scripts/chain-mint.sh` is refused, never minted as
+   a template.
 
 * **repo-init follow-ups to #251 (the Codex review it merged before).**
 ** Re-minting a minted repo silently inherited its parent's author, contacts
@@ -235,9 +272,10 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
    unresolvable tree aborts the mint (`RSR_TEMPLATE_URL`,
    `RSR_TEMPLATE_COMMIT`, `RSR_ALLOW_UNPINNED=1` for the exceptions);
 ** the template's name, owner and deed file are derived from the checkout
-   (Justfile, then remote), not hardcoded, so a mint from a minted repo works
-   (ported from lintel#9, which did not merge; its removal of the
-   `[YOUR-REPO-NAME]` deed seds was not ported, since only they fill it);
+   (the root Justfile, else `RSR_TEMPLATE_SLUG`; never the git remote, which in
+   a "Use this template" child names the child), not hardcoded (ported from
+   lintel#9, which did not merge; its removal of the `[YOUR-REPO-NAME]` deed
+   seds was not ported, since only they fill it);
 ** every rewrite pass and completeness check reads one file list: the
    repository's own files (`git ls-files`, plus untracked not-ignored), minus
    `.machine_readable/mint-verbatim.txt`. The strip pass no longer edits
