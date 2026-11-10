@@ -6,6 +6,10 @@ name: Workflow Security Linter
 
 on:
   push:
+    # A PR push already runs this through pull_request; push runs only on
+    # main, so each PR push is linted once and main is still checked after merge.
+    branches:
+      - main
     paths:
       - '.github/workflows/**'
   pull_request:
