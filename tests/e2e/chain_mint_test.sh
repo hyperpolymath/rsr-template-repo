@@ -38,8 +38,8 @@ done
 # that refusal, by name, and stops. It does not skip silently: a legacy child
 # that could be minted again would fail here.
 legacy_deed="$(bash "$repo/scripts/deed-field.sh" --find "$repo" 2>/dev/null || true)"
-if [ ! -f "$repo/build/templates/identity.deed.in" ] \
-   && ! { [ -n "$legacy_deed" ] && bash "$repo/scripts/deed-field.sh" --has "$legacy_deed" mint-answers; }; then
+if [[ ! -f "$repo/build/templates/identity.deed.in" ]] \
+   && ! { [[ -n "$legacy_deed" ]] && bash "$repo/scripts/deed-field.sh" --has "$legacy_deed" mint-answers; }; then
     legacy_cfg=$(mktemp -d)
     if legacy_out=$(cd "$repo" && env -i PATH="$PATH" HOME="$legacy_cfg" XDG_CONFIG_HOME="$legacy_cfg" \
         RSR_NON_INTERACTIVE=1 PROJECT_NAME="Mint Check" REPO=mint-check OWNER=example-owner \
@@ -64,11 +64,11 @@ fi
 # name, and stops: a chain mint against a source without the pinned commit
 # must be refused before anything is written. It does not skip silently: a
 # chain mint that went ahead, or failed for another reason, fails here.
-if [ ! -f "$repo/build/templates/identity.deed.in" ]; then
+if [[ ! -f "$repo/build/templates/identity.deed.in" ]]; then
     child="$work/minted-child"
     g clone -q --no-local "$repo" "$child"
     (cd "$repo" && git ls-files -z --cached --others --exclude-standard \
-        | while IFS= read -r -d '' f; do { [ -e "$f" ] || [ -L "$f" ]; } && printf '%s\0' "$f"; done \
+        | while IFS= read -r -d '' f; do [[ -e "$f" || -L "$f" ]] && printf '%s\0' "$f"; done \
         | tar --null -T - -cf -) | (cd "$child" && tar xf -)
     g -C "$child" add -A; g -C "$child" commit -q --allow-empty -m "minted child under test"
     child_cfg="$work/child-cfg"; mkdir -p "$child_cfg"; : > "$child_cfg/gitconfig"
@@ -83,7 +83,7 @@ if [ ! -f "$repo/build/templates/identity.deed.in" ]; then
     fi
     grep -q "does not contain the parent's template commit" <<<"$child_out" \
         || { echo "$child_out" | tail -30 >&2; fail "the chain mint of a minted child was refused for the wrong reason"; }
-    [ -z "$(g -C "$child" status --porcelain)" ] || fail "the refused chain mint wrote to the child"
+    [[ -z "$(g -C "$child" status --porcelain)" ]] || fail "the refused chain mint wrote to the child"
     pass "a minted child refuses a chain mint from a source without its pinned template commit, by name, and writes nothing; the mint checks below need the template"
     exit 0
 fi
