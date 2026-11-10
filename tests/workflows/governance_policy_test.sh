@@ -163,7 +163,9 @@ for (const [label, arrivalLabel, verifier] of [
 const location = (label) => adocRows.find((row) => row[0] === label)[2];
 assert.match(location("Rust code"), /on the Rust code itself/i);
 // PROOF-POLICY section 1.2: agent-facing summaries name Creusot, Pearlite and Verus.
-assert.match(adocRows.find((row) => row[0] === "Rust code")[1], /^Creusot with Pearlite contracts, and Verus$/);
+// The proof guide may cite the policy section after the tool list (#303).
+assert.match(adocRows.find((row) => row[0] === "Rust code")[1],
+  /^Creusot with Pearlite contracts, and Verus( \(policy §1\.2\))?$/);
 assert.match(location("Ada code"), /on the Ada code itself.*gnatprove/i);
 assert.match(location("APIs, ABIs and engineering properties"), /idris2\/.*ABI proofs are mandatory/);
 assert.match(location("Theory"), /agda\/ is the source of truth; coq\/ and lean4\/ hold the recheck legs/);
