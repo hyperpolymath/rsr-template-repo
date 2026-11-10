@@ -67,14 +67,18 @@ mkdir -p "$(dirname "$OUT")"
 mapfile -t ENTRIES < <(repo_files | awk -F/ '{print $1}' | sort -u)
 
 # name -> annotation, harvested from the allowlist's own comments.
+# trim: strip leading and trailing whitespace and nothing else. Not xargs: it
+# parses quotes, so an apostrophe ("an application's") stopped it mid-comment
+# and the map kept only the words before it, and it dropped every quote mark.
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
 declare -A NOTE=() OPTIONAL=()
 while IFS= read -r line; do
     [[ "$line" =~ ^[[:space:]]*# ]] && continue
     [[ -z "${line// }" ]] && continue
-    raw="${line%%#*}"; raw="$(echo "$raw" | xargs || true)"
+    raw="$(trim "${line%%#*}")"
     [ -z "$raw" ] && continue
     comment="${line#*#}"; [ "$comment" = "$line" ] && comment=""
-    comment="$(echo "$comment" | xargs || true)"
+    comment="$(trim "$comment")"
     key="${raw%/}"
     if [[ "$key" == '?'* ]]; then key="${key#\?}"; OPTIONAL["$key"]=1; fi
     NOTE["$key"]="$comment"

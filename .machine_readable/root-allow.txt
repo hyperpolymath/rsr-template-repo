@@ -92,3 +92,7 @@ tests/
 ?REQUIRES_INITIALISATION.md  # written by the minting process, removed once `just repo-init` runs
 ?Project.toml              # julia-library archetype: Pkg reads the package manifest from the package root only
 ?test/                     # julia-library archetype: Pkg.test runs test/runtests.jl, a fixed path (the spine keeps tests/)
+?mix.exs                   # elixir: Mix reads the project file from the root only, and build/just/provision.just runs mix at the root
+?mix.lock                  # elixir: Mix writes the dependency lock beside mix.exs
+?.formatter.exs            # elixir: `mix format` reads its config from the project root
+?priv/                     # elixir/OTP: an application's priv dir is fixed at the project root (Application.app_dir/2)
