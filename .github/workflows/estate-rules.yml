@@ -24,7 +24,10 @@ permissions:
 jobs:
   estate-rules:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Measured 2026-11-10 over the last 30 runs: passing jobs took 10m50s to
+    # 14m54s, and 10 jobs were killed at the old 15-minute limit while still
+    # running. 30 minutes is about twice the slowest pass.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -75,6 +78,8 @@ jobs:
         run: bash tests/workflows/check_no_a2ml_test.sh
       - name: Deed clause writer controls
         run: bash tests/workflows/deed_clause_test.sh
+      - name: Coaptation families match the deed's descriptile clauses
+        run: bash tests/workflows/coaptation_families_test.sh
       - name: Install verified Nickel 1.17.0
         run: |
           mkdir -p "$RUNNER_TEMP/nickel-bin"
@@ -136,6 +141,17 @@ jobs:
       # The repository map is line-based: a path holding a newline is refused by name.
       - name: Repository map refuses a path holding a newline
         run: bash tests/workflows/repo_map_newline_test.sh
+      # Allowlist comments reach the map whole: an apostrophe or quote once cut them.
+      - name: Repository map keeps allowlist comments whole
+        run: bash tests/workflows/repo_map_quotes_test.sh
+      # The repo uuid is derived the same on every machine (sha1sum, shasum or
+      # openssl), equal to uuidgen --sha1; with no SHA-1 tool it is refused.
+      - name: Repo uuid derivation is machine-independent
+        run: bash tests/workflows/uuid5_url_test.sh
+      # A divergent legacy .well-known/ file is quarantined under the MINT date,
+      # so a replay on a later day names it the same.
+      - name: Legacy .well-known quarantine is named by the mint date
+        run: bash tests/workflows/migrate_wellknown_date_test.sh
       # The first CI job to run a FULL mint: a Use-this-template child, checked
       # for provenance, untouched fixtures and ignored files, the map and the
       # closing advice. A fresh mint of main aborted on 2026-10-20 and nothing
@@ -153,6 +169,9 @@ jobs:
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock
         run: bash tests/workflows/archetype_lock_merge_test.sh
+      # A campaign over a file with no {{TOKEN}}s once exited at that file.
+      - name: Campaign dry run finishes over a tokenless path
+        run: bash tests/workflows/rsr_campaign_tokenless_test.sh
       # The CHECK half of the template contract. repo-init has always written an
       # answer-file (now the child deed's (provenance) clause); nothing ever read it.
       # This is the missing reader, and it covers the #200/#201/#203 class:

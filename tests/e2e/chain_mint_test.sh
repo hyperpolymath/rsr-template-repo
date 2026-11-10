@@ -31,6 +31,65 @@ for tool in just rustc uuidgen nickel file; do
     command -v "$tool" >/dev/null 2>&1 || fail "$tool is required to run a real mint (not skipping)"
 done
 
+# A legacy minted repository (minted before #275 recorded (mint-answers), so
+# it has no build/templates/identity.deed.in and no answers to replay) cannot
+# be minted again: repo-init refuses before it asks or writes anything (#277).
+# The rest of this test needs a mintable tree, so in such a child it checks
+# that refusal, by name, and stops. It does not skip silently: a legacy child
+# that could be minted again would fail here.
+legacy_deed="$(bash "$repo/scripts/deed-field.sh" --find "$repo" 2>/dev/null || true)"
+if [[ ! -f "$repo/build/templates/identity.deed.in" ]] \
+   && ! { [[ -n "$legacy_deed" ]] && bash "$repo/scripts/deed-field.sh" --has "$legacy_deed" mint-answers; }; then
+    legacy_cfg=$(mktemp -d)
+    if legacy_out=$(cd "$repo" && env -i PATH="$PATH" HOME="$legacy_cfg" XDG_CONFIG_HOME="$legacy_cfg" \
+        RSR_NON_INTERACTIVE=1 PROJECT_NAME="Mint Check" REPO=mint-check OWNER=example-owner \
+        AUTHOR="Example Author" AUTHOR_EMAIL=author@example.org CONFIRM=n \
+        timeout 120 just repo-init </dev/null 2>&1); then
+        rm -rf "$legacy_cfg"
+        echo "$legacy_out" >&2
+        echo "FAIL: a legacy minted tree (no (mint-answers)) was allowed to mint again" >&2; exit 1
+    fi
+    rm -rf "$legacy_cfg"
+    grep -q 'cannot be minted again' <<<"$legacy_out" \
+        || { echo "$legacy_out" >&2; echo "FAIL: the legacy minted tree was refused for the wrong reason" >&2; exit 1; }
+    echo "PASS: a legacy minted tree refuses to mint again, by name; the mint checks below need a mintable tree"
+    exit 0
+fi
+
+# A minted repository that recorded its answers ((mint-answers) in the deed,
+# but no build/templates/identity.deed.in) is a child, not a template. This
+# test mints "this checkout's tree" as the template, and a chain mint of a
+# child needs the ROOT template commit its deed pins. So in such a child the
+# test checks that boundary, by name, and stops. It snapshots the work tree
+# into a fresh repository with no history, so the pin is absent whatever the
+# child's own history holds, and deleted files stay deleted. A chain mint
+# against that source must be refused before anything is written. It does
+# not skip silently: a chain mint that went ahead, or failed for another
+# reason, fails here.
+if [[ ! -f "$repo/build/templates/identity.deed.in" ]]; then
+    child="$work/minted-child"
+    g init -q "$child"
+    (cd "$repo" && git ls-files -z --cached --others --exclude-standard \
+        | while IFS= read -r -d '' f; do [[ -e "$f" || -L "$f" ]] && printf '%s\0' "$f"; done \
+        | tar --null -T - -cf -) | (cd "$child" && tar xf -)
+    g -C "$child" add -A; g -C "$child" commit -q --allow-empty -m "minted child under test"
+    child_cfg="$work/child-cfg"; mkdir -p "$child_cfg"; : > "$child_cfg/gitconfig"
+    if child_out=$(cd "$child" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        XDG_CONFIG_HOME="$child_cfg" GIT_CONFIG_GLOBAL="$child_cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$child" RSR_MINT_TOOL_CACHE="$work/tools" \
+        PROJECT_NAME=grand-check REPO=grand-check OWNER=other-owner AUTHOR="Other Author" \
+        AUTHOR_EMAIL=other@example.org PROJECT_DESCRIPTION="Grand tools" \
+        timeout 600 just repo-init </dev/null 2>&1); then
+        echo "$child_out" >&2
+        fail "a minted child was chain-minted from a source that lacks its pinned template commit"
+    fi
+    grep -q "does not contain the parent's template commit" <<<"$child_out" \
+        || { echo "$child_out" | tail -30 >&2; fail "the chain mint of a minted child was refused for the wrong reason"; }
+    [[ -z "$(g -C "$child" status --porcelain)" ]] || fail "the refused chain mint wrote to the child"
+    pass "a minted child refuses a chain mint from a source without its pinned template commit, by name, and writes nothing; the mint checks below need the template"
+    exit 0
+fi
+
 # ── The template: this checkout's tree, committed or not, on main ───────────
 T="$work/template"
 g clone -q --no-local "$repo" "$T"
@@ -63,7 +122,7 @@ mint() {
     (cd "$1" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
-        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$T" RSR_MINT_TOOL_CACHE="$work/tools" \
+        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="${MINT_TEMPLATE_URL:-$T}" RSR_MINT_TOOL_CACHE="$work/tools" \
         PROJECT_NAME="${9:-$3}" REPO="$3" OWNER="$4" AUTHOR="$5" AUTHOR_EMAIL="$6" \
         PROJECT_DESCRIPTION="$7" timeout 1200 just repo-init ${8:+"$8"} </dev/null) > "$2" 2>&1
 }
@@ -571,5 +630,80 @@ grep -q 'changed the type of src/ElderPkg.jl, which this mint renames to src/Gra
     || { tail -20 "$work/jretype.log" >&2; fail 'the type change across the rename was not refused by name'; }
 [ -z "$(g -C "$JG4" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
 pass "(-) a type change across an answer-dependent rename is refused before anything is written"
+
+# ── A parent that renamed its deed, from a template reached as a user would ─
+# The replayed base still has the deed's old name: it is identity, held like
+# the live name, not a deletion that takes the fresh deed with it (Codex
+# review of #277). The template is fetched as a partial clone through a URL
+# only this user's git configuration resolves (insteadOf, as credentials
+# would be): its blobs must be fetched while that configuration applies, not
+# later by replays that run without it (CodeRabbit review of #277).
+# The served template must not be shallow, as a real one is not: T is a clone
+# of this (often shallow) checkout, and git cannot serve a shallow partial
+# clone onward. TN is T's tree as a root commit.
+TN="$work/template-full"
+g init -q -b main "$TN"
+(cd "$T" && git ls-files -z | tar --null -T - -cf -) | (cd "$TN" && tar xf -)
+g -C "$TN" add -f -A; g -C "$TN" commit -q -m "template under test (unshallow)"
+[ "$(g -C "$TN" rev-parse 'HEAD^{tree}')" = "$(g -C "$T" rev-parse "$T_COMMIT^{tree}")" ] \
+    && [ "$(g -C "$TN" rev-parse --is-shallow-repository)" = false ] || fail 'fixture: the unshallow template is not the template under test'
+g -C "$TN" config uploadpack.allowFilter true
+g -C "$TN" config uploadpack.allowAnySHA1InWant true
+PR="$work/parent-renamed"
+use_template "$TN" HEAD "$PR" git@github.com:elder-owner/elder-proj.git
+MINT_TEMPLATE_URL="$TN" mint "$PR" "$work/parent-renamed.log" elder-proj elder-owner "Eldra Author" elder@example.org "Elder tools" \
+    || { tail -30 "$work/parent-renamed.log" >&2; fail 'the unshallow parent mint failed'; }
+g -C "$PR" add -A; g -C "$PR" commit -q -m mint
+g -C "$PR" mv elder-proj_chora.deed elder-renamed_chora.deed
+g -C "$PR" commit -q -m "the parent renames its deed"
+GR="$work/grandchild-renamed"
+use_template "$PR" HEAD "$GR" git@github.com:other-owner/grand-check.git
+MINT_TEMPLATE_URL="https://template.invalid/rsr-template-repo.git" \
+MINT_GITCONFIG="[url \"file://$TN\"]
+	insteadOf = https://template.invalid/rsr-template-repo.git
+" mint "$GR" "$work/renamed.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
+    || { tail -40 "$work/renamed.log" >&2; fail 'a chain mint from a parent that renamed its deed, through a private-style URL, failed'; }
+[ -f "$GR/grand-check_chora.deed" ] && [ ! -e "$GR/elder-renamed_chora.deed" ] && [ ! -e "$GR/elder-proj_chora.deed" ] \
+    || { ls "$GR"/*_chora.deed >&2; fail 'the grandchild does not hold exactly its own deed'; }
+g -C "$GR" add -A; g -C "$GR" commit -q -m "chain mint"
+(cd "$GR" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-variant-drift.sh "$TN") > "$work/renameddrift.log" 2>&1 \
+    || { cat "$work/renameddrift.log" >&2; fail 'the grandchild of a parent that renamed its deed has a red drift gate'; }
+pass "a parent's renamed deed is identity, not carried; a private-style template URL is read under the user's configuration; drift gate green"
+
+# ── Negative control: a carried generator that edits the deed ───────────────
+# The deed is owned, so the measurement skips it: an edit there would reach
+# the result unseen (Codex review of #277). Refused before anything is written.
+PD="$work/parent-deededit"
+g clone -q --no-local "$P" "$PD"
+sed -i 's|^set -euo pipefail$|&\nsed -i "s/:description \\"/:description \\"edited /" "$(git rev-parse --show-toplevel)"/*_chora.deed|' "$PD/.machine_readable/arrival-pack/generate.sh"
+grep -q ':description' "$PD/.machine_readable/arrival-pack/generate.sh" || fail 'fixture: the deed-editing generator was not added'
+g -C "$PD" commit -q -am "a generator that edits the deed"
+GD="$work/grandchild-deededit"
+use_template "$PD" HEAD "$GD" git@github.com:other-owner/grand-check.git
+if mint "$GD" "$work/deededit.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a chain mint kept a deed its carried generator edited'
+fi
+grep -q 'a carried generator edited grand-check_chora.deed' "$work/deededit.log" \
+    || { tail -20 "$work/deededit.log" >&2; fail 'the deed edit was not refused by name'; }
+[ -z "$(g -C "$GD" status --porcelain)" ] || fail 'the refused chain mint wrote to the tree'
+pass "(-) a carried generator that edits the deed is refused before anything is written"
+
+# ── Negative control: a minted parent without the chain script ──────────────
+# Its deed records (mint-answers), so it is minted, whatever else it holds (it
+# also carries build/templates/identity.deed.in): never minted as a template,
+# which would keep its author and contacts (Codex review of #277).
+PL="$work/parent-nochain"
+g clone -q --no-local "$P" "$PL"
+g -C "$PL" rm -q scripts/chain-mint.sh; g -C "$PL" commit -q -m "drop the chain script"
+[ -f "$PL/build/templates/identity.deed.in" ] || fail 'fixture: the parent does not carry identity.deed.in'
+GL2="$work/grandchild-nochain"
+use_template "$PL" HEAD "$GL2" git@github.com:other-owner/grand-check.git
+if mint "$GL2" "$work/nochain.log" grand-check other-owner "Other Author" other@example.org "Grand tools"; then
+    fail 'a minted repo without scripts/chain-mint.sh was minted'
+fi
+grep -q 'scripts/chain-mint.sh, which mints a minted repo again, is absent' "$work/nochain.log" \
+    || { tail -20 "$work/nochain.log" >&2; fail 'the missing chain script was not refused by name'; }
+[ -z "$(g -C "$GL2" status --porcelain)" ] || fail 'the refused mint wrote to the tree'
+pass "(-) a minted repo without the chain script is refused, not minted as a template"
 
 echo "PASS: chain mint"

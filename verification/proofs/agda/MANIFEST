@@ -1,7 +1,6 @@
 # Agda proof manifest — read by scripts/check-proofs.sh agda
 # Format: <source-root>|<module-relative-to-source-root>|gated|quarantine|<note>
-# Invocation: agda --safe --without-K --cubical-compatible (PROOF-POLICY §2.1).
-# Ground-truthed 2026-11-09 with Agda 2.6.3 and agda-stdlib 1.7.3 (Ubuntu 24.04
-# packages). The earlier 2026-07-17 `agda --safe` result is historical evidence
-# only (§2.1), not a receipt for this profile.
-verification/proofs/agda|Properties.agda|gated| compiles under the §2.1 canonical invocation
+# Ground-truthed 2026-07-17 with agda (agda --safe); 2026-11-09 under the
+# PROOF-POLICY §2.1 invocation, agda --safe --without-K --cubical-compatible
+# (Agda 2.6.3, standard library 1.7.3).
+verification/proofs/agda|Properties.agda|gated| compiles under `agda --safe --without-K --cubical-compatible`
