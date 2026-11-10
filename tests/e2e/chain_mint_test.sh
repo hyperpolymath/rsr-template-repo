@@ -59,14 +59,16 @@ fi
 # A minted repository that recorded its answers ((mint-answers) in the deed,
 # but no build/templates/identity.deed.in) is a child, not a template. This
 # test mints "this checkout's tree" as the template, and a chain mint of a
-# child needs the ROOT template commit its deed pins, which a clone of the
-# child never holds. So in such a child the test checks that boundary, by
-# name, and stops: a chain mint against a source without the pinned commit
-# must be refused before anything is written. It does not skip silently: a
-# chain mint that went ahead, or failed for another reason, fails here.
+# child needs the ROOT template commit its deed pins. So in such a child the
+# test checks that boundary, by name, and stops. It snapshots the work tree
+# into a fresh repository with no history, so the pin is absent whatever the
+# child's own history holds, and deleted files stay deleted. A chain mint
+# against that source must be refused before anything is written. It does
+# not skip silently: a chain mint that went ahead, or failed for another
+# reason, fails here.
 if [[ ! -f "$repo/build/templates/identity.deed.in" ]]; then
     child="$work/minted-child"
-    g clone -q --no-local "$repo" "$child"
+    g init -q "$child"
     (cd "$repo" && git ls-files -z --cached --others --exclude-standard \
         | while IFS= read -r -d '' f; do [[ -e "$f" || -L "$f" ]] && printf '%s\0' "$f"; done \
         | tar --null -T - -cf -) | (cd "$child" && tar xf -)
