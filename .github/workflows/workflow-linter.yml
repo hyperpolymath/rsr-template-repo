@@ -42,7 +42,7 @@ jobs:
             [ -f "$file" ] || continue
             # actions-lock may prepend its own comment. Require the licence
             # in the leading comment block, before the workflow body.
-            if ! awk '/^# SPDX-License-Identifier:/ { found=1 } /^[^#[:space:]]/ { exit } END { exit !found }' "$file"; then
+            if ! awk '/^# SPDX-License-Identifier:/ { found=1 } /^[[:space:]]*[^#[:space:]]/ { exit } END { exit !found }' "$file"; then
               echo "ERROR: $file missing SPDX header"
               failed=1
             fi

@@ -47,7 +47,7 @@ lock_ok() { bash "$repo/scripts/check-lock-sync.sh" "$1" >"$fixture/sync.log" 2>
 
 # Succeed when the file's leading comment block carries an SPDX line
 # (workflow-linter.yml, "Check SPDX Headers", verbatim).
-spdx_ok() { awk '/^# SPDX-License-Identifier:/ { found=1 } /^[^#[:space:]]/ { exit } END { exit !found }' "$1"; }
+spdx_ok() { awk '/^# SPDX-License-Identifier:/ { found=1 } /^[[:space:]]*[^#[:space:]]/ { exit } END { exit !found }' "$1"; }
 
 # Succeed when the file declares top-level permissions
 # (workflow-linter.yml, "Check permissions", verbatim).
