@@ -65,7 +65,7 @@
 | ABI-4 | FFI function return type proofs | ABI | Idris2 | P1 | 2h
 | ABI-5 | C ABI compliance | ABI | Idris2 | P1 | 4h
 | TP-1 | Core data type well-formedness | TP | Idris2 | P1 | 4h
-| TP-2 | Public API type safety | TP | Lean4 | P2 | 4h
+| TP-2 | Public API type safety | TP | Idris2 (example ships in Lean 4) | P2 | 4h
 |===
 
 == Verification Commands

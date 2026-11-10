@@ -90,7 +90,15 @@ if [ -n "$GL" ]; then
 fi
 GIT_INDEX_FILE="$SCRATCH/index" g -C "$TDIR" checkout-index -a -f --prefix="$OUT/"
 g -C "$OUT" init -q -b main
-g -C "$OUT" add -A
+# Forced: OUT holds only the pinned tree's files, and a file the template
+# tracks although its .gitignore matches it is still one of them ("Use this
+# template" copies the tree as it is) (Codex and CodeRabbit review of #277).
+# The commit must then BE the pinned tree; a checkout that does not read back
+# as it was written (an eol or encoding attribute) is refused, not replayed.
+g -C "$OUT" add -f -A
+[ "$(g -C "$OUT" write-tree)" = "$(g -C "$TDIR" rev-parse "$PIN^{tree}")" ] || {
+    echo "replay-mint: the checkout of $PIN does not read back as its own tree (an attribute rewrites a file); it cannot be replayed exactly" >&2
+    exit 1; }
 g -C "$OUT" commit -q -m "Initial commit"
 g -C "$OUT" remote add origin "git@${FORGE:-github.com}:${OWNER:-}/${REPO:-}.git"
 
