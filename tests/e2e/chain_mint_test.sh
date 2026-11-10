@@ -56,6 +56,38 @@ if [ ! -f "$repo/build/templates/identity.deed.in" ] \
     exit 0
 fi
 
+# A minted repository that recorded its answers ((mint-answers) in the deed,
+# but no build/templates/identity.deed.in) is a child, not a template. This
+# test mints "this checkout's tree" as the template, and a chain mint of a
+# child needs the ROOT template commit its deed pins, which a clone of the
+# child never holds. So in such a child the test checks that boundary, by
+# name, and stops: a chain mint against a source without the pinned commit
+# must be refused before anything is written. It does not skip silently: a
+# chain mint that went ahead, or failed for another reason, fails here.
+if [ ! -f "$repo/build/templates/identity.deed.in" ]; then
+    child="$work/minted-child"
+    g clone -q --no-local "$repo" "$child"
+    (cd "$repo" && git ls-files -z --cached --others --exclude-standard \
+        | while IFS= read -r -d '' f; do { [ -e "$f" ] || [ -L "$f" ]; } && printf '%s\0' "$f"; done \
+        | tar --null -T - -cf -) | (cd "$child" && tar xf -)
+    g -C "$child" add -A; g -C "$child" commit -q --allow-empty -m "minted child under test"
+    child_cfg="$work/child-cfg"; mkdir -p "$child_cfg"; : > "$child_cfg/gitconfig"
+    if child_out=$(cd "$child" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        XDG_CONFIG_HOME="$child_cfg" GIT_CONFIG_GLOBAL="$child_cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$child" RSR_MINT_TOOL_CACHE="$work/tools" \
+        PROJECT_NAME=grand-check REPO=grand-check OWNER=other-owner AUTHOR="Other Author" \
+        AUTHOR_EMAIL=other@example.org PROJECT_DESCRIPTION="Grand tools" \
+        timeout 600 just repo-init </dev/null 2>&1); then
+        echo "$child_out" >&2
+        fail "a minted child was chain-minted from a source that lacks its pinned template commit"
+    fi
+    grep -q "does not contain the parent's template commit" <<<"$child_out" \
+        || { echo "$child_out" | tail -30 >&2; fail "the chain mint of a minted child was refused for the wrong reason"; }
+    [ -z "$(g -C "$child" status --porcelain)" ] || fail "the refused chain mint wrote to the child"
+    pass "a minted child refuses a chain mint from a source without its pinned template commit, by name, and writes nothing; the mint checks below need the template"
+    exit 0
+fi
+
 # ── The template: this checkout's tree, committed or not, on main ───────────
 T="$work/template"
 g clone -q --no-local "$repo" "$T"
