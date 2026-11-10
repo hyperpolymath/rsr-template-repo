@@ -24,7 +24,10 @@ permissions:
 jobs:
   estate-rules:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Measured 2026-11-10 over the last 30 runs: passing jobs took 10m50s to
+    # 14m54s, and 10 jobs were killed at the old 15-minute limit while still
+    # running. 30 minutes is about twice the slowest pass.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -138,6 +141,9 @@ jobs:
       # The repository map is line-based: a path holding a newline is refused by name.
       - name: Repository map refuses a path holding a newline
         run: bash tests/workflows/repo_map_newline_test.sh
+      # Allowlist comments reach the map whole: an apostrophe or quote once cut them.
+      - name: Repository map keeps allowlist comments whole
+        run: bash tests/workflows/repo_map_quotes_test.sh
       # The repo uuid is derived the same on every machine (sha1sum, shasum or
       # openssl), equal to uuidgen --sha1; with no SHA-1 tool it is refused.
       - name: Repo uuid derivation is machine-independent
