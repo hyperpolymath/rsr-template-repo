@@ -425,121 +425,82 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Fetch the canon's released identity
-        id: canon
+      # The decision is scripts/canon-pin-check.sh (tested offline by
+      # tests/workflows/canon_pin_check_test.sh); these steps only fetch.
+      # Two-phase lockstep: the spine may adopt a canon AHEAD of its release
+      # by naming the open canon PR in the clause (:proposed-by
+      # "metadatastician/standards#N"); the pin must then equal canon.lock at
+      # that PR's head. Standards Gate A checks the other side.
+      - name: Checkout repository (for the decision script)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare this repo's declared pin with the canon
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPO: ${{ github.repository }}
+          # gh reads the token from the environment, so it never appears in a
+          # command line (where a curl -H would put it in the process list).
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          CANON_REPO="metadatastician/standards"
           LOCK="$RUNNER_TEMP/canon.lock"
-          URL="https://raw.githubusercontent.com/metadatastician/standards/main/canon.lock"
+          URL="https://raw.githubusercontent.com/${CANON_REPO}/main/canon.lock"
           if ! curl -fsSL --retry 3 --max-time 30 "$URL" -o "$LOCK"; then
             echo "::error::could not fetch canon.lock from $URL"
             exit 1
           fi
-          rec="$(awk '
-            /^[[:space:]]*#/ { next }
-            /^criteria[[:space:]]*=/ { on=1 }
-            on {
-              line=$0; sub(/#.*/,"",line); rec = rec " " line
-              if (line ~ /}/) { on=0 }
-            }
-            END { print rec }' "$LOCK")"
-          want="$(printf '%s\n' "$rec" \
-            | grep -oE 'sha256[[:space:]]*=[[:space:]]*"[0-9a-f]{64}"' \
-            | grep -oE '[0-9a-f]{64}' | head -1)"
-          if [ -z "$want" ]; then
-            echo "::error::canon.lock carries no criteria sha256"
-            exit 1
-          fi
-          echo "want=$want" >> "$GITHUB_OUTPUT"
-
-      - name: Compare this repo's declared pin
-        env:
-          WANT: ${{ steps.canon.outputs.want }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          REPO: ${{ github.repository }}
-          TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
           DEED_NAME="${REPO#*/}_chora.deed"
           DEED="$RUNNER_TEMP/repo.deed"
-          API="https://api.github.com/repos/${REPO}/contents/${DEED_NAME}?ref=${HEAD_SHA}"
-          if ! curl -fsSL --retry 3 --max-time 30 \
-              -H "Authorization: Bearer ${TOKEN}" \
-              -H "Accept: application/vnd.github.raw" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$API" -o "$DEED"; then
+          if ! gh api -H "Accept: application/vnd.github.raw" \
+              "repos/${REPO}/contents/${DEED_NAME}?ref=${HEAD_SHA}" > "$DEED"; then
             echo "::error::no $DEED_NAME at ${HEAD_SHA:0:7} — this repo cannot declare a canon pin"
             exit 1
           fi
           echo "deed: $DEED_NAME @ ${HEAD_SHA:0:7}"
-
-          deed_canon() {
-              _clauses="$(awk 'BEGIN { bs = sprintf("%c", 92); dq = sprintf("%c", 34) } { o = ""; q = 0; for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); if (q && c == bs) { o = o c substr($0, i + 1, 1); i++; continue } if (c == dq) q = !q; else if (!q && c == ";") break; o = o c } printf "%s ", o }' "$2" | grep -oE '[(]canon[[:space:]][^()]*[)]')" || true
-              _n="$(echo "$_clauses" | grep -c '(canon' || true)"
-              if [ "$_n" != "1" ]; then
-                  echo "deed_canon: $2 carries ${_n:-0} (canon …) clauses, need exactly 1" >&2
-                  return 0
-              fi
-              echo "$_clauses" | grep -oE ':'"$1"'[[:space:]]+"[^"]*"' | head -1 | sed -E 's/^[^"]*"//; s/"$//' || true
-          }
-          canon_key() {
-            awk -v key="$1" '
-              /^[[:space:]]*#/ { next }
-              /^\[/ { f = ($0 == "[canon]") ? 1 : 0; next }
-              f && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
-                sub(/^[^=]*=[[:space:]]*/, ""); gsub(/^["[:space:]]+|["[:space:]]+$/, ""); print; exit
-              }' "$2"
-          }
-          artefact_hash() {
-            awk -v key="$1" '
-              $0 ~ "^" key "[[:space:]]*=" { f = 1 }
-              f { buf = buf " " $0 }
-              f && /sha256[[:space:]]*=/ { print buf; exit }
-            ' "$2" | grep -oE '[0-9a-f]{64}' | head -1
-          }
-
-          want_crit="$WANT"
-          want_gates="$(artefact_hash gates "$RUNNER_TEMP/canon.lock")"
-          want_ver="$(canon_key version "$RUNNER_TEMP/canon.lock")"
-          got_crit="$(deed_canon criteria-sha256 "$DEED")"
-          got_gates="$(deed_canon gates-sha256 "$DEED")"
-          got_ver="$(deed_canon version "$DEED")"
-
-          for pair in "want_crit:$want_crit" "want_gates:$want_gates" \
-                      "got_crit:$got_crit" "got_gates:$got_gates"; do
-            if ! printf '%s' "${pair#*:}" | grep -qxE '[0-9a-f]{64}'; then
-              echo "::error::${pair%%:*} is not a sha256 (got '${pair#*:}') — refusing to compare"
-              exit 1
-            fi
-          done
-          for pair in "want_ver:$want_ver" "got_ver:$got_ver"; do
-            if ! printf '%s' "${pair#*:}" | grep -qxE '[0-9]+\.[0-9]+\.[0-9]+'; then
-              echo "::error::${pair%%:*} is not a semver (got '${pair#*:}') — refusing to compare"
-              exit 1
-            fi
-          done
-
-          ok=1
-          row() {
-            mark=":x:"
-            if [ "$2" = "$3" ]; then mark=":white_check_mark:"; else ok=0; fi
-            printf '| `%s` | `%s` | `%s` | %s |\n' "$1" "${2:0:16}" "${3:0:16}" "$mark"
-          }
-          {
-            echo "## Canon lockstep"
-            echo ""
-            echo "| pin | canon.lock asserts | \`$DEED_NAME\` declares | |"
-            echo "|---|---|---|---|"
-            row version         "$want_ver"   "$got_ver"
-            row criteria-sha256 "$want_crit"  "$got_crit"
-            row gates-sha256    "$want_gates" "$got_gates"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$ok" = "1" ]; then
-            echo ":white_check_mark: This template implements the canon at HEAD."
+          OUT="$RUNNER_TEMP/released.md"
+          rc=0
+          bash scripts/canon-pin-check.sh released "$DEED" "$LOCK" > "$OUT" || rc=$?
+          { echo "## Canon lockstep"; echo ""; grep -v '^PROPOSED_BY=' "$OUT" || true; echo ""; } >> "$GITHUB_STEP_SUMMARY"
+          cat "$OUT"
+          case "$rc" in
+            0) echo ":white_check_mark: This template implements the released canon." >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
+            1) echo "::error::canon lockstep broken — the template does not implement the canon at HEAD (adopt it, or name the canon PR with :proposed-by)"; exit 1 ;;
+            3) ;;
+            *) echo "::error::canon lockstep could not compare (malformed pin or lock)"; exit 1 ;;
+          esac
+          # Two-phase: the pin names an unreleased canon PR. Check that PR.
+          ref="$(sed -n 's/^PROPOSED_BY=//p' "$OUT")"
+          num="${ref##*#}"
+          PR_JSON="$RUNNER_TEMP/pr.json"
+          if ! gh api "repos/${CANON_REPO}/pulls/${num}" > "$PR_JSON"; then
+            echo "::error::could not read ${CANON_REPO}#${num}, which this deed's :proposed-by names"
+            exit 1
+          fi
+          state="$(jq -r '.state' "$PR_JSON")"
+          [ "$(jq -r '.merged' "$PR_JSON")" = "true" ] && state="merged"
+          head="$(jq -r '.head.sha' "$PR_JSON")"
+          if ! printf '%s' "$head" | grep -qxE '[0-9a-f]{40}'; then
+            echo "::error::${CANON_REPO}#${num} has no readable head commit"
+            exit 1
+          fi
+          PLOCK="$RUNNER_TEMP/pending.lock"
+          if ! curl -fsSL --retry 3 --max-time 30 \
+              "https://raw.githubusercontent.com/${CANON_REPO}/${head}/canon.lock" -o "$PLOCK"; then
+            echo "::error::could not fetch canon.lock at ${CANON_REPO}@${head:0:7}"
+            exit 1
+          fi
+          POUT="$RUNNER_TEMP/pending.md"
+          prc=0
+          bash scripts/canon-pin-check.sh pending "$DEED" "$PLOCK" "$state" > "$POUT" || prc=$?
+          { echo "### Adopted ahead of release: ${ref} (${state}, head ${head:0:7})"; echo ""; cat "$POUT"; echo ""; } >> "$GITHUB_STEP_SUMMARY"
+          cat "$POUT"
+          if [ "$prc" = 0 ]; then
+            echo ":white_check_mark: This template adopts ${ref} ahead of its release (spine-adopts-then-canon-releases)." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          echo "::error::canon lockstep broken — the template does not implement the canon at HEAD"
+          echo "::error::canon lockstep broken — the pin follows ${ref}, which is ${state} or no longer matches"
           exit 1
 
   # ---------------------------------------------------------------------------
@@ -628,11 +589,11 @@ jobs:
           ref: be98f74ce93df200752f3798efa1305bfa3e0e10
           path: _hypatia
           persist-credentials: false
-      - name: Setup Elixir 1.19.4 / OTP 28.3 for Hypatia oracle
+      - name: Setup Elixir 1.19.4 / OTP 28.5.0.8 for Hypatia oracle
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.19.4'
-          otp-version: '28.3'
+          otp-version: '28.5.0.8'
       - name: Cache Hypatia Mix deps and build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -641,7 +602,7 @@ jobs:
             _hypatia/_build
             ~/.hex
             ~/.mix
-          key: hypatia-oracle-${{ runner.os }}-otp28-elx1194-be98f74ce93df200752f3798efa1305bfa3e0e10
+          key: hypatia-oracle-${{ runner.os }}-otp28.5.0.8-elx1194-be98f74ce93df200752f3798efa1305bfa3e0e10
       - name: Compile the oracle
         working-directory: _hypatia
         run: mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile
