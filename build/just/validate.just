@@ -74,7 +74,9 @@ validate-rsr:
             *) MISSING="$MISSING $DEED:maturity:level" ;;
         esac
         # The ecosystem clause names the repo the deed's header names.
-        [ "$(field ecosystem project)" = "$(field "" canonical-name)" ] \
+        # Both empty would compare equal; an identity must be present.
+        [ -n "$(field "" canonical-name)" ] \
+            && [ "$(field ecosystem project)" = "$(field "" canonical-name)" ] \
             || MISSING="$MISSING $DEED:ecosystem:project"
         want meta axis-1 "must > intend > like"
         want meta axis-2 "corrective > adaptive > perfective"
@@ -109,12 +111,17 @@ validate-state:
     if [ -n "$DEED" ] && bash scripts/deed-field.sh --has "$DEED" status; then
         phase=$(bash scripts/deed-field.sh "$DEED" status phase || true)
         level=$(bash scripts/deed-field.sh "$DEED" maturity level || true)
-        if [ -n "$phase" ] && [ -n "$level" ]; then
-            echo "$DEED: valid (phase $phase, maturity $level)"
-        else
-            echo "$DEED: INVALID (needs (status :phase …) and (maturity :level …))"
-            exit 1
-        fi
+        # The same closed sets validate-rsr enforces (CLADE-004/005): a
+        # misspelt phase or level is not a state.
+        case "$phase" in
+            reserved|incubating|active|dormant|merged|superseded|archived|extinct) ;;
+            *) echo "$DEED: INVALID (status :phase '$phase' is not one of reserved|incubating|active|dormant|merged|superseded|archived|extinct)"; exit 1 ;;
+        esac
+        case "$level" in
+            experimental|alpha|beta|production|lts) ;;
+            *) echo "$DEED: INVALID (maturity :level '$level' is not one of experimental|alpha|beta|production|lts)"; exit 1 ;;
+        esac
+        echo "$DEED: valid (phase $phase, maturity $level)"
     else
         echo "No repo state found: the repo deed has no (status …) clause"
         exit 1

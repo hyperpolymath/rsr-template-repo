@@ -75,6 +75,8 @@ jobs:
         run: bash tests/workflows/check_no_a2ml_test.sh
       - name: Deed clause writer controls
         run: bash tests/workflows/deed_clause_test.sh
+      - name: Coaptation families match the deed's descriptile clauses
+        run: bash tests/workflows/coaptation_families_test.sh
       - name: Install verified Nickel 1.17.0
         run: |
           mkdir -p "$RUNNER_TEMP/nickel-bin"
@@ -136,10 +138,14 @@ jobs:
       # The repository map is line-based: a path holding a newline is refused by name.
       - name: Repository map refuses a path holding a newline
         run: bash tests/workflows/repo_map_newline_test.sh
-      # The Rhodibot canary takes a CONTRIBUTING guide in AsciiDoc as well as
-      # Markdown; no guide, or both, still trip it.
-      - name: Rhodibot canary accepts an AsciiDoc CONTRIBUTING guide
-        run: bash tests/workflows/rhodibot_canary_test.sh
+      # The repo uuid is derived the same on every machine (sha1sum, shasum or
+      # openssl), equal to uuidgen --sha1; with no SHA-1 tool it is refused.
+      - name: Repo uuid derivation is machine-independent
+        run: bash tests/workflows/uuid5_url_test.sh
+      # A divergent legacy .well-known/ file is quarantined under the MINT date,
+      # so a replay on a later day names it the same.
+      - name: Legacy .well-known quarantine is named by the mint date
+        run: bash tests/workflows/migrate_wellknown_date_test.sh
       # The first CI job to run a FULL mint: a Use-this-template child, checked
       # for provenance, untouched fixtures and ignored files, the map and the
       # closing advice. A fresh mint of main aborted on 2026-10-20 and nothing
