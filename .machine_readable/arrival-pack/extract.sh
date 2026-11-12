@@ -58,9 +58,9 @@ hash12() { sha256sum | cut -c1-12; }
 # and follows the deed when it moves to version 8.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-[ -z "$uuid_name" ] || uuid="$(sed -n -E 's/^[[:space:]]*:repo-uuid[[:space:]]+(#u[0-9]+"[^"]*").*/\1/p' "$DEED" | head -1)"
+[ -z "$uuid_name" ] || uuid="$(sed -n -E 's/^[[:space:]]*:repo-uuid[[:space:]]+(#u(uid|[0-9]+)"[^"]*").*/\1/p' "$DEED" | head -1)"
 [ -z "$uuid_name" ] || [ -n "$uuid" ] \
-  || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #u<n>\"...\" literal" >&2; exit 2; }
+  || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #uuid\"...\" or #u<n>\"...\" literal" >&2; exit 2; }
 
 # read_clauses -> the clauses this pack reads, one token per line. Hashing only
 # these keeps an unrelated deed edit (say a canon-pin bump) from reading as drift.
@@ -81,9 +81,16 @@ isnot="$(items ecosystem not ' · ')"
 canonical_name="$(field '' canonical-name)"
 [ -n "$canonical_name" ] \
   || { echo "extract.sh: $(basename "$DEED") has no :canonical-name" >&2; exit 2; }
-prefixed_name="$(field identity prefixed-name)"
+# The clade is an optional outward finding aid (standards A1 §11), never identity.
 clade_primary="$(field clade primary)"
 clade_secondary="$(items clade secondary ', ')"
+if [ -z "$clade_primary" ]; then
+  clade_aid="none declared (optional finding aid)"
+elif [ -n "$clade_secondary" ]; then
+  clade_aid="$clade_primary (secondary $clade_secondary; finding aid)"
+else
+  clade_aid="$clade_primary (finding aid)"
+fi
 born="$(field lineage born)"
 forge_gh="$(field forges github)"
 purpose="$(field ecosystem purpose)"
@@ -100,10 +107,8 @@ h_anchor="$(printf '%s\n' "$anchor_clause" | hash12)"
 
 jq -cnS \
   --arg canonical_name "$canonical_name" \
-  --arg prefixed_name  "$prefixed_name" \
+  --arg clade_aid      "$clade_aid" \
   --arg uuid           "$uuid" \
-  --arg clade_primary  "$clade_primary" \
-  --arg clade_secondary "$clade_secondary" \
   --arg born           "$born" \
   --arg forge_gh       "$forge_gh" \
   --arg purpose        "$purpose" \

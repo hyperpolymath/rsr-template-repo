@@ -13,8 +13,16 @@
   ; The owner is part of the name, so part of the identity: record the owner
   ; that is true today, and re-derive if the repo ever moves.
   ;
-  ; CHOOSE A CLADE. A CLOSED TAXONOMY OF 12 CATEGORIES, NOT AN ABBREVIATION
-  ; SCHEME: the two letters abbreviate the clade's name, never your repo's.
+  ; IDENTITY IS THE CHORA, NOT THE CLADE (standards A1, ruling R4). The
+  ; deed header's :repo-uuid is the repo's id. A clade is an OPTIONAL outward finding
+  ; aid: no check requires one, and no name prefix is required. When you do
+  ; choose one, add a clause beside (identity), for example
+  ;   (clade :primary gm :primary-name "Games & Interactive" :secondary ()
+  ;     :assigned "YYYY-MM-DD" :rationale "why")
+  ; and `just validate-rsr` then checks that the code is one of the 12 and
+  ; agrees with its name. The 12, read off the RIGHT-HAND column, never off
+  ; the repository name (two real mis-choices read `pt` and `gv` as letters of
+  ; the slug):
   ;   fv  Formal Verification & Proofs   provable correctness, dependent types, theorem proving
   ;   nl  Nextgen Languages              compilers, runtimes, language tooling
   ;   rm  Repo Management & Tooling      scaffolding, graph analysis, bots, templates
@@ -27,34 +35,15 @@
   ;   ax  AI & Neurosymbolic             ML, neural proof synthesis, AI governance
   ;   gm  Games & Interactive            game engines, interactive experiences
   ;   sc  Security                       scanning, vulnerability management, access control
-  ; A CODE CAN BE VALID AND STILL BE WRONG. Two real mis-choices happened
-  ; because the code was read as an ABBREVIATION OF THE REPOSITORY'S NAME
-  ; rather than of the clade's name: a project whose slug contained a
-  ; two-letter sequence read `pt` as that sequence (its work was an
-  ; application, so `ap`), and a project read `gv` as "graphical/visual"
-  ; (`gv` is GoVernance; graphical work is `ap`). Both codes were valid, so
-  ; every mechanical check passed and only a human caught it. Read the code
-  ; off the RIGHT-HAND column, never off the repository name.
-  ; HOW TO CHOOSE: the primary clade reflects the project's core value
-  ; proposition, not its implementation. A game written in Idris2 is `gm`.
-  ; Set BOTH :primary and :primary-name, and make them agree; then set
-  ; :prefixed-name to "<primary>-{{REPO}}". `just validate-rsr` fails while
-  ; :primary is UNASSIGNED. That is deliberate: an unchosen clade must never
-  ; look like a chosen one.
+  ; The primary clade reflects the project's core value proposition, not its
+  ; implementation: a game written in Idris2 is `gm`.
   ;
-  ; REGISTRATION IS NOT DERIVATION. Registering means an entry in
-  ; gv-clade-index verisim/seed/repos.a2ml. It is outward-facing and it is the
-  ; OWNER's act; an agent must not do it.
+  ; REGISTRATION IS NOT DERIVATION. Registering means an entry in the
+  ; gv-clade-index registry seed. It is outward-facing and it is the OWNER's
+  ; act; an agent must not do it.
   (identity
     :primary-forge github
-    :owner "{{OWNER}}"
-    :prefixed-name "UNASSIGNED-{{REPO}}")
-  (clade
-    :primary UNASSIGNED
-    :primary-name "UNASSIGNED"
-    :secondary ()
-    :assigned "{{CURRENT_DATE}}"
-    :rationale "")
+    :owner "{{OWNER}}")
   (forges
     :github "{{OWNER}}/{{REPO}}")
   ; :type is one of standalone monorepo monorepo-child inflated deflated hub
@@ -79,7 +68,7 @@
     :successors ()
     :ended ""
     (history
-      (entry :phase incubating :since "{{CURRENT_DATE}}" :note "created from rsr-template-repo; clade not yet chosen; not yet registered")))
+      (entry :phase incubating :since "{{CURRENT_DATE}}" :note "created from rsr-template-repo; not yet registered")))
   ; :level is one of experimental alpha beta production lts (standards
   ; 1-formats/deed/vocabulary/maturity.adoc).
   (maturity
