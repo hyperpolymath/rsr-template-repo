@@ -121,6 +121,7 @@ jobs:
           # a new ledger entry through exactly when it cannot be checked.
           A2ML_BASE=""
           if [ -n "$BASE_REF" ]; then
+            AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
             if ! git -c http.extraheader="${AUTH}" fetch -q --depth=1 origin "$BASE_REF"; then
               echo "::error::could not fetch the base branch $BASE_REF to bound the A2ML ledger"
               exit 1
