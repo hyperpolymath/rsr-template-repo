@@ -22,12 +22,25 @@
 # fails. Standards Gate A checks the other side: a canon PR that changes
 # canon.lock is not mergeable until the spine's main pins it.
 #
+# Spine and instance. Exact equality is the SPINE's invariant: the template
+# is what implements the canon. A repo minted from the template carries the
+# pin as PROVENANCE, "the canon release it was cut from" (repo-init.just),
+# and a provenance record cannot follow later releases. Requiring equality
+# there turned every instance red on every push the moment standards
+# released a newer canon (2.1.5 reddened every 2.1.2-2.1.4 instance). So an
+# instance whose pin names an OLDER version passes with a notice naming the
+# release it lags. The spine is recognised by GITHUB_REPOSITORY_ID, which
+# survives a transfer; with no id in the environment (a local run) the
+# check stays strict.
+#
 # Usage:
 #   canon-pin-check.sh released <deed> <canon.lock>
-#       0  the pin equals canon.lock (a spent :proposed-by gives a notice)
+#       0  the pin equals canon.lock (a spent :proposed-by gives a notice),
+#          or, outside the spine, the pin names an older canon version
 #       3  the pin differs and the clause names a canon PR: the caller must
 #          check that PR; stdout ends with the line  PROPOSED_BY=<owner/repo#N>
-#       1  the pin differs and names no canon PR
+#       1  the pin differs and names no canon PR (in an instance: the pin
+#          names the released version or a later one, with other hashes)
 #       2  malformed input (no single clause, a pin of the wrong shape, a
 #          malformed :proposed-by, an unreadable lock)
 #   canon-pin-check.sh pending <deed> <canon.lock-at-PR-head> <pr-state>
@@ -38,7 +51,16 @@
 
 set -euo pipefail
 
-usage() { sed -n '25,38p' "$0" >&2; exit 2; }
+usage() { sed -n '36,50p' "$0" >&2; exit 2; }
+
+# The spine's repository id (hyperpolymath/rsr-template-repo). An id, not a
+# slug: a slug changes on a transfer, an id does not.
+SPINE_REPOSITORY_ID=1306804488
+
+# version_lt <a> <b>: true when semver a sorts strictly before b.
+version_lt() {
+  [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" = "$1" ]
+}
 
 # deed_canon <key> <deed-file>: print the value of :<key> from the deed's one
 # (canon …) clause, or nothing when the clause or key is absent or the clause
@@ -132,6 +154,14 @@ case "$MODE" in
       echo
       echo "PROPOSED_BY=${PROPOSED}"
       exit 3
+    fi
+    pinned="$(deed_canon version "$DEED")"
+    released="$(canon_key version "$LOCK")"
+    if [ -n "${GITHUB_REPOSITORY_ID:-}" ] && [ "$GITHUB_REPOSITORY_ID" != "$SPINE_REPOSITORY_ID" ] \
+       && version_lt "$pinned" "$released"; then
+      echo
+      echo "::notice::this repo was cut from canon ${pinned}; canon ${released} is released. The pin is provenance, so this is not a failure; re-pin the (canon …) clause to adopt ${released}."
+      exit 0
     fi
     exit 1
     ;;
