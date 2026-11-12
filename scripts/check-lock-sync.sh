@@ -450,6 +450,8 @@ END {
     print "reports \"This run likely failed because of a workflow file issue.\""
     print ""
     print "Fix, in this order:"
+    print "  0. After a Dependabot bump: `just lock-sync-fix` (scripts/lock-sync-fix.sh)"
+    print "     resolves the new refs, rewrites the lock, and re-runs this check."
     print "  1. `gh actions-lock --no-migrate-local-actions`, then review the diff. It does"
     print "     NOT handle job-level reusable-workflow refs and it can de-pin bare SHAs to"
     print "     floating tags - both must be corrected by hand."
