@@ -486,7 +486,7 @@ jobs:
             exit 1
           fi
           PLOCK="$RUNNER_TEMP/pending.lock"
-          if ! curl -fsSL --retry 3 --max-time 30 \
+          if ! curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 --retry 3 --max-time 30 \
               "https://raw.githubusercontent.com/${CANON_REPO}/${head}/canon.lock" -o "$PLOCK"; then
             echo "::error::could not fetch canon.lock at ${CANON_REPO}@${head:0:7}"
             exit 1

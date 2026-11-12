@@ -15,9 +15,9 @@ set -euo pipefail
 [ $# -eq 1 ] || { echo "usage: uuid5-url.sh NAME" >&2; exit 2; }
 
 sha1() {
-    if command -v sha1sum >/dev/null 2>&1; then sha1sum
-    elif command -v shasum >/dev/null 2>&1; then shasum -a 1
-    elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha1 -r
+    if command -v sha1sum >/dev/null 2>&1; then sha1sum # NOSONAR shell:S4790: RFC 9562 mandates SHA-1 for UUIDv5
+    elif command -v shasum >/dev/null 2>&1; then shasum -a 1 # NOSONAR shell:S4790: RFC 9562 mandates SHA-1 for UUIDv5
+    elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha1 -r # NOSONAR shell:S4790: RFC 9562 mandates SHA-1 for UUIDv5
     else echo "uuid5-url.sh: needs sha1sum, shasum or openssl" >&2; return 2
     fi
 }
