@@ -106,6 +106,7 @@ jobs:
       - name: Validate DEED manifests and block retired .a2ml files
         env:
           BASE_REF: ${{ github.base_ref }}
+          TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           STANDARDS_ABS="$PWD/.standards-deed"
@@ -121,6 +122,10 @@ jobs:
           # a new ledger entry through exactly when it cannot be checked.
           A2ML_BASE=""
           if [ -n "$BASE_REF" ]; then
+            # Authenticate the fetch. The checkout above sets persist-credentials: false,
+            # so an anonymous fetch works only for public repositories; this gate must
+            # also run on private ones. The header form keeps the token out of .git/config
+            # (the same pattern as lock-sync-gate.yml).
             AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
             if ! git -c http.extraheader="${AUTH}" fetch -q --depth=1 origin "$BASE_REF"; then
               echo "::error::could not fetch the base branch $BASE_REF to bound the A2ML ledger"
