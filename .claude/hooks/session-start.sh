@@ -6,7 +6,7 @@
 # Reads CLAUDE_SIGNING_KEY (base64 of an ed25519 private key, one line),
 # CLAUDE_SIGNING_NAME and CLAUDE_SIGNING_EMAIL from the cloud environment.
 # Writes ~/.ssh/id_ed25519_signing (mode 600) and ~/.ssh/allowed_signers,
-# then sets signing config in this repository's local git config.
+# then sets signing config in the global git config (~/.gitconfig).
 #
 # Idempotent. Never prints the key. On any problem it prints a loud warning
 # and exits 0, so the session still starts (unsigned-commit risk is reported,
@@ -62,16 +62,16 @@ printf '%s\n' "$pub" > "$key.pub"
 printf '%s namespaces="git" %s\n' "$CLAUDE_SIGNING_EMAIL" "$pub" > "$signers"
 chmod 644 "$key.pub" "$signers"
 
-# Local (repository) scope: it overrides the harness-managed ~/.gitconfig
-# without rewriting it. gpg.ssh.program is reset to ssh-keygen because the
-# harness points it at its own signer, which would ignore our key.
-cd "${CLAUDE_PROJECT_DIR:-.}"
-git config --local user.name "$CLAUDE_SIGNING_NAME"
-git config --local user.email "$CLAUDE_SIGNING_EMAIL"
-git config --local user.signingkey "$key"
-git config --local gpg.format ssh
-git config --local gpg.ssh.program ssh-keygen
-git config --local gpg.ssh.allowedSignersFile "$signers"
-git config --local commit.gpgsign true
+# Global scope, so every repository in the session signs with this key. This
+# overwrites the harness signer settings in ~/.gitconfig. gpg.ssh.program is
+# reset to ssh-keygen because the harness points it at its own signer, which
+# would ignore our key.
+git config --global user.name "$CLAUDE_SIGNING_NAME"
+git config --global user.email "$CLAUDE_SIGNING_EMAIL"
+git config --global user.signingkey "$key"
+git config --global gpg.format ssh
+git config --global gpg.ssh.program ssh-keygen
+git config --global gpg.ssh.allowedSignersFile "$signers"
+git config --global commit.gpgsign true
 
 echo "Commit signing configured (ssh, key $key, principal from CLAUDE_SIGNING_EMAIL)."
