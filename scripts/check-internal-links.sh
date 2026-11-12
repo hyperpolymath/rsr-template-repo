@@ -66,6 +66,7 @@ extract() {
 
 dead=0; checked=0; skipped=0
 while IFS= read -r -d '' f; do
+  [ -f "$f" ] || continue   # tracked but deleted from the work tree (a mint in progress)
   while IFS=$'\t' read -r ln target; do
     [ -n "$target" ] || continue
     case "$target" in
@@ -150,7 +151,9 @@ if [ "${#deeds[@]}" -eq 1 ]; then
 fi
 
 for p in "${!allowed[@]}"; do
-  [ -n "${used[$p]+x}" ] || { echo "FAIL: allowance names a path no tracked doc links to: $p" >&2; rc=1; }
+  # A note, not a failure: a minted repo drops the template-only pages that carried
+  # these links, and its ledger is then left naming links that no longer exist.
+  [ -n "${used[$p]+x}" ] || echo "NOTE: allowance not used (no tracked doc links to it any more): $p"
 done
 
 if [ "$dead" -gt 0 ] || [ "$rc" -ne 0 ]; then

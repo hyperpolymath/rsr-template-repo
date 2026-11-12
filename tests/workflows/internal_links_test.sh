@@ -78,7 +78,8 @@ expect_fail "$R" "a stale allowance (target now exists)" "stale allowance: docs/
 printf 'x\n' > "$R/docs/unlinked.adoc"
 printf 'docs/unlinked.adoc | ok\ndocs/never-linked.adoc | ok\n' > "$R/.machine_readable/internal-links-allow.txt"
 printf 'text\n' > "$R/docs/a.adoc"; add
-expect_fail "$R" "an allowance no doc links to" "docs/never-linked.adoc"
+expect_pass "$R" "an allowance no doc links to (a minted repo drops the linking page)"
+grep -qF "NOTE: allowance not used" "$FIXTURE/out" || fail "the unused allowance was not reported"
 
 # --- Deed registry -----------------------------------------------------------
 fresh 6
