@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
+      actions: read # upload-sarif calls get-a-workflow-run; private repos need this
       contents: read
       security-events: write
       vulnerability-alerts: read # Dependabot alerts, for Hypatia's DA rules
