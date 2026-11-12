@@ -34,7 +34,7 @@ A person uses it to start a new repository:
 
 . On GitHub, *Use this template* (or clone it).
 . In the new checkout, run `just repo-init`. It asks for the project name, owner,
-  author and licence contact (listed in `.machine_readable/ai/PLACEHOLDERS.adoc`),
+  author and licence contact,
   replaces every placeholder token, then validates the result. `just repo-init
   julia-library` applies the one archetype overlay shipped in `archetypes/`.
 . Run `just validate` (structure + metadata) and `just doctor` (toolchain).
