@@ -203,7 +203,7 @@ mutate "push no longer targets the default branch" 's|^    branches: \[main\]$| 
 mutate "no pull_request trigger" 's|^  pull_request:$|  schedule:|'
 mutate "no concurrency group" 's|^concurrency:$|# concurrency:|'
 mutate "a job-level remote reusable call" \
-    's|^  shell-secrets:$|  delegated:\n    permissions:\n      contents: read\n    uses: metadatastician/standards/.github/workflows/secret-scanner-reusable.yml@e064539116c2dcfdf282a4749dbd58c69961c7e6\n  shell-secrets:|'
+    's|^  shell-secrets:$|  delegated:\n    permissions:\n      contents: read\n    uses: metadatastician/standards/.github/workflows/secret-scanner-reusable.yml@f0b3cd4c464d33e1584f8528c17bce104555e256\n  shell-secrets:|'
 
 echo "=== 5. Wire-up: the real tree still certifies all three contexts ==="
 if command -v bun >/dev/null 2>&1; then

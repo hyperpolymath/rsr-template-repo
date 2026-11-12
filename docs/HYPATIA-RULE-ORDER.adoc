@@ -10,7 +10,7 @@ speak about the same file, *which* clashes exist today, and *what resolves each
 one*. It is local policy about tools that live elsewhere: Hypatia at
 `hyperpolymath/hypatia@be98f74ce93df200752f3798efa1305bfa3e0e10`
 (`lib/hypatia/scanner_suppression.ex`, `lib/rules/`), and the verdict grid at
-`metadatastician/standards@e064539116c2dcfdf282a4749dbd58c69961c7e6`
+`metadatastician/standards@f0b3cd4c464d33e1584f8528c17bce104555e256`
 (`docs/VERDICT-GRID-SPEC.adoc`).
 
 Nothing here changes what a scanner finds. It states the order the layers are
