@@ -53,17 +53,37 @@ validate-rsr:
         want() {
             [ "$(field "$1" "$2")" = "$3" ] || MISSING="$MISSING $DEED:$1:$2"
         }
-        [ -n "$(field "" repo-uuid)" ] || MISSING="$MISSING $DEED:repo-uuid"
-        # CLADE-003/006 on the deed: a closed code set, and the code must agree
-        # with its name. UNASSIGNED fails on purpose: an unchosen clade must
-        # never be mistakable for a chosen one.
-        case "$(field clade primary)|$(field clade primary-name)" in
-            "fv|Formal Verification & Proofs"|"nl|Nextgen Languages"|"rm|Repo Management & Tooling"|\
-            "gv|Governance & Standards"|"db|Databases"|"ap|Applications"|"ix|Infrastructure & Cloud"|\
-            "dx|Developer Ecosystem"|"pt|Protocols & Interop"|"ax|AI & Neurosymbolic"|\
-            "gm|Games & Interactive"|"sc|Security") ;;
-            *) MISSING="$MISSING $DEED:clade(primary/primary-name unset or mismatched)" ;;
+        # Identity is the chora (standards A1, rulings R4, U1 to U4, V1): one
+        # :repo-uuid on the deed header, minted once from the repo's birth
+        # path and carried as the opaque literal #uuid"<lowercase RFC 9562>",
+        # version 5 or 8. The legacy name literals #u5"…" and #u8"…" are still
+        # read and are reported, not failed: their cutover date is the owner's.
+        RAW_UUID="$(sed -n -E 's/^[[:space:]]*:repo-uuid[[:space:]]+(#(uuid|u5|u8)"[^"]*").*/\1/p' "$DEED" | head -1)"
+        case "$RAW_UUID" in
+            '#uuid"'*)
+                printf '%s' "$RAW_UUID" | grep -Eq '^#uuid"[0-9a-f]{8}-[0-9a-f]{4}-[58][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"$' \
+                    || MISSING="$MISSING $DEED:repo-uuid(#uuid literal is not a lowercase v5/v8 RFC 9562 id)" ;;
+            '#u5"'?*|'#u8"'?*)
+                echo "NOTE: $DEED :repo-uuid is the legacy literal $RAW_UUID; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1, V1)." ;;
+            *) MISSING="$MISSING $DEED:repo-uuid" ;;
         esac
+        bash scripts/deed-field.sh --has "$DEED" identity || MISSING="$MISSING $DEED:(identity)"
+        [ -n "$(field identity primary-forge)" ] || MISSING="$MISSING $DEED:identity:primary-forge"
+        # The clade is an outward finding aid, never identity (standards A1 §11,
+        # ruling R4): no clause and no prefixed name are required. A clade that
+        # IS declared must still be one of the 12 and agree with its name, so a
+        # finding aid cannot point at the wrong shelf.
+        if bash scripts/deed-field.sh --has "$DEED" clade; then
+            case "$(field clade primary)|$(field clade primary-name)" in
+                "fv|Formal Verification & Proofs"|"nl|Nextgen Languages"|"rm|Repo Management & Tooling"|\
+                "gv|Governance & Standards"|"db|Databases"|"ap|Applications"|"ix|Infrastructure & Cloud"|\
+                "dx|Developer Ecosystem"|"pt|Protocols & Interop"|"ax|AI & Neurosymbolic"|\
+                "gm|Games & Interactive"|"sc|Security") ;;
+                "UNASSIGNED|UNASSIGNED"|"|")
+                    echo "NOTE: $DEED (clade …) names no clade; it is optional, so choose one or delete the clause." ;;
+                *) MISSING="$MISSING $DEED:clade(primary/primary-name not one of the 12, or they disagree)" ;;
+            esac
+        fi
         # CLADE-004/005: the lifecycle phase is a closed set.
         case "$(field status phase)" in
             reserved|incubating|active|dormant|merged|superseded|archived|extinct) ;;

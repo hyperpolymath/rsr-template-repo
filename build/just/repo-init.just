@@ -1244,7 +1244,7 @@ repo-init archetype="":
     # description stays UNASSIGNED for the author.
     # The split is the whole point:
     #   DERIVABLE -> computed, never guessed  (uuid name, owner, canonical-name)
-    #   JUDGEMENT -> left UNASSIGNED, fails loudly until a human chooses (clade)
+    #   JUDGEMENT -> left to the author; the clade is an optional finding aid, never written here
     ID_IN="build/templates/identity.deed.in"
     # Whatever one deed is present (renamed for the child above, or already
     # named for it): never a hardcoded template file name.
@@ -1279,10 +1279,9 @@ repo-init archetype="":
             echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived from the deed's"
             echo "          :repo-uuid name, recomputable, not stored, not invented)"
         fi
-        echo "  clade: UNASSIGNED — a human must choose one of the 12."
-        echo "         just validate-rsr FAILS until you do. That is deliberate:"
-        echo "         an unchosen clade must not look like a chosen one."
-        echo "         The taxonomy is listed in the (clade …) comment of $DEED."
+        echo "  clade: none written. Identity is the chora id above; a clade is an"
+        echo "         optional finding aid. The 12 are listed in the identity comment"
+        echo "         of $DEED; validate-rsr checks one only if you declare it."
     fi
 
     echo "── Profile & provenance (ADR-0003) ──────────────"
