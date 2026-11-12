@@ -132,6 +132,8 @@ jobs:
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
+      - name: Mint refuses before writing when nickel or a KYAML yq is missing
+        run: bash tests/workflows/mint_tools_preflight_test.sh
       # repo-init recorded the CHILD's own HEAD as the template commit whenever
       # a repo was created with "Use this template" (metadatastician/lintel).
       - name: Template pin resolves by tree equality (controls)
