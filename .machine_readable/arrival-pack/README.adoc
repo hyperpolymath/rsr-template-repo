@@ -11,8 +11,8 @@ the repo's own machine-readable truth.
 [source]
 ----
 <repo>_chora.deed        extract.sh            arrival-pack.ncl          CLAUDE.md
-+ anchors/ANCHOR   ──▶  (deed → JSON,    ──▶   (Nickel projection  ──▶   region between
-                         the thin reader)       = the engine)            BEGIN/END markers
+(incl. its (anchor       (deed → JSON,         (Nickel projection        region between
+ (golden-path)))   ──▶   the thin reader) ──▶  = the engine)        ──▶  BEGIN/END markers
 ----
 
 Two halves of the generated region:
@@ -52,7 +52,10 @@ just validate-claude-md   # fail if the committed region drifted / was hand-edit
 
 * Estate-common doctrine is a *DRAFT* in the agent's words — owner to ratify into
   his voice, then pin to a `hyperpolymath/manifesto` commit SHA.
-* `ECOSYSTEM.what-this-is-not` is empty here, so IS-NOT renders as "not yet
-  declared". Populating it is the boundary-erosion fix (the `lith` lesson).
+* IS-NOT comes from the deed's `(ecosystem :not (…))`. When that list is empty,
+  IS-NOT renders as "not yet declared" and the deed should gain the list (the
+  boundary-erosion fix, the `lith` lesson).
+* A repo's `(anchor (implementation-policy :forbidden (…)))` renders as one
+  "Anchor override" line in the repo-specific part. It is empty and hidden when absent.
 * The `(anchor)` clause currently encodes semantic-authority + golden-path; the
   recognised-drift / re-anchor-ledger aspect is a pending standards change.

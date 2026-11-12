@@ -20,6 +20,11 @@ let data = import "claude-md-data.json" in
 # owner's voice. Until then the estate-common block is explicitly DRAFT.
 let manifesto_pin = "DRAFT-unratified" in
 
+let anchor_override =
+  if std.array.length data.anchor_forbidden == 0 then ""
+  else "\n- **Anchor override** (ANCHOR) — This repo's anchor forbids: %{std.string.join ", " data.anchor_forbidden}. The anchor overrides the estate policy above."
+in
+
 let provenance = "DEED@%{data.h_deed} ANCHOR@%{data.h_anchor}"
 in
 
@@ -94,7 +99,7 @@ Put every question that needs the owner's decision through the selector (the Ask
 - **IS-NOT** — %{data.isnot}
 - **Where it sits** — pipeline position **%{data.pipeline_pos}**; chain `%{data.chain}`; coordination = `%{data.coordination}`.
 - **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: the deed's `(bot-directives (methodology) (coverage) (debt))` clauses.
-- **Golden path** (ANCHOR) — `%{data.golden_smoke}` → %{data.golden_crit}.
+- **Golden path** (ANCHOR) — `%{data.golden_smoke}` → %{data.golden_crit}.%{anchor_override}
 - **State** — phase %{data.phase}; maturity %{data.maturity}. Milestones and next actions: `docs/status/ROADMAP.adoc`.
 
 <!-- ARRIVAL-PACK:END · provenance: %{provenance} · Manifesto@%{manifesto_pin} · regenerate: `just claude-md` (k9 drift-detects; do not hand-edit above) -->
