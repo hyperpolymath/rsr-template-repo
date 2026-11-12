@@ -59,11 +59,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Elixir 1.19.4 / OTP 28.5.0.8 for Hypatia scanner
+      # OTP 28.5.0.8 crashes this job with SIGSEGV (exit 139 in hypatia-cli.sh
+      # scan) on some scanned trees, deterministically per tree
+      # (rsr-template-repo#339: 10 of 10 runs on #338's head, 0 of 10 on
+      # main's); OTP 27.3.4.19 scanned both trees cleanly (0 of 10 each).
+      # Same VM bug as the RSR oracle (#333, #335). Do not move to 28.x until a
+      # pinned 28.x build scans #338's head 7821940 with no crash.
+      - name: Setup Elixir 1.19.4 / OTP 27.3.4.19 for Hypatia scanner
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.19.4'
-          otp-version: '28.5.0.8'
+          otp-version: '27.3.4.19'
 
       - name: Cache pinned Hypatia build
         id: cache-hypatia
@@ -73,7 +79,7 @@ jobs:
             ~/hypatia
             ~/.hex
             ~/.mix
-          key: hypatia-sarif-${{ runner.os }}-otp28.5.0.8-elx1194-${{ env.HYPATIA_SHA }}
+          key: hypatia-sarif-${{ runner.os }}-otp27.3.4.19-elx1194-${{ env.HYPATIA_SHA }}
 
       - name: Build pinned Hypatia scanner
         run: |
