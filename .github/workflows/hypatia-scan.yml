@@ -152,6 +152,7 @@ jobs:
           path: |
             hypatia-findings.json
             hypatia-findings.relativized.json
+            hypatia.sarif
           if-no-files-found: warn
           retention-days: 90
 
