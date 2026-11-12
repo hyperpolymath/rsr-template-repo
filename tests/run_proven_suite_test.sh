@@ -46,12 +46,39 @@ run() { # <expected exit> <script> [args...]
 }
 runner="$work/tree/scripts/run-proven-suite.sh"
 run 0 "$runner" --report "$work/reports with spaces/run.json"
-grep -qF 'ALL LANES PASSED' "$work/out" || fail 'missing success outcome'
+grep -qF 'ALL APPLICABLE LANES PASSED' "$work/out" || fail 'missing success outcome'
 jq -e '.schema_version == 1 and .entries[0].provenance == "Static-Checked"
   and .entries[0].proof_ladder == [{proof_file:"src/Proof.idr"}]' \
   "$work/reports with spaces/run.json" >/dev/null || fail 'static report overclaims or loses proof files'
 [[ "$(wc -l < "$LANE_CALLS")" -eq 17 ]] || fail 'clean run did not dispatch all required lanes'
 echo 'PASS: clean runner executes all lanes and emits an honest report at a path with spaces'
+
+# Zig lane with NO src/interface/ffi (an archetype pruned it, e.g. rust-cli).
+# The lane must be VISIBLY not-applicable: distinct from PASS, counted apart in
+# the summary, never a silent pass and never a confusing cp failure. The tree
+# above has no ffi directory, so the first clean run already exercised it.
+grep -qF 'NOT APPLICABLE: not applicable: src/interface/ffi absent (pruned by archetype)' "$work/out" \
+  || fail 'pruned ffi did not report the Zig lane as not applicable'
+grep -qF '1 not applicable' "$work/out" || fail 'not-applicable lane was not counted in the summary'
+grep -qF '17 passed, 0 failed, 0 setup/inert, 1 not applicable' "$work/out" \
+  || fail 'not-applicable lane was folded into the pass count'
+grep -qF 'ALL APPLICABLE LANES PASSED (1 lane(s) not applicable and NOT verified)' "$work/out" \
+  || fail 'a run with a not-applicable lane claimed ALL LANES PASSED'
+! grep -qF 'PASS (0): Zig FFI' "$work/out" || fail 'not-applicable Zig lane was reported as PASS'
+# --require-zig means "zig must be present when there is Zig to test": with no
+# ffi directory it is NOT an error, with or without a compiler.
+run 0 "$runner" --require-zig
+grep -qF 'NOT APPLICABLE: not applicable: src/interface/ffi absent' "$work/out" \
+  || fail '--require-zig with no ffi dir hid the not-applicable status'
+printf '#!/usr/bin/env bash\nexit 0\n' > "$work/bin/zig"; chmod +x "$work/bin/zig"
+run 0 "$runner" --require-zig
+grep -qF 'NOT APPLICABLE: not applicable: src/interface/ffi absent' "$work/out" \
+  || fail 'a zig compiler on PATH turned a missing ffi dir into a pass'
+rm "$work/bin/zig"
+echo 'PASS: absent src/interface/ffi is reported NOT APPLICABLE (not PASS, counted), under --require-zig too'
+
+# From here the tree carries the FFI seam, so a missing compiler matters.
+mkdir -p "$work/tree/src/interface/ffi"
 
 FAIL_GATE=check-root-shape.sh run 1 "$runner"
 grep -qF 'run-all.sh' "$LANE_CALLS" || fail 'subject failure stopped subsequent lanes'

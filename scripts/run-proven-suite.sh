@@ -6,6 +6,10 @@
 #
 # Usage: scripts/run-proven-suite.sh [--require-zig] [--bench] [--report FILE]
 #
+# --require-zig: the zig compiler must be present WHEN src/interface/ffi exists.
+# With no src/interface/ffi (pruned by an archetype) the Zig lane is reported as
+# NOT APPLICABLE (distinct from PASS, counted in the summary), not an error.
+#
 # Exit contract:
 #   0 = every tier passed (Silence on clean tree + Firing on every negative mutant)
 #   1 = a subject check, proof honesty lint, or contract test failed
@@ -50,6 +54,9 @@ fi
 
 subject_failures=0
 setup_failures=0
+passed_lanes=0
+na_lanes=0
+NA_LABELS=()
 
 # run_lane LABEL COMMAND... — run a lane and accumulate its outcome without
 # propagating its exit status: 2 increments setup_failures; other nonzero
@@ -60,7 +67,7 @@ run_lane() {
   printf '==> [proven-suite] %s\n' "$label"
   "$@" || rc=$?
   case "$rc" in
-    0) printf '    PASS (0): %s\n' "$label" ;;
+    0) printf '    PASS (0): %s\n' "$label"; passed_lanes=$((passed_lanes + 1)) ;;
     2)
       printf '    INERT/SETUP (2): %s\n' "$label" >&2
       setup_failures=$((setup_failures + 1))
@@ -191,7 +198,32 @@ run_zig_ffi_tests() {
   (cd "$work/ffi" && zig build test)
 }
 
-if command -v zig >/dev/null 2>&1; then
+# mark_not_applicable LABEL REASON — record a lane that has no subject in this
+# tree. It is a distinct outcome: not PASS (nothing was verified) and not FAIL
+# (nothing is wrong). It is printed at the lane and again, counted, in the
+# closing summary, so a green run can never be read as "the lane passed".
+mark_not_applicable() {
+  printf '==> [proven-suite] %s\n' "$1"
+  printf '    NOT APPLICABLE: %s\n' "$2"
+  na_lanes=$((na_lanes + 1))
+  NA_LABELS+=("$1 ($2)")
+  [ "${GITHUB_ACTIONS:-}" = "true" ] && \
+    printf '::notice title=proven-suite lane not applicable::%s (%s)\n' "$1" "$2"
+  return 0
+}
+
+# --require-zig means "when there is Zig to test, the compiler must be present".
+# It does NOT mean "src/interface/ffi must exist": an archetype may prune the
+# FFI seam on purpose (rust-cli drops src/interface/), and CI passes the flag
+# unconditionally across archetypes. With no ffi directory there is no subject,
+# so the lane is NOT APPLICABLE whether or not zig is installed and whether or
+# not --require-zig is given; that is checked FIRST so a pruned tree is not
+# failed for lacking a compiler it has no use for. The lane is reported, never
+# silently dropped, and is counted apart from passes in the summary.
+if [ ! -d src/interface/ffi ]; then
+  mark_not_applicable "Zig FFI ABI layout & memory-leak unit tests" \
+    "not applicable: src/interface/ffi absent (pruned by archetype)"
+elif command -v zig >/dev/null 2>&1; then
   run_lane "Zig FFI ABI layout & memory-leak unit tests" run_zig_ffi_tests
 elif [ "$REQUIRE_ZIG" -eq 1 ]; then
   printf '    INERT/SETUP (2): zig compiler required (--require-zig) but missing on PATH\n' >&2
@@ -219,6 +251,12 @@ if [ "$RUN_BENCH" -eq 1 ]; then
   fi
 fi
 
+printf 'proven-suite: lanes: %d passed, %d failed, %d setup/inert, %d not applicable\n' \
+  "$passed_lanes" "$subject_failures" "$setup_failures" "$na_lanes"
+for _na in "${NA_LABELS[@]+"${NA_LABELS[@]}"}"; do
+  printf 'proven-suite: NOT APPLICABLE (not a pass): %s\n' "$_na"
+done
+
 if [ "$setup_failures" -gt 0 ]; then
   printf 'proven-suite: SETUP/INERT FAILURE (%d setup, %d subject)\n' "$setup_failures" "$subject_failures" >&2
   exit 2
@@ -227,5 +265,9 @@ if [ "$subject_failures" -gt 0 ]; then
   printf 'proven-suite: SUBJECT FAILURE (%d failing lane(s))\n' "$subject_failures" >&2
   exit 1
 fi
-printf 'proven-suite: ALL LANES PASSED\n'
+if [ "$na_lanes" -gt 0 ]; then
+  printf 'proven-suite: ALL APPLICABLE LANES PASSED (%d lane(s) not applicable and NOT verified)\n' "$na_lanes"
+else
+  printf 'proven-suite: ALL LANES PASSED\n'
+fi
 exit 0

@@ -30,10 +30,13 @@
 # ── Behaviour ───────────────────────────────────────────────────────────────
 #   * writes mise.toml with [settings] lockfile = true and the [tools] table;
 #   * leaves the file untouched (byte-identical) when nothing changed;
-#   * DELETES mise.lock when the tool set changes, because a lock that pins the
-#     previous toolchain is a false statement of what this repo installs, and
-#     `mise install` would honour it. The operator regenerates it with
-#     `just toolchain-refresh` (needs mise; a mint is often offline).
+#   * PRUNES mise.lock when the tool set changes: pins of tools no longer
+#     declared are dropped (a lock pinning a retired toolchain is a false
+#     statement that `mise install` would honour); pins of tools still declared
+#     are kept. The file is never deleted, because root-allow.txt requires it.
+#     Newly declared tools are pinned by `just toolchain-refresh` (needs mise
+#     and the network; a mint is often offline); `just doctor` reports PV-W20
+#     until then.
 #
 # ── Usage ───────────────────────────────────────────────────────────────────
 #   render-mise.sh [--root DIR] [--langs "julia zig"] [--check]
@@ -170,8 +173,35 @@ echo "  tools: $(echo "$TOOLS" | xargs)"
 OLD_SORTED="$(printf '%s\n' $OLD_TOOLS | sort | xargs 2>/dev/null)"
 NEW_SORTED="$(printf '%s\n' $TOOLS | sort | xargs 2>/dev/null)"
 if [ -f "$ROOT/mise.lock" ] && [ "$OLD_SORTED" != "$NEW_SORTED" ]; then
-    rm -f "$ROOT/mise.lock"
-    echo "  mise.lock removed: it pinned the previous toolchain, which is no longer"
-    echo "  this repository's. Regenerate with: just toolchain-refresh (needs mise)."
+    # Prune, do not delete. Each [[tools.X]] block in mise.lock is an independent,
+    # checksummed pin, so the pins of tools that are STILL declared remain true
+    # statements and are kept; only the pins of tools this repository no longer
+    # declares are dropped (a lock that pins a retired tool is the false
+    # statement). The file therefore still exists, which root-allow.txt
+    # requires of every repository (mise.lock is not '?' optional, and must not
+    # become so just because an archetype changes the tool set). A tool that is
+    # newly declared and not yet pinned is reported by `just doctor` (PV-W20,
+    # "mise.lock does not pin: X") until `just toolchain-refresh` (needs mise and
+    # the network; a mint is often offline) pins it. A visible gap, never silent.
+    LOCK_TMP="$(mktemp)"
+    awk -v keep="$TOOLS" '
+        BEGIN { n = split(keep, a, " "); for (i = 1; i <= n; i++) k[a[i]] = 1; on = 1 }
+        /^\[/ {
+            h = $0
+            if (h ~ /^\[\[?tools\./) {
+                sub(/^\[\[?tools\./, "", h)
+                if (h ~ /^"/) { sub(/^"/, "", h); sub(/".*$/, "", h) }
+                else          { sub(/[.\]].*$/, "", h) }
+                on = (h in k)
+            } else on = 1
+        }
+        on { print }
+    ' "$ROOT/mise.lock" > "$LOCK_TMP" && cat "$LOCK_TMP" > "$ROOT/mise.lock" || {
+        echo "render-mise: could not prune mise.lock" >&2; rm -f "$LOCK_TMP"; exit 1
+    }
+    rm -f "$LOCK_TMP"
+    echo "  mise.lock pruned to the tools this repository still declares; pins for"
+    echo "  tools it no longer declares were dropped. Pin any newly declared tool with:"
+    echo "  just toolchain-refresh (needs mise; just doctor reports PV-W20 until then)."
 fi
 exit 0

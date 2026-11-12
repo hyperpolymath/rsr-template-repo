@@ -96,3 +96,5 @@ tests/
 ?mix.lock                  # elixir: Mix writes the dependency lock beside mix.exs
 ?.formatter.exs            # elixir: `mix format` reads its config from the project root
 ?priv/                     # elixir/OTP: an application's priv dir is fixed at the project root (Application.app_dir/2)
+?Cargo.toml                # rust-cli archetype: Cargo reads the package manifest from the package root only; the overlay mints it from Cargo.toml.in
+?Cargo.lock                # rust-cli archetype: `just repo-init` generates it (cargo generate-lockfile) because the minted CI builds with --locked
