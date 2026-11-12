@@ -46,6 +46,14 @@ items() {
   printf '%s' "$out"
 }
 
+# lines PATH KEY -> the deed list :KEY ( … ), one item per line, "" when absent
+lines() {
+  local out rc=0
+  out="$(bash "$READ" --list "$DEED" "$1" "$2")" || rc=$?
+  [[ "$rc" -le 1 ]] || return "$rc"
+  printf '%s' "$out"
+}
+
 # hash12 -> short content hash of stdin (drift provenance)
 hash12() { sha256sum | cut -c1-12; }
 
@@ -58,7 +66,13 @@ hash12() { sha256sum | cut -c1-12; }
 # and follows the deed when it moves to version 8.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-[ -z "$uuid_name" ] || uuid="$(sed -n -E 's/^[[:space:]]*:repo-uuid[[:space:]]+(#u(uid|[0-9]+)"[^"]*").*/\1/p' "$DEED" | head -1)"
+if [[ -n "$uuid_name" ]]; then
+  # --typed keeps the tag and quotes, and reads the literal wherever the layout puts it
+  rc=0
+  uuid="$(bash "$READ" --typed "$DEED" '' repo-uuid)" || rc=$?
+  [[ "$rc" -le 1 ]] || exit "$rc"
+  [[ "$uuid" =~ ^#u(uid|[0-9]+)\"[^\"]*\"$ ]] || uuid=""
+fi
 [ -z "$uuid_name" ] || [ -n "$uuid" ] \
   || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #uuid\"...\" or #u<n>\"...\" literal" >&2; exit 2; }
 
@@ -101,6 +115,9 @@ phase="$(field status phase)"
 maturity="$(field maturity level)"
 golden_smoke="$(items anchor/golden-path smoke-test-command ' && ')"
 golden_crit="$(items anchor/golden-path success-criteria '; ')"
+# The anchor may override the estate language policy for this repo only.
+anchor_forbidden="$(lines anchor/implementation-policy forbidden)"
+anchor_allowed="$(lines anchor/implementation-policy allowed)"
 anchor_clause="$(bash "$READ" --clause "$DEED" anchor)"
 h_deed="$(read_clauses | hash12)"
 h_anchor="$(printf '%s\n' "$anchor_clause" | hash12)"
@@ -123,4 +140,8 @@ jq -cnS \
   --arg golden_crit    "$golden_crit" \
   --arg h_deed         "$h_deed" \
   --arg h_anchor       "$h_anchor" \
-  '$ARGS.named'
+  --arg anchor_forbidden "$anchor_forbidden" \
+  --arg anchor_allowed   "$anchor_allowed" \
+  '$ARGS.named
+   | .anchor_forbidden |= (split("\n") | map(select(. != "")))
+   | .anchor_allowed   |= (split("\n") | map(select(. != "")))'

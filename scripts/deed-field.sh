@@ -17,6 +17,9 @@
 #   deed-field.sh --has DEED PATH         exit 0 iff the clause exists
 #   deed-field.sh --find [DIR]            print the one *_chora.deed in DIR (default .)
 #   deed-field.sh --uuid DEED             the repo uuid, derived from :repo-uuid
+#   deed-field.sh --typed DEED PATH KEY   like the first form, but a tagged literal keeps its
+#                                         tag and quotes: #u5"github.com/o/r" (a plain value
+#                                         prints as it does without --typed)
 #
 # PATH names clauses below (repo-deed …), slash-separated: `status`,
 # `agentic/integrity`, `meta/maintenance-axes`. An empty PATH is (repo-deed …)
@@ -41,7 +44,7 @@ set -euo pipefail
 
 mode=value
 case "${1:-}" in
-  --list|--clause|--has|--uuid) mode="${1#--}"; shift ;;
+  --list|--clause|--has|--uuid|--typed) mode="${1#--}"; shift ;;
   --find)
     shopt -s nullglob
     deeds=("${2:-.}"/*_chora.deed)
@@ -55,7 +58,7 @@ deed="${1:-}"; path="${2-}"; key="${3:-}"
 if [ -z "$deed" ] || [ ! -r "$deed" ]; then
   echo "deed-field.sh: no readable deed: '${deed}'" >&2; exit 2
 fi
-if { [ "$mode" = value ] || [ "$mode" = list ]; } && [ -z "$key" ]; then
+if [[ ( "$mode" = value || "$mode" = typed || "$mode" = list ) && -z "$key" ]]; then
   echo "deed-field.sh: KEY is required" >&2; exit 2
 fi
 
@@ -138,10 +141,13 @@ END {
     if (tok[t] == ")") { d--; continue }
     if (d != 0 || tok[t] != "A:" key) continue
     nx = tok[t + 1]
-    if (mode == "value") {
+    if (mode == "value" || mode == "typed") {
       if (nx == "(" || nx == ")" || nx == "") exit 1
       # A tagged literal such as #u5"github.com/o/r" prints its string.
-      if (nx ~ /^A#[a-z0-9]+$/ && substr(tok[t + 2], 1, 1) == "S") nx = tok[t + 2]
+      if (nx ~ /^A#[a-z0-9]+$/ && substr(tok[t + 2], 1, 1) == "S") {
+        if (mode == "typed") { print substr(nx, 2) "\"" substr(tok[t + 2], 2) "\""; exit 0 }
+        nx = tok[t + 2]
+      }
       print show(nx); exit 0
     }
     if (nx != "(") exit 1
