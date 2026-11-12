@@ -198,6 +198,16 @@ repo-init archetype="":
             exit 1
         fi
     fi
+
+    # ── Are the tools the mint needs LATER present? ─────────────────────────
+    # The mint writes the tree first and reaches a KYAML-capable yq
+    # (format-container-kyaml.sh) and nickel (the arrival pack) afterwards; a
+    # missing one used to stop it after 100+ files were rewritten. Every mint
+    # kind (plain, archetype, chain) reaches both steps, so none is exempt;
+    # the script demands a tool only when its step can run (see its header).
+    [ -f scripts/check-mint-tools.sh ] \
+        || { echo "Error: scripts/check-mint-tools.sh is missing; the mint cannot check its tools."; exit 1; }
+    bash scripts/check-mint-tools.sh . || exit 1
     mint_files() {
         git ls-files -z --cached --others --exclude-standard \
             | while IFS= read -r -d '' _f; do
