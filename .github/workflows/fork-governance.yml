@@ -442,6 +442,7 @@ jobs:
             --url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             --enrolment .gitbot-fleet/enrolment.json
             --hypatia "$ev/hypatia-scan-findings/hypatia-findings.relativized.json"
+            --hypatia-sarif "$ev/hypatia-scan-findings/hypatia.sarif"
             --panic "$ev/static-analysis-findings/panic-attack-findings.json"
             --pons "$ev/static-analysis-findings/pons-findings.json"
             --hypatia-ref be98f74ce93df200752f3798efa1305bfa3e0e10

@@ -307,7 +307,7 @@ fallback_report() {
 }
 
 cmd_render() {
-    local out="" renderer_dir="" hyp="" pan="" pon="" backs="" enrol="" prev=""
+    local out="" renderer_dir="" hyp="" hsarif="" pan="" pon="" backs="" enrol="" prev=""
     local url="" pr="local" href="" pref="" qref="" changed="" lane="hypatia"
     local renderer_sha="$RENDERER_SHA256" lib_sha="$JQ_LIB_SHA256"
     local excludes=()
@@ -319,6 +319,7 @@ cmd_render() {
             --renderer-sha256) renderer_sha="$2"; shift 2 ;;
             --lib-sha256) lib_sha="$2"; shift 2 ;;
             --hypatia) hyp="$2"; shift 2 ;;
+            --hypatia-sarif) hsarif="$2"; shift 2 ;;
             --panic) pan="$2"; shift 2 ;;
             --pons) pon="$2"; shift 2 ;;
             --report-backs) backs="$2"; shift 2 ;;
@@ -360,6 +361,10 @@ cmd_render() {
     )
     [[ -z "$url" ]] || args+=(--url "$url")
     [[ -z "$hyp" || ! -e "$hyp" ]] || args+=(--hypatia "$hyp")
+    # The renderer grades the Hypatia row from SARIF; without it the row is
+    # indeterminate ("no SARIF projection"). A missing file is omitted, never
+    # faked, so absence still renders orange with that reason.
+    [[ -z "$hsarif" || ! -e "$hsarif" ]] || args+=(--hypatia-sarif "$hsarif")
     [[ -z "$pan" || ! -e "$pan" ]] || args+=(--panic "$pan")
     [[ -z "$pon" || ! -e "$pon" ]] || args+=(--pons "$pon")
     [[ -z "$backs" || ! -d "$backs" ]] || args+=(--report-backs "$backs")
