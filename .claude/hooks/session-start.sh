@@ -24,10 +24,9 @@ warn() {
 }
 
 missing=""
-for v in CLAUDE_SIGNING_KEY CLAUDE_SIGNING_NAME CLAUDE_SIGNING_EMAIL; do
-  eval "val=\${$v:-}"
-  [ -n "$val" ] || missing="$missing $v"
-done
+[ -n "${CLAUDE_SIGNING_KEY:-}" ] || missing="$missing CLAUDE_SIGNING_KEY"
+[ -n "${CLAUDE_SIGNING_NAME:-}" ] || missing="$missing CLAUDE_SIGNING_NAME"
+[ -n "${CLAUDE_SIGNING_EMAIL:-}" ] || missing="$missing CLAUDE_SIGNING_EMAIL"
 [ -z "$missing" ] || warn "missing environment variable(s):$missing"
 
 # git needs ssh-keygen to sign with gpg.format=ssh; the base image lacks it.
