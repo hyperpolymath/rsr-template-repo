@@ -680,7 +680,7 @@ cmd_heal() {
     [ -f mise.lock ] || { $T mise lock 2>/dev/null && info "mise.lock generated"; }
   fi
   if printf '%s\n' "${LANGS[@]}" | grep -qx elixir && have mix; then mix deps.get >/dev/null 2>&1 && info "mix deps fetched"; fi
-  if printf '%s\n' "${LANGS[@]}" | grep -qx bun && have bun; then bun install >/dev/null 2>&1 && info "bun deps installed"; fi
+  if printf '%s\n' "${LANGS[@]}" | grep -qx bun && have bun; then bun install --ignore-scripts >/dev/null 2>&1 && info "bun deps installed"; fi
   if printf '%s\n' "${LANGS[@]}" | grep -qx julia && have julia; then julia --project=. -e 'using Pkg; Pkg.instantiate()' >/dev/null 2>&1 && info "julia deps instantiated"; fi
   local hook=build/just/heal-local.sh
   [ -f "$hook" ] && { info "running $hook"; bash "$hook" || true; }
