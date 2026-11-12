@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 # Self-contained execution of the shared estate governance policies pinned to
-# metadatastician/standards@e064539116c2dcfdf282a4749dbd58c69961c7e6
+# metadatastician/standards@f0b3cd4c464d33e1584f8528c17bce104555e256
 # (replacing the retired runtime-policy.yml workflow per PR #244).
 jobs:
   governance:
@@ -26,7 +26,7 @@ jobs:
     permissions:
       contents: read
     env:
-      STANDARDS_PIN: 'e064539116c2dcfdf282a4749dbd58c69961c7e6'
+      STANDARDS_PIN: 'f0b3cd4c464d33e1584f8528c17bce104555e256'
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-checkout
           sparse-checkout: |
             scripts
