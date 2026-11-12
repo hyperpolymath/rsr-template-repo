@@ -4,23 +4,23 @@
 # TEMPORARY DIAGNOSTIC. This file lives only on a draft PR that is closed
 # unmerged once it has answered its question; it must never reach main.
 #
-# Question: the dogfood gate's "RSR oracle" job still segfaults (exit 139) in
-# `mix hypatia.rsr_score` on OTP 28.5.0.8 (erts 16.4.0.7), the version PR #311
-# chose because a matrix run found it clean. Evidence so far:
-#   - main run 43139798509 (af8665c): segfault.
-#   - main run 43143942303 (a55669e, a descendant of af8665c): passed.
-#   - main run 43134505952: failed on attempt 1, passed on attempt 2.
-#   - PR #331 (head 6ad5378): failed twice.
-# Is the crash random (VM) or tied to the tree being scored? And where in the
-# emulator does it die on 28.5.0.8?
+# Round 1 (OTP 28.5.0.8, hypatia be98f74, standards e064539): the RSR oracle's
+# crash (exit 139 in `mix hypatia.rsr_score`) is deterministic per scored tree.
+#   - af8665c: 60 of 60 runs crashed (3 runners x 20).
+#   - a55669e: 0 of 60 crashed.
+#   - 6ad5378 (PR #331's head, a55669e plus a 4-line edit to
+#     main-estate-audit.yml): 60 of 60 crashed.
+# So #311's move to OTP 28.5.0.8 did not remove the crash.
 #
-# Method: score each of the three trees RUNS times per job, on REPLICAS runners
-# each, with the oracle job's exact pins (standards e064539, Hypatia be98f74,
-# Elixir 1.19.4 / OTP 28.5.0.8, same cache key). Per-tree crash counts that
-# differ far beyond the per-runner spread point at content; similar counts
-# point at the VM. On a crash, keep a gdb backtrace of beam.smp and record the
-# runner's CPU model and flags (the JIT emits CPU-specific code). The job never
-# fails on a crash: the counts and backtraces are the result.
+# Round 2 question: which candidate pin scores all three trees cleanly?
+#   - otp27:   OTP 27.3 with the current hypatia pin (be98f74). #311's matrix
+#              found 27.3 clean on the trees it tested.
+#   - hypmain: OTP 28.5.0.8 with hypatia main (5799847, 2026-11-12). #311 found
+#              hypatia main clean on every OTP it tried.
+# Each runner scores each tree RUNS times. The job never fails on a crash: the
+# counts are the result. On a crash, a gdb backtrace of beam.smp is kept if a
+# core file was written; the core_pattern and the cores directory are printed
+# so a missing backtrace can be explained (round 1 recorded none).
 name: "Oracle segfault diagnosis (temporary)"
 
 on:
@@ -36,18 +36,24 @@ permissions:
 
 jobs:
   repro:
-    name: "Oracle repro ${{ matrix.label }} #${{ matrix.replica }}"
+    name: "Oracle repro ${{ matrix.config }} on ${{ matrix.label }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        replica: [1, 2, 3]
+        config: [otp27, hypmain]
         subject:
           - af8665c406e4080edc353754b70e82f4ba8357f2
           - a55669ec1eb460d247fd590536d057d3aa449bd9
           - 6ad53789dcc29acdd12f57581a7bc59594a0e566
         include:
+          - config: otp27
+            otp: '27.3'
+            hypatia: be98f74ce93df200752f3798efa1305bfa3e0e10
+          - config: hypmain
+            otp: '28.5.0.8'
+            hypatia: 57998474114e41f74f719370102e111c924a514d
           - subject: af8665c406e4080edc353754b70e82f4ba8357f2
             label: main-failed-af8665c
           - subject: a55669ec1eb460d247fd590536d057d3aa449bd9
@@ -70,15 +76,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: hyperpolymath/hypatia
-          ref: be98f74ce93df200752f3798efa1305bfa3e0e10
+          ref: ${{ matrix.hypatia }}
           path: _hypatia
           persist-credentials: false
-      - name: Setup Elixir 1.19.4 / OTP 28.5.0.8 (the oracle job's pins)
+      - name: Setup Elixir 1.19.4 / OTP ${{ matrix.otp }}
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.19.4'
-          otp-version: '28.5.0.8'
-      - name: Cache Hypatia Mix deps and build (the oracle job's key)
+          otp-version: ${{ matrix.otp }}
+      - name: Cache Hypatia Mix deps and build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -86,7 +92,7 @@ jobs:
             _hypatia/_build
             ~/.hex
             ~/.mix
-          key: hypatia-oracle-${{ runner.os }}-otp28.5.0.8-elx1194-be98f74ce93df200752f3798efa1305bfa3e0e10
+          key: hypatia-oracle-diag-${{ runner.os }}-otp${{ matrix.otp }}-elx1194-${{ matrix.hypatia }}
       - name: Compile the oracle
         working-directory: _hypatia
         run: mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile
@@ -95,19 +101,20 @@ jobs:
       - name: Score the tree repeatedly, keeping crash evidence
         working-directory: _hypatia
         env:
-          RUNS: '20'
+          RUNS: '10'
           LABEL: ${{ matrix.label }}
-          REPLICA: ${{ matrix.replica }}
+          CONFIG: ${{ matrix.config }}
         run: |
           set -u
           out="$RUNNER_TEMP/diag"
           mkdir -p "$out/cores"
+          sudo systemctl stop apport.service 2>/dev/null || true
           sudo sysctl -q -w kernel.core_pattern="$out/cores/core.%e.%p"
           ulimit -c unlimited
           {
-            echo "label=$LABEL replica=$REPLICA subject=$(git -C ../subject rev-parse HEAD)"
+            echo "config=$CONFIG label=$LABEL subject=$(git -C ../subject rev-parse HEAD) hypatia=$(git rev-parse HEAD)"
+            echo "core_pattern=$(cat /proc/sys/kernel/core_pattern) ulimit_c=$(ulimit -c)"
             echo "cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2-)"
-            echo "flags=$(grep -m1 '^flags' /proc/cpuinfo | cut -d: -f2-)"
             echo "kernel=$(uname -r)"
             erl -noshell -eval 'io:format("otp=~s erts=~s jit=~p~n",[erlang:system_info(otp_release),erlang:system_info(version),erlang:system_info(emu_flavor)]),halt().'
           } > "$out/runner.txt"
@@ -120,6 +127,7 @@ jobs:
             echo "run $i rc=$rc" >> "$out/runs.txt"
             if [ "$rc" -ge 128 ]; then crashes=$((crashes + 1)); fi
           done
+          echo "cores written: $(find "$out/cores" -type f | wc -l)"
           beam="$(find "$INSTALL_DIR_FOR_OTP" -name beam.smp -type f -print -quit)"
           for c in "$out"/cores/core.*; do
             [ -f "$c" ] || continue
@@ -128,7 +136,7 @@ jobs:
             rm -f "$c"
           done
           {
-            echo "### $LABEL replica $REPLICA: $crashes of $RUNS runs crashed"
+            echo "### $CONFIG on $LABEL: $crashes of $RUNS runs crashed"
             echo '```'
             cat "$out/runner.txt"
             awk '{ n[$3]++ } END { for (rc in n) printf "%4d  %s\n", n[rc], rc }' "$out/runs.txt"
@@ -139,7 +147,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: oracle-diag-${{ matrix.label }}-${{ matrix.replica }}
+          name: oracle-diag-${{ matrix.config }}-${{ matrix.label }}
           path: ${{ runner.temp }}/diag
           retention-days: 7
           if-no-files-found: warn
