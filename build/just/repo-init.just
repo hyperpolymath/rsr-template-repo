@@ -1612,6 +1612,32 @@ repo-init archetype="":
         fi
     fi
 
+    # ── Cargo.lock (rust-cli, or any overlay that ships a Cargo.toml) ───────
+    # The overlay ships Cargo.toml.in only. The minted rust-ci.yml runs clippy,
+    # check and test with --locked, which REFUSES to run without a Cargo.lock,
+    # so a fresh mint failed its own CI on the first push. A lock cannot be
+    # shipped as a template: it records the package name, which is the repo
+    # slug and only known now. It is therefore generated here from the
+    # substituted manifest. With no [dependencies] the resolution needs no
+    # network, so this works offline; a missing cargo is a hard error, not a
+    # skipped step (fail loudly: a repo minted without its lock is red in CI).
+    if [ -f Cargo.toml ] && [ ! -f Cargo.lock ]; then
+        echo ""
+        echo "── Cargo.lock ───────────────────────────────────"
+        if ! command -v cargo >/dev/null 2>&1; then
+            echo "ERROR: this mint ships a Cargo.toml, so it must also ship a Cargo.lock"
+            echo "       (the minted CI builds with --locked), and cargo is not on PATH."
+            echo "       Install a Rust toolchain (rustup) and re-run the mint."
+            exit 1
+        fi
+        cargo generate-lockfile || {
+            echo "ERROR: cargo generate-lockfile failed; the minted CI would fail on --locked."
+            exit 1
+        }
+        [ -f Cargo.lock ] || { echo "ERROR: cargo reported success but wrote no Cargo.lock."; exit 1; }
+        echo "  generated: Cargo.lock"
+    fi
+
     # ── www/ site-operations bundle (issue #53, stage 5) ──────────────────
     #
     # A repository minted from this template already carries www/.well-known/
