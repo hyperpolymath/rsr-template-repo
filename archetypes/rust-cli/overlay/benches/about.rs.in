@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: MPL-2.0
+// SPDX-FileCopyrightText: {{CURRENT_YEAR}} {{AUTHOR}} ({{OWNER}}) <{{AUTHOR_EMAIL}}>
+//!
+//! A dependency-free benchmark (std only, `harness = false` in Cargo.toml), so
+//! `cargo bench` works on a fresh mint without adding criterion to the lockfile.
+//!
+//! `cargo bench` passes `--bench`; `cargo test --all-targets` also builds and
+//! runs this target but without it, so that path runs one smoke iteration
+//! instead of a timing loop. Replace `about` with the code you care about.
+
+use std::hint::black_box;
+use std::time::Instant;
+
+use {{project}}::about;
+
+fn main() {
+    let timing = std::env::args().any(|a| a == "--bench");
+    let iterations: u32 = if timing { 100_000 } else { 1 };
+
+    let start = Instant::now();
+    for _ in 0..iterations {
+        black_box(about());
+    }
+    let elapsed = start.elapsed();
+
+    if timing {
+        println!(
+            "about: {iterations} iterations in {elapsed:?} ({:?}/iter)",
+            elapsed / iterations
+        );
+    }
+}
