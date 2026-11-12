@@ -309,3 +309,7 @@ jobs:
       # a scanner that declares none. Every property is mutated in the test.
       - name: Secret scanner contract (three stable contexts)
         run: bash tests/workflows/secret_scanner_contract_test.sh
+      # Behaviour and negative controls for the inline fixes to governance,
+      # hypatia-scan, main-estate-audit, rust-ci and secret-scanner.
+      - name: Inline workflow gap fixes (behaviour + negative controls)
+        run: bash tests/workflows/workflow_gap_fixes_test.sh
