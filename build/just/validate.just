@@ -22,6 +22,7 @@ validate-rsr:
     ls *_chora.deed >/dev/null 2>&1 || MISSING="$MISSING repo-deed (*_chora.deed)"
     # .a2ml is retired: a repo carrying one is non-conformant, whatever else holds.
     bash scripts/check-no-a2ml.sh . >/dev/null || MISSING="$MISSING no-a2ml(run scripts/check-no-a2ml.sh)"
+    bash scripts/check-internal-links.sh . >/dev/null || MISSING="$MISSING internal-links(run scripts/check-internal-links.sh)"
     for f in docs/legal/EXHIBIT-A-ETHICAL-USE.txt docs/legal/EXHIBIT-B-QUANTUM-SAFE.txt LICENSES/MPL-2.0.txt; do
         [ -f "$f" ] || MISSING="$MISSING $f"
     done

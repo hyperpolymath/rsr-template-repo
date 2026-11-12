@@ -183,6 +183,21 @@ let base    = import "../_base.ncl" in
         severity = 'critical,
       },
       {
+        # Yard cannot test a file's existence (Nickel evaluation does no I/O,
+        # K9 contract v1.0.0), and a Hunt record needs a verified signature, so
+        # the invariant is DECLARED here and the paired runner runs the probe,
+        # as for every must invariant. The probe is the same script CI runs
+        # (estate-rules.yml), so the two cannot disagree. It checks the deed's
+        # (documents) registry (each id well-formed and unique, each path present
+        # unless :removed-at-mint #t) and that no tracked .adoc/.md links to a
+        # missing file, apart from the reviewed internal-links-allow.txt.
+        id = "internal-links-resolve",
+        section = "Documentation",
+        description = "every deed-registered document id resolves to its path, and no tracked doc links to a missing file",
+        probe = "bash scripts/check-internal-links.sh .",
+        severity = 'critical,
+      },
+      {
         id = "governance-docs",
         section = "File Presence",
         description = "governance model, maintainer roster and CODEOWNERS must exist",

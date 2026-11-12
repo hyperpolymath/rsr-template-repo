@@ -78,6 +78,13 @@ jobs:
         run: bash scripts/check-no-a2ml.sh .
       - name: No-a2ml gate self-test (planted positives must fail)
         run: bash tests/workflows/check_no_a2ml_test.sh
+      # Every repository-internal link resolves, and every document the deed
+      # registers by id is where the deed says (or is marked removed-at-mint).
+      # The same script is the probe of the must invariant internal-links-resolve.
+      - name: Internal links resolve (deed document registry)
+        run: bash scripts/check-internal-links.sh .
+      - name: Internal-links gate self-test (planted dead links must fail)
+        run: bash tests/workflows/internal_links_test.sh
       - name: Deed clause writer controls
         run: bash tests/workflows/deed_clause_test.sh
       - name: Canon lockstep decision controls (spine strict, instance lag passes)
