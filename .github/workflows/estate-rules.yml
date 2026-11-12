@@ -78,6 +78,10 @@ jobs:
         run: bash tests/workflows/check_no_a2ml_test.sh
       - name: Deed clause writer controls
         run: bash tests/workflows/deed_clause_test.sh
+      - name: Canon lockstep decision controls (spine strict, instance lag passes)
+        run: bash tests/workflows/canon_pin_check_test.sh
+      - name: Canon lockstep adoption tool controls
+        run: bash tests/workflows/adopt_canon_lockstep_test.sh
       - name: Coaptation families match the deed's descriptile clauses
         run: bash tests/workflows/coaptation_families_test.sh
       - name: Install verified Nickel 1.17.0
