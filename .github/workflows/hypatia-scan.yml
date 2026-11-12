@@ -120,7 +120,12 @@ jobs:
                   .file |= (if startswith($ws) then .[($ws | length):] else . end)
                 else . end)' hypatia-findings.json > hypatia-findings.relativized.json
 
-          CRITICAL="$(jq '[.[] | select(.severity == "critical")] | length' hypatia-findings.json)"
+          # code_scanning_alerts findings are repository-wide historical GitHub
+          # alerts, not properties of this change. Hypatia's own SARIF render
+          # drops them (lib/hypatia/sarif.ex @meta_rule_modules) but its JSON
+          # keeps them, so exclude them from the BLOCKING count only; they stay
+          # in hypatia-findings.json and in the uploaded artifact.
+          CRITICAL="$(jq '[.[] | select(.severity == "critical" and .rule_module != "code_scanning_alerts")] | length' hypatia-findings.json)"
           HIGH="$(jq '[.[] | select(.severity == "high")] | length' hypatia-findings.json)"
           TOTAL="$(jq 'length' hypatia-findings.json)"
           {
