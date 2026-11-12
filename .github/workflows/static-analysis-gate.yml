@@ -26,8 +26,11 @@
 # and hypatia-scan-reusable.yml already writes, so adopting that reusable would
 # not change what the grid reads.
 #
-# GATES: panic-attack blocks on critical (its own decision, taken here once);
-# pons and patch-bridge are advisory. The verdict grid never gates.
+# GATES (owner ruling 2026-11-12): pons blocks on ERROR-level findings that it
+# does not itself call speculative; a pons that did not run, or produced no
+# readable report, also blocks (never a silent pass). panic-attack and
+# patch-bridge are advisory: they write their evidence and annotate but do not
+# fail the check. The verdict grid never gates.
 name: Static Analysis Gate
 on:
   pull_request:
@@ -87,6 +90,10 @@ jobs:
       # file that it could only call "not run".
       - name: Run panic-attack assail
         id: assail
+        # Advisory (owner ruling 2026-11-12): panic-attack does not gate. A failed
+        # or untrustworthy run still exits non-zero so the step shows as failed
+        # and the envelope says "error" (orange in the grid), but the job goes on.
+        continue-on-error: true
         run: |
           set -uo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -142,13 +149,14 @@ jobs:
           fi
           jq -e '.status | type == "string"' "$out" >/dev/null
           if [ "$(jq -r .status "$out")" != "ran" ]; then
-            echo "::error::Blocking scanner did not produce trustworthy results"
+            echo "::warning::panic-attack (advisory, does not gate) did not produce trustworthy results"
             exit 1
           fi
 
       - name: Run pons-asinorum deep recon audit
         id: pons
-        continue-on-error: true
+        # Gating (owner ruling 2026-11-12): deliberately no continue-on-error.
+        # Not-run, error and non-speculative ERROR findings all exit non-zero.
         run: |
           set -uo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -194,6 +202,10 @@ jobs:
             echo "| WARN | ${WARN_COUNT} |"
             echo "| INFO | ${INFO_COUNT} |"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ERR_COUNT" -ne 0 ]; then
+            echo "::error::pons found ${ERR_COUNT} non-speculative ERROR finding(s) - blocking merge"
+            exit 1
+          fi
 
       - name: Upload the scanner envelopes
         if: always()
@@ -206,13 +218,12 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Fail on critical findings
+      - name: Warn on critical panic-attack findings (advisory)
         if: steps.assail.outputs.critical != '0' && steps.assail.outputs.critical != ''
         env:
           CRIT_COUNT: ${{ steps.assail.outputs.critical }}
         run: |
-          echo "::error::panic-attack found ${CRIT_COUNT} critical issue(s) — blocking merge"
-          exit 1
+          echo "::warning::panic-attack found ${CRIT_COUNT} critical issue(s) (advisory: panic-attack does not gate)"
 
   # ---------------------------------------------------------------------------
   # Job 2: patch-bridge triage (CVE contextual assessment)
