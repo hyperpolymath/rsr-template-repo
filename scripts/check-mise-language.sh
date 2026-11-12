@@ -102,7 +102,7 @@ if [ -z "$LANGS" ] && [ "$DETECT" -eq 1 ]; then
     _l=()
     [ -n "$(_find Cargo.toml)" ]      && _l+=(rust)
     [ -n "$(_find '*.ipkg' 3)" ]      && _l+=(idris2)
-    [ -n "$(_find Project.toml 1)" ]  && _l+=(julia)
+    [ -n "$(_find Project.toml 3)" ]  && _l+=(julia)
     [ -n "$(_find build.zig 4)" ]     && _l+=(zig)
     [ -n "$(_find mix.exs)" ]         && _l+=(elixir)
     [ -n "$(_find gleam.toml)" ]      && _l+=(gleam)
