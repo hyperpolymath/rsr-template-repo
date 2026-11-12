@@ -84,9 +84,9 @@ canonical_name="$(field '' canonical-name)"
 # The clade is an optional outward finding aid (standards A1 §11), never identity.
 clade_primary="$(field clade primary)"
 clade_secondary="$(items clade secondary ', ')"
-if [ -z "$clade_primary" ]; then
+if [[ -z "$clade_primary" ]]; then
   clade_aid="none declared (optional finding aid)"
-elif [ -n "$clade_secondary" ]; then
+elif [[ -n "$clade_secondary" ]]; then
   clade_aid="$clade_primary (secondary $clade_secondary; finding aid)"
 else
   clade_aid="$clade_primary (finding aid)"

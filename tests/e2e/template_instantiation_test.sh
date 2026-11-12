@@ -404,7 +404,7 @@ log_pass "Mint carries no .a2ml file"
 DEED_READ="$TEST_REPO_PATH/scripts/deed-field.sh"
 CHILD="$TEST_REPO_PATH/$CHILD_DEED"
 if bash "$DEED_READ" --has "$CHILD" clade \
-   || [ -n "$(bash "$DEED_READ" "$CHILD" identity prefixed-name || true)" ] \
+   || [[ -n "$(bash "$DEED_READ" "$CHILD" identity prefixed-name || true)" ]] \
    || [ "$(bash "$DEED_READ" "$CHILD" maturity level)" != "experimental" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" status phase)" != "incubating" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" ecosystem project)" != "$TEST_REPO_NAME" ] \
