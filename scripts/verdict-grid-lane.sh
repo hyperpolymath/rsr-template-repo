@@ -63,9 +63,9 @@ ORANGE_BADGE='{"schemaVersion":1,"label":"Hypatia grid","message":"indeterminate
 # wrongly resolved ref would otherwise run unreviewed code in a job that holds
 # pull-requests: write.
 STANDARDS_REPO="${VERDICT_GRID_STANDARDS_REPO:-metadatastician/standards}"
-STANDARDS_SHA="${VERDICT_GRID_STANDARDS_SHA:-e064539116c2dcfdf282a4749dbd58c69961c7e6}"
-RENDERER_SHA256="1053d1704c53eae5ba0c0da966ffe8f41b13106007bd7e6db1ff0d9f931fdab0"
-JQ_LIB_SHA256="b02da89ecdc1017f4bac45b68fcbc724e8202342379c06c52b15771f2eb613ba"
+STANDARDS_SHA="${VERDICT_GRID_STANDARDS_SHA:-f0b3cd4c464d33e1584f8528c17bce104555e256}"
+RENDERER_SHA256="7c2cac9248fd249f607de827dc8dc9a3f6276bf9ca662be86aa435e9aeca48d7"
+JQ_LIB_SHA256="36e7aa69afbe8c488b1a313fd9bd0cf2bf6af45d3f34b80afd793f6b20582896"
 
 usage() {
     sed -n '5,60p' "$0" | sed 's/^# \{0,1\}//' >&2
