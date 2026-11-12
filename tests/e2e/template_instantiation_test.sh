@@ -91,8 +91,16 @@ log_pass "Template cloned to $TEST_REPO_PATH"
 # Local ignored agent state is not part of the template product. A filesystem
 # copy sees it anyway, unlike a real GitHub-template instantiation, and can make
 # the placeholder gate judge unrelated nested worktrees. Remove it from the
-# fixture before exercising the mint.
-rm -rf "$TEST_REPO_PATH/.claude"
+# fixture before exercising the mint. Remove only the IGNORED paths: tracked
+# files there (.claude/settings.json, .claude/hooks/) are template content, and
+# dropping them gives a tree that matches no template commit.
+git -C "$TEMPLATE_ROOT" ls-files -z --others --ignored --exclude-standard --directory -- .claude \
+    | (cd "$TEST_REPO_PATH" && xargs -0 -r rm -rf --)
+CLEAN_STATUS=("${PIPESTATUS[@]}")
+if [ "${CLEAN_STATUS[0]}" -ne 0 ] || [ "${CLEAN_STATUS[1]}" -ne 0 ]; then
+    log_error "could not remove ignored .claude/ state from the fixture"
+    exit 1
+fi
 
 # Remove .git directory for clean state, then re-init as the INSTANTIATED repo.
 #
