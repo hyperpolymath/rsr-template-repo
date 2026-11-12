@@ -580,7 +580,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: _standards
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
