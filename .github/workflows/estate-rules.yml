@@ -38,6 +38,8 @@ jobs:
       # gate until you try to make it fail.
       - name: Root-shape gate self-test (must fail on drift)
         run: bash tests/shape/check_root_shape_test.sh
+      - name: Root-shape gate, rust-cli mint shape (Cargo optional, mise.lock kept)
+        run: bash tests/shape/rust_cli_root_shape_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
