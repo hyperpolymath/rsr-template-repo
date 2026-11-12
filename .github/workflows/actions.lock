@@ -54,6 +54,9 @@ workflows:
     '.github/workflows/lock-sync-gate.yml': []
     '.github/workflows/main-estate-audit.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+    '.github/workflows/bench-baseline-collect.yml':
+        - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        - 'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6'
     '.github/workflows/oracle-segfault-diag.yml':
         - 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
@@ -199,7 +202,7 @@ dependencies:
         repo_id: 259445878
     'haskell-actions/setup@v2.12.1':
         ref: 'v2.12.1'
-        commit: 'sha1-0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d'
+        commit: 'sha1-9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
         owner_id: 75048950
         repo_id: 623796603
     'hyperpolymath/smtp-notify-action@v0.5.0':
@@ -225,5 +228,5 @@ dependencies:
     'sonarsource/sonarqube-scan-action@v8.3.0':
         ref: 'v8.3.0'
         commit: 'sha1-d209202bc7d53ff1cc128f7f907dac145c9d6ae9'
-        owner_id: 545988
+        owner_id: 2242
         repo_id: 366408409
