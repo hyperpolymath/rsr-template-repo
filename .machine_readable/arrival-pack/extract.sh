@@ -50,7 +50,7 @@ items() {
 lines() {
   local out rc=0
   out="$(bash "$READ" --list "$DEED" "$1" "$2")" || rc=$?
-  [ "$rc" -le 1 ] || return "$rc"
+  [[ "$rc" -le 1 ]] || return "$rc"
   printf '%s' "$out"
 }
 
@@ -66,11 +66,11 @@ hash12() { sha256sum | cut -c1-12; }
 # and follows the deed when it moves to version 8.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
-if [ -n "$uuid_name" ]; then
+if [[ -n "$uuid_name" ]]; then
   # --typed keeps the tag and quotes, and reads the literal wherever the layout puts it
   rc=0
   uuid="$(bash "$READ" --typed "$DEED" '' repo-uuid)" || rc=$?
-  [ "$rc" -le 1 ] || exit "$rc"
+  [[ "$rc" -le 1 ]] || exit "$rc"
   [[ "$uuid" =~ ^#u(uid|[0-9]+)\"[^\"]*\"$ ]] || uuid=""
 fi
 [ -z "$uuid_name" ] || [ -n "$uuid" ] \

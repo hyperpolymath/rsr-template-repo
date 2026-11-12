@@ -58,7 +58,7 @@ deed="${1:-}"; path="${2-}"; key="${3:-}"
 if [ -z "$deed" ] || [ ! -r "$deed" ]; then
   echo "deed-field.sh: no readable deed: '${deed}'" >&2; exit 2
 fi
-if { [ "$mode" = value ] || [ "$mode" = typed ] || [ "$mode" = list ]; } && [ -z "$key" ]; then
+if [[ ( "$mode" = value || "$mode" = typed || "$mode" = list ) && -z "$key" ]]; then
   echo "deed-field.sh: KEY is required" >&2; exit 2
 fi
 
