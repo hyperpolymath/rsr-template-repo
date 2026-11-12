@@ -38,16 +38,24 @@ WF="$REPO/.github/workflows/dogfood-gate.yml"
 LOCK="$REPO/.github/workflows/actions.lock"
 refuse() { echo "adopt-canon-lockstep: REFUSED ($*); nothing written" >&2; exit 1; }
 
-# job_block <file>: the `  canon-lockstep:` job, from its key to the line
-# before the next job key (two-space indent), a top-level key, or EOF.
+# The job key, plain or quoted, with an optional trailing comment.
+START_RE="^  [\"']?canon-lockstep[\"']?:[[:space:]]*(#.*)?\$"
+
+# job_block <file>: the canon-lockstep job, from its key to the line before
+# the next key. Any non-comment line at two spaces of indent (the next job,
+# however it is written: `build:`, `build: # note`, `"build":`) or at column
+# 0 ends it. Comment and blank lines just before that boundary belong to the
+# next job's header, so they are not part of this block.
 job_block() {
-  awk '/^  canon-lockstep:[[:space:]]*$/ { f = 1; print; next }
-       f && (/^  [A-Za-z0-9_-]+:[[:space:]]*$/ || /^[A-Za-z]/) { exit }
-       f { print }' "$1"
+  awk -v S="$START_RE" '
+    !f && $0 ~ S { f = 1; print; next }
+    f && (/^  [^ #]/ || /^[^ #]/) { exit }
+    f && (/^ ?#/ || /^  #/ || /^[[:space:]]*$/) { buf = buf $0 "\n"; next }
+    f { printf "%s", buf; buf = ""; print }' "$1"
 }
 
 [ -f "$WF" ] || refuse "no .github/workflows/dogfood-gate.yml"
-n=$(grep -c '^  canon-lockstep:[[:space:]]*$' "$WF" || true)
+n=$(grep -cE "$START_RE" "$WF" || true)
 [ "$n" -le 1 ] || refuse "$n canon-lockstep jobs in dogfood-gate.yml"
 [ "$n" -eq 1 ] || { echo "adopt-canon-lockstep: no canon-lockstep job; left alone"; exit 0; }
 
@@ -76,7 +84,7 @@ if cmp -s "$tmp/old" "$tmp/new" && cmp -s "$TPL/scripts/canon-pin-check.sh" "$RE
 fi
 
 # Replace the old block's lines with the new block, keeping everything else.
-start=$(grep -n '^  canon-lockstep:[[:space:]]*$' "$WF" | cut -d: -f1)
+start=$(grep -nE "$START_RE" "$WF" | cut -d: -f1)
 len=$(wc -l < "$tmp/old")
 { head -n "$((start - 1))" "$WF"; cat "$tmp/new"; tail -n +"$((start + len))" "$WF"; } > "$tmp/wf"
 mkdir -p "$REPO/scripts"

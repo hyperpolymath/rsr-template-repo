@@ -17,6 +17,15 @@ fail() { echo "FAIL: $1" >&2; exit 1; }
 
 CHECKOUT="actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 
+# block <workflow>: the canon-lockstep job as the test sees it, written
+# independently of the tool: from the key to the last non-comment line before
+# the next two-space key (or a column-0 key).
+block() {
+  awk '/^  "?canon-lockstep"?:/ { f = 1 }
+       f && !/canon-lockstep/ && (/^  [^ #]/ || /^[^ #]/) { exit }
+       f { print }' "$1" | awk '{ l[NR] = $0 } END { n = NR; while (n > 0 && (l[n] ~ /^[[:space:]]*$/ || l[n] ~ /^ {0,2}#/)) n--; for (i = 1; i <= n; i++) print l[i] }'
+}
+
 # instance <dir> <locked-actions…>: an old-style instance whose dogfood-gate
 # has a job before and after an inline canon-lockstep job.
 instance() {
@@ -58,8 +67,8 @@ EOF
 #    the script is copied.
 instance "$tmp/a" "$CHECKOUT"
 bash "$tool" "$tmp/a" > /dev/null
-tpl_job="$(awk '/^  canon-lockstep:/{f=1} f&&/^  [a-z][a-z0-9-]*:$/&&!/canon-lockstep/{exit} f' "$root/.github/workflows/dogfood-gate.yml" | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')"
-got_job="$(awk '/^  canon-lockstep:/{f=1} f&&/^  [a-z][a-z0-9-]*:$/&&!/canon-lockstep/{exit} f' "$tmp/a/.github/workflows/dogfood-gate.yml" | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')"
+tpl_job="$(block "$root/.github/workflows/dogfood-gate.yml")"
+got_job="$(block "$tmp/a/.github/workflows/dogfood-gate.yml")"
 [ "$tpl_job" = "$got_job" ] || fail "adopted job differs from the template's"
 grep -q 'old inline job' "$tmp/a/.github/workflows/dogfood-gate.yml" && fail "old job text survived"
 grep -q 'echo first' "$tmp/a/.github/workflows/dogfood-gate.yml" || fail "the job before was lost"
@@ -67,6 +76,23 @@ grep -qx '  last:' "$tmp/a/.github/workflows/dogfood-gate.yml" || fail "the job 
 grep -q '^  last:' <(awk '/^  canon-lockstep:/{f=1} f' "$tmp/a/.github/workflows/dogfood-gate.yml") || fail "job order changed"
 cmp -s "$root/scripts/canon-pin-check.sh" "$tmp/a/scripts/canon-pin-check.sh" || fail "decision script not copied"
 ok "adopts the template job between untouched neighbours and copies the script"
+
+# 1b. The next job written with an inline comment, or with a quoted key, and
+#     its header comment, all survive (a missed boundary used to delete the
+#     next job).
+for next in '  build: # Build application' '  "build":'; do
+  instance "$tmp/n" "$CHECKOUT"
+  perl -0pi -e "s/\n  last:\n/\n  # --- the build job ---\n${next//\//\\/}\n/" "$tmp/n/.github/workflows/dogfood-gate.yml"
+  grep -qxF "$next" "$tmp/n/.github/workflows/dogfood-gate.yml" || fail "fixture for '$next' not built"
+  bash "$tool" "$tmp/n" > /dev/null
+  wf="$tmp/n/.github/workflows/dogfood-gate.yml"
+  grep -qxF "$next" "$wf" || fail "the next job ('$next') was deleted"
+  grep -qxF '  # --- the build job ---' "$wf" || fail "the next job's header comment was deleted ('$next')"
+  grep -q 'echo last' "$wf" || fail "the next job's body was deleted ('$next')"
+  grep -q 'old inline job' "$wf" && fail "old job text survived ('$next')"
+  rm -rf "$tmp/n"
+done
+ok "a next job with an inline comment or a quoted key, and its header comment, survive"
 
 # 2. Idempotent.
 cp "$tmp/a/.github/workflows/dogfood-gate.yml" "$tmp/once"
