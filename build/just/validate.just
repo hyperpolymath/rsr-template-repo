@@ -80,10 +80,10 @@ validate-rsr:
         esac
         bash scripts/deed-field.sh --has "$DEED" identity || MISSING="$MISSING $DEED:(identity)"
         [ -n "$(field identity primary-forge)" ] || MISSING="$MISSING $DEED:identity:primary-forge"
-        # The clade is an outward finding aid, never identity (standards A1 §11,
-        # ruling R4): no clause and no prefixed name are required. A clade that
-        # IS declared must still be one of the 12 and agree with its name, so a
-        # finding aid cannot point at the wrong shelf.
+        # Clade placements are identity facts, never the id and never an edict
+        # (standards A1 §11, ruling W10): no clause and no prefixed name are
+        # required. A clade that IS declared must still be one of the 12 and agree
+        # with its name, so a placement cannot point at the wrong shelf.
         if bash scripts/deed-field.sh --has "$DEED" clade; then
             case "$(field clade primary)|$(field clade primary-name)" in
                 "fv|Formal Verification & Proofs"|"nl|Nextgen Languages"|"rm|Repo Management & Tooling"|\

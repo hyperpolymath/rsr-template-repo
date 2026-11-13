@@ -102,15 +102,17 @@ isnot="$(items ecosystem not ' · ')"
 canonical_name="$(field '' canonical-name)"
 [ -n "$canonical_name" ] \
   || { echo "extract.sh: $(basename "$DEED") has no :canonical-name" >&2; exit 2; }
-# The clade is an optional outward finding aid (standards A1 §11), never identity.
+# Clade placements are identity facts about where the repo sits, never its id
+# and never an edict; chora-registry is authoritative for them (standards A1
+# §11, ruling W10). The clause is optional.
 clade_primary="$(field clade primary)"
 clade_secondary="$(items clade secondary ', ')"
 if [[ -z "$clade_primary" ]]; then
-  clade_aid="none declared (optional finding aid)"
+  clade_aid="none declared (optional placement)"
 elif [[ -n "$clade_secondary" ]]; then
-  clade_aid="$clade_primary (secondary $clade_secondary; finding aid)"
+  clade_aid="$clade_primary (secondary $clade_secondary; placement)"
 else
-  clade_aid="$clade_primary (finding aid)"
+  clade_aid="$clade_primary (placement)"
 fi
 born="$(field lineage born)"
 forge_gh="$(field forges github)"

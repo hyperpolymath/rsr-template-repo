@@ -1257,7 +1257,7 @@ repo-init archetype="":
     # description stays UNASSIGNED for the author.
     # The split is the whole point:
     #   DERIVABLE -> computed, never guessed  (uuid name, owner, canonical-name)
-    #   JUDGEMENT -> left to the author; the clade is an optional finding aid, never written here
+    #   JUDGEMENT -> left to the author; a clade placement is an optional identity fact, never written here
     ID_IN="build/templates/identity.deed.in"
     # Whatever one deed is present (renamed for the child above, or already
     # named for it): never a hardcoded template file name.
@@ -1287,8 +1287,8 @@ repo-init archetype="":
         echo "  uuid:  $REPO_UUID"
         echo "         (the chora id: UUIDv8 of the birth path ${FORGE}/${OWNER}/${REPO},"
         echo "          minted once and written to :repo-uuid; a rename never changes it)"
-        echo "  clade: none written. Identity is the chora id above; a clade is an"
-        echo "         optional finding aid. The 12 are listed in the identity comment"
+        echo "  clade: none written. Identity is the chora id above; a clade placement is an"
+        echo "         optional identity fact. The 12 are listed in the identity comment"
         echo "         of $DEED; validate-rsr checks one only if you declare it."
     fi
 
