@@ -87,7 +87,10 @@ scanner_case panic malformed '{broken' 0 1 error
 scanner_case panic wrong-shape '{"weak_points":{}}' 0 1 error
 
 scanner_case pons clean '{"findings":[]}' 0 0 ran
-scanner_case pons mixed '{"findings":[{"severity":"error","evidence":"SPECULATIVE"},{"severity":"ERROR","evidence":"speculative"},{"severity":"error","evidence":"proven"},{"severity":"ERROR"},{"severity":"warn"},{"severity":"info"}]}' 0 0 ran
+# pons gates (owner ruling 2026-11-12): two non-speculative ERRORs block (exit 1)
+# even though the scan itself ran and its envelope is honest ("ran").
+scanner_case pons mixed '{"findings":[{"severity":"error","evidence":"SPECULATIVE"},{"severity":"ERROR","evidence":"speculative"},{"severity":"error","evidence":"proven"},{"severity":"ERROR"},{"severity":"warn"},{"severity":"info"}]}' 0 1 ran
+scanner_case pons speculative-only '{"findings":[{"severity":"error","evidence":"SPECULATIVE"},{"severity":"warn"}]}' 0 0 ran
 for row in '| ERROR (non-speculative) | 2 |' '| WARN | 1 |' '| INFO | 1 |'; do
     grep -Fxq "$row" "$WORK/pons-mixed/summary" || fail "pons summary lost $row"
 done
