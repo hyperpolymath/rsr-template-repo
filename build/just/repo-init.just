@@ -1972,7 +1972,7 @@ repo-init archetype="":
     echo "       gh repo edit ${OWNER}/${REPO} --description '<one line>' --homepage '${WEBSITE}'"
     echo "     Visibility is fail-closed private; flip deliberately if wanted:"
     echo "       gh repo edit ${OWNER}/${REPO} --visibility public --accept-visibility-change-consequences"
-    echo "     Register in gv-clade-index; required contexts must equal emitted job ids."
+    echo "     Register in chora-registry (formerly gv-clade-index); required contexts must equal emitted job ids."
     if [ -f ci/.gitlab-ci.yml ]; then
         echo ""
         echo "     GitLab mirror only: this repo keeps its GitLab CI config at"
