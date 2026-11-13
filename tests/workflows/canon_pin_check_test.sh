@@ -143,6 +143,8 @@ expect 2 "two (canon …) clauses are malformed" bash "$check" released "$tmp/tw
 
 expect 2 "pending mode without :proposed-by is malformed" bash "$check" pending "$tmp/same.deed" "$tmp/next.lock" open
 
+# Only the template tree (scripts/is-template-tree.sh) has the real deed to check; other trees skip with a notice.
+if bash "$root/scripts/is-template-tree.sh" "$root"; then
 # The real deed against a lock built from its own pins: the reader agrees
 # with the deed this repository ships.
 real="$root/rsr-template-repo_chora.deed"
@@ -151,5 +153,8 @@ c="$(bash "$root/scripts/deed-field.sh" "$real" canon criteria-sha256)"
 g="$(bash "$root/scripts/deed-field.sh" "$real" canon gates-sha256)"
 lock "$tmp/own.lock" "$v" "$c" "$g"
 expect 0 "the shipped deed passes against its own pins" bash "$check" released "$real" "$tmp/own.lock"
+else
+  echo "SKIP: the shipped-deed controls (not the template tree; is-template-tree.sh says no)"
+fi
 
 echo "canon_pin_check: $pass passed"
