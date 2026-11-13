@@ -1229,6 +1229,13 @@ repo-init archetype="":
         # The same declaration forms the identity parser accepts: optional
         # `export`, either quote (Codex review of #274).
         sed -i -E "$SELF_OWNER_SED" Justfile sonar-project.properties
+        # The deed's document ids hold the repo slug (ADR-008 profile C, domain
+        # repo-document). The self-name pass rewrites it, but only when the repo name
+        # changes; a mint under the SAME name and a different owner skips that pass
+        # and would keep the template's owner in its ids. Followed here, narrowly.
+        if [ -f "${REPO}_chora.deed" ]; then
+            sed -i -E "s|(repo-document:github\\.com/)${TEMPLATE_OWNER//./\\.}/|\\1$(sed_rhs "${OWNER}")/|g" "${REPO}_chora.deed"
+        fi
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
         echo "  NOTE: confirm the SonarCloud ORG is really '${OWNER}' before provisioning —"
         echo "        the GitHub owner and the SonarCloud org are not always the same."

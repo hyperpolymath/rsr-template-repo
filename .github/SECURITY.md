@@ -9,7 +9,7 @@ The token vocabulary is not restated here (`just repo-init` substitutes the toke
 This file used to restate it in a "delete before publishing" block, but `just
 init` substitutes tokens inside comments too — so the block's own instructions
 were rewritten into nonsense and then shipped, because nothing deleted it.
-Where it lives: the `placeholders` document, id 01a1d229-3320-81a0-b9df-d93767675fbc,
+Where it lives: the `placeholders` document (`repo-document:…#placeholders`),
 registered under (documents) in *_chora.deed. If that page is gone, contact the maintainer
 (docs/MAINTAINERS.adoc), or ask an AI assistant to read *_chora.deed for its current location.
 -->

@@ -100,14 +100,18 @@ done < <(git ls-files -z -- '*.adoc' '*.md' ':!:LICENSES/*')
 
 
 # --- Deed document registry -------------------------------------------------
-# <repo>_chora.deed's (documents (document :id #uuid"..." :role R :path "P"
-# [:removed-at-mint #t])) names pages other docs cite by id. Each id must be
-# well-formed and unique, and each :path must exist unless :removed-at-mint #t.
+# <repo>_chora.deed's (documents (document :id #u8"repo-document:github.com/<owner>/<name>#<role>"
+# :role <role> :path "P" [:removed-at-mint #t])) names pages other docs cite by id
+# (ADR-008 profile C, domain repo-document, standards#1500). Each id must be in
+# that domain, name github.com/<owner>/<name>#<role> with <role> equal to the
+# entry's :role, and be unique; each :path must exist unless :removed-at-mint #t.
+# Only #u8 is accepted: the owner ruled this form, and the deed linter rejects
+# an opaque #uuid there, so a #uuid id could not pass the DEED gate anyway.
 deed_docs() {
   awk '
     function flush(   id, role, path, rm) {
       id = ""; role = ""; path = ""; rm = "f"
-      if (match(buf, /:id #uuid"[^"]*"/)) { id = substr(buf, RSTART + 10, RLENGTH - 11) }
+      if (match(buf, /:id #u8"[^"]*"/)) { id = substr(buf, RSTART + 8, RLENGTH - 9) }
       if (match(buf, /:role [^ \t)]+/)) { role = substr(buf, RSTART + 6, RLENGTH - 6) }
       if (match(buf, /:path "[^"]*"/)) { path = substr(buf, RSTART + 7, RLENGTH - 8) }
       if (buf ~ /:removed-at-mint #t/) rm = "t"
@@ -135,8 +139,12 @@ declare -A seen_id=()
 if [ "${#deeds[@]}" -eq 1 ]; then
   while IFS=$'\t' read -r did role dpath rm; do
     reg_n=$((reg_n + 1))
-    if ! [[ "$did" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]; then
-      echo "FAIL: ${deeds[0]#./}: document '${role:-?}' has no well-formed UUIDv8 :id (#uuid\"...\")" >&2; rc=1
+    if [[ "$did" != repo-document:* ]]; then
+      echo "FAIL: ${deeds[0]#./}: document '${role:-?}' needs an :id #u8\"repo-document:github.com/<owner>/<name>#<role>\" (ADR-008 profile C, domain repo-document)" >&2; rc=1
+    elif ! [[ "$did" =~ ^repo-document:github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#([A-Za-z0-9._-]+)$ ]]; then
+      echo "FAIL: ${deeds[0]#./}: document id '$did' must name github.com/<owner>/<name>#<role>" >&2; rc=1
+    elif [ "${BASH_REMATCH[1]}" != "$role" ]; then
+      echo "FAIL: ${deeds[0]#./}: document id '$did' ends #${BASH_REMATCH[1]} but its :role is '$role'" >&2; rc=1
     elif [ -n "${seen_id[$did]+x}" ]; then
       echo "FAIL: ${deeds[0]#./}: document id $did is registered twice" >&2; rc=1
     fi

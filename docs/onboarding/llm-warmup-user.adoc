@@ -38,7 +38,7 @@ A person uses it to start a new repository:
   replaces every placeholder token, then validates the result. `just repo-init
   julia-library` applies the one archetype overlay shipped in `archetypes/`.
 +
-The token list is the `placeholders` document, id `01a1d229-3320-81a0-b9df-d93767675fbc`, registered under
+The token list is the `placeholders` document (role `placeholders`; id `repo-document:github.com/<owner>/<repo>#placeholders`), registered under
 `(documents)` in `*_chora.deed` (a minted repository no longer carries it).
 If this page is gone, link:../MAINTAINERS.adoc[contact the maintainer], or ask an AI assistant to read
 `*_chora.deed` for its current location.

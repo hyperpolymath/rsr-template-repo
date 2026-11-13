@@ -114,15 +114,16 @@
   ; (the grammar admits any clause, so it parses today). A page that can move or
   ; disappear (a file the mint tells you to delete, one a repo renames) is
   ; cited by :id and :role; the id is stable, the :path is current. Readers who
-  ; find a page gone look here for where it went. Ids are ESTATE-UUID-V8 profile
-  ; T (ADR-008), minted with standards scripts/uuid-v8.js and written as the
-  ; opaque #uuid literal: deed.abnf v1.3.0 admits it, and a #u5 body is a name
-  ; that is hashed, so it cannot carry a v8 id.
+  ; find a page gone look here for where it went. Ids are ADR-008 profile C, in the
+  ; domain repo-document (registered in metadatastician/standards#1500), written
+  ; as #u8"repo-document:github.com/<owner>/<repo>#<role>". The name holds the
+  ; repo slug on purpose: the mint's self-name pass rewrites it, so a minted repo
+  ; gets its own id for the same role. Derive one with standards scripts/uuid-v8.js c.
   ; scripts/check-internal-links.sh checks that every :path exists unless the
   ; entry is :removed-at-mint #t, and that no tracked page links to a missing file.
   (documents
     (document
-      :id #uuid"01a1d229-3320-81a0-b9df-d93767675fbc"
+      :id #u8"repo-document:github.com/hyperpolymath/rsr-template-repo#placeholders"
       :role placeholders
       :path ".machine_readable/ai/PLACEHOLDERS.adoc"
       :removed-at-mint #t

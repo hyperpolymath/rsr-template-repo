@@ -11,8 +11,8 @@ set -euo pipefail
 CHECKER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/check-internal-links.sh"
 FIXTURE=$(mktemp -d)
 trap 'rm -rf "$FIXTURE"' EXIT
-ID1=01a1d229-3320-81a0-b9df-d93767675fbc
-ID2=01a1d229-3320-81a0-b9df-d93767675fbd
+ID1=repo-document:github.com/example-owner/example-repo#placeholders
+ID2=repo-document:github.com/example-owner/example-repo#other
 L='{'; TOK="${L}${L}TOKEN}}"   # built at run time so a minted repo's no-placeholders gate sees no token
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -23,9 +23,10 @@ expect_fail() {
   if bash "$CHECKER" "$1" > "$FIXTURE/out" 2>&1; then fail "checker accepted $2"; fi
   grep -qF -- "$3" "$FIXTURE/out" || { cat "$FIXTURE/out" >&2; fail "checker did not name $3 for $2"; }
 }
-# deed ID PATH REMOVED — write a one-document deed.
+# deed ID PATH REMOVED [ROLE] — write a one-document deed; ID is the body of the #u8 literal (an ID starting RAW: is written as given, without the #u8 wrapper).
 deed() {
-  printf ';; SPDX-License-Identifier: MPL-2.0\n(repo-deed\n  :schema-version "1.0.0"\n  (documents\n    (document\n      :id #uuid"%s"\n      :role placeholders\n      :path "%s"\n      :removed-at-mint %s\n      :note "x")))\n' "$1" "$2" "$3" > "$R/x_chora.deed"
+  case "$1" in RAW:*) idtok="${1#RAW:}" ;; *) idtok="#u8\"$1\"" ;; esac
+  printf ';; SPDX-License-Identifier: MPL-2.0\n(repo-deed\n  :schema-version "1.0.0"\n  (documents\n    (document\n      :id %s\n      :role %s\n      :path "%s"\n      :removed-at-mint %s\n      :note "x")))\n' "$idtok" "${4:-placeholders}" "$2" "$3" > "$R/x_chora.deed"
 }
 fresh() {
   R="$FIXTURE/repo$1"; rm -rf "$R"; mkdir -p "$R/docs" "$R/www/policies" "$R/www/.well-known"
@@ -88,13 +89,21 @@ expect_fail "$R" "a registered path that is gone" "document $ID1 (role placehold
 deed "$ID1" docs/gone.adoc '#t'; add
 expect_pass "$R" "a registered path that is gone but :removed-at-mint #t"
 grep -q '1 deed document id' "$FIXTURE/out" || fail "registry entry not counted"
-deed "not-a-uuid" docs/target.adoc '#f'; add
-expect_fail "$R" "a malformed id" "no well-formed UUIDv8 :id"
-deed "01a1d229-3320-41a0-b9df-d93767675fbc" docs/target.adoc '#f'; add
-expect_fail "$R" "a v4 id" "no well-formed UUIDv8 :id"
-printf ';; SPDX-License-Identifier: MPL-2.0\n(repo-deed\n  :schema-version "1.0.0"\n  (documents\n    (document :id #uuid"%s" :role a :path "docs/target.adoc")\n    (document :id #uuid"%s" :role b :path "docs/target.adoc")))\n' "$ID1" "$ID1" > "$R/x_chora.deed"; add
+deed "not-a-name" docs/target.adoc '#f'; add
+expect_fail "$R" "an id outside the repo-document domain" "needs an :id #u8"
+deed "julia-package-identity:github.com/example-owner/example-repo#placeholders" docs/target.adoc '#f'; add
+expect_fail "$R" "a wrong domain" "needs an :id #u8"
+deed 'RAW:#uuid"01a1d229-3320-81a0-b9df-d93767675fbc"' docs/target.adoc '#f'; add
+expect_fail "$R" "the old opaque #uuid form" "needs an :id #u8"
+deed "repo-document:example.org/example-owner/example-repo#placeholders" docs/target.adoc '#f'; add
+expect_fail "$R" "a name that is not github.com/<owner>/<name>#<role>" "must name github.com"
+deed "repo-document:github.com/example-owner/example-repo" docs/target.adoc '#f'; add
+expect_fail "$R" "a name with no #role" "must name github.com"
+deed "$ID2" docs/target.adoc '#f' placeholders; add
+expect_fail "$R" "a role that differs from the id's #role" "ends #other but its :role is 'placeholders'"
+printf ';; SPDX-License-Identifier: MPL-2.0\n(repo-deed\n  :schema-version "1.0.0"\n  (documents\n    (document :id #u8"%s" :role placeholders :path "docs/target.adoc")\n    (document :id #u8"%s" :role placeholders :path "docs/target.adoc")))\n' "$ID1" "$ID1" > "$R/x_chora.deed"; add
 expect_fail "$R" "a repeated id" "registered twice"
-printf ';; SPDX-License-Identifier: MPL-2.0\n(repo-deed\n  :schema-version "1.0.0"\n  (documents\n    (document :id #uuid"%s" :role a :path "docs/target.adoc")\n    (document :id #uuid"%s" :role b :path "docs/target.adoc")))\n' "$ID1" "$ID2" > "$R/x_chora.deed"; add
+printf ';; SPDX-License-Identifier: MPL-2.0\n(repo-deed\n  :schema-version "1.0.0"\n  (documents\n    (document :id #u8"%s" :role placeholders :path "docs/target.adoc")\n    (document :id #u8"%s" :role other :path "docs/target.adoc")))\n' "$ID1" "$ID2" > "$R/x_chora.deed"; add
 expect_pass "$R" "two distinct ids, one per line form"
 
 # --- The real template passes ------------------------------------------------
