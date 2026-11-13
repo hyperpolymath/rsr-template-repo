@@ -63,7 +63,17 @@ validate-rsr:
         case "$RAW_UUID" in
             '#uuid"'*)
                 printf '%s' "$RAW_UUID" | grep -Eq '^#uuid"[0-9a-f]{8}-[0-9a-f]{4}-[58][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"$' \
-                    || MISSING="$MISSING $DEED:repo-uuid(#uuid literal is not a lowercase v5/v8 RFC 9562 id)" ;;
+                    || MISSING="$MISSING $DEED:repo-uuid(#uuid literal is not a lowercase v5/v8 RFC 9562 id)"
+                # A version 5 id is v5-identity (standards A1 C10, T30): a warning
+                # here, an error with RSR_STRICT=1. The chora id is version 8 (V8).
+                case "$RAW_UUID" in
+                    '#uuid"'????????-????-5*)
+                        if [ "${RSR_STRICT:-0}" = 1 ]; then
+                            MISSING="$MISSING $DEED:repo-uuid(v5-identity)"
+                        else
+                            echo "WARNING: v5-identity: $DEED :repo-uuid $RAW_UUID is a version 5 id; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1 V8). RSR_STRICT=1 makes this an error."
+                        fi ;;
+                esac ;;
             '#u5"'?*|'#u8"'?*)
                 echo "NOTE: $DEED :repo-uuid is the legacy literal $RAW_UUID; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1, V1)." ;;
             *) MISSING="$MISSING $DEED:repo-uuid" ;;
