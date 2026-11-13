@@ -109,6 +109,29 @@ deed "$tmp/spent.deed" 2.1.5 "$A" "$B" ':proposed-by "hyperpolymath/standards#14
 expect 0 "released: a spent :proposed-by still passes" bash "$check" released "$tmp/spent.deed" "$tmp/released.lock"
 grep -q 'is spent' "$tmp/out" || { echo "FAIL: spent notice missing"; exit 1; }
 
+# Release sequence: minted while the template pinned 2.1.4 via a proposal that
+# released 2.1.4. While 2.1.4 is current it passes; once 2.1.5 releases, the
+# instance defers its proposal to the PR state (rc 3 with LAGS_BEHIND), and only a
+# MERGED proposal makes it pass with a notice; closed unmerged fails.
+lock "$tmp/r214.lock" 2.1.4 "$A" "$C"
+deed "$tmp/minted.deed" 2.1.4 "$A" "$C" ':proposed-by "metadatastician/standards#1440"'
+expect 0 "instance: a spent proposal passes while its release is current" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" released "$tmp/minted.deed" "$tmp/r214.lock"
+expect 3 "spine: the same older pin with a proposal is deferred, with no LAGS_BEHIND" env GITHUB_REPOSITORY_ID=$SPINE bash "$check" released "$tmp/minted.deed" "$tmp/released.lock"
+if grep -q LAGS_BEHIND "$tmp/out"; then echo "FAIL: spine got a lag marker"; exit 1; fi
+# An unreleased proposal (pin ahead of the release) is still validated in an instance.
+expect 3 "instance: an unreleased proposal is still checked" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" released "$tmp/ahead.deed" "$tmp/released.lock"
+grep -qx 'PROPOSED_BY=metadatastician/standards#1440' "$tmp/out" || { echo "FAIL: PROPOSED_BY missing for unreleased proposal"; exit 1; }
+
+# An older instance pin with a proposal is spent only when that proposal MERGED:
+# released mode defers (3) with LAGS_BEHIND, pending decides on the PR state.
+expect 3 "instance: an older pin with a proposal defers to the PR state" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" released "$tmp/minted.deed" "$tmp/released.lock"
+grep -qx "LAGS_BEHIND=2.1.5" "$tmp/out" || { echo "FAIL: LAGS_BEHIND missing"; exit 1; }
+expect 0 "instance: an older pin whose proposal merged passes" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" pending "$tmp/minted.deed" "$tmp/r214.lock" merged 2.1.5
+grep -q "merged and released canon 2.1.4" "$tmp/out" || { echo "FAIL: spent notice missing"; exit 1; }
+expect 1 "instance: an older pin whose proposal closed unmerged fails" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" pending "$tmp/minted.deed" "$tmp/r214.lock" closed 2.1.5
+expect 1 "instance: an older pin whose merged proposal lock differs fails" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" pending "$tmp/minted.deed" "$tmp/released.lock" merged 2.1.5
+expect 1 "spine: a merged proposal is not accepted as spent" env GITHUB_REPOSITORY_ID=$SPINE bash "$check" pending "$tmp/minted.deed" "$tmp/r214.lock" merged 2.1.5
+
 deed "$tmp/badref.deed" 2.1.6 "$A" "$C" ':proposed-by "someone/else#12"'
 expect 2 "a :proposed-by outside the canon repo is malformed" bash "$check" released "$tmp/badref.deed" "$tmp/released.lock"
 

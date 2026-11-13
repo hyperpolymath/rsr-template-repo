@@ -462,7 +462,7 @@ jobs:
           OUT="$RUNNER_TEMP/released.md"
           rc=0
           bash scripts/canon-pin-check.sh released "$DEED" "$LOCK" > "$OUT" || rc=$?
-          { echo "## Canon lockstep"; echo ""; grep -v '^PROPOSED_BY=' "$OUT" || true; echo ""; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "## Canon lockstep"; echo ""; grep -vE '^(PROPOSED_BY|LAGS_BEHIND)=' "$OUT" || true; echo ""; } >> "$GITHUB_STEP_SUMMARY"
           cat "$OUT"
           case "$rc" in
             0) echo ":white_check_mark: This template implements the released canon." >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
@@ -472,6 +472,7 @@ jobs:
           esac
           # Two-phase: the pin names an unreleased canon PR. Check that PR.
           ref="$(sed -n 's/^PROPOSED_BY=//p' "$OUT")"
+          lags="$(sed -n 's/^LAGS_BEHIND=//p' "$OUT")"
           num="${ref##*#}"
           PR_JSON="$RUNNER_TEMP/pr.json"
           if ! gh api "repos/${CANON_REPO}/pulls/${num}" > "$PR_JSON"; then
@@ -493,7 +494,7 @@ jobs:
           fi
           POUT="$RUNNER_TEMP/pending.md"
           prc=0
-          bash scripts/canon-pin-check.sh pending "$DEED" "$PLOCK" "$state" > "$POUT" || prc=$?
+          bash scripts/canon-pin-check.sh pending "$DEED" "$PLOCK" "$state" ${lags:+"$lags"} > "$POUT" || prc=$?
           { echo "### Adopted ahead of release: ${ref} (${state}, head ${head:0:7})"; echo ""; cat "$POUT"; echo ""; } >> "$GITHUB_STEP_SUMMARY"
           cat "$POUT"
           if [ "$prc" = 0 ]; then
