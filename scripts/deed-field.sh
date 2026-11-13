@@ -16,7 +16,8 @@
 #   deed-field.sh --clause DEED PATH      the clause, one token per line (for hashing)
 #   deed-field.sh --has DEED PATH         exit 0 iff the clause exists
 #   deed-field.sh --find [DIR]            print the one *_chora.deed in DIR (default .)
-#   deed-field.sh --uuid DEED             the repo uuid, derived from :repo-uuid
+#   deed-field.sh --uuid DEED             the repo uuid: the body of :repo-uuid #uuid"…" as
+#                                         written (legacy #u5 / #u8 forms are derived)
 #   deed-field.sh --typed DEED PATH KEY   like the first form, but a tagged literal keeps its
 #                                         tag and quotes: #u5"github.com/o/r" (a plain value
 #                                         prints as it does without --typed)
@@ -33,10 +34,15 @@
 # literal prints its string: `:repo-uuid #u5"github.com/o/r"` gives
 # github.com/o/r, the uuid5 name (uuidgen --sha1 --namespace @url --name …).
 #
-# --uuid derives the uuid5 (RFC 9562, URL namespace) of the header :repo-uuid
-# name. It uses uuidgen when that supports --sha1, else scripts/uuid5-url.sh
-# (sha1sum, shasum or openssl), else bun, and exits 2 when none is available
-# or the result is not uuid-shaped: it never guesses.
+# --uuid prints the repo id. The chora id is minted once and carried opaquely
+# as `:repo-uuid #uuid"<v8 id of the birth path>"` (standards A1 V8, A7 J11), so
+# for that form it prints the body as written and NEVER re-derives it: a
+# transfer or rename does not change the id (ruling U1). Legacy literals are
+# still read, with a note on stderr: #u5"NAME" gives the uuid5 (RFC 9562, URL
+# namespace) of NAME, through uuidgen with --sha1, else scripts/uuid5-url.sh,
+# else bun; #u8"DOMAIN:NAME" gives the profile C id through scripts/uuid-v8.sh.
+# It exits 2 when no tool is available or the result is not uuid-shaped: it
+# never guesses.
 #
 # Exit: 0 found; 1 clause or key absent (nothing printed); 2 usage error or no
 # readable deed. --find exits 1 unless exactly one deed is present.
@@ -188,10 +194,24 @@ uuid5_url() {
 }
 
 if [ "$mode" = uuid ]; then
-  name="$(read_deed value)" || exit $?
-  id="$(uuid5_url "$name")" || exit 2
-  [[ "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
-    || { echo "deed-field.sh: derived uuid is not uuid5-shaped: '$id'" >&2; exit 2; }
+  lit="$(read_deed typed)" || exit $?
+  re_uuid='^[0-9a-f]{8}-[0-9a-f]{4}-[58][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  case "$lit" in
+    '#uuid"'*'"')
+      # The chora id, minted once: print it as written, never re-derive it.
+      id="${lit#\#uuid\"}"; id="${id%\"}" ;;
+    '#u5"'*'"')
+      name="${lit#\#u5\"}"; name="${name%\"}"
+      echo "deed-field.sh: :repo-uuid is the legacy #u5 literal; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1 V8)" >&2
+      id="$(uuid5_url "$name")" || exit 2 ;;
+    '#u8"'*:*'"')
+      body="${lit#\#u8\"}"; body="${body%\"}"
+      echo "deed-field.sh: :repo-uuid is the legacy #u8 literal; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1 V8)" >&2
+      id="$(bash "$(dirname "${BASH_SOURCE[0]}")/uuid-v8.sh" "${body%%:*}" "${body#*:}")" || exit 2 ;;
+    *) echo "deed-field.sh: :repo-uuid is not a #uuid, #u5 or #u8 literal: '$lit'" >&2; exit 2 ;;
+  esac
+  [[ "$id" =~ $re_uuid ]] \
+    || { echo "deed-field.sh: :repo-uuid is not a lowercase v5 or v8 uuid: '$id'" >&2; exit 2; }
   printf '%s\n' "$id"
   exit 0
 fi

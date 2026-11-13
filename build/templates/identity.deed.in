@@ -5,13 +5,12 @@
   ; 1-formats/deed/mappings/clade-to-repo-deed.adoc and
   ; meta-ecosystem-to-repo-deed.adoc.
   ;
-  ; THE UUID IS DERIVED, NOT ALLOCATED, NOT INVENTED. It is not stored: it is
-  ;     uuid5(namespace = URL, name = the header :repo-uuid string)
-  ; and anyone can recompute it (gv-clade-index:
-  ; docs/SPEC-clade-verisim-portal.adoc §Identity Model):
-  ;     uuidgen --sha1 --namespace @url --name "{{FORGE}}/{{OWNER}}/{{REPO}}"
-  ; The owner is part of the name, so part of the identity: record the owner
-  ; that is true today, and re-derive if the repo ever moves.
+  ; THE ID IS MINTED ONCE, NOT INVENTED. The header :repo-uuid is this repo's
+  ; chora id: the ADR-008 profile C UUIDv8 of its birth path in the domain
+  ; gv-clade-index (standards A1 rules U1 to U4 and V8, A7 J11):
+  ;     bash scripts/uuid-v8.sh gv-clade-index "{{FORGE}}/{{OWNER}}/{{REPO}}"
+  ; repo-init wrote it at mint. It is carried opaquely and never re-derived:
+  ; a transfer or rename does not change it. Do not edit it.
   ;
   ; IDENTITY IS THE CHORA, NOT THE CLADE (standards A1, ruling R4). The
   ; deed header's :repo-uuid is the repo's id. A clade is an OPTIONAL outward finding

@@ -407,24 +407,20 @@ repo-init archetype="":
     CURRENT_YEAR="${CURRENT_DATE:0:4}"
     VERSION="0.1.0"
 
-    # --- Derive the repo's uuid --------------------------------------------
-    # THE UUID IS DERIVED, NOT ALLOCATED (gv-clade-index:
-    # docs/SPEC-clade-verisim-portal.adoc §Identity Model):
-    #     uuid = UUIDv5(namespace = URL, name = "github.com/<owner>/<name>")
-    # We know OWNER and REPO, so this is computable here and must never be
-    # guessed or copied. The owner segment is part of the derived name, so it is
-    # part of the identity — a repo hosted elsewhere derives a different uuid.
-    # Derived here, the same way on every machine: it was UNASSIGNED without
-    # uuidgen, so a mint's bytes depended on the machine and the drift gate's
-    # replay (which has uuidgen) reported an unchanged child as drift (Codex
-    # review of #275); and macOS's uuidgen has no --sha1 at all. RFC 9562
-    # §5.5: SHA-1 over the URL namespace's 16 bytes then the name, truncated
-    # to 16 bytes, version 5 and the RFC variant set. It equals
-    # `uuidgen --sha1 --namespace @url --name …` (scripts/uuid5-url.sh, tested by
-    # tests/workflows/uuid5_url_test.sh).
-    REPO_UUID="$(bash scripts/uuid5-url.sh "${FORGE}/${OWNER}/${REPO}")" || {
-        echo "Error: the repo uuid is derived (UUIDv5), and this machine has none of"
-        echo "       sha1sum, shasum or openssl to derive it with."
+    # --- Mint the repo's chora id ----------------------------------------
+    # The chora id is minted ONCE, here, from the repo's birth path, and is
+    # carried opaquely as :repo-uuid #uuid"<id>" (standards A1 rules U1 to U4
+    # and V8, A7 J11). It is the ADR-008 profile C UUIDv8 of the birth path in
+    # the domain gv-clade-index:
+    #     first 16 bytes of SHA-256("gv-clade-index:<forge>/<owner>/<name>"),
+    #     version 8, variant 10
+    # (scripts/uuid-v8.sh, equal to standards scripts/uuid-v8.js c, tested by
+    # tests/workflows/uuid_v8_test.sh). It is computed the same way on every
+    # machine, so the drift gate's replay agrees with the mint. Nothing
+    # re-derives it later: a transfer or rename never changes it (U1).
+    REPO_UUID="$(bash scripts/uuid-v8.sh gv-clade-index "${FORGE}/${OWNER}/${REPO}")" || {
+        echo "Error: the repo id is minted as a UUIDv8 (SHA-256), and this machine"
+        echo "       has none of sha256sum, shasum or openssl to mint it with."
         exit 1
     }
 
@@ -1009,7 +1005,7 @@ repo-init archetype="":
             PACKAGE_UUID=UNASSIGNED
         fi
         SED_ARGS+=(-e "s|${LB}PACKAGE_UUID${RB}|${PACKAGE_UUID}|g")
-        echo "  package uuid: ${PACKAGE_UUID} (derived from repo uuid ${REPO_UUID})"
+        echo "  package uuid: ${PACKAGE_UUID} (minted from the birth path, beside chora id ${REPO_UUID})"
     fi
 
     # Optional values with no answer: drop the line that depends on them rather
@@ -1280,22 +1276,17 @@ repo-init archetype="":
         ' "$DEED" > "$DEED.splice"
         cat "$DEED.splice" > "$DEED"     # keeps the file's mode
         rm -f "$DEED.splice"
-        # The uuid5 name. The self-name pass already rewrote owner and slug in
-        # it; the forge domain is set here, because nothing else knows it.
-        sed -i -E 's|^(  :repo-uuid #u5")[^"]*"|\1'"${FORGE}/${OWNER}/${REPO}"'"|' "$DEED"
+        # The chora id, minted above from the birth path and written once as an
+        # opaque #uuid literal. It replaces the template's own id (whatever its
+        # literal form) so a child never carries the template's identity.
+        sed -i -E 's,^(  :repo-uuid )#(uuid|u5|u8)"[^"]*",\1#uuid"'"${REPO_UUID}"'",' "$DEED"
         # The template's journal is not the child's: install the stub.
         mkdir -p docs/status
         cp build/templates/ROADMAP.adoc.in docs/status/ROADMAP.adoc
         rm -rf build/templates          # template-only; not part of your repo
-        if [ "$REPO_UUID" = "UNASSIGNED" ]; then
-            echo "  uuid:  UNASSIGNED — uuidgen not found."
-            echo "         Install util-linux (uuid-runtime), then check it with:"
-            echo "           uuidgen --sha1 --namespace @url --name \"${FORGE}/${OWNER}/${REPO}\""
-        else
-            echo "  uuid:  $REPO_UUID"
-            echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived from the deed's"
-            echo "          :repo-uuid name, recomputable, not stored, not invented)"
-        fi
+        echo "  uuid:  $REPO_UUID"
+        echo "         (the chora id: UUIDv8 of the birth path ${FORGE}/${OWNER}/${REPO},"
+        echo "          minted once and written to :repo-uuid; a rename never changes it)"
         echo "  clade: none written. Identity is the chora id above; a clade is an"
         echo "         optional finding aid. The 12 are listed in the identity comment"
         echo "         of $DEED; validate-rsr checks one only if you declare it."
