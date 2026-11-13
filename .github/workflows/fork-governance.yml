@@ -20,8 +20,8 @@
 #        .github/workflows/static-analysis-gate.yml -> artifact `static-analysis-findings`
 #                                                     (panic-attack and pons status
 #                                                      envelopes, patch bridge, unified)
-#      A producer states its own gate. Hypatia gates on critical; panic-attack
-#      gates on critical; pons is advisory. No other workflow repeats those
+#      A producer states its own gate. Hypatia gates on critical; pons gates on
+#      ERROR; panic-attack is advisory. No other workflow repeats those
 #      decisions: this file never fails on a finding, so a pull request cannot be
 #      blocked twice for one finding, and no gate is suppressed here either —
 #      the producer's own check still goes red.
@@ -488,7 +488,7 @@ jobs:
             echo ""
             echo "The grid itself is in the \`verdict-grid\` artifact and, on a pull request, in the"
             echo "comment maintained by verdict-grid-publish.yml. A grid state of red or purple is reporting: Hypatia"
-            echo "and panic-attack gate on critical in their own workflows."
+            echo "gates on critical and pons on ERROR in their own workflows; panic-attack is advisory."
           } >> "$GITHUB_STEP_SUMMARY"
           failed=""
           [ "$DEED_RESULT" = "success" ] || failed="${failed} deed=${DEED_RESULT}"
