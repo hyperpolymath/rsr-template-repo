@@ -213,7 +213,7 @@ rm -f "$M/mise.toml"
 expect_fail "mise gate fails when mise.toml is missing" mise --root "$M" --langs julia --tools "julia just"
 
 # The template's own toolchain must match its own languages.
-if [ -f "$REPO_DIR/rsr-template-repo_chora.deed" ]; then
+if bash "$REPO_DIR/scripts/is-template-tree.sh" "$REPO_DIR"; then
     expect_pass "mise gate passes on the template tree" mise --root "$REPO_DIR"
 else
     echo "  SKIP  mise gate on the template tree (not the template tree)"
@@ -270,7 +270,7 @@ else bad "mise gate (--detect mirror) ignores a vendored Project.toml"; fi
 echo ""
 echo "── Mint tokens ────────────────────────────────────────────"
 
-if [ -f "$REPO_DIR/rsr-template-repo_chora.deed" ]; then
+if bash "$REPO_DIR/scripts/is-template-tree.sh" "$REPO_DIR"; then
 expect_pass "token gate passes on the template" \
     bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$REPO_DIR"
 else
