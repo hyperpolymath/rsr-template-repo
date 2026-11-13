@@ -109,6 +109,20 @@ deed "$tmp/spent.deed" 2.1.5 "$A" "$B" ':proposed-by "hyperpolymath/standards#14
 expect 0 "released: a spent :proposed-by still passes" bash "$check" released "$tmp/spent.deed" "$tmp/released.lock"
 grep -q 'is spent' "$tmp/out" || { echo "FAIL: spent notice missing"; exit 1; }
 
+# Release sequence: minted while the template pinned 2.1.4 via a proposal that
+# released 2.1.4. While 2.1.4 is current it passes; once 2.1.5 releases, the
+# instance still passes (lag notice) and never reaches the canon PR (rc 0, not 3).
+lock "$tmp/r214.lock" 2.1.4 "$A" "$C"
+deed "$tmp/minted.deed" 2.1.4 "$A" "$C" ':proposed-by "metadatastician/standards#1440"'
+expect 0 "instance: a spent proposal passes while its release is current" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" released "$tmp/minted.deed" "$tmp/r214.lock"
+expect 0 "instance: a spent proposal passes once a newer canon releases" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" released "$tmp/minted.deed" "$tmp/released.lock"
+grep -q '::notice::this repo was cut from canon 2.1.4; canon 2.1.5 is released' "$tmp/out" || { echo "FAIL: lag notice missing for spent proposal"; exit 1; }
+if grep -q PROPOSED_BY "$tmp/out"; then echo "FAIL: spent proposal sent to pending check"; exit 1; fi
+expect 3 "spine: the same older pin with a proposal is still deferred to the PR" env GITHUB_REPOSITORY_ID=$SPINE bash "$check" released "$tmp/minted.deed" "$tmp/released.lock"
+# An unreleased proposal (pin ahead of the release) is still validated in an instance.
+expect 3 "instance: an unreleased proposal is still checked" env GITHUB_REPOSITORY_ID=$OTHER bash "$check" released "$tmp/ahead.deed" "$tmp/released.lock"
+grep -qx 'PROPOSED_BY=metadatastician/standards#1440' "$tmp/out" || { echo "FAIL: PROPOSED_BY missing for unreleased proposal"; exit 1; }
+
 deed "$tmp/badref.deed" 2.1.6 "$A" "$C" ':proposed-by "someone/else#12"'
 expect 2 "a :proposed-by outside the canon repo is malformed" bash "$check" released "$tmp/badref.deed" "$tmp/released.lock"
 

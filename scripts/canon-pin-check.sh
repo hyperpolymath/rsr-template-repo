@@ -37,6 +37,8 @@
 #   canon-pin-check.sh released <deed> <canon.lock>
 #       0  the pin equals canon.lock (a spent :proposed-by gives a notice),
 #          or, outside the spine, the pin names an older canon version
+#          (even when the clause still carries a :proposed-by: that proposal
+#          released with the older version, so it is spent)
 #       3  the pin differs and the clause names a canon PR: the caller must
 #          check that PR; stdout ends with the line  PROPOSED_BY=<owner/repo#N>
 #       1  the pin differs and names no canon PR (in an instance: the pin
@@ -150,18 +152,24 @@ case "$MODE" in
       fi
       exit 0
     fi
-    if [ -n "$PROPOSED" ]; then
-      echo
-      echo "PROPOSED_BY=${PROPOSED}"
-      exit 3
-    fi
     pinned="$(deed_canon version "$DEED")"
     released="$(canon_key version "$LOCK")"
+    # An instance keeps the template's clause as provenance, :proposed-by included.
+    # A pin OLDER than the released canon names a version that has already
+    # released, so its proposal is spent: the lag notice applies before the
+    # canon PR is consulted. An unreleased proposal (the pin is the released
+    # version with other hashes, or later) is still checked, and the spine
+    # stays strict.
     if [ -n "${GITHUB_REPOSITORY_ID:-}" ] && [ "$GITHUB_REPOSITORY_ID" != "$SPINE_REPOSITORY_ID" ] \
        && version_lt "$pinned" "$released"; then
       echo
       echo "::notice::this repo was cut from canon ${pinned}; canon ${released} is released. The pin is provenance, so this is not a failure; re-pin the (canon …) clause to adopt ${released}."
       exit 0
+    fi
+    if [ -n "$PROPOSED" ]; then
+      echo
+      echo "PROPOSED_BY=${PROPOSED}"
+      exit 3
     fi
     exit 1
     ;;
