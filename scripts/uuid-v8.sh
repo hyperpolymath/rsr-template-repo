@@ -5,7 +5,8 @@
 # the same on every machine and equal to standards `scripts/uuid-v8.js c`:
 # the first 16 bytes of SHA-256(DOMAIN ":" NAME), the version nibble set to 8
 # and the variant to 10xx. A repo's chora id is the profile C id of its birth
-# path in the domain gv-clade-index (standards A1 rule V8, A7 J11).
+# path in the domain chora-registry (standards A1 rules V8 and V9, A7 J11); an
+# id minted before V9 keeps its gv-clade-index id and is never reminted.
 # SHA-256 comes from sha256sum, shasum or openssl, whichever is installed first.
 #
 # Exit: 0 printed; 2 usage, a DOMAIN that is empty or holds ":", or no
