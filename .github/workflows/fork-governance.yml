@@ -4,9 +4,7 @@
 #
 # fork-governance.yml — PR-time entry point for DEED syntax, K9-DEED L0–L2
 # conformance, the gitbot-fleet report-backs, and THE Hypatia verdict grid.
-# Pinned to metadatastician/standards@e064539116c2dcfdf282a4749dbd58c69961c7e6, except the verdict-grid renderer
-# (f0b3cd4c464d33e1584f8528c17bce104555e256). The deed and K9 lanes are HELD on the older pin: the newer
-# validators enforce a 998-octet line limit that rsr-template-repo_chora.deed and intend.k9.ncl exceed.
+# Pinned to metadatastician/standards@f0b3cd4c464d33e1584f8528c17bce104555e256 throughout (DEED and K9 lanes and the verdict-grid renderer).
 #
 # ── HOW THIS FILE RELATES TO THE SCANNERS (read before editing) ──────────────
 #
@@ -22,8 +20,8 @@
 #        .github/workflows/static-analysis-gate.yml -> artifact `static-analysis-findings`
 #                                                     (panic-attack and pons status
 #                                                      envelopes, patch bridge, unified)
-#      A producer states its own gate. Hypatia gates on critical; panic-attack
-#      gates on critical; pons is advisory. No other workflow repeats those
+#      A producer states its own gate. Hypatia gates on critical; pons gates on
+#      ERROR; panic-attack is advisory. No other workflow repeats those
 #      decisions: this file never fails on a finding, so a pull request cannot be
 #      blocked twice for one finding, and no gate is suppressed here either —
 #      the producer's own check still goes red.
@@ -92,7 +90,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-deed
           sparse-checkout: |
             1-formats/deed
@@ -156,7 +154,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-k9
           sparse-checkout: 1-formats/k9
           sparse-checkout-cone-mode: true
@@ -490,7 +488,7 @@ jobs:
             echo ""
             echo "The grid itself is in the \`verdict-grid\` artifact and, on a pull request, in the"
             echo "comment maintained by verdict-grid-publish.yml. A grid state of red or purple is reporting: Hypatia"
-            echo "and panic-attack gate on critical in their own workflows."
+            echo "gates on critical and pons on ERROR in their own workflows; panic-attack is advisory."
           } >> "$GITHUB_STEP_SUMMARY"
           failed=""
           [ "$DEED_RESULT" = "success" ] || failed="${failed} deed=${DEED_RESULT}"
