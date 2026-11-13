@@ -37,13 +37,17 @@
 #   canon-pin-check.sh released <deed> <canon.lock>
 #       0  the pin equals canon.lock (a spent :proposed-by gives a notice),
 #          or, outside the spine, the pin names an older canon version
+#          (an older instance pin with :proposed-by also gives 3, plus a
+#          LAGS_BEHIND=<released> line: only a MERGED proposal makes it spent)
 #       3  the pin differs and the clause names a canon PR: the caller must
-#          check that PR; stdout ends with the line  PROPOSED_BY=<owner/repo#N>
+#          check that PR; stdout carries the line  PROPOSED_BY=<owner/repo#N>
 #       1  the pin differs and names no canon PR (in an instance: the pin
 #          names the released version or a later one, with other hashes)
 #       2  malformed input (no single clause, a pin of the wrong shape, a
 #          malformed :proposed-by, an unreadable lock)
-#   canon-pin-check.sh pending <deed> <canon.lock-at-PR-head> <pr-state>
+#   canon-pin-check.sh pending <deed> <canon.lock-at-PR-head> <pr-state> [<released>]
+#       (also 0 when <pr-state> is "merged", the pin equals that lock, and an
+#       instance pin is older than <released>: the proposal is spent)
 #       0  <pr-state> is "open" and the pin equals that lock
 #       1  otherwise
 #       2  malformed input
@@ -150,26 +154,51 @@ case "$MODE" in
       fi
       exit 0
     fi
+    pinned="$(deed_canon version "$DEED")"
+    released="$(canon_key version "$LOCK")"
+    # An instance keeps the template's clause as provenance, :proposed-by included.
+    # A pin OLDER than the released canon passes with the lag notice, but only
+    # if it carries no :proposed-by, or that proposal is shown to be spent:
+    # being older does not prove the proposal merged (it may have closed
+    # unmerged at a version that never released). The script has no release
+    # history, so it defers to the PR-state lookup (exit 3), marking the lag
+    # with LAGS_BEHIND=<released> so `pending` can accept a MERGED proposal.
+    # An unreleased proposal (pin equals the release with other hashes, or is
+    # later) is checked exactly as before, and the spine stays strict.
+    if [ -n "${GITHUB_REPOSITORY_ID:-}" ] && [ "$GITHUB_REPOSITORY_ID" != "$SPINE_REPOSITORY_ID" ] \
+       && version_lt "$pinned" "$released"; then
+      if [ -z "$PROPOSED" ]; then
+        echo
+        echo "::notice::this repo was cut from canon ${pinned}; canon ${released} is released. The pin is provenance, so this is not a failure; re-pin the (canon …) clause to adopt ${released}."
+        exit 0
+      fi
+      echo
+      echo "PROPOSED_BY=${PROPOSED}"
+      echo "LAGS_BEHIND=${released}"
+      exit 3
+    fi
     if [ -n "$PROPOSED" ]; then
       echo
       echo "PROPOSED_BY=${PROPOSED}"
       exit 3
     fi
-    pinned="$(deed_canon version "$DEED")"
-    released="$(canon_key version "$LOCK")"
-    if [ -n "${GITHUB_REPOSITORY_ID:-}" ] && [ "$GITHUB_REPOSITORY_ID" != "$SPINE_REPOSITORY_ID" ] \
-       && version_lt "$pinned" "$released"; then
-      echo
-      echo "::notice::this repo was cut from canon ${pinned}; canon ${released} is released. The pin is provenance, so this is not a failure; re-pin the (canon …) clause to adopt ${released}."
-      exit 0
-    fi
     exit 1
     ;;
   pending)
-    [ "$#" -eq 4 ] || usage
+    [ "$#" -ge 4 ] && [ "$#" -le 5 ] || usage
+    RELEASED_NOW="${5:-}"
     STATE="$4"
     [ -n "$PROPOSED" ] || { echo "::error::pending mode needs a :proposed-by in the clause" >&2; exit 2; }
     compare "$DEED" "$LOCK" "canon.lock at ${PROPOSED}"
+    # A merged proposal is spent only for an instance whose pin lags the release
+    # (RELEASED_NOW, from LAGS_BEHIND) and equals the lock at the proposal's head.
+    if [ "$STATE" = "merged" ] && [ "$SAME" = 1 ] && [ -n "$RELEASED_NOW" ] \
+       && [ -n "${GITHUB_REPOSITORY_ID:-}" ] && [ "$GITHUB_REPOSITORY_ID" != "$SPINE_REPOSITORY_ID" ] \
+       && version_lt "$(deed_canon version "$DEED")" "$RELEASED_NOW"; then
+      echo
+      echo "::notice::${PROPOSED} merged and released canon $(deed_canon version "$DEED"); canon ${RELEASED_NOW} is released since. The pin is provenance, so this is not a failure; re-pin the (canon …) clause and drop :proposed-by."
+      exit 0
+    fi
     if [ "$STATE" != "open" ]; then
       echo
       echo "::error::${PROPOSED} is ${STATE}, so the canon this deed pins was never released; re-adopt the released canon.lock or the canon PR that supersedes it"
