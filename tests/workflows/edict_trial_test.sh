@@ -12,6 +12,12 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The trial runs against this template's own deed, so it only means something in
+# the template tree. A repo minted from the template has its own deed: skip there.
+if ! bash "$repo_root/scripts/is-template-tree.sh" "$repo_root"; then
+  echo "SKIP: edict trial (not the template tree; is-template-tree.sh says no)"
+  exit 0
+fi
 work="$(mktemp -d)"
 cleanup() {
   case "$work" in
