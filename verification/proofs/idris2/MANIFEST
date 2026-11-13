@@ -5,6 +5,7 @@
 # rechecked 2026-11-09 with idris2 0.7.0 built from the v0.7.0 tag (Chez 9.5.8).
 verification/proofs/idris2|ABI/Foreign.idr|gated| the one shipped Idris2 module that compiles — real content, not a stub
 verification/proofs/idris2|Types.idr|gated| compiles under idris2 0.7.0 (imports Data.Nat); promoted 2026-11-09 when check-proofs.sh reported an unexpected pass
+.machine_readable/coaptation/core|Coaptation.idr|gated| coaptation Must/Trust gate: hardGateSound, hardGateComplete, mustCannotGap, trustCannotGap
 verification/proofs/idris2|ABI/Layout.idr|quarantine| Undefined name NonZero (needs Data.Nat); then a genuine unification failure (S ?x vs f .fieldAlignment)
 verification/proofs/idris2|ABI/Platform.idr|quarantine| Undefined name LTE (needs Data.Nat); then Undefined name lteRefl
 verification/proofs/idris2|ABI/Pointers.idr|quarantine| .nonNull declared at quantity 0 (erased) yet projected into a value position, plus a unification failure — design decision, not a typo

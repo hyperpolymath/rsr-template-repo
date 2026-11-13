@@ -99,6 +99,7 @@ ARCHETYPE="$(deed archetype "")"
 # estate ABI/FFI pattern nests deeper: Idris2 to two levels down (src/abi/*.ipkg),
 # Zig to three (ffi/zig/build.zig, and rsr-template-repo's src/interface/ffi/build.zig:
 # 74 repos have their only build.zig at that depth, measured 2026-09-30).
+# Julia to three (src/julia/Project.toml: occupancy-types keeps its package there).
 # Order matters only for display. `docs` is reported when nothing else is.
 # Print the first path matching glob $1 within find depth $2 (default 2),
 # excluding .git, node_modules and root target contents; no match prints nothing.
@@ -108,7 +109,7 @@ detect_langs() {
   local out=()
   [ -n "$(first Cargo.toml)" ]          && out+=(rust)
   [ -n "$(first '*.ipkg' 3)" ]          && out+=(idris2)
-  [ -n "$(first Project.toml 1)" ]      && out+=(julia)
+  [ -n "$(first Project.toml 3)" ]      && out+=(julia)
   [ -n "$(first build.zig 4)" ]         && out+=(zig)
   [ -n "$(first mix.exs)" ]             && out+=(elixir)
   [ -n "$(first gleam.toml)" ]          && out+=(gleam)
@@ -680,7 +681,7 @@ cmd_heal() {
     [ -f mise.lock ] || { $T mise lock 2>/dev/null && info "mise.lock generated"; }
   fi
   if printf '%s\n' "${LANGS[@]}" | grep -qx elixir && have mix; then mix deps.get >/dev/null 2>&1 && info "mix deps fetched"; fi
-  if printf '%s\n' "${LANGS[@]}" | grep -qx bun && have bun; then bun install >/dev/null 2>&1 && info "bun deps installed"; fi
+  if printf '%s\n' "${LANGS[@]}" | grep -qx bun && have bun; then bun install --ignore-scripts >/dev/null 2>&1 && info "bun deps installed"; fi
   if printf '%s\n' "${LANGS[@]}" | grep -qx julia && have julia; then julia --project=. -e 'using Pkg; Pkg.instantiate()' >/dev/null 2>&1 && info "julia deps instantiated"; fi
   local hook=build/just/heal-local.sh
   [ -f "$hook" ] && { info "running $hook"; bash "$hook" || true; }

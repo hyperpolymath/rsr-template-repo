@@ -198,6 +198,16 @@ repo-init archetype="":
             exit 1
         fi
     fi
+
+    # ── Are the tools the mint needs LATER present? ─────────────────────────
+    # The mint writes the tree first and reaches a KYAML-capable yq
+    # (format-container-kyaml.sh) and nickel (the arrival pack) afterwards; a
+    # missing one used to stop it after 100+ files were rewritten. Every mint
+    # kind (plain, archetype, chain) reaches both steps, so none is exempt;
+    # the script demands a tool only when its step can run (see its header).
+    [ -f scripts/check-mint-tools.sh ] \
+        || { echo "Error: scripts/check-mint-tools.sh is missing; the mint cannot check its tools."; exit 1; }
+    bash scripts/check-mint-tools.sh . || exit 1
     mint_files() {
         git ls-files -z --cached --others --exclude-standard \
             | while IFS= read -r -d '' _f; do
@@ -1219,6 +1229,13 @@ repo-init archetype="":
         # The same declaration forms the identity parser accepts: optional
         # `export`, either quote (Codex review of #274).
         sed -i -E "$SELF_OWNER_SED" Justfile sonar-project.properties
+        # The deed's document ids hold the repo slug (ADR-008 profile C, domain
+        # repo-document). The self-name pass rewrites it, but only when the repo name
+        # changes; a mint under the SAME name and a different owner skips that pass
+        # and would keep the template's owner in its ids. Followed here, narrowly.
+        if [ -f "${REPO}_chora.deed" ]; then
+            sed -i -E "s|(repo-document:github\\.com/)${TEMPLATE_OWNER//./\\.}/|\\1$(sed_rhs "${OWNER}")/|g" "${REPO}_chora.deed"
+        fi
         echo "  self-owner: rewrote ${TEMPLATE_OWNER} -> ${OWNER} (estate dependency paths preserved)"
         echo "  NOTE: confirm the SonarCloud ORG is really '${OWNER}' before provisioning —"
         echo "        the GitHub owner and the SonarCloud org are not always the same."
@@ -1244,7 +1261,7 @@ repo-init archetype="":
     # description stays UNASSIGNED for the author.
     # The split is the whole point:
     #   DERIVABLE -> computed, never guessed  (uuid name, owner, canonical-name)
-    #   JUDGEMENT -> left UNASSIGNED, fails loudly until a human chooses (clade)
+    #   JUDGEMENT -> left to the author; the clade is an optional finding aid, never written here
     ID_IN="build/templates/identity.deed.in"
     # Whatever one deed is present (renamed for the child above, or already
     # named for it): never a hardcoded template file name.
@@ -1279,10 +1296,9 @@ repo-init archetype="":
             echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived from the deed's"
             echo "          :repo-uuid name, recomputable, not stored, not invented)"
         fi
-        echo "  clade: UNASSIGNED — a human must choose one of the 12."
-        echo "         just validate-rsr FAILS until you do. That is deliberate:"
-        echo "         an unchosen clade must not look like a chosen one."
-        echo "         The taxonomy is listed in the (clade …) comment of $DEED."
+        echo "  clade: none written. Identity is the chora id above; a clade is an"
+        echo "         optional finding aid. The 12 are listed in the identity comment"
+        echo "         of $DEED; validate-rsr checks one only if you declare it."
     fi
 
     echo "── Profile & provenance (ADR-0003) ──────────────"
@@ -1611,6 +1627,32 @@ repo-init archetype="":
                 echo "      mv src/PACKAGE.jl.in src/<PackageName>.jl"
             fi
         fi
+    fi
+
+    # ── Cargo.lock (rust-cli, or any overlay that ships a Cargo.toml) ───────
+    # The overlay ships Cargo.toml.in only. The minted rust-ci.yml runs clippy,
+    # check and test with --locked, which REFUSES to run without a Cargo.lock,
+    # so a fresh mint failed its own CI on the first push. A lock cannot be
+    # shipped as a template: it records the package name, which is the repo
+    # slug and only known now. It is therefore generated here from the
+    # substituted manifest. With no [dependencies] the resolution needs no
+    # network, so this works offline; a missing cargo is a hard error, not a
+    # skipped step (fail loudly: a repo minted without its lock is red in CI).
+    if [ -f Cargo.toml ] && [ ! -f Cargo.lock ]; then
+        echo ""
+        echo "── Cargo.lock ───────────────────────────────────"
+        if ! command -v cargo >/dev/null 2>&1; then
+            echo "ERROR: this mint ships a Cargo.toml, so it must also ship a Cargo.lock"
+            echo "       (the minted CI builds with --locked), and cargo is not on PATH."
+            echo "       Install a Rust toolchain (rustup) and re-run the mint."
+            exit 1
+        fi
+        cargo generate-lockfile || {
+            echo "ERROR: cargo generate-lockfile failed; the minted CI would fail on --locked."
+            exit 1
+        }
+        [ -f Cargo.lock ] || { echo "ERROR: cargo reported success but wrote no Cargo.lock."; exit 1; }
+        echo "  generated: Cargo.lock"
     fi
 
     # ── www/ site-operations bundle (issue #53, stage 5) ──────────────────

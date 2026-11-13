@@ -109,6 +109,25 @@
     (related :name "svalinn" :relationship verification-tooling :notes "Supply-chain verification referenced by the container scaffolding.")
     (related :name "vordr" :relationship verification-tooling :notes "Build/artifact verification referenced by the container scaffolding."))
   ; <<< repo-identity
+  ; Documents that other documents link to by identifier, not by path.
+  ; Template-level convention awaiting canonisation in metadatastician/standards
+  ; (the grammar admits any clause, so it parses today). A page that can move or
+  ; disappear (a file the mint tells you to delete, one a repo renames) is
+  ; cited by :id and :role; the id is stable, the :path is current. Readers who
+  ; find a page gone look here for where it went. Ids are ADR-008 profile C, in the
+  ; domain repo-document (registered in metadatastician/standards#1500), written
+  ; as #u8"repo-document:github.com/<owner>/<repo>#<role>". The name holds the
+  ; repo slug on purpose: the mint's self-name pass rewrites it, so a minted repo
+  ; gets its own id for the same role. Derive one with standards scripts/uuid-v8.js c.
+  ; scripts/check-internal-links.sh checks that every :path exists unless the
+  ; entry is :removed-at-mint #t, and that no tracked page links to a missing file.
+  (documents
+    (document
+      :id #u8"repo-document:github.com/hyperpolymath/rsr-template-repo#placeholders"
+      :role placeholders
+      :path ".machine_readable/ai/PLACEHOLDERS.adoc"
+      :removed-at-mint #t
+      :note "The placeholder-token vocabulary that just repo-init substitutes. Present in the template; repo-init tells you to delete it after the mint, so a minted repo has no such file."))
   ; Meta: mapping meta-ecosystem-to-repo-deed. A minted repo keeps this
   ; clause (self-name pass applied) and edits it as its own.
   (meta
@@ -200,7 +219,9 @@
         (directory :id "automation-unit-forge" :ply 3 :path ".machine_readable/scripts/forge" :description "Internal automation logic for project forge.")
         (directory :id "automation-unit-lifecycle" :ply 3 :path ".machine_readable/scripts/lifecycle" :description "Internal automation logic for project lifecycle.")
         (directory :id "automation-unit-verification" :ply 3 :path ".machine_readable/scripts/verification" :description "Internal automation logic for project verification.")))
-    (directory :id "container-templates" :ply 1 :path "build/container" :version "1.0.0" :description "Container templates for the stapeln container ecosystem. This directory\nprovides Podman-Chainguard-stapeln templates that are customised via\n`just container-init` or `just repo-init` during project bootstrap.\n\nAll files use {{PLACEHOLDER}} tokens that are substituted with project-\nspecific values during initialisation." :purpose "Provide a complete, security-first container deployment story for any\nRSR-compliant repository. The templates cover the full lifecycle:\nbuild, sign, verify, deploy, monitor, and govern." :overview "The stapeln container ecosystem comprises six tools:\n\nselur       — Container orchestration with zero-copy IPC. Reads compose.toml.\ncerro-torre — Verified container packaging (.ctp bundles), Ed25519 signing.\nsvalinn     — Policy-driven edge gateway (auth, rate limits, CORS, trust).\nvordr       — Runtime monitoring (health, crashes, resources, logs).\nrokur       — Secrets management (runtime injection, no baked secrets).\nk9-svc      — Nickel deployment components (Kennel/Yard/Hunt trust levels)."
+    (directory :id "container-templates" :ply 1 :path "build/container" :version "1.0.0" :description "Container templates for the stapeln container ecosystem. This directory\nprovides Podman-Chainguard-stapeln templates that are customised via\n`just container-init` or `just repo-init` during project bootstrap.\n\nAll files use {{PLACEHOLDER}} tokens that are substituted with project-\nspecific values during initialisation."
+      :purpose "Provide a complete, security-first container deployment story for any\nRSR-compliant repository. The templates cover the full lifecycle:\nbuild, sign, verify, deploy, monitor, and govern."
+      :overview "The stapeln container ecosystem comprises six tools:\n\nselur       — Container orchestration with zero-copy IPC. Reads compose.toml.\ncerro-torre — Verified container packaging (.ctp bundles), Ed25519 signing.\nsvalinn     — Policy-driven edge gateway (auth, rate limits, CORS, trust).\nvordr       — Runtime monitoring (health, crashes, resources, logs).\nrokur       — Secrets management (runtime injection, no baked secrets).\nk9-svc      — Nickel deployment components (Kennel/Yard/Hunt trust levels)."
       :context ("https://stapeln.dev/ns/v1")
       (canonical-locations :build_pipeline "build/container/stapeln/ct-build.sh" :compose "build/container/stapeln/compose.toml" :compose_example "build/container/stapeln/compose.example.toml" :compose_portable "build/container/compose.yaml" :compose_portable_example "build/container/compose.example.yaml" :containerfile "build/container/Containerfile" :containerignore "build/container/.containerignore" :deployment "build/container/stapeln/deploy.k9.ncl" :entrypoint "build/container/entrypoint.sh" :gatekeeper "build/container/stapeln/.gatekeeper.yaml" :just_module "build/just/container.just" :manifest "build/container/stapeln/manifest.toml" :monitoring "build/container/stapeln/vordr.toml" :secrets_gate "build/container/stapeln/rokur.toml")
       :invariants ("Base images MUST be cgr.dev/chainguard/wolfi-base or cgr.dev/chainguard/static" "Container runtime is Podman — never Docker" "Containerfile — never Dockerfile" "All images run as non-root (appuser or project-specific user)" ".ctp bundles are signed with Ed25519 via cerro-torre" "Health endpoints (/health, /ready) must always be public (no auth)")

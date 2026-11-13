@@ -31,6 +31,65 @@ for tool in just rustc uuidgen nickel file; do
     command -v "$tool" >/dev/null 2>&1 || fail "$tool is required to run a real mint (not skipping)"
 done
 
+# A legacy minted repository (minted before #275 recorded (mint-answers), so
+# it has no build/templates/identity.deed.in and no answers to replay) cannot
+# be minted again: repo-init refuses before it asks or writes anything (#277).
+# The rest of this test needs a mintable tree, so in such a child it checks
+# that refusal, by name, and stops. It does not skip silently: a legacy child
+# that could be minted again would fail here.
+legacy_deed="$(bash "$repo/scripts/deed-field.sh" --find "$repo" 2>/dev/null || true)"
+if [[ ! -f "$repo/build/templates/identity.deed.in" ]] \
+   && ! { [[ -n "$legacy_deed" ]] && bash "$repo/scripts/deed-field.sh" --has "$legacy_deed" mint-answers; }; then
+    legacy_cfg=$(mktemp -d)
+    if legacy_out=$(cd "$repo" && env -i PATH="$PATH" HOME="$legacy_cfg" XDG_CONFIG_HOME="$legacy_cfg" \
+        RSR_NON_INTERACTIVE=1 PROJECT_NAME="Mint Check" REPO=mint-check OWNER=example-owner \
+        AUTHOR="Example Author" AUTHOR_EMAIL=author@example.org CONFIRM=n \
+        timeout 120 just repo-init </dev/null 2>&1); then
+        rm -rf "$legacy_cfg"
+        echo "$legacy_out" >&2
+        echo "FAIL: a legacy minted tree (no (mint-answers)) was allowed to mint again" >&2; exit 1
+    fi
+    rm -rf "$legacy_cfg"
+    grep -q 'cannot be minted again' <<<"$legacy_out" \
+        || { echo "$legacy_out" >&2; echo "FAIL: the legacy minted tree was refused for the wrong reason" >&2; exit 1; }
+    echo "PASS: a legacy minted tree refuses to mint again, by name; the mint checks below need a mintable tree"
+    exit 0
+fi
+
+# A minted repository that recorded its answers ((mint-answers) in the deed,
+# but no build/templates/identity.deed.in) is a child, not a template. This
+# test mints "this checkout's tree" as the template, and a chain mint of a
+# child needs the ROOT template commit its deed pins. So in such a child the
+# test checks that boundary, by name, and stops. It snapshots the work tree
+# into a fresh repository with no history, so the pin is absent whatever the
+# child's own history holds, and deleted files stay deleted. A chain mint
+# against that source must be refused before anything is written. It does
+# not skip silently: a chain mint that went ahead, or failed for another
+# reason, fails here.
+if [[ ! -f "$repo/build/templates/identity.deed.in" ]]; then
+    child="$work/minted-child"
+    g init -q "$child"
+    (cd "$repo" && git ls-files -z --cached --others --exclude-standard \
+        | while IFS= read -r -d '' f; do [[ -e "$f" || -L "$f" ]] && printf '%s\0' "$f"; done \
+        | tar --null -T - -cf -) | (cd "$child" && tar xf -)
+    g -C "$child" add -A; g -C "$child" commit -q --allow-empty -m "minted child under test"
+    child_cfg="$work/child-cfg"; mkdir -p "$child_cfg"; : > "$child_cfg/gitconfig"
+    if child_out=$(cd "$child" && env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+        XDG_CONFIG_HOME="$child_cfg" GIT_CONFIG_GLOBAL="$child_cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+        RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="$child" RSR_MINT_TOOL_CACHE="$work/tools" \
+        PROJECT_NAME=grand-check REPO=grand-check OWNER=other-owner AUTHOR="Other Author" \
+        AUTHOR_EMAIL=other@example.org PROJECT_DESCRIPTION="Grand tools" \
+        timeout 600 just repo-init </dev/null 2>&1); then
+        echo "$child_out" >&2
+        fail "a minted child was chain-minted from a source that lacks its pinned template commit"
+    fi
+    grep -q "does not contain the parent's template commit" <<<"$child_out" \
+        || { echo "$child_out" | tail -30 >&2; fail "the chain mint of a minted child was refused for the wrong reason"; }
+    [[ -z "$(g -C "$child" status --porcelain)" ]] || fail "the refused chain mint wrote to the child"
+    pass "a minted child refuses a chain mint from a source without its pinned template commit, by name, and writes nothing; the mint checks below need the template"
+    exit 0
+fi
+
 # ── The template: this checkout's tree, committed or not, on main ───────────
 T="$work/template"
 g clone -q --no-local "$repo" "$T"

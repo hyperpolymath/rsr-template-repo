@@ -25,6 +25,7 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LANE="$REPO_DIR/scripts/verdict-grid-lane.sh"
 FORK_GOV="$REPO_DIR/.github/workflows/fork-governance.yml"
+HYPATIA_WF="$REPO_DIR/.github/workflows/hypatia-scan.yml"
 PUBLISHER="$REPO_DIR/.github/workflows/verdict-grid-publish.yml"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -417,6 +418,13 @@ grep -Fq -- "--exclude-prefix" "$WORK/grid/argv.txt" && ok "declared scope exclu
     || bad "scope exclusions must be passed"
 grep -Fq -- "--changed" "$WORK/grid/argv.txt" && ok "delta scope is passed when a base commit resolved" \
     || bad "delta scope must be passed"
+printf '%s\n' '{"runs":[{"results":[]}]}' > "$FX/hypatia.sarif"
+: > "$FX/argv.log"
+STUB_ARGV_LOG="$FX/argv.log" expect 0 "render forwards the Hypatia SARIF" -- lane "${render_args[@]}" --hypatia-sarif "$FX/hypatia.sarif"
+grep -Fxq -- "--hypatia-sarif" "$WORK/grid/argv.txt" && grep -Fxq -- "$FX/hypatia.sarif" "$WORK/grid/argv.txt" \
+    && ok "the Hypatia SARIF reaches the renderer (the grid grades the row from it)" \
+    || bad "the Hypatia SARIF must reach the renderer"
+
 grep -Fq -- "--panic-ref" "$WORK/grid/argv.txt" && ok "the tool commits are passed for the profile hash" \
     || bad "tool commits must be passed"
 
@@ -429,13 +437,14 @@ expect 0 "render forwards a previous baseline and each non-empty exclusion intac
     --sha 0123456789abcdef0123456789abcdef01234567 --repo example/template \
     --previous "$WORK/previous grid.md" --exclude-prefix 'generated files/' --exclude-prefix '' \
     --exclude-prefix '9-archive/' --hypatia "$FX/absent.json" --panic "$FX/absent.json" \
+    --hypatia-sarif "$FX/absent.sarif" \
     --pons "$FX/absent.json" --enrolment "$FX/absent.json" --report-backs "$FX/absent-dir" \
     --changed "$FX/absent.txt"
 printf '%s\n' --previous "$WORK/previous grid.md" --exclude-prefix 'generated files/' --exclude-prefix '9-archive/' > "$WORK/expected-optional-args"
 sed -n '/^--previous$/,$p' "$WORK/grid optional paths/argv.txt" > "$WORK/actual-optional-args"
 cmp -s "$WORK/expected-optional-args" "$WORK/actual-optional-args" \
     && ok "baseline paths and repeated exclusions preserve argument boundaries" || bad "optional argument values changed"
-for flag in --hypatia --panic --pons --enrolment --report-backs --changed; do
+for flag in --hypatia --hypatia-sarif --panic --pons --enrolment --report-backs --changed; do
     if grep -Fxq -- "$flag" "$WORK/grid optional paths/argv.txt"; then
         bad "missing optional input $flag was forwarded"
     else
@@ -618,8 +627,8 @@ WIRE_FAIL=0
 wire_ok() { ok "wiring: $1"; }
 wire_bad() { bad "wiring: $1"; WIRE_FAIL=1; }
 
-wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
-    local workflow="$1" publisher="$2" verdict_block
+wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW [HYPATIA_WORKFLOW]
+    local workflow="$1" publisher="$2" hypatia_wf="${3:-$HYPATIA_WF}" verdict_block
     WIRE_FAIL=0
     verdict_block="$WORK/verdict-block.yml"
     awk '/^  verdict:/ { inside = 1 }
@@ -654,6 +663,19 @@ wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
         || wire_bad "publisher must surface invalid evidence as indeterminate"
     grep -Fq 'args+=(--changed "$RUNNER_TEMP/changed-files.txt")' "$publisher" && wire_ok "publisher uses changed-file scope" \
         || wire_bad "publisher must not claim a full-tree delta on unscoped evidence"
+    grep -Fq -- '--hypatia-sarif "$ev/hypatia-scan-findings/hypatia.sarif"' "$workflow" && wire_ok "the PR grid is given the Hypatia SARIF" \
+        || wire_bad "the PR grid must be given the Hypatia SARIF"
+    grep -Fq -- '--hypatia-sarif "$ev/hypatia-scan-findings/hypatia.sarif"' "$publisher" && wire_ok "publisher is given the Hypatia SARIF" \
+        || wire_bad "publisher must pass the Hypatia SARIF to the renderer"
+    # Only the upload-artifact step's `path:` block counts: the later
+    # `sarif_file: hypatia.sarif` (Code Scanning upload) must not satisfy this.
+    awk '/name: hypatia-scan-findings/ {f=1; next}
+         f && /^[[:space:]]+path:[[:space:]]*\|/ {p=1; next}
+         p && /^[[:space:]]+[A-Za-z_-]+:/ {p=0; f=0}
+         p && /^[[:space:]]+hypatia\.sarif[[:space:]]*$/ {found=1}
+         END {exit !found}' "$hypatia_wf" \
+        && wire_ok "the producer artifact carries hypatia.sarif" \
+        || wire_bad "hypatia-scan-findings must include hypatia.sarif"
     if grep -Fq 'verdict-grid-lane.sh comment' "$workflow"; then
         wire_bad "PR-time workflow must not publish comments"
     else
@@ -677,7 +699,11 @@ fire_case() { # fire_case LABEL SED-EXPR FILE
         bad "firing control '$label': the mutation changed nothing"
         return
     fi
-    if [[ "$source" == "$FORK_GOV" ]]; then
+    if [[ "$source" == "$HYPATIA_WF" ]]; then
+        if (wiring_checks "$FORK_GOV" "$PUBLISHER" "$copy") >/dev/null 2>&1; then
+            bad "firing control '$label' was not caught"
+        else ok "firing control: '$label' is caught"; fi
+    elif [[ "$source" == "$FORK_GOV" ]]; then
         if (wiring_checks "$copy" "$PUBLISHER") >/dev/null 2>&1; then
             bad "firing control '$label' was not caught"
         else ok "firing control: '$label' is caught"; fi
@@ -694,6 +720,9 @@ fire_case "dropping trusted workflow_run trigger" 's/workflow_run:/workflow_disp
 fire_case "dropping PR grid artifact" 's/name: verdict-grid$/name: grid/' "$FORK_GOV"
 fire_case "allowing non-PR fleet evidence" 's/--event pull_request/--event workflow_dispatch/' "$PUBLISHER"
 fire_case "dropping orange fallback" 's/"message":"indeterminate"/"message":"success"/' "$PUBLISHER"
+fire_case "dropping the publisher Hypatia SARIF" 's/--hypatia-sarif/--hypatia-unused/' "$PUBLISHER"
+fire_case "dropping the PR-grid Hypatia SARIF" 's/--hypatia-sarif/--hypatia-unused/' "$FORK_GOV"
+fire_case "dropping hypatia.sarif from the artifact path (sarif_file line remains)" '/^[[:space:]]+hypatia\.sarif[[:space:]]*$/d' "$HYPATIA_WF"
 fire_case "removing changed-file scope" 's/args\+=\(--changed/args+=(--unused-changed/' "$PUBLISHER"
 
 expect 0 "producer envelopes and publisher authentication satisfy their contracts" -- \

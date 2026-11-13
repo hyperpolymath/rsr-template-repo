@@ -57,7 +57,7 @@ jobs:
 
       - name: Checkout trusted default-branch reporter
         if: steps.source.outputs.pr != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # NOSONAR githubactions:S7631: ref is the default branch, not PR code
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -68,10 +68,10 @@ jobs:
 
       - name: Checkout pinned renderer
         if: steps.source.outputs.pr != ''
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 # NOSONAR githubactions:S7631: fixed trusted repo at a pinned SHA, not fork code
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-grid
           persist-credentials: false
           sparse-checkout: |
@@ -133,6 +133,7 @@ jobs:
             --url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --enrolment .gitbot-fleet/enrolment.json \
             --hypatia "$ev/hypatia-scan-findings/hypatia-findings.relativized.json" \
+            --hypatia-sarif "$ev/hypatia-scan-findings/hypatia.sarif" \
             --panic "$ev/static-analysis-findings/panic-attack-findings.json" \
             --pons "$ev/static-analysis-findings/pons-findings.json" \
             --hypatia-ref be98f74ce93df200752f3798efa1305bfa3e0e10 \

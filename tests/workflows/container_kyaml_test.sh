@@ -118,7 +118,7 @@ for port in 1 65535; do
     assert_value "$minted" '.services."demo-api".ports' "[\"$port:$port\"]" 'boundary port mapping'
     assert_value "$minted" '.services."demo-api".environment.APP_PORT' "\"$port\"" 'minted port remains a string'
     assert_value "$minted" '.services."demo-api".healthcheck.test' "[\"CMD\",\"curl\",\"-sf\",\"http://localhost:$port/health\"]" 'minted health URL'
-    assert_value "$minted" '.services.rokur.environment.ROKUR_BACKEND' "\"http://demo-api:$port\"" 'minted proxy backend'
+    assert_value "$minted" '.services.rokur.environment.ROKUR_BACKEND' "\"http://demo-api:$port\"" 'minted proxy backend' # NOSONAR shell:S5332: asserts an in-network compose backend URL fixture
     assert_value "$minted" '.services.rokur.depends_on."demo-api".condition' '"service_healthy"' 'minted dependency key'
     # A lookup alone also returns null for a missing key. Check membership
     # before its null value so a deleted volume declaration cannot pass.

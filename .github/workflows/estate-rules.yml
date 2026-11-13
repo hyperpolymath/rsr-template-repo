@@ -24,7 +24,10 @@ permissions:
 jobs:
   estate-rules:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Measured 2026-11-10 over the last 30 runs: passing jobs took 10m50s to
+    # 14m54s, and 10 jobs were killed at the old 15-minute limit while still
+    # running. 30 minutes is about twice the slowest pass.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,6 +38,8 @@ jobs:
       # gate until you try to make it fail.
       - name: Root-shape gate self-test (must fail on drift)
         run: bash tests/shape/check_root_shape_test.sh
+      - name: Root-shape gate, rust-cli mint shape (Cargo optional, mise.lock kept)
+        run: bash tests/shape/rust_cli_root_shape_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
@@ -73,17 +78,28 @@ jobs:
         run: bash scripts/check-no-a2ml.sh .
       - name: No-a2ml gate self-test (planted positives must fail)
         run: bash tests/workflows/check_no_a2ml_test.sh
+      # Every repository-internal link resolves, and every document the deed
+      # registers by id is where the deed says (or is marked removed-at-mint).
+      # The same script is the probe of the must invariant internal-links-resolve.
+      - name: Internal links resolve (deed document registry)
+        run: bash scripts/check-internal-links.sh .
+      - name: Internal-links gate self-test (planted dead links must fail)
+        run: bash tests/workflows/internal_links_test.sh
       - name: Deed clause writer controls
         run: bash tests/workflows/deed_clause_test.sh
+      - name: Canon lockstep decision controls (spine strict, instance lag passes)
+        run: bash tests/workflows/canon_pin_check_test.sh
+      - name: Canon lockstep adoption tool controls
+        run: bash tests/workflows/adopt_canon_lockstep_test.sh
       - name: Coaptation families match the deed's descriptile clauses
         run: bash tests/workflows/coaptation_families_test.sh
-      - name: Install verified Nickel 1.17.0
+      - name: Install verified Nickel 1.18.0
         run: |
           mkdir -p "$RUNNER_TEMP/nickel-bin"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://github.com/nickel-lang/nickel/releases/download/1.17.0/nickel-x86_64-linux \
+            https://github.com/nickel-lang/nickel/releases/download/1.18.0/nickel-x86_64-linux \
             --output "$RUNNER_TEMP/nickel-bin/nickel"
-          echo "afcdfa6e0fff31760cf229e85997456c02c00b8b3b84ff38f897ac7b3f39ae34  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
+          echo "9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
       - name: Evaluate session contracts
@@ -120,11 +136,13 @@ jobs:
           chmod +x "$RUNNER_TEMP/yq-bin/yq"
           echo "$RUNNER_TEMP/yq-bin" >> "$GITHUB_PATH"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/metadatastician/standards/e064539116c2dcfdf282a4749dbd58c69961c7e6/scripts/kyaml-format.sh \
+            https://raw.githubusercontent.com/metadatastician/standards/f0b3cd4c464d33e1584f8528c17bce104555e256/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
+      - name: Mint refuses before writing when nickel or a KYAML yq is missing
+        run: bash tests/workflows/mint_tools_preflight_test.sh
       # repo-init recorded the CHILD's own HEAD as the template commit whenever
       # a repo was created with "Use this template" (metadatastician/lintel).
       - name: Template pin resolves by tree equality (controls)
@@ -138,6 +156,9 @@ jobs:
       # The repository map is line-based: a path holding a newline is refused by name.
       - name: Repository map refuses a path holding a newline
         run: bash tests/workflows/repo_map_newline_test.sh
+      # Allowlist comments reach the map whole: an apostrophe or quote once cut them.
+      - name: Repository map keeps allowlist comments whole
+        run: bash tests/workflows/repo_map_quotes_test.sh
       # The repo uuid is derived the same on every machine (sha1sum, shasum or
       # openssl), equal to uuidgen --sha1; with no SHA-1 tool it is refused.
       - name: Repo uuid derivation is machine-independent
@@ -163,6 +184,9 @@ jobs:
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock
         run: bash tests/workflows/archetype_lock_merge_test.sh
+      # A campaign over a file with no {{TOKEN}}s once exited at that file.
+      - name: Campaign dry run finishes over a tokenless path
+        run: bash tests/workflows/rsr_campaign_tokenless_test.sh
       # The CHECK half of the template contract. repo-init has always written an
       # answer-file (now the child deed's (provenance) clause); nothing ever read it.
       # This is the missing reader, and it covers the #200/#201/#203 class:
@@ -300,3 +324,7 @@ jobs:
       # a scanner that declares none. Every property is mutated in the test.
       - name: Secret scanner contract (three stable contexts)
         run: bash tests/workflows/secret_scanner_contract_test.sh
+      # Behaviour and negative controls for the inline fixes to governance,
+      # hypatia-scan, main-estate-audit, rust-ci and secret-scanner.
+      - name: Inline workflow gap fixes (behaviour + negative controls)
+        run: bash tests/workflows/workflow_gap_fixes_test.sh

@@ -21,6 +21,10 @@ predecessors did.
 | yes
 | code-hygiene gate allowlist; template scaffolds are seams, not debt
 
+| `.claude/`
+| optional
+| Claude Code project state (checkpoints, history) — created by the tool itself
+
 | `.clinerules`
 | yes
 | AI editor rules. Cline reads them from the project ROOT, so the copies formerly under .machine_readable/ai/ were inert (.cursorrules and .windsurfrules were retired 2026-10-26)
@@ -131,7 +135,7 @@ predecessors did.
 
 | `build/`
 | yes
-| build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = build/)
+| build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = "build/")
 
 | `ci/`
 | yes
@@ -159,11 +163,11 @@ predecessors did.
 
 | `mise.lock`
 | yes
-| makes latest concrete: version + per-platform checksum; mise reads it beside mise.toml
+| makes "latest" concrete: version + per-platform checksum; mise reads it beside mise.toml
 
 | `mise.toml`
 | yes
-| the toolchain: every tool at latest (PROVISIONING-STANDARD §4)
+| the toolchain: every tool at "latest" (PROVISIONING-STANDARD §4)
 
 | `rsr-template-repo_chora.deed`
 | yes

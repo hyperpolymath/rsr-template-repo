@@ -342,6 +342,10 @@ validate-repo-map:
     rm -f "$before"
     echo "repository map: up to date"
 
+# Fail if a tracked .adoc/.md links to a missing file, or a deed-registered document id no longer resolves
+check-internal-links:
+     scripts/check-internal-links.sh .
+
 # Fail if CLAUDE.md's generated region drifted from the deed or was hand-edited
 validate-claude-md:
     @bash .machine_readable/arrival-pack/verify.sh
@@ -750,3 +754,13 @@ uncloak:
     else
         echo "Use 'ls -a' to view dotfiles on this OS."
     fi
+
+# Repair .github/workflows/actions.lock after a Dependabot github-actions bump.
+# Dependabot rewrites `uses:` in the workflow YAML but cannot touch the lock, so
+# the Lock Sync Gate goes red. This resolves each new ref (git ls-remote, peeled
+# commit for annotated tags), rewrites the lock, and re-validates with
+# scripts/check-lock-sync.sh. Fails loudly (lock untouched) on anything it cannot
+# resolve. Run it on the Dependabot branch, then commit with a SIGNED commit.
+lock-sync-fix:
+    ./scripts/lock-sync-fix.sh
+    ./scripts/check-lock-sync.sh

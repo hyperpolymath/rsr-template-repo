@@ -12,8 +12,9 @@
 # child. Both recipes call this after their substitution pass.
 #
 # The formatter needs a yq that writes KYAML (mikefarah yq; mise.toml provides
-# it). Both recipes run `--preflight` BEFORE they write anything, so a missing
-# yq stops them with the tree untouched instead of half-minted.
+# it). `container-init` runs `--preflight` before it writes; `repo-init` runs it
+# through scripts/check-mint-tools.sh, before it writes anything, so a missing
+# yq stops either with the tree untouched instead of half-minted.
 #
 # The values fill double-quoted KYAML scalars, so a quote or backslash in one
 # would leave a file the formatter refuses after the tree is written. Both

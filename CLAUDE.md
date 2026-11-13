@@ -28,6 +28,7 @@ If you are unsure what something is, **read the canon; do not guess** (guessing 
 13. **Equivalence as identity** — the estate's intellectual through-line.
 14. **Solutions at source** — fix the canonical/upstream origin, never patch the downstream symptom; trace and respect every up- and down-stream before you act.
 15. **Elegance by default** — treat the most elegant and correct long-term option as the default arm; when you put a choice to the owner, LABEL which option that is, and if you recommend another, name both arms and say why you depart. Binds unasked design calls too: report the departure, never absorb it.
+16. **Cheap models for upkeep**: CI/CD, workflow, template-drift and status-file work does not get a top-tier model. If it needs real effort, stop and say so, then open a thread on cheaper models (Sonnet and Haiku). Keep top-tier models for proof work and hard design.
 
 ## The machine-readable substrate (read in this order on arrival)
 **CHORA** → **ANCHOR** → **AGENTIC** → **ECOSYSTEM** → **STATE** -> **NEUROSYM** -> **PLAYBOOK**
@@ -38,7 +39,7 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 
 | File | Answers |
 |---|---|
-| `rsr-template-repo_chora.deed` | **CHORA**, the repo deed. Its `(identity)` `(clade)` `(lineage)` clauses say what this repo IS (registers into `gv-clade-index`); `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
+| `rsr-template-repo_chora.deed` | **CHORA**, the repo deed. Its header `:repo-uuid` is the repo's one id, and `(identity)` and `(lineage)` say what this repo IS; a `(clade)` clause, when present, is only an outward finding aid (`gv-clade-index` lists it for discovery); `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
 | `(anchor)` | *Semantic authority + golden path* — what downstream may extend-not-redefine; if a recognised-drift / re-anchor marker is present, it **supersedes** accumulated context — read it first. |
 | `(neurosym)` | *Meaning* of operations — proof obligations. |
 | `(playbook)` | *How* permitted actions run. |
@@ -68,14 +69,15 @@ Put every question that needs the owner's decision through the selector (the Ask
 
 ---
 
-# This repo: `rsr-template-repo`  ·  clade `rm-rsr-template-repo`
+# This repo: `rsr-template-repo`
 
-- **Identity** — uuid `#u5"github.com/hyperpolymath/rsr-template-repo"`; clade `rm` (secondary ``); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
+- **Identity** — chora id `#u5"github.com/hyperpolymath/rsr-template-repo"`; clade: rm (finding aid); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
 - **IS** — Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from.
 - **IS-NOT** — a project in its own right · Scaffoldia (the full-featured repo designer) · standards (the canon source this template operationalises)
 - **Where it sits** — pipeline position **foundation**; chain `standards → rsr-template-repo → (every estate repo)`; coordination = `standards`.
 - **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: the deed's `(bot-directives (methodology) (coverage) (debt))` clauses.
 - **Golden path** (ANCHOR) — `just test && just quality` → Core tests pass; Quality gates pass; No unresolved critical security findings.
+- **Anchor override** (ANCHOR) — This repo's anchor forbids: Node.js, npm. The anchor overrides the estate policy above.
 - **State** — phase active; maturity production. Milestones and next actions: `docs/status/ROADMAP.adoc`.
 
 <!-- ARRIVAL-PACK:END · provenance: DEED@ab944221ee82 ANCHOR@51194a4e21e8 · Manifesto@DRAFT-unratified · regenerate: `just claude-md` (k9 drift-detects; do not hand-edit above) -->

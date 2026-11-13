@@ -4,7 +4,7 @@
 #
 # fork-governance.yml — PR-time entry point for DEED syntax, K9-DEED L0–L2
 # conformance, the gitbot-fleet report-backs, and THE Hypatia verdict grid.
-# Everything is pinned to metadatastician/standards@e064539116c2dcfdf282a4749dbd58c69961c7e6.
+# Pinned to metadatastician/standards@f0b3cd4c464d33e1584f8528c17bce104555e256 throughout (DEED and K9 lanes and the verdict-grid renderer).
 #
 # ── HOW THIS FILE RELATES TO THE SCANNERS (read before editing) ──────────────
 #
@@ -20,8 +20,8 @@
 #        .github/workflows/static-analysis-gate.yml -> artifact `static-analysis-findings`
 #                                                     (panic-attack and pons status
 #                                                      envelopes, patch bridge, unified)
-#      A producer states its own gate. Hypatia gates on critical; panic-attack
-#      gates on critical; pons is advisory. No other workflow repeats those
+#      A producer states its own gate. Hypatia gates on critical; pons gates on
+#      ERROR; panic-attack is advisory. No other workflow repeats those
 #      decisions: this file never fails on a finding, so a pull request cannot be
 #      blocked twice for one finding, and no gate is suppressed here either —
 #      the producer's own check still goes red.
@@ -90,7 +90,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-deed
           sparse-checkout: |
             1-formats/deed
@@ -106,6 +106,7 @@ jobs:
       - name: Validate DEED manifests and block retired .a2ml files
         env:
           BASE_REF: ${{ github.base_ref }}
+          TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           STANDARDS_ABS="$PWD/.standards-deed"
@@ -121,7 +122,12 @@ jobs:
           # a new ledger entry through exactly when it cannot be checked.
           A2ML_BASE=""
           if [ -n "$BASE_REF" ]; then
-            if ! git fetch -q --depth=1 origin "$BASE_REF"; then
+            # Authenticate the fetch. The checkout above sets persist-credentials: false,
+            # so an anonymous fetch works only for public repositories; this gate must
+            # also run on private ones. The header form keeps the token out of .git/config
+            # (the same pattern as lock-sync-gate.yml).
+            AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
+            if ! git -c http.extraheader="${AUTH}" fetch -q --depth=1 origin "$BASE_REF"; then
               echo "::error::could not fetch the base branch $BASE_REF to bound the A2ML ledger"
               exit 1
             fi
@@ -148,7 +154,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-k9
           sparse-checkout: 1-formats/k9
           sparse-checkout-cone-mode: true
@@ -352,7 +358,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: e064539116c2dcfdf282a4749dbd58c69961c7e6
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
           path: .standards-grid
           persist-credentials: false
           sparse-checkout: |
@@ -436,6 +442,7 @@ jobs:
             --url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             --enrolment .gitbot-fleet/enrolment.json
             --hypatia "$ev/hypatia-scan-findings/hypatia-findings.relativized.json"
+            --hypatia-sarif "$ev/hypatia-scan-findings/hypatia.sarif"
             --panic "$ev/static-analysis-findings/panic-attack-findings.json"
             --pons "$ev/static-analysis-findings/pons-findings.json"
             --hypatia-ref be98f74ce93df200752f3798efa1305bfa3e0e10
@@ -481,7 +488,7 @@ jobs:
             echo ""
             echo "The grid itself is in the \`verdict-grid\` artifact and, on a pull request, in the"
             echo "comment maintained by verdict-grid-publish.yml. A grid state of red or purple is reporting: Hypatia"
-            echo "and panic-attack gate on critical in their own workflows."
+            echo "gates on critical and pons on ERROR in their own workflows; panic-attack is advisory."
           } >> "$GITHUB_STEP_SUMMARY"
           failed=""
           [ "$DEED_RESULT" = "success" ] || failed="${failed} deed=${DEED_RESULT}"

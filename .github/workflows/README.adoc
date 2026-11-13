@@ -75,7 +75,7 @@ pins), and gitleaks in CI catches a genuine SonarCloud token as `generic-api-key
 
 * `codeql.yml` — CodeQL (matrix defaults to `actions`; every repo has workflows).
 * `sonarqube.yml` — SonarCloud (shell / JS surface; see `sonar-project.properties`).
-* `static-analysis-gate.yml` — panic-attack + Hypatia gate (see above).
+* `static-analysis-gate.yml` — pons gate on ERROR; panic-attack and patch-bridge advisory (Hypatia runs in `hypatia-scan.yml`).
 
 Each targets a different language/surface; together they cover what no single
 analyser does.

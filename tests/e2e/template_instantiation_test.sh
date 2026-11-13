@@ -91,8 +91,16 @@ log_pass "Template cloned to $TEST_REPO_PATH"
 # Local ignored agent state is not part of the template product. A filesystem
 # copy sees it anyway, unlike a real GitHub-template instantiation, and can make
 # the placeholder gate judge unrelated nested worktrees. Remove it from the
-# fixture before exercising the mint.
-rm -rf "$TEST_REPO_PATH/.claude"
+# fixture before exercising the mint. Remove only the IGNORED paths: tracked
+# files there (.claude/settings.json, .claude/hooks/) are template content, and
+# dropping them gives a tree that matches no template commit.
+git -C "$TEMPLATE_ROOT" ls-files -z --others --ignored --exclude-standard --directory -- .claude \
+    | (cd "$TEST_REPO_PATH" && xargs -0 -r rm -rf --)
+CLEAN_STATUS=("${PIPESTATUS[@]}")
+if [ "${CLEAN_STATUS[0]}" -ne 0 ] || [ "${CLEAN_STATUS[1]}" -ne 0 ]; then
+    log_error "could not remove ignored .claude/ state from the fixture"
+    exit 1
+fi
 
 # Remove .git directory for clean state, then re-init as the INSTANTIATED repo.
 #
@@ -398,11 +406,13 @@ if [ -n "$A2ML_LEFT" ]; then
     exit 1
 fi
 log_pass "Mint carries no .a2ml file"
-# The template's identity must not survive into the mint: its clade, its
+# The template's identity must not survive into the mint: its clade (a mint
+# writes none: the clade is an optional finding aid), its prefixed name, its
 # maturity, its uuid name, or an unfilled token.
 DEED_READ="$TEST_REPO_PATH/scripts/deed-field.sh"
 CHILD="$TEST_REPO_PATH/$CHILD_DEED"
-if [ "$(bash "$DEED_READ" "$CHILD" clade primary)" != "UNASSIGNED" ] \
+if bash "$DEED_READ" --has "$CHILD" clade \
+   || [[ -n "$(bash "$DEED_READ" "$CHILD" identity prefixed-name || true)" ]] \
    || [ "$(bash "$DEED_READ" "$CHILD" maturity level)" != "experimental" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" status phase)" != "incubating" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" ecosystem project)" != "$TEST_REPO_NAME" ] \

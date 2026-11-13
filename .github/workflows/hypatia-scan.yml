@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
+      actions: read # upload-sarif calls get-a-workflow-run; private repos need this
       contents: read
       security-events: write
       vulnerability-alerts: read # Dependabot alerts, for Hypatia's DA rules
@@ -58,11 +59,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Elixir 1.19.4 / OTP 28.5.0.8 for Hypatia scanner
+      # OTP 28.5.0.8 crashes this job with SIGSEGV (exit 139 in hypatia-cli.sh
+      # scan) on some scanned trees, deterministically per tree
+      # (rsr-template-repo#339: 10 of 10 runs on #338's head, 0 of 10 on
+      # main's); OTP 27.3.4.19 scanned both trees cleanly (0 of 10 each).
+      # Same VM bug as the RSR oracle (#333, #335). Do not move to 28.x until a
+      # pinned 28.x build scans #338's head 7821940 with no crash.
+      - name: Setup Elixir 1.19.4 / OTP 27.3.4.19 for Hypatia scanner
         uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           elixir-version: '1.19.4'
-          otp-version: '28.5.0.8'
+          otp-version: '27.3.4.19'
 
       - name: Cache pinned Hypatia build
         id: cache-hypatia
@@ -72,7 +79,7 @@ jobs:
             ~/hypatia
             ~/.hex
             ~/.mix
-          key: hypatia-sarif-${{ runner.os }}-otp28.5.0.8-elx1194-${{ env.HYPATIA_SHA }}
+          key: hypatia-sarif-${{ runner.os }}-otp27.3.4.19-elx1194-${{ env.HYPATIA_SHA }}
 
       - name: Build pinned Hypatia scanner
         run: |
@@ -119,7 +126,12 @@ jobs:
                   .file |= (if startswith($ws) then .[($ws | length):] else . end)
                 else . end)' hypatia-findings.json > hypatia-findings.relativized.json
 
-          CRITICAL="$(jq '[.[] | select(.severity == "critical")] | length' hypatia-findings.json)"
+          # code_scanning_alerts findings are repository-wide historical GitHub
+          # alerts, not properties of this change. Hypatia's own SARIF render
+          # drops them (lib/hypatia/sarif.ex @meta_rule_modules) but its JSON
+          # keeps them, so exclude them from the BLOCKING count only; they stay
+          # in hypatia-findings.json and in the uploaded artifact.
+          CRITICAL="$(jq '[.[] | select(.severity == "critical" and .rule_module != "code_scanning_alerts")] | length' hypatia-findings.json)"
           HIGH="$(jq '[.[] | select(.severity == "high")] | length' hypatia-findings.json)"
           TOTAL="$(jq 'length' hypatia-findings.json)"
           {
@@ -140,6 +152,7 @@ jobs:
           path: |
             hypatia-findings.json
             hypatia-findings.relativized.json
+            hypatia.sarif
           if-no-files-found: warn
           retention-days: 90
 

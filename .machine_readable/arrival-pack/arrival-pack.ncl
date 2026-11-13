@@ -20,6 +20,11 @@ let data = import "claude-md-data.json" in
 # owner's voice. Until then the estate-common block is explicitly DRAFT.
 let manifesto_pin = "DRAFT-unratified" in
 
+let anchor_override =
+  if std.array.length data.anchor_forbidden == 0 then ""
+  else "\n- **Anchor override** (ANCHOR) — This repo's anchor forbids: %{std.string.join ", " data.anchor_forbidden}. The anchor overrides the estate policy above."
+in
+
 let provenance = "DEED@%{data.h_deed} ANCHOR@%{data.h_anchor}"
 in
 
@@ -46,6 +51,7 @@ If you are unsure what something is, **read the canon; do not guess** (guessing 
 13. **Equivalence as identity** — the estate's intellectual through-line.
 14. **Solutions at source** — fix the canonical/upstream origin, never patch the downstream symptom; trace and respect every up- and down-stream before you act.
 15. **Elegance by default** — treat the most elegant and correct long-term option as the default arm; when you put a choice to the owner, LABEL which option that is, and if you recommend another, name both arms and say why you depart. Binds unasked design calls too: report the departure, never absorb it.
+16. **Cheap models for upkeep**: CI/CD, workflow, template-drift and status-file work does not get a top-tier model. If it needs real effort, stop and say so, then open a thread on cheaper models (Sonnet and Haiku). Keep top-tier models for proof work and hard design.
 
 ## The machine-readable substrate (read in this order on arrival)
 **CHORA** → **ANCHOR** → **AGENTIC** → **ECOSYSTEM** → **STATE** -> **NEUROSYM** -> **PLAYBOOK**
@@ -56,7 +62,7 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 
 | File | Answers |
 |---|---|
-| `%{data.deed}` | **CHORA**, the repo deed. Its `(identity)` `(clade)` `(lineage)` clauses say what this repo IS (registers into `gv-clade-index`); `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
+| `%{data.deed}` | **CHORA**, the repo deed. Its header `:repo-uuid` is the repo's one id, and `(identity)` and `(lineage)` say what this repo IS; a `(clade)` clause, when present, is only an outward finding aid (`gv-clade-index` lists it for discovery); `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
 | `(anchor)` | *Semantic authority + golden path* — what downstream may extend-not-redefine; if a recognised-drift / re-anchor marker is present, it **supersedes** accumulated context — read it first. |
 | `(neurosym)` | *Meaning* of operations — proof obligations. |
 | `(playbook)` | *How* permitted actions run. |
@@ -86,14 +92,14 @@ Put every question that needs the owner's decision through the selector (the Ask
 
 ---
 
-# This repo: `%{data.canonical_name}`  ·  clade `%{data.prefixed_name}`
+# This repo: `%{data.canonical_name}`
 
-- **Identity** — uuid `%{data.uuid}`; clade `%{data.clade_primary}` (secondary `%{data.clade_secondary}`); born %{data.born}; forge `%{data.forge_gh}`.
+- **Identity** — chora id `%{data.uuid}`; clade: %{data.clade_aid}; born %{data.born}; forge `%{data.forge_gh}`.
 - **IS** — %{data.purpose}
 - **IS-NOT** — %{data.isnot}
 - **Where it sits** — pipeline position **%{data.pipeline_pos}**; chain `%{data.chain}`; coordination = `%{data.coordination}`.
 - **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: the deed's `(bot-directives (methodology) (coverage) (debt))` clauses.
-- **Golden path** (ANCHOR) — `%{data.golden_smoke}` → %{data.golden_crit}.
+- **Golden path** (ANCHOR) — `%{data.golden_smoke}` → %{data.golden_crit}.%{anchor_override}
 - **State** — phase %{data.phase}; maturity %{data.maturity}. Milestones and next actions: `docs/status/ROADMAP.adoc`.
 
 <!-- ARRIVAL-PACK:END · provenance: %{provenance} · Manifesto@%{manifesto_pin} · regenerate: `just claude-md` (k9 drift-detects; do not hand-edit above) -->

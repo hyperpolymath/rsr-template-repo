@@ -56,6 +56,12 @@ the authoritative tool, never by hand:
   `.github/workflows/` and under their minted names (drop the `.in`).
 . Run `gh actions-lock --no-narrow` there, then `gh actions-lock --no-fix`
   to check it.
+. Run `scripts/check-lock-sync.sh` from the spine there too. `--no-fix` is
+  not enough: over a SHA-pinned `uses:`, `--no-narrow` can record the pin's
+  own SHA as `ref:`, which the tool reports only as the advisory `sha-as-ref`
+  while the runner refuses it at `Set up job` ("invalid lockfile pin").
+  Clause 5 of `check-lock-sync.sh` refuses that record. The overlays here pin
+  by tag, so they do not hit this today; a SHA-pinned overlay would.
 . Copy the resulting `.github/workflows/actions.lock` to
   `archetypes/<name>/actions.lock`.
 
@@ -95,8 +101,10 @@ is not a place to hide files that fail a gate.
   never enter the package's own dependency set) and its
   `provisioning_praxis.deed` override; prunes `build/container/`.
 - `rust-cli` — the preset `rust-cli` from the canon. Ships `Cargo.toml.in`,
-  `src/{lib,main}.rs.in` and `tests/cli.rs.in`, so a minted CLI has a real
-  library-plus-binary split and one integration test rather than a
+  `src/{lib,main}.rs.in`, `tests/cli.rs.in` and a std-only
+  `benches/about.rs.in` (`harness = false`, no criterion, so the lockfile stays
+  dependency-free), so a minted CLI has a real library-plus-binary split, one
+  integration test and a compiling Rust bench rather than a
   `println!` stub that no test can fail. Prunes `build/container/` for the same
   reason as `julia-library`: a CLI that publishes no image should not ship a
   `Containerfile`.
