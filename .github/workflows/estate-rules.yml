@@ -112,6 +112,10 @@ jobs:
         run: bash tests/workflows/mint_cleanup_test.sh
       - name: Self-name pass keeps issue references, provenance and detectors
         run: bash tests/workflows/self_name_pass_test.sh
+      # Stage-2 trial of standards A7 8.1: an edict selected by identity. Trial
+      # only; it gates nothing but its own fixtures.
+      - name: Edict trial (A7 stage 2)
+        run: bash tests/workflows/edict_trial_test.sh
       # The automated mint path (RSR_NON_INTERACTIVE) never completed, and no
       # workflow exercised repo-init at all: tests/e2e runs nowhere in CI.
       - name: Install verified just 1.43.0
@@ -163,6 +167,10 @@ jobs:
       # openssl), equal to uuidgen --sha1; with no SHA-1 tool it is refused.
       - name: Repo uuid derivation is machine-independent
         run: bash tests/workflows/uuid5_url_test.sh
+      # The chora id is minted once as the profile C UUIDv8 of the birth path,
+      # equal to standards scripts/uuid-v8.js, and read without re-deriving.
+      - name: Repo chora id is minted as UUIDv8 and read as written
+        run: bash tests/workflows/uuid_v8_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date

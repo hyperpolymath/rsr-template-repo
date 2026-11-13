@@ -75,6 +75,13 @@ if [[ -n "$uuid_name" ]]; then
 fi
 [ -z "$uuid_name" ] || [ -n "$uuid" ] \
   || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #uuid\"...\" or #u<n>\"...\" literal" >&2; exit 2; }
+# A version 5 identity is reported, never refused here: standards A1 C10 and
+# T30 call it v5-identity, a warning in lax mode (this reader) and an error in
+# strict mode (`just validate-rsr`). The chora id is the v8 id of the birth path.
+case "$uuid" in
+  '#u5"'*|'#uuid"'????????-????-5*)
+    echo "extract.sh: v5-identity: $(basename "$DEED") :repo-uuid $uuid is a version 5 id; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1 V8)" >&2 ;;
+esac
 
 # read_clauses -> the clauses this pack reads, one token per line. Hashing only
 # these keeps an unrelated deed edit (say a canon-pin bump) from reading as drift.
