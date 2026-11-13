@@ -15,7 +15,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 work="$(mktemp -d)"
 cleanup() {
   case "$work" in
-    /*) [ -d "$work" ] && rm -rf -- "$work" ;;
+    /*) [[ -d "$work" ]] && rm -rf -- "$work" ;;
     *) echo "refusing unsafe cleanup target: $work" >&2 ;;
   esac
 }
@@ -26,7 +26,7 @@ fail=0
 expect() { # expect NAME WANT_EXIT WANT_LINE CHORA STATE
   local name="$1" want="$2" line="$3" out rc=0
   out="$(run "$4" "$work/Mustfile.deed" "$5")" || rc=$?
-  if [ "$rc" -ne "$want" ] || ! grep -qF -- "$line" <<<"$out"; then
+  if [[ "$rc" -ne "$want" ]] || ! grep -qF -- "$line" <<<"$out"; then
     echo "FAIL $name: exit $rc (wanted $want); output: $out" >&2
     fail=1
   else
@@ -48,7 +48,8 @@ cat > "$work/Mustfile.deed" <<'DEED'
 DEED
 
 state() { # state FILE BODY
-  printf ';; SPDX-License-Identifier: MPL-2.0\n(descriptile-deed\n  :schema-version "1.0.0"\n  :canonical-name "edict-trial"\n%s)\n' "$2" > "$1"
+  local file="$1" body="$2"
+  printf ';; SPDX-License-Identifier: MPL-2.0\n(descriptile-deed\n  :schema-version "1.0.0"\n  :canonical-name "edict-trial"\n%s)\n' "$body" > "$file"
 }
 state "$work/STATE-holds.deed"   '  (status :phase active :since "2026-03-16")
   (maturity :level production)'

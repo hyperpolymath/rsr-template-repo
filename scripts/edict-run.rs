@@ -40,67 +40,73 @@ enum Sx {
     List(Vec<Sx>),
 }
 
+/// Read a string literal starting at the opening quote `cs[i]`. Returns the
+/// token (a leading `"` marks it as a string) and the index after the close.
+fn read_string(cs: &[char], mut i: usize) -> Result<(String, usize), String> {
+    let mut s = String::from("\"");
+    i += 1;
+    while i < cs.len() {
+        match cs[i] {
+            '\\' if i + 1 < cs.len() => {
+                s.push(cs[i + 1]);
+                i += 2;
+            }
+            '"' => return Ok((s, i + 1)),
+            d => {
+                s.push(d);
+                i += 1;
+            }
+        }
+    }
+    Err("unterminated string".into())
+}
+
+fn ends_atom(c: char) -> bool {
+    c.is_whitespace() || c == '(' || c == ')' || c == ';'
+}
+
+/// Read an atom starting at `cs[i]`. A tagged literal such as #uuid"…" or
+/// #u5"…" is one token: the quoted body is kept and ends the atom.
+fn read_atom(cs: &[char], mut i: usize) -> (String, usize) {
+    let mut s = String::new();
+    while i < cs.len() && !ends_atom(cs[i]) {
+        if cs[i] == '"' {
+            let close = cs[i + 1..].iter().position(|&c| c == '"');
+            let end = close.map_or(cs.len(), |p| i + 1 + p);
+            s.extend(&cs[i..end]);
+            s.push('"');
+            return (s, (end + 1).min(cs.len()));
+        }
+        s.push(cs[i]);
+        i += 1;
+    }
+    (s, i)
+}
+
 fn tokenize(src: &str) -> Result<Vec<String>, String> {
-    let mut out = Vec::new();
     let cs: Vec<char> = src.chars().collect();
+    let mut out = Vec::new();
     let mut i = 0;
     while i < cs.len() {
         let c = cs[i];
         if c == ';' {
-            while i < cs.len() && cs[i] != '\n' {
-                i += 1;
-            }
+            i = cs[i..]
+                .iter()
+                .position(|&c| c == '\n')
+                .map_or(cs.len(), |p| i + p);
         } else if c.is_whitespace() {
             i += 1;
         } else if c == '(' || c == ')' {
             out.push(c.to_string());
             i += 1;
-        } else if c == '"' {
-            let mut s = String::from("\"");
-            i += 1;
-            loop {
-                if i >= cs.len() {
-                    return Err("unterminated string".into());
-                }
-                let d = cs[i];
-                if d == '\\' && i + 1 < cs.len() {
-                    s.push(cs[i + 1]);
-                    i += 2;
-                    continue;
-                }
-                i += 1;
-                if d == '"' {
-                    break;
-                }
-                s.push(d);
-            }
-            out.push(s);
         } else {
-            // An atom; a tagged literal such as #uuid"…" or #u5"…" is one token.
-            let mut s = String::new();
-            while i < cs.len()
-                && !cs[i].is_whitespace()
-                && cs[i] != '('
-                && cs[i] != ')'
-                && cs[i] != ';'
-            {
-                if cs[i] == '"' {
-                    s.push('"');
-                    i += 1;
-                    while i < cs.len() && cs[i] != '"' {
-                        s.push(cs[i]);
-                        i += 1;
-                    }
-                    if i < cs.len() {
-                        s.push('"');
-                        i += 1;
-                    }
-                    break;
-                }
-                s.push(cs[i]);
-                i += 1;
-            }
-            out.push(s);
+            let (tok, next) = if c == '"' {
+                read_string(&cs, i)?
+            } else {
+                read_atom(&cs, i)
+            };
+            out.push(tok);
+            i = next;
         }
     }
     Ok(out)
