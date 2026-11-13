@@ -416,8 +416,8 @@ if bash "$DEED_READ" --has "$CHILD" clade \
    || [ "$(bash "$DEED_READ" "$CHILD" maturity level)" != "experimental" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" status phase)" != "incubating" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" ecosystem project)" != "$TEST_REPO_NAME" ] \
-   || [ "$(bash "$DEED_READ" --uuid "$CHILD")" != "$(bash "$TEST_REPO_PATH/scripts/uuid-v8.sh" gv-clade-index "github.com/${TEST_OWNER}/${TEST_REPO_NAME}")" ] \
-   || [ "$(bash "$DEED_READ" --typed "$CHILD" "" repo-uuid)" != "#uuid\"$(bash "$TEST_REPO_PATH/scripts/uuid-v8.sh" gv-clade-index "github.com/${TEST_OWNER}/${TEST_REPO_NAME}")\"" ]; then
+   || [ "$(bash "$DEED_READ" --uuid "$CHILD")" != "$(bash "$TEST_REPO_PATH/scripts/uuid-v8.sh" chora-registry "github.com/${TEST_OWNER}/${TEST_REPO_NAME}")" ] \
+   || [ "$(bash "$DEED_READ" --typed "$CHILD" "" repo-uuid)" != "#uuid\"$(bash "$TEST_REPO_PATH/scripts/uuid-v8.sh" chora-registry "github.com/${TEST_OWNER}/${TEST_REPO_NAME}")\"" ]; then
     log_error "child deed still carries the template's identity, or lacks its own"
     exit 1
 fi

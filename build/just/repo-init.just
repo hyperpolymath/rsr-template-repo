@@ -411,14 +411,15 @@ repo-init archetype="":
     # The chora id is minted ONCE, here, from the repo's birth path, and is
     # carried opaquely as :repo-uuid #uuid"<id>" (standards A1 rules U1 to U4
     # and V8, A7 J11). It is the ADR-008 profile C UUIDv8 of the birth path in
-    # the domain gv-clade-index:
-    #     first 16 bytes of SHA-256("gv-clade-index:<forge>/<owner>/<name>"),
+    # the domain chora-registry (owner ruling V9, 2026-11-13: new ids only; ids
+    # minted earlier keep their gv-clade-index id and are never reminted):
+    #     first 16 bytes of SHA-256("chora-registry:<forge>/<owner>/<name>"),
     #     version 8, variant 10
     # (scripts/uuid-v8.sh, equal to standards scripts/uuid-v8.js c, tested by
     # tests/workflows/uuid_v8_test.sh). It is computed the same way on every
     # machine, so the drift gate's replay agrees with the mint. Nothing
     # re-derives it later: a transfer or rename never changes it (U1).
-    REPO_UUID="$(bash scripts/uuid-v8.sh gv-clade-index "${FORGE}/${OWNER}/${REPO}")" || {
+    REPO_UUID="$(bash scripts/uuid-v8.sh chora-registry "${FORGE}/${OWNER}/${REPO}")" || {
         echo "Error: the repo id is minted as a UUIDv8 (SHA-256), and this machine"
         echo "       has none of sha256sum, shasum or openssl to mint it with."
         exit 1
@@ -1971,7 +1972,7 @@ repo-init archetype="":
     echo "       gh repo edit ${OWNER}/${REPO} --description '<one line>' --homepage '${WEBSITE}'"
     echo "     Visibility is fail-closed private; flip deliberately if wanted:"
     echo "       gh repo edit ${OWNER}/${REPO} --visibility public --accept-visibility-change-consequences"
-    echo "     Register in gv-clade-index; required contexts must equal emitted job ids."
+    echo "     Register in chora-registry (formerly gv-clade-index); required contexts must equal emitted job ids."
     if [ -f ci/.gitlab-ci.yml ]; then
         echo ""
         echo "     GitLab mirror only: this repo keeps its GitLab CI config at"
