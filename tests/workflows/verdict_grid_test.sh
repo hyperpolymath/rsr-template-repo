@@ -25,6 +25,7 @@ set -uo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LANE="$REPO_DIR/scripts/verdict-grid-lane.sh"
 FORK_GOV="$REPO_DIR/.github/workflows/fork-governance.yml"
+HYPATIA_WF="$REPO_DIR/.github/workflows/hypatia-scan.yml"
 PUBLISHER="$REPO_DIR/.github/workflows/verdict-grid-publish.yml"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -626,8 +627,8 @@ WIRE_FAIL=0
 wire_ok() { ok "wiring: $1"; }
 wire_bad() { bad "wiring: $1"; WIRE_FAIL=1; }
 
-wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
-    local workflow="$1" publisher="$2" verdict_block
+wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW [HYPATIA_WORKFLOW]
+    local workflow="$1" publisher="$2" hypatia_wf="${3:-$HYPATIA_WF}" verdict_block
     WIRE_FAIL=0
     verdict_block="$WORK/verdict-block.yml"
     awk '/^  verdict:/ { inside = 1 }
@@ -666,7 +667,13 @@ wiring_checks() { # wiring_checks PR_WORKFLOW PUBLISHER_WORKFLOW
         || wire_bad "the PR grid must be given the Hypatia SARIF"
     grep -Fq -- '--hypatia-sarif "$ev/hypatia-scan-findings/hypatia.sarif"' "$publisher" && wire_ok "publisher is given the Hypatia SARIF" \
         || wire_bad "publisher must pass the Hypatia SARIF to the renderer"
-    awk '/name: hypatia-scan-findings/ {f=1} f && /hypatia\.sarif/ {found=1} END {exit !found}' "$REPO_DIR/.github/workflows/hypatia-scan.yml" \
+    # Only the upload-artifact step's `path:` block counts: the later
+    # `sarif_file: hypatia.sarif` (Code Scanning upload) must not satisfy this.
+    awk '/name: hypatia-scan-findings/ {f=1; next}
+         f && /^[[:space:]]+path:[[:space:]]*\|/ {p=1; next}
+         p && /^[[:space:]]+[A-Za-z_-]+:/ {p=0; f=0}
+         p && /^[[:space:]]+hypatia\.sarif[[:space:]]*$/ {found=1}
+         END {exit !found}' "$hypatia_wf" \
         && wire_ok "the producer artifact carries hypatia.sarif" \
         || wire_bad "hypatia-scan-findings must include hypatia.sarif"
     if grep -Fq 'verdict-grid-lane.sh comment' "$workflow"; then
@@ -692,7 +699,11 @@ fire_case() { # fire_case LABEL SED-EXPR FILE
         bad "firing control '$label': the mutation changed nothing"
         return
     fi
-    if [[ "$source" == "$FORK_GOV" ]]; then
+    if [[ "$source" == "$HYPATIA_WF" ]]; then
+        if (wiring_checks "$FORK_GOV" "$PUBLISHER" "$copy") >/dev/null 2>&1; then
+            bad "firing control '$label' was not caught"
+        else ok "firing control: '$label' is caught"; fi
+    elif [[ "$source" == "$FORK_GOV" ]]; then
         if (wiring_checks "$copy" "$PUBLISHER") >/dev/null 2>&1; then
             bad "firing control '$label' was not caught"
         else ok "firing control: '$label' is caught"; fi
@@ -711,6 +722,7 @@ fire_case "allowing non-PR fleet evidence" 's/--event pull_request/--event workf
 fire_case "dropping orange fallback" 's/"message":"indeterminate"/"message":"success"/' "$PUBLISHER"
 fire_case "dropping the publisher Hypatia SARIF" 's/--hypatia-sarif/--hypatia-unused/' "$PUBLISHER"
 fire_case "dropping the PR-grid Hypatia SARIF" 's/--hypatia-sarif/--hypatia-unused/' "$FORK_GOV"
+fire_case "dropping hypatia.sarif from the artifact path (sarif_file line remains)" '/^[[:space:]]+hypatia\.sarif[[:space:]]*$/d' "$HYPATIA_WF"
 fire_case "removing changed-file scope" 's/args\+=\(--changed/args+=(--unused-changed/' "$PUBLISHER"
 
 expect 0 "producer envelopes and publisher authentication satisfy their contracts" -- \

@@ -93,13 +93,13 @@ jobs:
         run: bash tests/workflows/adopt_canon_lockstep_test.sh
       - name: Coaptation families match the deed's descriptile clauses
         run: bash tests/workflows/coaptation_families_test.sh
-      - name: Install verified Nickel 1.17.0
+      - name: Install verified Nickel 1.18.0
         run: |
           mkdir -p "$RUNNER_TEMP/nickel-bin"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
-            https://github.com/nickel-lang/nickel/releases/download/1.17.0/nickel-x86_64-linux \
+            https://github.com/nickel-lang/nickel/releases/download/1.18.0/nickel-x86_64-linux \
             --output "$RUNNER_TEMP/nickel-bin/nickel"
-          echo "afcdfa6e0fff31760cf229e85997456c02c00b8b3b84ff38f897ac7b3f39ae34  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
+          echo "9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
       - name: Evaluate session contracts

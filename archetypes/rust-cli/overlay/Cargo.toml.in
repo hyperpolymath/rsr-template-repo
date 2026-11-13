@@ -21,6 +21,12 @@ readme = "README.adoc"
 
 [dependencies]
 
+# std-only benchmark: no criterion, so the minted Cargo.lock stays
+# dependency-free. `cargo bench --no-run --locked` compiles it.
+[[bench]]
+name = "about"
+harness = false
+
 # Keep the release profile explicit: a CLI is shipped as a binary, and the
 # defaults differ between toolchains more than they look.
 [profile.release]
