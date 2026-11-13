@@ -974,9 +974,10 @@ repo-init archetype="":
     # DETERMINISTIC: bytes 0..15 of SHA-256("julia-package-identity" ":"
     # "github.com/<owner>/<name>"), version nibble 8, variant 10 -- stable
     # across re-mints of the same repo, derivable by any operator machine
-    # with python3 (or bun over standards' scripts/uuid-v8.js), never
-    # colliding with the repo uuid. The domain is REGISTERED in standards'
-    # ADR-008-profile-c-domains.json. No python3 and no bun -> UNASSIGNED
+    # with a SHA-256 tool (scripts/uuid-v8.sh) or bun over standards'
+    # scripts/uuid-v8.js, never colliding with the repo uuid. The domain is
+    # REGISTERED in standards' ADR-008-profile-c-domains.json. No SHA-256
+    # tool and no bun -> UNASSIGNED
     # (the honest fallback at :437); Pkg then refuses the package loudly
     # until the owner assigns one.
     if [ "$ARCHETYPE" = "julia-library" ]; then
@@ -985,22 +986,17 @@ repo-init archetype="":
         OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
         # A replay supplies the uuid the mint recorded ((mint-answers
         # :package-uuid)), so the drift gate does not depend on which of bun or
-        # python3 the checking host has (Codex review of #275). Only a replay:
+        # a SHA-256 tool the checking host has (Codex review of #275). Only a replay:
         # an ordinary mint always derives it, so a stray RSR_PACKAGE_UUID in the
         # environment cannot write an unrelated identity into Project.toml.
         if [ "${RSR_MINT_REPLAY:-0}" = "1" ] && [[ "${RSR_PACKAGE_UUID:-}" =~ ^(UNASSIGNED|[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]]; then
             PACKAGE_UUID="$RSR_PACKAGE_UUID"
         elif command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
             PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
-        elif command -v python3 >/dev/null 2>&1; then
-            PACKAGE_UUID=$(python3 -c '
-    import hashlib, sys
-    pre = ("julia-package-identity:github.com/%s/%s" % (sys.argv[1], sys.argv[2])).encode()
-    b = bytearray(hashlib.sha256(pre).digest()[:16])
-    b[6] = (b[6] & 0x0F) | 0x80   # version 8
-    b[8] = (b[8] & 0x3F) | 0x80   # variant 10
-    h = b.hex()
-    print(f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}")' "${OWNER_LC}" "${REPO}")
+        elif command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 || command -v openssl >/dev/null 2>&1; then
+            # The same ADR-008 profile C id in shell (scripts/uuid-v8.sh, equal to
+            # standards uuid-v8.js c). No Python: the estate bans it.
+            PACKAGE_UUID=$("${BASH:-bash}" scripts/uuid-v8.sh julia-package-identity "github.com/${OWNER_LC}/${REPO}")
         else
             PACKAGE_UUID=UNASSIGNED
         fi

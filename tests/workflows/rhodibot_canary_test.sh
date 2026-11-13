@@ -7,6 +7,7 @@
 # fixtures: an .adoc guide is enough, either form at the root or in .github/;
 # no guide at all, and both forms at once, still trip it.
 set -euo pipefail
+yq --version 2>&1 | grep -q mikefarah || { echo "FAIL: this test needs Mike Farah yq (Go, 4.53.3+); the yq on PATH is a different tool" >&2; exit 1; }
 repo=$(git rev-parse --show-toplevel)
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }

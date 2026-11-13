@@ -126,9 +126,10 @@ wired in `estate-rules.yml`). Rule and gate:
 
 **UUIDv8 (owner ruling D305, standards ADR-008):** mint every new identifier
 as UUIDv8 in the ADR-008 layout. Do not rewrite existing v4/v7 identifiers by
-hand; that migration is done per repo (ADR-008 phase P3). In deed files an id
-is an opaque `#uuid"…"` literal carrying the v8 id (standards A1 V8; minted by
-`repo-init`); `#u5`/`#u8` are legacy forms, and a `#u7` literal is illegal.
+hand; that migration is done per repo (ADR-008 phase P3). In deed files the
+chora id is `:repo-uuid #uuid"<v8 id of the birth path>"`, minted by
+`repo-init` and never re-derived; legacy `#u5`/`#u8` literals are read but
+never written, and a `#u7` literal is illegal.
 
 **.a2ml → deed:** A2ML is retired; never create or restore a `.a2ml` file.
 - Grammars: `standards/1-formats/deed/spec/abnf/deed.abnf` (authoritative
