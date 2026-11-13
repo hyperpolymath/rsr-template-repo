@@ -109,6 +109,25 @@
     (related :name "svalinn" :relationship verification-tooling :notes "Supply-chain verification referenced by the container scaffolding.")
     (related :name "vordr" :relationship verification-tooling :notes "Build/artifact verification referenced by the container scaffolding."))
   ; <<< repo-identity
+  ; Documents that other documents link to by identifier, not by path.
+  ; Template-level convention awaiting canonisation in metadatastician/standards
+  ; (the grammar admits any clause, so it parses today). A page that can move or
+  ; disappear (a file the mint tells you to delete, one a repo renames) is
+  ; cited by :id and :role; the id is stable, the :path is current. Readers who
+  ; find a page gone look here for where it went. Ids are ADR-008 profile C, in the
+  ; domain repo-document (registered in metadatastician/standards#1500), written
+  ; as #u8"repo-document:github.com/<owner>/<repo>#<role>". The name holds the
+  ; repo slug on purpose: the mint's self-name pass rewrites it, so a minted repo
+  ; gets its own id for the same role. Derive one with standards scripts/uuid-v8.js c.
+  ; scripts/check-internal-links.sh checks that every :path exists unless the
+  ; entry is :removed-at-mint #t, and that no tracked page links to a missing file.
+  (documents
+    (document
+      :id #u8"repo-document:github.com/hyperpolymath/rsr-template-repo#placeholders"
+      :role placeholders
+      :path ".machine_readable/ai/PLACEHOLDERS.adoc"
+      :removed-at-mint #t
+      :note "The placeholder-token vocabulary that just repo-init substitutes. Present in the template; repo-init tells you to delete it after the mint, so a minted repo has no such file."))
   ; Meta: mapping meta-ecosystem-to-repo-deed. A minted repo keeps this
   ; clause (self-name pass applied) and edits it as its own.
   (meta

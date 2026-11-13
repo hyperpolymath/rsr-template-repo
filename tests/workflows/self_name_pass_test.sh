@@ -64,6 +64,8 @@ check 'https://github.com/hyperpolymath/rsr-template-repo/issues/new' 'https://g
 check '# deed clauses since rsr-template-repo#209.' '# deed clauses since rsr-template-repo#209.'
 check 'see hyperpolymath/rsr-template-repo#53 and rsr-template-repo#106' 'see hyperpolymath/rsr-template-repo#53 and rsr-template-repo#106'
 check 'rsr-template-repo (rsr-template-repo#7)' 'mint-check (rsr-template-repo#7)'
+# A deed document id (ADR-008 profile C, domain repo-document) holds the slug: it follows the minting owner and repo.
+check ':id #u8"repo-document:github.com/hyperpolymath/rsr-template-repo#placeholders"' ':id #u8"repo-document:github.com/example-owner/mint-check#placeholders"'
 # Provenance and detector lines are left alone.
 check ':instantiated-from "hyperpolymath/rsr-template-repo"' ':instantiated-from "hyperpolymath/rsr-template-repo"'
 check ':reject-if-contains ("rsr-template-repo")' ':reject-if-contains ("rsr-template-repo")'

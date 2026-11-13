@@ -342,6 +342,10 @@ validate-repo-map:
     rm -f "$before"
     echo "repository map: up to date"
 
+# Fail if a tracked .adoc/.md links to a missing file, or a deed-registered document id no longer resolves
+check-internal-links:
+     scripts/check-internal-links.sh .
+
 # Fail if CLAUDE.md's generated region drifted from the deed or was hand-edited
 validate-claude-md:
     @bash .machine_readable/arrival-pack/verify.sh
