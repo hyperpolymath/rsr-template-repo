@@ -167,6 +167,10 @@ jobs:
       # openssl), equal to uuidgen --sha1; with no SHA-1 tool it is refused.
       - name: Repo uuid derivation is machine-independent
         run: bash tests/workflows/uuid5_url_test.sh
+      # The chora id is minted once as the profile C UUIDv8 of the birth path,
+      # equal to standards scripts/uuid-v8.js, and read without re-deriving.
+      - name: Repo chora id is minted as UUIDv8 and read as written
+        run: bash tests/workflows/uuid_v8_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date
