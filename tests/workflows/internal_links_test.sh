@@ -108,5 +108,9 @@ expect_pass "$R" "two distinct ids, one per line form"
 
 # --- The real template passes ------------------------------------------------
 TEMPLATE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-bash "$CHECKER" "$TEMPLATE" > "$FIXTURE/out" 2>&1 || { cat "$FIXTURE/out" >&2; fail "the template tree does not pass"; }
+if [ -f "$TEMPLATE/rsr-template-repo_chora.deed" ]; then
+  bash "$CHECKER" "$TEMPLATE" > "$FIXTURE/out" 2>&1 || { cat "$FIXTURE/out" >&2; fail "the template tree does not pass"; }
+else
+  echo "SKIP: the template-tree control (not the template tree; no rsr-template-repo_chora.deed)"
+fi
 echo "PASS: internal-links controls (one positive tree; planted dead links, allowlist and deed-registry defects each rejected and named; template tree passes)"
