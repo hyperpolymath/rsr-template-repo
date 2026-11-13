@@ -407,7 +407,7 @@ if [ -n "$A2ML_LEFT" ]; then
 fi
 log_pass "Mint carries no .a2ml file"
 # The template's identity must not survive into the mint: its clade (a mint
-# writes none: the clade is an optional finding aid), its prefixed name, its
+# writes none: a clade placement is optional), its prefixed name, its
 # maturity, its uuid name, or an unfilled token.
 DEED_READ="$TEST_REPO_PATH/scripts/deed-field.sh"
 CHILD="$TEST_REPO_PATH/$CHILD_DEED"

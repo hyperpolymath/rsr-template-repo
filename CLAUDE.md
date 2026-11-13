@@ -39,7 +39,7 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 
 | File | Answers |
 |---|---|
-| `rsr-template-repo_chora.deed` | **CHORA**, the repo deed. Its header `:repo-uuid` is the repo's one id, and `(identity)` and `(lineage)` say what this repo IS; a `(clade)` clause, when present, is only an outward finding aid (`gv-clade-index` lists it for discovery); `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
+| `rsr-template-repo_chora.deed` | **CHORA**, the repo deed. Its header `:repo-uuid` is the repo's one id, and `(identity)` and `(lineage)` say what this repo IS; a `(clade)` clause, when present, records the repo's clade placements: identity facts about where it sits, never its id and never an edict, checked against chora-registry (formerly `gv-clade-index`), which is authoritative for them; `(meta)` the architecture axes; `(agentic)` *may I act now?*; `(ecosystem)` where it sits and what it is not; `(status)` and `(maturity)` where it is now. Read fields with `scripts/deed-field.sh`. |
 | `(anchor)` | *Semantic authority + golden path* — what downstream may extend-not-redefine; if a recognised-drift / re-anchor marker is present, it **supersedes** accumulated context — read it first. |
 | `(neurosym)` | *Meaning* of operations — proof obligations. |
 | `(playbook)` | *How* permitted actions run. |
@@ -56,7 +56,7 @@ grammars. Canon: `metadatastician/standards/3-practice/DATA-FORMAT-ROUTING.adoc`
 Planned support is not operational evidence: retain explicit transitional
 checks until a pinned kyq executable passes positive and negative tests.
 
-- `hyperpolymath/standards` — the canon source. · `hyperpolymath/gv-clade-index` — the estate map (identity registry). · `hyperpolymath/manifesto` — this doctrine.
+- `hyperpolymath/standards` — the canon source. · `hyperpolymath/gv-clade-index` (being renamed chora-registry) — the estate registry of repo identities and classification schemes. · `hyperpolymath/manifesto` — this doctrine.
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
 ## Estate language policy (overridable per-repo via AGENTIC)
@@ -71,7 +71,7 @@ Put every question that needs the owner's decision through the selector (the Ask
 
 # This repo: `rsr-template-repo`
 
-- **Identity** — chora id `#uuid"8e515699-3fb9-8785-8883-ef2a100c2e02"`; clade: rm (finding aid); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
+- **Identity** — chora id `#uuid"8e515699-3fb9-8785-8883-ef2a100c2e02"`; clade: rm (placement); born 2026-03-16; forge `hyperpolymath/rsr-template-repo`.
 - **IS** — Canonical RSR-compliant repository template: scaffolding (CI/CD, AI manifests, ABI/FFI standards, container ecosystem, governance) that new hyperpolymath projects are instantiated from.
 - **IS-NOT** — a project in its own right · Scaffoldia (the full-featured repo designer) · standards (the canon source this template operationalises)
 - **Where it sits** — pipeline position **foundation**; chain `standards → rsr-template-repo → (every estate repo)`; coordination = `standards`.
