@@ -206,6 +206,8 @@ wiring_checks() {
     has "pages.yml deploys after Dogfood Gate completes" 'workflows: \["Dogfood Gate"\]' "$pages_wf"
     hasnt "pages.yml has no bare push trigger (it would erase the badge)" '^  push:' "$pages_wf"
     has "pages.yml fetches the staged badge from the triggering run" 'run-id: \$\{\{ github\.event\.workflow_run\.id \}\}' "$pages_wf"
+    has "pages.yml only deploys the default branch's current head (freshness gate)" 'needs\.gate\.outputs\.current == '"'"'true'"'"'' "$pages_wf"
+    has "pages.yml build can read the Pages config" '^      pages: read' "$pages_wf"
     has "pages.yml adds badges/k9.json to the site" '_site/badges/k9\.json' "$pages_wf"
 
     echo "  --- the helper's invariants survive ---"
