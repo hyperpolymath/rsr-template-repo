@@ -76,7 +76,7 @@ Only if this repo builds a container; otherwise skip.
 
 - Use Podman, never Docker.
 - Name the file `Containerfile`, never `Dockerfile`.
-- Base image: `cgr.dev/chainguard/wolfi-base:latest`.
+- Base image: `cgr.dev/chainguard/wolfi-base`, pinned by digest (`@sha256:<digest>`; `scripts/pin-container-digests.sh`). A tag alone, `:latest` included, is not a pin: `scripts/check-container-pins.sh` fails a `FROM` that has a tag and no digest (a tag followed by a digest passes).
 
 ## ABI/FFI
 
