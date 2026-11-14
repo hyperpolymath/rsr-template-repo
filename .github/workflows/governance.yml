@@ -151,13 +151,18 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
+    env:
+      ADVISORY: 'true'
     steps:
       - name: Checkout repository
+        id: checkout
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: List existing A2ML files (never fails)
+        if: ${{ steps.checkout.outcome == 'success' }}
         env:
           STANDARDS_PIN: f0b3cd4c464d33e1584f8528c17bce104555e256
         run: |
@@ -172,6 +177,10 @@ jobs:
           else
             echo "::warning::could not fetch scripts/list-existing-a2ml.sh at $STANDARDS_PIN (the pin may predate it); the existing-A2ML listing did not run."
           fi
+
+      - name: Say so when the checkout failed
+        if: ${{ steps.checkout.outcome == 'failure' }}
+        run: echo "::warning::the repository checkout failed, so the existing-A2ML listing did not run."
 
   # The DEED conformance lane (standards scripts/conformance-deed.sh, the same
   # code governance-reusable.yml's nested deed-conformance.yml runs). ADVISORY
@@ -208,6 +217,14 @@ jobs:
             1-formats/deed/tools
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      - name: Assert the pinned DEED lane script is present
+        # A checkout that succeeded but left no script means the standards pin
+        # predates it (159fda2c or later is needed): a configuration error, never an
+        # advisory finding, so it fails loudly and is not masked.
+        if: ${{ steps.canon.outcome == 'success' }}
+        run: |
+          test -f "$LANE" || { echo "::error::Pinned conformance-deed.sh missing: the standards pin predates it (159fda2c or later is needed)"; exit 1; }
 
       - name: Set up Bun
         id: bun
@@ -282,6 +299,13 @@ jobs:
             scripts/conformance-k9.sh
           sparse-checkout-cone-mode: false
           persist-credentials: false
+
+      - name: Assert the pinned K9 lane script is present
+        # As for the DEED lane: a missing script at the pinned SHA is a configuration
+        # error and fails loudly.
+        if: ${{ steps.canon.outcome == 'success' }}
+        run: |
+          test -f "$LANE" || { echo "::error::Pinned conformance-k9.sh missing: the standards pin predates it (159fda2c or later is needed)"; exit 1; }
 
       - name: Install Nickel (pinned, sha256-verified)
         continue-on-error: ${{ env.ADVISORY == 'true' }}
