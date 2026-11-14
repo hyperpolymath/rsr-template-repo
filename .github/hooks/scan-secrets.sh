@@ -174,7 +174,7 @@ if [ -n "${K9_PUSH_RANGES:-}" ]; then
       # removed in a later one would go out unscanned. Block rather than
       # approve a partial scan; raise K9_SECRETS_MAX_DEPTH to scan the lot.
       new_commits="$(git -C "$REPO_ROOT" rev-list --count "$local_sha" --not --remotes 2>/dev/null || echo "")"
-      if [ -z "$new_commits" ] || [ "$new_commits" -gt "$MAX_DEPTH" ]; then
+      if [[ -z "$new_commits" || "$new_commits" -gt "$MAX_DEPTH" ]]; then
         echo "[scan-secrets] SCANNER ERROR while scanning new branch ${local_ref:-HEAD} —" >&2
         echo "[scan-secrets] it publishes ${new_commits:-an unknown number of} commits, more than K9_SECRETS_MAX_DEPTH=$MAX_DEPTH;" >&2
         echo "[scan-secrets] a partial scan would approve unscanned history. Raise K9_SECRETS_MAX_DEPTH to at least the count." >&2

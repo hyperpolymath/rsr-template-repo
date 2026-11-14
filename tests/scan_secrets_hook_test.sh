@@ -4,7 +4,7 @@
 #
 # scan_secrets_hook_test.sh — contract test for .github/hooks/scan-secrets.sh.
 #
-# Uses a STUB scanner that records its arguments and exits with a chosen code,
+# Uses a fake scanner that records its arguments and exits with a chosen code,
 # so it tests the hook's own logic (flags passed, depth-limit handling, exit
 # handling). It does NOT test TruffleHog's detection; that needs the real binary.
 #
@@ -17,14 +17,17 @@ SCRIPT="${SCRIPT:-$REPO_ROOT/.github/hooks/scan-secrets.sh}"
 ZERO="0000000000000000000000000000000000000000"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 fail=0
-check() { if [ "$2" = "$3" ]; then echo "  PASS: $1"; else echo "  FAIL: $1 (expected '$3', got '$2')"; fail=1; fi; }
+check() {
+  local name="$1" got="$2" want="$3"
+  if [[ "$got" == "$want" ]]; then echo "  PASS: $name"; else echo "  FAIL: $name (expected '$want', got '$got')"; fail=1; fi
+}
 
-cat > "$T/th" <<'STUB'
+cat > "$T/th" <<'FAKE_SCANNER'
 #!/bin/sh
 if [ "$1" = "--version" ]; then echo "trufflehog 3.96.0"; exit 0; fi
 echo "$@" >> "$TH_LOG"
 exit "${TH_RC:-0}"
-STUB
+FAKE_SCANNER
 chmod +x "$T/th"
 
 git init -q "$T/repo"
@@ -63,4 +66,4 @@ check "scanner error is reported as an error, not a secret" "$(grep -c 'SCANNER 
 run "$NEW" 500 183
 check "findings block" "$RC" 1
 
-[ "$fail" -eq 0 ] && echo "PASS: scan-secrets hook contract" || { echo "FAIL: scan-secrets hook contract"; exit 1; }
+if [[ "$fail" -eq 0 ]]; then echo "PASS: scan-secrets hook contract"; else echo "FAIL: scan-secrets hook contract"; exit 1; fi
