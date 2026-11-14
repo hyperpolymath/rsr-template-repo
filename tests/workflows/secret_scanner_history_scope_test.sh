@@ -36,7 +36,7 @@ WF="${1:-$REPO_DIR/.github/workflows/secret-scanner.yml}"
 for tool in git yq; do
   command -v "$tool" >/dev/null 2>&1 || { echo "::error::$tool is required" >&2; exit 2; }
 done
-[ -f "$WF" ] || { echo "::error::workflow not found at $WF" >&2; exit 2; }
+[[ -f "$WF" ]] || { echo "::error::workflow not found at $WF" >&2; exit 2; }
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -44,11 +44,12 @@ export RUNNER_TEMP="$WORK/runner"
 mkdir -p "$RUNNER_TEMP"
 
 step_body() {
-  yq -e "[.jobs.gitleaks.steps[] | select(.name == \"$1\")][0] | .run" "$WF"
+  local name="$1"
+  yq -e "[.jobs.gitleaks.steps[] | select(.name == \"$name\")][0] | .run" "$WF"
 }
 
 # --- gitleaks: the pinned binary, or one the caller provides ---------------
-if [ -n "${GITLEAKS_BIN:-}" ]; then
+if [[ -n "${GITLEAKS_BIN:-}" ]]; then
   cp "$GITLEAKS_BIN" "$RUNNER_TEMP/gitleaks"
 elif command -v gitleaks >/dev/null 2>&1; then
   cp "$(command -v gitleaks)" "$RUNNER_TEMP/gitleaks"
@@ -79,8 +80,14 @@ fail=0
 ok()  { echo "  PASS: $1"; pass=$((pass + 1)); }
 bad() { echo "  FAIL: $1" >&2; fail=$((fail + 1)); }
 
-commit() { git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -qm "$2"; }
-merge()  { git -C "$1" -c user.name=t -c user.email=t@example.invalid merge -q --no-ff feature -m merge; }
+commit() {
+  local repo="$1" msg="$2"
+  git -C "$repo" add -A && git -C "$repo" -c user.name=t -c user.email=t@example.invalid commit -qm "$msg"
+}
+merge() {
+  local repo="$1"
+  git -C "$repo" -c user.name=t -c user.email=t@example.invalid merge -q --no-ff feature -m merge
+}
 
 # repo with an OLD secret committed then deleted on main, then clean work.
 make_repo() {
@@ -115,7 +122,7 @@ git -C "$r" checkout -q -b feature
 echo "clean" > "$r/feature.txt"; commit "$r" "clean feature"
 git -C "$r" checkout -q main; merge "$r"
 run_case pr_clean "$r" pull_request
-if [ "$RANGE" = "HEAD^1..HEAD" ] && [ "$SCAN_RC" -eq 0 ]; then ok "PR merge commit, clean change: DIFF scope, passes"
+if [[ "$RANGE" = "HEAD^1..HEAD" ]] && [[ "$SCAN_RC" -eq 0 ]]; then ok "PR merge commit, clean change: DIFF scope, passes"
 else bad "PR merge commit, clean change: range=$RANGE rc=$SCAN_RC"; fi
 
 # 2. PR that adds a secret and deletes it in a later commit: still caught.
@@ -125,14 +132,14 @@ printf 'key = "%s"\n' "$SECRET" > "$r/new.txt"; commit "$r" "add secret"
 rm "$r/new.txt"; commit "$r" "hide secret"
 git -C "$r" checkout -q main; merge "$r"
 run_case pr_secret "$r" pull_request
-if [ "$RANGE" = "HEAD^1..HEAD" ] && [ "$SCAN_RC" -ne 0 ]; then ok "PR adds then deletes a secret: DIFF scope, fails"
+if [[ "$RANGE" = "HEAD^1..HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR adds then deletes a secret: DIFF scope, fails"
 else bad "PR adds then deletes a secret: range=$RANGE rc=$SCAN_RC"; fi
 
 # 3-4. push and schedule: full history, so the old deleted secret is found.
 r="$(make_repo full)"
 for ev in push schedule workflow_dispatch; do
   run_case "full_$ev" "$r" "$ev"
-  if [ "$RANGE" = "HEAD" ] && [ "$SCAN_RC" -ne 0 ]; then ok "$ev: FULL scope, finds the old secret"
+  if [[ "$RANGE" = "HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "$ev: FULL scope, finds the old secret"
   else bad "$ev: range=$RANGE rc=$SCAN_RC"; fi
 done
 
@@ -141,22 +148,22 @@ r="$(make_repo pr_linear)"
 base="$(git -C "$r" rev-parse HEAD)"
 echo "clean" > "$r/x.txt"; commit "$r" "linear clean"
 run_case pr_linear "$r" pull_request "$base"
-if [ "$RANGE" = "$base..HEAD" ] && [ "$SCAN_RC" -eq 0 ]; then ok "PR without merge commit: base..HEAD, passes"
+if [[ "$RANGE" = "$base..HEAD" ]] && [[ "$SCAN_RC" -eq 0 ]]; then ok "PR without merge commit: base..HEAD, passes"
 else bad "PR without merge commit: range=$RANGE rc=$SCAN_RC"; fi
 
 # 6. PR whose base cannot be resolved: FULL, never nothing.
 run_case pr_nobase "$r" pull_request "0000000000000000000000000000000000000000"
-if [ "$RANGE" = "HEAD" ] && [ "$SCAN_RC" -ne 0 ]; then ok "PR with unresolvable base: falls back to FULL"
+if [[ "$RANGE" = "HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR with unresolvable base: falls back to FULL"
 else bad "PR with unresolvable base: range=$RANGE rc=$SCAN_RC"; fi
 
 # 7. An empty range (base == HEAD) falls back to FULL instead of scanning 0 commits.
 run_case pr_empty "$r" pull_request "$(git -C "$r" rev-parse HEAD)"
-if [ "$RANGE" = "HEAD" ] && [ "$SCAN_RC" -ne 0 ]; then ok "PR with empty range: falls back to FULL"
+if [[ "$RANGE" = "HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR with empty range: falls back to FULL"
 else bad "PR with empty range: range=$RANGE rc=$SCAN_RC"; fi
 
 # 8. merge_group: base_sha..HEAD.
 run_case mg "$r" merge_group "" "$base"
-if [ "$RANGE" = "$base..HEAD" ] && [ "$SCAN_RC" -eq 0 ]; then ok "merge_group: base_sha..HEAD"
+if [[ "$RANGE" = "$base..HEAD" ]] && [[ "$SCAN_RC" -eq 0 ]]; then ok "merge_group: base_sha..HEAD"
 else bad "merge_group: range=$RANGE rc=$SCAN_RC"; fi
 
 # 9. The history step refuses an empty scope rather than scanning nothing.
@@ -166,4 +173,4 @@ else ok "history step refuses an empty SCAN_RANGE"; fi
 
 echo
 echo "history-scope: $pass passed, $fail failed"
-[ "$fail" -eq 0 ]
+[[ "$fail" -eq 0 ]]
