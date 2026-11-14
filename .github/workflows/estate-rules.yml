@@ -227,6 +227,9 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # A cancelled run must not leave a red verdict job behind.
+      - name: Fork governance verdict skips on cancel
+        run: bash tests/workflows/fork_governance_verdict_cancel_test.sh
       # The README badge is generated output on an orphan branch. This proves
       # the state -> colour table (grey, never a stale green), the byte-equal
       # no-op, the orphan commit, the API-error classification and the workflow
