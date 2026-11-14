@@ -52,6 +52,8 @@ workflows:
     '.github/workflows/lock-sync-gate.yml': []
     '.github/workflows/main-estate-audit.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+        - 'hyperpolymath/deed-ecosystem@f9d999b60cb5f383679ea19912bcdc49c944973a'
+        - 'hyperpolymath/k9-ecosystem@2155aa26a21758f2ba119f61bc7e0e1981c106fb'
     '.github/workflows/mirror.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
     '.github/workflows/ossf-best-practices.yml':
@@ -197,6 +199,16 @@ dependencies:
         commit: 'sha1-0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d'
         owner_id: 75048950
         repo_id: 623796603
+    'hyperpolymath/deed-ecosystem@f9d999b60cb5f383679ea19912bcdc49c944973a':
+        ref: 'v0.1.0'
+        commit: 'sha1-f9d999b60cb5f383679ea19912bcdc49c944973a'
+        owner_id: 6759885
+        repo_id: 1275649586
+    'hyperpolymath/k9-ecosystem@2155aa26a21758f2ba119f61bc7e0e1981c106fb':
+        ref: 'v0.1.0'
+        commit: 'sha1-2155aa26a21758f2ba119f61bc7e0e1981c106fb'
+        owner_id: 6759885
+        repo_id: 1275650185
     'hyperpolymath/smtp-notify-action@v0.5.1':
         ref: 'v0.5.1'
         commit: 'sha1-e384daf6167a7a7567642d6a62060106244d2413'

@@ -38,9 +38,10 @@ done
 fake() { # fake DIR NAME BODY
     mkdir -p "$1"; printf '#!/bin/sh\n%s\n' "$3" > "$1/$2"; chmod +x "$1/$2"
 }
-fake "$work/good" yq 'cat >/dev/null; exit 0'
+fake "$work/good" yq 'case "$1" in --version) echo "yq (https://github.com/mikefarah/yq/) version v4.53.3"; exit 0 ;; esac; cat >/dev/null; exit 0'   # models mikefarah yq
 fake "$work/good" nickel 'exit 0'
 fake "$work/oldyq" yq 'exit 1'          # a yq that cannot write KYAML
+fake "$work/foreignyq" yq 'case "$1" in --version) echo "yq 3.4.1"; exit 0 ;; esac; cat >/dev/null; exit 0'   # writes KYAML but is not mikefarah yq
 
 check() { # check PATHDIRS... -> runs the script with PATH=<dirs>:base
     local p="$base"; for d in "$@"; do p="$d:$p"; done
@@ -58,6 +59,10 @@ if [ "$st" -ne 0 ] && grep -q '  - yq' <<<"$out" && ! grep -q '  - nickel' <<<"$
 mkdir -p "$work/oldyq2"; cp "$work/oldyq/yq" "$work/oldyq2/"; cp "$work/good/nickel" "$work/oldyq2/"
 out="$(check "$work/oldyq2")"; st=$?
 if [ "$st" -ne 0 ] && grep -q '  - yq' <<<"$out" && grep -q '>= ' <<<"$out"; then ok "old yq: refused, required version printed"; else bad "old yq: expected exit 1 naming yq and a version (got $st): $out"; fi
+
+mkdir -p "$work/foreignyq2"; cp "$work/foreignyq/yq" "$work/foreignyq2/"; cp "$work/good/nickel" "$work/foreignyq2/"
+out="$(check "$work/foreignyq2")"; st=$?
+if [ "$st" -ne 0 ] && grep -q "  - yq" <<<"$out" && ! grep -q "  - nickel" <<<"$out"; then ok "foreign yq (not mikefarah): refused, yq named"; else bad "foreign yq: expected exit 1 naming only yq (got $st): $out"; fi
 
 out="$(check)"; st=$?
 if [ "$st" -ne 0 ] && grep -q '  - yq' <<<"$out" && grep -q '  - nickel' <<<"$out" && grep -q 'mise' <<<"$out"; then ok "both missing: every missing tool listed, provision named"; else bad "both missing: expected both named (got $st): $out"; fi

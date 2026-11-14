@@ -96,10 +96,10 @@ for f in build/container/compose.yaml build/container/compose.example.yaml \
 done
 [ "${#files[@]}" -gt 0 ] || exit 0
 
-if ! command -v yq >/dev/null 2>&1 || ! printf 'a: 1\n' | yq -p yaml -o kyaml '.' >/dev/null 2>&1; then
+if ! command -v yq >/dev/null 2>&1 || ! yq --version 2>&1 | grep -q mikefarah || ! printf 'a: 1\n' | yq -p yaml -o kyaml '.' >/dev/null 2>&1; then
     {
         echo "error: the container configs need a yq that writes KYAML (mikefarah yq"
-        echo "  v4.53.3+) once their tokens are filled, and none is on PATH."
+        echo "  v4.53.3+) once their tokens are filled, and the yq on PATH is not one (or none is)."
         echo "  Run 'mise install' (mise.toml provides yq), or install mikefarah yq."
     } >&2
     exit 1

@@ -407,24 +407,21 @@ repo-init archetype="":
     CURRENT_YEAR="${CURRENT_DATE:0:4}"
     VERSION="0.1.0"
 
-    # --- Derive the repo's uuid --------------------------------------------
-    # THE UUID IS DERIVED, NOT ALLOCATED (gv-clade-index:
-    # docs/SPEC-clade-verisim-portal.adoc §Identity Model):
-    #     uuid = UUIDv5(namespace = URL, name = "github.com/<owner>/<name>")
-    # We know OWNER and REPO, so this is computable here and must never be
-    # guessed or copied. The owner segment is part of the derived name, so it is
-    # part of the identity — a repo hosted elsewhere derives a different uuid.
-    # Derived here, the same way on every machine: it was UNASSIGNED without
-    # uuidgen, so a mint's bytes depended on the machine and the drift gate's
-    # replay (which has uuidgen) reported an unchanged child as drift (Codex
-    # review of #275); and macOS's uuidgen has no --sha1 at all. RFC 9562
-    # §5.5: SHA-1 over the URL namespace's 16 bytes then the name, truncated
-    # to 16 bytes, version 5 and the RFC variant set. It equals
-    # `uuidgen --sha1 --namespace @url --name …` (scripts/uuid5-url.sh, tested by
-    # tests/workflows/uuid5_url_test.sh).
-    REPO_UUID="$(bash scripts/uuid5-url.sh "${FORGE}/${OWNER}/${REPO}")" || {
-        echo "Error: the repo uuid is derived (UUIDv5), and this machine has none of"
-        echo "       sha1sum, shasum or openssl to derive it with."
+    # --- Mint the repo's chora id ----------------------------------------
+    # The chora id is minted ONCE, here, from the repo's birth path, and is
+    # carried opaquely as :repo-uuid #uuid"<id>" (standards A1 rules U1 to U4
+    # and V8, A7 J11). It is the ADR-008 profile C UUIDv8 of the birth path in
+    # the domain chora-registry (owner ruling V9, 2026-11-13: new ids only; ids
+    # minted earlier keep their gv-clade-index id and are never reminted):
+    #     first 16 bytes of SHA-256("chora-registry:<forge>/<owner>/<name>"),
+    #     version 8, variant 10
+    # (scripts/uuid-v8.sh, equal to standards scripts/uuid-v8.js c, tested by
+    # tests/workflows/uuid_v8_test.sh). It is computed the same way on every
+    # machine, so the drift gate's replay agrees with the mint. Nothing
+    # re-derives it later: a transfer or rename never changes it (U1).
+    REPO_UUID="$(bash scripts/uuid-v8.sh chora-registry "${FORGE}/${OWNER}/${REPO}")" || {
+        echo "Error: the repo id is minted as a UUIDv8 (SHA-256), and this machine"
+        echo "       has none of sha256sum, shasum or openssl to mint it with."
         exit 1
     }
 
@@ -978,9 +975,10 @@ repo-init archetype="":
     # DETERMINISTIC: bytes 0..15 of SHA-256("julia-package-identity" ":"
     # "github.com/<owner>/<name>"), version nibble 8, variant 10 -- stable
     # across re-mints of the same repo, derivable by any operator machine
-    # with python3 (or bun over standards' scripts/uuid-v8.js), never
-    # colliding with the repo uuid. The domain is REGISTERED in standards'
-    # ADR-008-profile-c-domains.json. No python3 and no bun -> UNASSIGNED
+    # with a SHA-256 tool (scripts/uuid-v8.sh) or bun over standards'
+    # scripts/uuid-v8.js, never colliding with the repo uuid. The domain is
+    # REGISTERED in standards' ADR-008-profile-c-domains.json. No SHA-256
+    # tool and no bun -> UNASSIGNED
     # (the honest fallback at :437); Pkg then refuses the package loudly
     # until the owner assigns one.
     if [ "$ARCHETYPE" = "julia-library" ]; then
@@ -989,27 +987,22 @@ repo-init archetype="":
         OWNER_LC=$(printf '%s' "${OWNER}" | tr '[:upper:]' '[:lower:]')
         # A replay supplies the uuid the mint recorded ((mint-answers
         # :package-uuid)), so the drift gate does not depend on which of bun or
-        # python3 the checking host has (Codex review of #275). Only a replay:
+        # a SHA-256 tool the checking host has (Codex review of #275). Only a replay:
         # an ordinary mint always derives it, so a stray RSR_PACKAGE_UUID in the
         # environment cannot write an unrelated identity into Project.toml.
         if [ "${RSR_MINT_REPLAY:-0}" = "1" ] && [[ "${RSR_PACKAGE_UUID:-}" =~ ^(UNASSIGNED|[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$ ]]; then
             PACKAGE_UUID="$RSR_PACKAGE_UUID"
         elif command -v bun >/dev/null 2>&1 && [ -f "${STANDARDS_UUID_V8_JS:-}" ]; then
             PACKAGE_UUID=$(bun "${STANDARDS_UUID_V8_JS}" c julia-package-identity "github.com/${OWNER_LC}/${REPO}")
-        elif command -v python3 >/dev/null 2>&1; then
-            PACKAGE_UUID=$(python3 -c '
-    import hashlib, sys
-    pre = ("julia-package-identity:github.com/%s/%s" % (sys.argv[1], sys.argv[2])).encode()
-    b = bytearray(hashlib.sha256(pre).digest()[:16])
-    b[6] = (b[6] & 0x0F) | 0x80   # version 8
-    b[8] = (b[8] & 0x3F) | 0x80   # variant 10
-    h = b.hex()
-    print(f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}")' "${OWNER_LC}" "${REPO}")
+        elif command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 || command -v openssl >/dev/null 2>&1; then
+            # The same ADR-008 profile C id in shell (scripts/uuid-v8.sh, equal to
+            # standards uuid-v8.js c). No Python: the estate bans it.
+            PACKAGE_UUID=$("${BASH:-bash}" scripts/uuid-v8.sh julia-package-identity "github.com/${OWNER_LC}/${REPO}")
         else
             PACKAGE_UUID=UNASSIGNED
         fi
         SED_ARGS+=(-e "s|${LB}PACKAGE_UUID${RB}|${PACKAGE_UUID}|g")
-        echo "  package uuid: ${PACKAGE_UUID} (derived from repo uuid ${REPO_UUID})"
+        echo "  package uuid: ${PACKAGE_UUID} (minted from the birth path, beside chora id ${REPO_UUID})"
     fi
 
     # Optional values with no answer: drop the line that depends on them rather
@@ -1261,7 +1254,7 @@ repo-init archetype="":
     # description stays UNASSIGNED for the author.
     # The split is the whole point:
     #   DERIVABLE -> computed, never guessed  (uuid name, owner, canonical-name)
-    #   JUDGEMENT -> left to the author; the clade is an optional finding aid, never written here
+    #   JUDGEMENT -> left to the author; a clade placement is an optional identity fact, never written here
     ID_IN="build/templates/identity.deed.in"
     # Whatever one deed is present (renamed for the child above, or already
     # named for it): never a hardcoded template file name.
@@ -1280,24 +1273,19 @@ repo-init archetype="":
         ' "$DEED" > "$DEED.splice"
         cat "$DEED.splice" > "$DEED"     # keeps the file's mode
         rm -f "$DEED.splice"
-        # The uuid5 name. The self-name pass already rewrote owner and slug in
-        # it; the forge domain is set here, because nothing else knows it.
-        sed -i -E 's|^(  :repo-uuid #u5")[^"]*"|\1'"${FORGE}/${OWNER}/${REPO}"'"|' "$DEED"
+        # The chora id, minted above from the birth path and written once as an
+        # opaque #uuid literal. It replaces the template's own id (whatever its
+        # literal form) so a child never carries the template's identity.
+        sed -i -E 's,^(  :repo-uuid )#(uuid|u5|u8)"[^"]*",\1#uuid"'"${REPO_UUID}"'",' "$DEED"
         # The template's journal is not the child's: install the stub.
         mkdir -p docs/status
         cp build/templates/ROADMAP.adoc.in docs/status/ROADMAP.adoc
         rm -rf build/templates          # template-only; not part of your repo
-        if [ "$REPO_UUID" = "UNASSIGNED" ]; then
-            echo "  uuid:  UNASSIGNED — uuidgen not found."
-            echo "         Install util-linux (uuid-runtime), then check it with:"
-            echo "           uuidgen --sha1 --namespace @url --name \"${FORGE}/${OWNER}/${REPO}\""
-        else
-            echo "  uuid:  $REPO_UUID"
-            echo "         (uuid5 of ${FORGE}/${OWNER}/${REPO} — derived from the deed's"
-            echo "          :repo-uuid name, recomputable, not stored, not invented)"
-        fi
-        echo "  clade: none written. Identity is the chora id above; a clade is an"
-        echo "         optional finding aid. The 12 are listed in the identity comment"
+        echo "  uuid:  $REPO_UUID"
+        echo "         (the chora id: UUIDv8 of the birth path ${FORGE}/${OWNER}/${REPO},"
+        echo "          minted once and written to :repo-uuid; a rename never changes it)"
+        echo "  clade: none written. Identity is the chora id above; a clade placement is an"
+        echo "         optional identity fact. The 12 are listed in the identity comment"
         echo "         of $DEED; validate-rsr checks one only if you declare it."
     fi
 
@@ -1984,7 +1972,7 @@ repo-init archetype="":
     echo "       gh repo edit ${OWNER}/${REPO} --description '<one line>' --homepage '${WEBSITE}'"
     echo "     Visibility is fail-closed private; flip deliberately if wanted:"
     echo "       gh repo edit ${OWNER}/${REPO} --visibility public --accept-visibility-change-consequences"
-    echo "     Register in gv-clade-index; required contexts must equal emitted job ids."
+    echo "     Register in chora-registry (formerly gv-clade-index); required contexts must equal emitted job ids."
     if [ -f ci/.gitlab-ci.yml ]; then
         echo ""
         echo "     GitLab mirror only: this repo keeps its GitLab CI config at"

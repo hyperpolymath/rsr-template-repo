@@ -407,7 +407,7 @@ if [ -n "$A2ML_LEFT" ]; then
 fi
 log_pass "Mint carries no .a2ml file"
 # The template's identity must not survive into the mint: its clade (a mint
-# writes none: the clade is an optional finding aid), its prefixed name, its
+# writes none: a clade placement is optional), its prefixed name, its
 # maturity, its uuid name, or an unfilled token.
 DEED_READ="$TEST_REPO_PATH/scripts/deed-field.sh"
 CHILD="$TEST_REPO_PATH/$CHILD_DEED"
@@ -416,7 +416,8 @@ if bash "$DEED_READ" --has "$CHILD" clade \
    || [ "$(bash "$DEED_READ" "$CHILD" maturity level)" != "experimental" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" status phase)" != "incubating" ] \
    || [ "$(bash "$DEED_READ" "$CHILD" ecosystem project)" != "$TEST_REPO_NAME" ] \
-   || [ "$(bash "$DEED_READ" "$CHILD" "" repo-uuid)" != "github.com/${TEST_OWNER}/${TEST_REPO_NAME}" ]; then
+   || [ "$(bash "$DEED_READ" --uuid "$CHILD")" != "$(bash "$TEST_REPO_PATH/scripts/uuid-v8.sh" chora-registry "github.com/${TEST_OWNER}/${TEST_REPO_NAME}")" ] \
+   || [ "$(bash "$DEED_READ" --typed "$CHILD" "" repo-uuid)" != "#uuid\"$(bash "$TEST_REPO_PATH/scripts/uuid-v8.sh" chora-registry "github.com/${TEST_OWNER}/${TEST_REPO_NAME}")\"" ]; then
     log_error "child deed still carries the template's identity, or lacks its own"
     exit 1
 fi

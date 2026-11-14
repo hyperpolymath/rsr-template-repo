@@ -462,7 +462,7 @@ jobs:
           OUT="$RUNNER_TEMP/released.md"
           rc=0
           bash scripts/canon-pin-check.sh released "$DEED" "$LOCK" > "$OUT" || rc=$?
-          { echo "## Canon lockstep"; echo ""; grep -v '^PROPOSED_BY=' "$OUT" || true; echo ""; } >> "$GITHUB_STEP_SUMMARY"
+          { echo "## Canon lockstep"; echo ""; grep -vE '^(PROPOSED_BY|LAGS_BEHIND)=' "$OUT" || true; echo ""; } >> "$GITHUB_STEP_SUMMARY"
           cat "$OUT"
           case "$rc" in
             0) echo ":white_check_mark: This template implements the released canon." >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
@@ -472,6 +472,7 @@ jobs:
           esac
           # Two-phase: the pin names an unreleased canon PR. Check that PR.
           ref="$(sed -n 's/^PROPOSED_BY=//p' "$OUT")"
+          lags="$(sed -n 's/^LAGS_BEHIND=//p' "$OUT")"
           num="${ref##*#}"
           PR_JSON="$RUNNER_TEMP/pr.json"
           if ! gh api "repos/${CANON_REPO}/pulls/${num}" > "$PR_JSON"; then
@@ -493,7 +494,7 @@ jobs:
           fi
           POUT="$RUNNER_TEMP/pending.md"
           prc=0
-          bash scripts/canon-pin-check.sh pending "$DEED" "$PLOCK" "$state" > "$POUT" || prc=$?
+          bash scripts/canon-pin-check.sh pending "$DEED" "$PLOCK" "$state" ${lags:+"$lags"} > "$POUT" || prc=$?
           { echo "### Adopted ahead of release: ${ref} (${state}, head ${head:0:7})"; echo ""; cat "$POUT"; echo ""; } >> "$GITHUB_STEP_SUMMARY"
           cat "$POUT"
           if [ "$prc" = 0 ]; then
@@ -586,7 +587,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: hyperpolymath/hypatia
-          ref: be98f74ce93df200752f3798efa1305bfa3e0e10
+          # Pinned to a Hypatia commit that contains hypatia#1062 (the PinSites miscompile
+          # fix, merged as 37b8d01). The earlier pin be98f74 lacks it.
+          ref: 51539abf3d2472b955da9b051a68c5971f6cfa22
           path: _hypatia
           persist-credentials: false
       # OTP 28.x (28.1 to 28.5.0.8) crashes this step with SIGSEGV in
@@ -607,7 +610,7 @@ jobs:
             _hypatia/_build
             ~/.hex
             ~/.mix
-          key: hypatia-oracle-${{ runner.os }}-otp27.3.4.19-elx1194-be98f74ce93df200752f3798efa1305bfa3e0e10
+          key: hypatia-oracle-${{ runner.os }}-otp27.3.4.19-elx1194-51539abf3d2472b955da9b051a68c5971f6cfa22
       - name: Compile the oracle
         working-directory: _hypatia
         run: mix local.hex --force && mix local.rebar --force && mix deps.get && mix compile

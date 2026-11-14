@@ -18,7 +18,7 @@
   :schema-version "1.0.0"
   :canonical-name "rsr-template-repo"
   :beholding-chora #u5"estate/chora"
-  :repo-uuid #u5"github.com/hyperpolymath/rsr-template-repo"
+  :repo-uuid #uuid"8e515699-3fb9-8785-8883-ef2a100c2e02"
   ; The canon pin: which release of hyperpolymath/standards canon.lock this
   ; repo implements. It is the ONLY canon pin in this deed (deed_canon
   ; refuses zero or two); the (rsr-profile) clause below declares
@@ -48,9 +48,10 @@
   ; new repo. Before that swap existed every minted repo inherited this
   ; block's uuid and canonical-name and told arriving agents it WAS the
   ; template (corrected in chronicles-of-slavia and scaffoldia 2026-07-16).
-  ; The uuid is not stored: it is uuid5(URL namespace, the header
-  ; :repo-uuid name). Only that typed name is written down; a hex form here
-  ; fails ADR-008's strict v8 gate.
+  ; The header :repo-uuid is the template's chora id: the ADR-008 profile C
+  ; UUIDv8 of its birth path github.com/hyperpolymath/rsr-template-repo in the
+  ; domain gv-clade-index, minted once and carried opaquely (standards A1 V8,
+  ; A7 J11). Nothing re-derives it. repo-init writes each child its own.
   ; Identity, clade, forges, lineage, status: mapping clade-to-repo-deed.
   (identity
     :primary-forge github

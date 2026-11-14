@@ -59,9 +59,14 @@ jobs:
           bash .standards-checkout/scripts/check-ts-allowlist.sh
           rm -rf .standards-checkout
 
-          bad_locks="$(git ls-files 'package-lock.json' '**/package-lock.json' 'yarn.lock' '**/yarn.lock' 'pnpm-lock.yaml' '**/pnpm-lock.yaml' || true)"
+          # pnpm-lock.yaml is expected, not banned: every package carries
+          # bun.lock, deno.lock and pnpm-lock.yaml together, written by
+          # tools/js-runtimes regen (standards LANGUAGE-POLICY §1.3-§1.4,
+          # owner ruling 2026-10-14). package-lock.json stays refused, and
+          # yarn is in no tier.
+          bad_locks="$(git ls-files 'package-lock.json' '**/package-lock.json' 'yarn.lock' '**/yarn.lock' || true)"
           if [ -n "$bad_locks" ]; then
-            echo "::error::Banned npm/yarn/pnpm lockfiles detected (use Deno or Bun per LANGUAGE-POLICY):"
+            echo "::error::Banned npm/yarn lockfiles detected (Bun first, from one package.json, per standards LANGUAGE-POLICY §1.3):"
             printf '%s\n' "$bad_locks"
             exit 1
           fi
@@ -71,3 +76,66 @@ jobs:
             exit 1
           fi
           echo "Governance runtime and language anti-pattern checks passed."
+
+  # A2ML is retired (standards A7, owner ruling S3 of 2026-11-14: the A2ML
+  # checks live in both governance-reusable.yml and this inline governance).
+  # The hard gate is estate-rules.yml "No .a2ml files": no A2ML outside the
+  # shrink-only legacy ledger, 9-archive/ included, so an added, copied,
+  # renamed or moved A2ML file fails (owner ruling 2026-11-14: A2ML moves
+  # fail), as standards' diff-based no-new-a2ml does. The advisory existing-A2ML lister joins this file
+  # once the standards pin carries scripts/list-existing-a2ml.sh; pins move
+  # only through the applier (owner ruling, 2026-11-14).
+
+  # Measured debt may fall, never rise silently (standards
+  # scripts/check-debt-ratchet.sh, the same gate as governance-reusable.yml's
+  # debt-ratchet job). A repo with no Debtfile passes. Pull requests only:
+  # the ratchet compares against the base commit.
+  debt-ratchet:
+    name: Debt ratchet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the ratchet reads the Debtfile at the base commit
+          # and scans commit messages between base and HEAD for a declared
+          # exception.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout the pinned debt ratchet
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
+          path: .standards-debt-ratchet
+          sparse-checkout: |
+            scripts/check-debt-ratchet.sh
+            scripts/check-debtfile-structure.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Debt ratchet
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # Stage the scripts outside the scanned tree and delete the checkout,
+          # so the ratchet reads only this repository's Debtfile. A missing
+          # script is a failure, never a silent skip.
+          for s in check-debt-ratchet.sh check-debtfile-structure.sh; do
+            test -f ".standards-debt-ratchet/scripts/$s" || {
+              echo "::error::Pinned $s missing at f0b3cd4c464d33e1584f8528c17bce104555e256"
+              exit 1
+            }
+            cp ".standards-debt-ratchet/scripts/$s" "$RUNNER_TEMP/"
+          done
+          rm -rf .standards-debt-ratchet
+          if [ -f .machine_readable/Debtfile.a2ml ]; then
+            bash "$RUNNER_TEMP/check-debtfile-structure.sh"
+          fi
+          bash "$RUNNER_TEMP/check-debt-ratchet.sh" "$BASE_SHA"

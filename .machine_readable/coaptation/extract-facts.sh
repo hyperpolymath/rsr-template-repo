@@ -80,7 +80,8 @@ fact() {
   emit "$id" "$v"
 }
 
-# The uuid is derived from the header :repo-uuid name, never stored (deed.abnf).
+# The repo id: the opaque #uuid body of the header :repo-uuid, read as written
+# (standards A1 V8, A7 J11); deed-field.sh --uuid derives only legacy literals.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
 [ -z "$uuid_name" ] || uuid="$(bash "$READ" --uuid "$DEED")"
