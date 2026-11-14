@@ -86,10 +86,10 @@ DETECTOR_ARGS=(--exclude-detectors SonarCloud)
 # piped into grep -q, because under pipefail grep's early exit can SIGPIPE the
 # producer and turn a match into a failure.
 probe() {
-  [ -n "${1:-}" ] && [ -x "$1" ] || return 1
-  "$1" --version >/dev/null 2>&1 || return 1
-  local help_text
-  help_text="$("$1" --help 2>&1 || true)"
+  local bin="${1:-}" help_text
+  [[ -n "$bin" && -x "$bin" ]] || return 1
+  "$bin" --version >/dev/null 2>&1 || return 1
+  help_text="$("$bin" --help 2>&1 || true)"
   [[ "$help_text" == *"--fail-on-scan-errors"* ]]
 }
 
