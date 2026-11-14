@@ -61,7 +61,8 @@ judge() {
 
 # deletions RECIPE — "FILE<TAB>PATTERN" for each token-bearing `sed -i "/…/d" FILE`.
 deletions() {
-    grep -E 'sed -i "/.*\$\{LB\}.*/d" [A-Za-z0-9_./-]+' "$1" | while IFS= read -r l; do
+    local recipe="$1"
+    grep -E 'sed -i "/.*\$\{LB\}.*/d" [A-Za-z0-9_./-]+' "$recipe" | while IFS= read -r l; do
         pat="${l#*sed -i \"/}"; pat="${pat%%/d\"*}"
         file="$(sed -E 's#.*/d" ([A-Za-z0-9_./-]+).*#\1#' <<<"$l")"
         pat="${pat//\\\//\/}"; pat="${pat//\$\{LB\}/$LB}"; pat="${pat//\$\{RB\}/$RB}"
@@ -83,10 +84,12 @@ done <<<"$list"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 tok="${LB}OPENSSF_BP_ID${RB}"
 expect_refused() { # LABEL FILE PATTERN
-    if judge "$2" "$3" >/dev/null 2>&1; then echo "FAIL: control accepted: $1" >&2; exit 1; fi
+    local label="$1" file="$2" pattern="$3"
+    if judge "$file" "$pattern" >/dev/null 2>&1; then echo "FAIL: control accepted: $label" >&2; exit 1; fi
 }
 expect_accepted() {
-    judge "$2" "$3" >/dev/null 2>&1 || { echo "FAIL: control refused: $1" >&2; exit 1; }
+    local label="$1" file="$2" pattern="$3"
+    judge "$file" "$pattern" >/dev/null 2>&1 || { echo "FAIL: control refused: $label" >&2; exit 1; }
 }
 pat="bestpractices\\.dev/projects/$tok"
 printf 'image:https://x/bestpractices.dev/projects/%s/badge[Badge,link="https://x"]\n' "$tok" > "$TMP/ok.adoc"
