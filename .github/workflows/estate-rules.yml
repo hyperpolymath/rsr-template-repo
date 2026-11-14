@@ -284,6 +284,8 @@ jobs:
           fi
       - name: Converted container configs keep their data (template only)
         run: bash tests/workflows/container_kyaml_test.sh
+      - name: Base-image guidance agrees with the digest-pin gate
+        run: bash tests/workflows/container_guidance_test.sh
       - name: KYAML ratchet self-test (installs verify, gate propagates, narrowing)
         run: bash tests/workflows/kyaml_ratchet_test.sh
       - name: I-JSON (RFC 7493) + JCS (RFC 8785) canonical gate & self-test
