@@ -235,6 +235,9 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # The proof-status vocabulary must give one answer for an open row.
+      - name: PROOF-STATUS vocabulary agrees with itself
+        run: bash tests/workflows/proof_status_vocabulary_test.sh
       # aspect_tests.sh is carried verbatim, so a project token on an active
       # line would print literally in every minted repository.
       - name: Aspect-test banner carries no unsubstituted token
