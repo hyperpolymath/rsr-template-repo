@@ -5,11 +5,12 @@
 # scan_secrets_hook_test.sh — contract test for .github/hooks/scan-secrets.sh.
 #
 # Uses a fake scanner that records its arguments and exits with a chosen code,
-# so it tests the hook's own logic (flags passed, depth-limit handling, exit
-# handling). It does NOT test TruffleHog's detection; that needs the real binary.
+# so it tests the hook's own logic (flags passed, depth-limit handling, scanner
+# probing, exit handling). It does NOT test TruffleHog's detection or its real
+# depth behaviour; that needs the real binary.
 #
 # SCRIPT=<path> runs the test against another copy of the hook (used to check
-# that the test fails on the pre-fix hook).
+# that the test fails on an older hook).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,6 +26,12 @@ check() {
 cat > "$T/th" <<'FAKE_SCANNER'
 #!/bin/sh
 if [ "$1" = "--version" ]; then echo "trufflehog 3.96.0"; exit 0; fi
+if [ "$1" = "--help" ]; then
+  echo "usage: trufflehog [flags]"
+  echo "  --fail  Exit with code 183 if results are found."
+  [ "${NO_FLAG_SUPPORT:-0}" = "1" ] || echo "  --fail-on-scan-errors  Exit non-zero if an error occurs during the scan."
+  exit 0
+fi
 echo "$@" >> "$TH_LOG"
 exit "${TH_RC:-0}"
 FAKE_SCANNER
@@ -37,10 +44,10 @@ git -C "$T/repo" config commit.gpgsign false
 for i in 1 2 3; do echo "$i" > "$T/repo/f"; git -C "$T/repo" add f; git -C "$T/repo" commit -qm "c$i"; done
 HEAD_SHA="$(git -C "$T/repo" rev-parse HEAD)"
 
-run() { # ranges depth rc -> sets RC, CALLS, ARGS
+run() { # ranges depth rc [no_flag_support] -> sets RC, CALLS, ARGS
   export TH_LOG="$T/log"; : > "$TH_LOG"
   RC=0
-  INPUT_PATH="$T/repo" TRUFFLEHOG="$T/th" K9_PUSH_RANGES="$1" K9_SECRETS_MAX_DEPTH="$2" TH_RC="${3:-0}" \
+  INPUT_PATH="$T/repo" TRUFFLEHOG="$T/th" K9_PUSH_RANGES="$1" K9_SECRETS_MAX_DEPTH="$2" TH_RC="${3:-0}" NO_FLAG_SUPPORT="${4:-0}" \
     bash "$SCRIPT" >"$T/out" 2>&1 || RC=$?
   CALLS="$(wc -l < "$TH_LOG" | tr -d ' ')"; ARGS="$(cat "$TH_LOG")"
 }
@@ -52,16 +59,38 @@ check "clean new branch passes" "$RC" 0
 check "scanner told to fail on scan errors" "$(grep -c -- '--fail-on-scan-errors' <<<"$ARGS")" 1
 
 run "$NEW" 2 0
-check "new branch larger than the depth limit is blocked" "$RC" 1
+check "history larger than the depth limit is blocked" "$RC" 1
 check "…and no partial scan is run" "$CALLS" 0
+
+run "$NEW" 3 0
+check "history EQUAL to the depth limit is blocked (the limit can cut the oldest commit)" "$RC" 1
+run "$NEW" 4 0
+check "history below the depth limit passes" "$RC" 0
+
+# Shared history: the branch adds 1 commit on top of a commit that is already
+# in a remote-tracking ref. The scanner still walks all 4 commits, so the
+# guard must count 4, not 1.
+git -C "$T/repo" update-ref refs/remotes/origin/main "$HEAD_SHA"
+echo 4 > "$T/repo/f"; git -C "$T/repo" add f; git -C "$T/repo" commit -qm c4
+TOP_SHA="$(git -C "$T/repo" rev-parse HEAD)"
+run "refs/heads/y $TOP_SHA refs/heads/y $ZERO" 3 0
+check "history shared with a remote ref still counts toward the limit" "$RC" 1
+check "…and no partial scan is run for it" "$CALLS" 0
 
 run "" 500 0
 check "fallback scan passes" "$RC" 0
 check "fallback scans HEAD explicitly" "$(grep -c -- '--branch HEAD' <<<"$ARGS")" 1
 
+run "$NEW" 500 0 1
+check "a scanner without --fail-on-scan-errors is rejected" "$RC" 1
+check "…and it is never invoked to scan" "$CALLS" 0
+check "…and the user is told it is too old" "$(grep -c 'too old' "$T/out")" 1
+
 run "$NEW" 500 1
 check "scanner error blocks" "$RC" 1
-check "scanner error is reported as an error, not a secret" "$(grep -c 'SCANNER ERROR' "$T/out")" 1
+check "scanner error is reported as an error" "$(grep -c 'SCANNER ERROR' "$T/out")" 1
+check "error report does not deny a possible finding" "$(grep -c 'may ALSO contain a detected secret' "$T/out")" 1
+check "error report no longer says 'NOT a detected secret'" "$(grep -c 'NOT a detected secret' "$T/out")" 0
 
 run "$NEW" 500 183
 check "findings block" "$RC" 1
