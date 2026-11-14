@@ -20,9 +20,9 @@ permissions:
 # (replacing the retired runtime-policy.yml workflow per PR #244).
 #
 # The DEED and K9 conformance lanes below are pinned separately, to
-# metadatastician/standards@490b952b99eb22052c0ec5a1001b95dab1561097: their lane scripts
+# metadatastician/standards@3f480e93c453271031da8890088f9cfc00d4de66: their lane scripts
 # (conformance-deed.sh, conformance-k9.sh) first exist at 159fda2c, after the pin above.
-# The other sites stay on the older pin until each one is checked for compatibility.
+# This commit is the last standards commit before #1574, which turned standards main red on 14 Nov; the lane scripts are identical to 159fda2c. The other sites stay on the older pin until each one is checked for compatibility.
 jobs:
   governance:
     name: Estate Governance Policy
@@ -215,7 +215,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 490b952b99eb22052c0ec5a1001b95dab1561097
+          ref: 3f480e93c453271031da8890088f9cfc00d4de66
           path: .standards-checkout
           sparse-checkout: |
             scripts/conformance-deed.sh
@@ -271,7 +271,7 @@ jobs:
     env:
       ADVISORY: 'true'
       CANON: .standards-checkout
-      CANON_REF: 490b952b99eb22052c0ec5a1001b95dab1561097
+      CANON_REF: 3f480e93c453271031da8890088f9cfc00d4de66
       LANE: .standards-checkout/scripts/conformance-k9.sh
       NICKEL_VERSION: '1.18.0'
       NICKEL_SHA256: '9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb'
@@ -293,7 +293,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 490b952b99eb22052c0ec5a1001b95dab1561097
+          ref: 3f480e93c453271031da8890088f9cfc00d4de66
           path: .standards-checkout
           sparse-checkout: |
             1-formats/k9
