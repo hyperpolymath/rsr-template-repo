@@ -7,7 +7,7 @@
 # (praxis-deed
 #   :schema-version  "1.0.0"
 #   :canonical-name  "rsr-template-repo-launcher"
-#   :beholding-chora #u5"estate/chora"
+#   :beholding-chora #uuid"0889b37b-defb-831f-973c-e119500db00e"
 #   (artefact :type "launcher" :version "0.1.0"
 #             :generator "provision-set")
 #   (app :name "rsr-template-repo" :display "rsr-template-repo"
