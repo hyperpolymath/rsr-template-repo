@@ -12,15 +12,17 @@ trap 'rm -rf "$FIXTURE"' EXIT
 
 # expect_fail DIR NAME — the checker must reject DIR and name NAME in its output.
 expect_fail() {
-  if bash "$CHECKER" "$1" > "$FIXTURE/out" 2>&1; then
-    echo "FAIL: checker accepted a tree carrying $2" >&2; exit 1
+  local dir="$1" name="$2"
+  if bash "$CHECKER" "$dir" > "$FIXTURE/out" 2>&1; then
+    echo "FAIL: checker accepted a tree carrying $name" >&2; exit 1
   fi
-  grep -qF "$2" "$FIXTURE/out" || { echo "FAIL: checker did not name $2" >&2; cat "$FIXTURE/out" >&2; exit 1; }
+  grep -qF "$name" "$FIXTURE/out" || { echo "FAIL: checker did not name $name" >&2; cat "$FIXTURE/out" >&2; exit 1; }
 }
 
 # expect_pass DIR WHAT — the checker must accept DIR and print its PASS line.
 expect_pass() {
-  bash "$CHECKER" "$1" | grep -q "^PASS:" || { echo "FAIL: checker rejected $2" >&2; exit 1; }
+  local dir="$1" what="$2"
+  bash "$CHECKER" "$dir" | grep -q "^PASS:" || { echo "FAIL: checker rejected $what" >&2; exit 1; }
 }
 
 REPO="$FIXTURE/repo"; mkdir -p "$REPO"
