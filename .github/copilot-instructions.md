@@ -72,13 +72,17 @@ migration destination is AffineScript.
 
 ## Containers
 
+Only if this repo builds a container; otherwise skip.
+
 - Use Podman, never Docker.
 - Name the file `Containerfile`, never `Dockerfile`.
 - Base image: `cgr.dev/chainguard/wolfi-base:latest`.
 
 ## ABI/FFI
 
-- ABI definitions in Idris2 (`src/interface/abi/`).
+Only if this repo has a `src/interface/` seam; otherwise skip.
+
+- ABI definitions in Idris2 (`src/interface/Abi/`).
 - FFI implementations in Zig (`src/interface/ffi/`).
 - Generated C headers in `src/interface/generated/`.
 
