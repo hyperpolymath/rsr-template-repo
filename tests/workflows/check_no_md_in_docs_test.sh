@@ -17,13 +17,17 @@ trap 'rm -rf "$WORK"' EXIT
 
 FAILED=0
 CHECKS=0
+# names_literally OUTPUT PATTERN — fixed-string match, so a '.' in a filename is
+# not a regex wildcard and a near-miss like docs/NOTESXmd cannot satisfy it.
+names_literally() { grep -qF -- "$2" <<<"$1"; }
+
 check() { # LABEL EXPECTED_RC DIR [STDERR_PATTERN]
     local label="$1" want="$2" dir="$3" pat="${4:-}" rc=0 out
     out="$(bash "$GATE" "$dir" 2>&1)" || rc=$?
     CHECKS=$((CHECKS + 1))
     if [ "$rc" -ne "$want" ]; then
         FAILED=$((FAILED + 1)); echo "  FAIL  $label (want rc=$want, got rc=$rc)"; echo "$out" | sed 's/^/        /'
-    elif [ -n "$pat" ] && ! grep -q -- "$pat" <<<"$out"; then
+    elif [ -n "$pat" ] && ! names_literally "$out" "$pat"; then
         FAILED=$((FAILED + 1)); echo "  FAIL  $label (rc ok, output lacks: $pat)"; echo "$out" | sed 's/^/        /'
     else
         echo "  PASS  $label"
@@ -64,6 +68,19 @@ check "a stray .md beside an allow-listed tree fails" 1 "$WORK/bad3" "docs/stray
 # Negative: a lookalike directory name is not allow-listed.
 mk bad4; mkdir -p "$WORK/bad4/docs/wikis-old"; : >"$WORK/bad4/docs/wikis-old/p.md"
 check "docs/wikis-old is not allow-listed" 1 "$WORK/bad4" "docs/wikis-old/p.md"
+
+# Control: the filename match is literal. A near-miss must not satisfy it.
+CHECKS=$((CHECKS + 2))
+if names_literally "docs/NOTESXmd" "docs/NOTES.md"; then
+    FAILED=$((FAILED + 1)); echo "  FAIL  a near-miss filename satisfied the literal match"
+else
+    echo "  PASS  a near-miss filename does not satisfy the literal match"
+fi
+if names_literally "docs/NOTES.md" "docs/NOTES.md"; then
+    echo "  PASS  the exact filename satisfies the literal match"
+else
+    FAILED=$((FAILED + 1)); echo "  FAIL  the exact filename did not satisfy the literal match"
+fi
 
 echo "$CHECKS controls, $FAILED failed"
 [ "$FAILED" -eq 0 ]
