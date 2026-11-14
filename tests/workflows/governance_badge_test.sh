@@ -274,6 +274,98 @@ fire_case "failing the artifact download instead of publishing grey" \
 fire_case "pointing the publisher back at inline gh api" \
     "s/bun scripts\/governance-badge\.js stage/gh api repos\/\$GITHUB_REPOSITORY\/contents\/\$DEST/"
 
+# ---------------------------------------------------------------------------
+# 4. The Pages deploy job re-checks freshness right before deploying
+# ---------------------------------------------------------------------------
+# pages_freshness_checks PAGES_YML -> 0 if the deploy job refuses a stale run.
+# Structural checks, then the re-check step's real shell is extracted from the
+# YAML and RUN against a stub `gh`: a stale run must write current=false and a
+# current run current=true, and neither may fail the step.
+pages_freshness_checks() {
+    local pages="$1" tmp block step rc
+    WIRE_FAIL=0
+    tmp="$(mktemp -d)"
+    block="$tmp/deploy.yml"
+    job_block "$pages" deploy > "$block"
+    has "the deploy job can read the default branch head" '^      contents: read' "$block"
+    has "the deploy job has the re-check step" 'id: fresh' "$block"
+    has "deploying is conditional on the re-check" "if: steps\\.fresh\\.outputs\\.current == 'true'" "$block"
+
+    # Extract the re-check step's run: body (indent 12 -> 0).
+    awk '/id: fresh/ { seen = 1 }
+         seen && /^        run: \|$/ { grab = 1; next }
+         grab && /^      - name:/ { exit }
+         grab { if ($0 ~ /^          /) { sub(/^          /, ""); print } else if ($0 !~ /^$/) { exit } }' "$block" > "$tmp/step.sh"
+    if [[ ! -s "$tmp/step.sh" ]]; then
+        wire_fail "could not extract the re-check step's script"
+        rm -rf "$tmp"; return 1
+    fi
+
+    mkdir -p "$tmp/bin"
+    cat > "$tmp/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+echo "$FAKE_HEAD"
+STUB
+    chmod +x "$tmp/bin/gh"
+
+    local head="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" other="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" out
+    for case in current stale; do
+        out="$tmp/out-$case"; : > "$out"
+        local run_sha="$head"; [[ "$case" = stale ]] && run_sha="$other"
+        PATH="$tmp/bin:$PATH" GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$out" FAKE_HEAD="$head" RUN_SHA="$run_sha" \
+            bash "$tmp/step.sh" >/dev/null 2>&1
+        rc=$?
+        if [[ "$rc" -ne 0 ]]; then
+            wire_fail "the re-check step failed (exit $rc) for a $case run; a superseded run must be skipped, not failed"
+        elif [[ "$case" = current ]] && grep -qx 'current=true' "$out"; then
+            wire_pass "a current run is allowed to deploy"
+        elif [[ "$case" = stale ]] && grep -qx 'current=false' "$out"; then
+            wire_pass "a superseded run is refused"
+        else
+            wire_fail "the re-check gave the wrong verdict for a $case run: $(cat "$out")"
+        fi
+    done
+    rm -rf "$tmp"
+    return "$WIRE_FAIL"
+}
+
+echo ""
+echo "=== 4. Pages deploy: a stale run is refused right before deploying ==="
+if pages_freshness_checks "$PAGES"; then
+    echo "PASS: deploy freshness re-check"
+else
+    echo "FAIL: deploy freshness re-check"
+    fail=1
+fi
+
+echo ""
+echo "=== 5. Firing: the freshness checks fail on a broken pages.yml ==="
+pages_fire_case() {
+    local label="$1" mutation="$2" tmp copy
+    tmp="$(mktemp -d)"
+    copy="$tmp/pages.yml"
+    sed -E "$mutation" "$PAGES" > "$copy"
+    if cmp -s "$PAGES" "$copy"; then
+        echo "  FAIL: mutation had no effect: $label" >&2
+        echo "::error::governance-badge pages firing control: mutation had no effect: $label"
+        fail=1; rm -rf "$tmp"; return
+    fi
+    if pages_freshness_checks "$copy" >/dev/null 2>&1; then
+        echo "  FAIL: $label was not caught" >&2
+        echo "::error::governance-badge pages firing control: $label was not caught"
+        fail=1
+    else
+        echo "  PASS: $label is caught"
+    fi
+    rm -rf "$tmp"
+}
+pages_fire_case "deploying without consulting the re-check" \
+    "/^      - name: Deploy to GitHub Pages/,/uses:/ s/^        if: steps\.fresh\.outputs\.current == 'true'\$/        if: always()/"
+pages_fire_case "a re-check that lets a stale run through" \
+    "s/^          if \[ \"\\\$head\" = \"\\\$RUN_SHA\" \]; then\$/          if true; then/"
+pages_fire_case "a re-check that fails a superseded run instead of skipping it" \
+    "s/not deploying its badge\.\"\$/not deploying its badge.\"; exit 1/"
+
 echo ""
 if [[ "$fail" -ne 0 ]]; then
     echo "FAIL: governance badge suite" >&2

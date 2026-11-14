@@ -147,6 +147,7 @@ jobs:
 
   deploy:
     permissions:
+      contents: read   # read the default branch head for the freshness re-check
       pages: write
       id-token: write
     timeout-minutes: 20
@@ -156,6 +157,27 @@ jobs:
     runs-on: ubuntu-24.04
     needs: build
     steps:
+      # Second freshness check. The gate job only looked once, at the start; the
+      # build can take up to 20 minutes and the pages concurrency group does not
+      # cancel in-flight runs, so a newer push to the default branch may have landed
+      # since. Re-check immediately before deploying and skip (not fail) when this
+      # run has been superseded: the newer run's own deployment follows.
+      - name: Still the default branch's current head? (re-check before deploy)
+        id: fresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/HEAD" --jq .sha)"
+          if [ "$head" = "$RUN_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "Superseded: run is for ${RUN_SHA:0:12}, default branch is at ${head:0:12}; not deploying its badge."
+          fi
+
       - name: Deploy to GitHub Pages
         id: deployment
+        if: steps.fresh.outputs.current == 'true'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
