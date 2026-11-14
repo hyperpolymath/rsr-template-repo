@@ -18,11 +18,16 @@ expect_fail() {
   grep -qF "$2" "$FIXTURE/out" || { echo "FAIL: checker did not name $2" >&2; cat "$FIXTURE/out" >&2; exit 1; }
 }
 
+# expect_pass DIR WHAT — the checker must accept DIR and print its PASS line.
+expect_pass() {
+  bash "$CHECKER" "$1" | grep -q "^PASS:" || { echo "FAIL: checker rejected $2" >&2; exit 1; }
+}
+
 REPO="$FIXTURE/repo"; mkdir -p "$REPO"
 git -C "$REPO" init -q
 printf '(repo-deed)\n' > "$REPO/x_chora.deed"
 git -C "$REPO" add x_chora.deed
-bash "$CHECKER" "$REPO" | grep -q '^PASS:'
+expect_pass "$REPO" "a clean tree"
 
 mkdir -p "$REPO/.machine_readable/descriptiles"
 printf '[x]\n' > "$REPO/.machine_readable/descriptiles/STATE.a2ml"
@@ -42,11 +47,11 @@ mkdir -p "$REPO/.machine_readable" "$REPO/9-archive/old"
 printf '[x]\n' > "$REPO/LISTED.a2ml"
 printf '# ledger\nLISTED.a2ml  # waiting for kyX\n' > "$REPO/.machine_readable/a2ml-legacy-allow.txt"
 git -C "$REPO" add LISTED.a2ml .machine_readable
-bash "$CHECKER" "$REPO" | grep -q '^PASS:'
+expect_pass "$REPO" "a file listed in the ledger"
 git -C "$REPO" mv LISTED.a2ml 9-archive/old/LISTED.a2ml
 expect_fail "$REPO" "9-archive/old/LISTED.a2ml"
 git -C "$REPO" mv 9-archive/old/LISTED.a2ml LISTED.a2ml
-bash "$CHECKER" "$REPO" | grep -q '^PASS:'
+expect_pass "$REPO" "a listed file moved back to its ledger path"
 printf '[x]\n' > "$REPO/NEW.a2ml"
 git -C "$REPO" add NEW.a2ml
 expect_fail "$REPO" "NEW.a2ml"
@@ -65,12 +70,12 @@ expect_fail "$REPO" "Mixed.A2ml"
 git -C "$REPO" rm -q --cached Mixed.A2ml && rm "$REPO/Mixed.A2ml"
 printf '[x]\n' > "$REPO/GONE.a2ml"
 git -C "$REPO" add GONE.a2ml && rm "$REPO/GONE.a2ml"
-bash "$CHECKER" "$REPO" | grep -q '^PASS:' || { echo "FAIL: a deleted tracked file was reported" >&2; exit 1; }
+expect_pass "$REPO" "a tree whose only .a2ml is a tracked file already deleted"
 
 PLAIN="$FIXTURE/plain"; mkdir -p "$PLAIN/sub"
 printf '[x]\n' > "$PLAIN/sub/ANCHOR.a2ml"
 expect_fail "$PLAIN" "sub/ANCHOR.a2ml"
 rm "$PLAIN/sub/ANCHOR.a2ml"
-bash "$CHECKER" "$PLAIN" | grep -q '^PASS:'
+expect_pass "$PLAIN" "a clean non-git tree"
 
 echo "PASS: check-no-a2ml controls (clean, tracked, upper-case, untracked, ledger)"
