@@ -307,6 +307,8 @@ expect_fail "token gate fails on an answerable token in a minted tree that still
 # .machine_readable/mint-verbatim.txt: the mint leaves them alone and neither
 # completeness check reads them. Positive and negative control on a fixture,
 # then a guard that the real list names every such document in this tree.
+# The placeholder gate exempts a template repo by name (GITHUB_REPOSITORY, which
+# CI sets to this repo), so those controls pin a child name to stay hermetic.
 M3="$WORK/minted-prose"; mkdir -p "$M3/build/just" "$M3/.machine_readable"
 cp "$REPO_DIR/build/just/repo-init.just" "$M3/build/just/"
 printf '= Changelog\n\nAn unfilled {{PROJECT_NAME}} passed the gate.\n' > "$M3/CHANGELOG.adoc"
@@ -314,12 +316,12 @@ printf '= Changelog\n\nAn unfilled {{PROJECT_NAME}} passed the gate.\n' > "$M3/C
 expect_fail "token gate fails on prose that quotes a token when the document is not listed verbatim" \
     bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$M3"
 expect_fail "placeholder gate fails on the same prose when the document is not listed verbatim" \
-    bash "$REPO_DIR/scripts/check-no-placeholders.sh" "$M3"
+    env GITHUB_REPOSITORY=hyperpolymath/example-child bash "$REPO_DIR/scripts/check-no-placeholders.sh" "$M3"
 printf 'CHANGELOG.adoc   # prose quotes the project-name brace token\n' > "$M3/.machine_readable/mint-verbatim.txt"
 expect_pass "token gate passes once the prose document is listed verbatim" \
     bash "$REPO_DIR/scripts/check-mint-tokens.sh" --quiet --root "$M3"
 expect_pass "placeholder gate passes once the prose document is listed verbatim" \
-    bash "$REPO_DIR/scripts/check-no-placeholders.sh" "$M3"
+    env GITHUB_REPOSITORY=hyperpolymath/example-child bash "$REPO_DIR/scripts/check-no-placeholders.sh" "$M3"
 for doc in CHANGELOG.adoc docs/reports/compliance/RSR-TEMPLATE-DAMAGE-2026-10-30.adoc \
            docs/status/TEST-NEEDS.adoc scripts/survey-template-damage.sh \
            scripts/check-mint-tokens.sh tests/aspect_tests.sh; do
