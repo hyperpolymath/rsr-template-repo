@@ -82,8 +82,9 @@ jobs:
   # The hard gate is estate-rules.yml "No .a2ml files": no A2ML outside the
   # shrink-only legacy ledger, 9-archive/ included, so an added, copied,
   # renamed or moved A2ML file fails (owner ruling 2026-11-14: A2ML moves
-  # fail), as standards' diff-based no-new-a2ml does. The advisory existing-A2ML lister joins this file
-  # once the standards pin carries scripts/list-existing-a2ml.sh; pins move
+  # fail), as standards' diff-based no-new-a2ml does. The advisory existing-A2ML lister is the
+  # existing-a2ml job below. It, and the DEED and K9 conformance lanes, need a
+  # standards pin that carries their scripts (159fda2c or later); pins move
   # only through the applier (owner ruling, 2026-11-14).
 
   # Measured debt may fall, never rise silently (standards
@@ -139,3 +140,230 @@ jobs:
             bash "$RUNNER_TEMP/check-debtfile-structure.sh"
           fi
           bash "$RUNNER_TEMP/check-debt-ratchet.sh" "$BASE_SHA"
+
+  # The advisory existing-A2ML lister (standards scripts/list-existing-a2ml.sh,
+  # the same listing as governance-reusable.yml's existing-a2ml-warning job).
+  # It never fails the run: the checkout and the staging are best effort too, so
+  # a pin without the script is one warning, not a red run.
+  existing-a2ml:
+    name: Existing A2ML (advisory)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout the pinned A2ML lister
+        id: lister
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
+          path: .standards-list-a2ml
+          sparse-checkout: scripts/list-existing-a2ml.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: List existing A2ML files (never fails)
+        run: |
+          # Staged outside the scanned tree, then the checkout is removed.
+          if [ -f .standards-list-a2ml/scripts/list-existing-a2ml.sh ]; then
+            cp .standards-list-a2ml/scripts/list-existing-a2ml.sh "$RUNNER_TEMP/"
+            rm -rf .standards-list-a2ml
+            bash "$RUNNER_TEMP/list-existing-a2ml.sh" . || echo "::warning::the existing-A2ML listing could not run (exit $?)"
+          else
+            echo "::warning::the pinned standards checkout has no scripts/list-existing-a2ml.sh (checkout outcome: ${{ steps.lister.outcome }}); the existing-A2ML listing did not run."
+          fi
+
+  # The DEED conformance lane (standards scripts/conformance-deed.sh, the same
+  # code governance-reusable.yml's nested deed-conformance.yml runs). ADVISORY
+  # is on, as in the reusable: every finding is a ::warning:: and the job passes,
+  # so a repository opts into enforcement by setting ADVISORY to 'false'.
+  deed-conformance:
+    name: Deed conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      ADVISORY: 'true'
+      LANE: .standards-checkout/scripts/conformance-deed.sh
+      T: .standards-checkout/1-formats/deed/tools
+    steps:
+      - name: Checkout repository
+        id: checkout
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout the pinned DEED lane
+        id: canon
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
+          path: .standards-checkout
+          sparse-checkout: |
+            scripts/conformance-deed.sh
+            1-formats/deed/tools
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Set up Bun
+        id: bun
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+
+      - name: Lint every committed deed
+        id: lint
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        run: bash "$LANE" lint
+
+      - name: Advisory findings as warnings
+        # Also when a prerequisite step failed: a failed checkout leaves an empty
+        # workspace that lints as "nothing to lint" and would otherwise go green.
+        if: ${{ always() && env.ADVISORY == 'true' && (steps.lint.outcome == 'failure' || steps.checkout.outcome == 'failure' || steps.canon.outcome == 'failure' || steps.bun.outcome == 'failure') }}
+        continue-on-error: true
+        run: |
+          # The script lives in the checkout this step may be reporting on, so the
+          # fallback for its absence is inline: a failed checkout must still warn.
+          if [ -f "$LANE" ]; then
+            bash "$LANE" warn
+          else
+            echo "::warning::deed conformance (advisory): the conformance script could not be staged (a checkout step failed), so conformance did not run; not enforced."
+          fi
+
+  # The K9 conformance lane (standards scripts/conformance-k9.sh, the same code
+  # as the nested k9-conformance.yml). Advisory by the same switch as above. The
+  # grid is written to the job summary; the delta column reads the previous grid
+  # comment on a pull request.
+  k9-conformance:
+    name: K9 conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      ADVISORY: 'true'
+      CANON: .standards-checkout
+      CANON_REF: f0b3cd4c464d33e1584f8528c17bce104555e256
+      LANE: .standards-checkout/scripts/conformance-k9.sh
+      NICKEL_VERSION: '1.18.0'
+      NICKEL_SHA256: '9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb'
+    steps:
+      - name: Checkout repository
+        id: checkout
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Full history: the changed-file list is the merge-base diff and the
+          # ledger ratchet reads the commit messages.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout the pinned K9 lane
+        id: canon
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metadatastician/standards
+          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
+          path: .standards-checkout
+          sparse-checkout: |
+            1-formats/k9
+            2-protocols/k9-coordination/spec/abnf
+            2-protocols/k9-coordination/tools/validate
+            scripts/k9-grid.sh
+            scripts/lib/k9-grid.jq
+            scripts/conformance-k9.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Install Nickel (pinned, sha256-verified)
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/tweag/nickel/releases/download/${NICKEL_VERSION}/nickel-x86_64-linux"
+          curl -sSfL --proto '=https' --proto-redir '=https' --tlsv1.2 --retry 3 -o "$RUNNER_TEMP/nickel" "$URL"
+          echo "${NICKEL_SHA256}  ${RUNNER_TEMP}/nickel" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/nickel"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Set up Bun
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+
+      - name: Validator self-test
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        run: bash "$LANE" selftest
+
+      - name: Contract typecheck
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        run: bash "$LANE" typecheck
+
+      - name: Enumerate the committed K9 files, the changed files and ledger growth
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEDGER: .machine_readable/k9-contract-debt.txt
+        run: bash "$LANE" enumerate
+
+      - name: Validate every committed K9 file (L0-L2, strict)
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        run: bash "$LANE" validate
+
+      - name: Validate coordination.k9 files against the v1.2 ABNF
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        run: bash "$LANE" coord
+
+      - name: Read the grid comment from the previous revision (delta column)
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENTS_URL: ${{ github.event.pull_request.comments_url }}
+          MARKER: '<!-- verdict-grid:k9 regenerated on every run -->'
+          GRID_AUTHOR: github-actions[bot]
+        run: bash "$LANE" previous
+
+      - name: Render the verdict grid
+        id: grid
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        env:
+          REQUIRE_FILES: 'false'
+          PR_NUMBER: ${{ github.event.pull_request.number || 'local' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash "$LANE" render
+
+      - name: Gate
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
+        env:
+          STATE: ${{ steps.grid.outputs.state }}
+          FAIL_ON_INDETERMINATE: 'false'
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          CANON_OUTCOME: ${{ steps.canon.outcome }}
+        run: |
+          # The script lives in the checkout this step may be reporting on, so the
+          # fallback for its absence is inline: a failed checkout must still say so.
+          if [ -f "$LANE" ]; then
+            bash "$LANE" gate
+          elif [ "$ADVISORY" = "true" ]; then
+            echo "::warning::K9 conformance (advisory): the conformance script could not be staged (a checkout step failed), so conformance did not run; not enforced."
+          else
+            echo "::error::K9 conformance could not run: the conformance script could not be staged (a checkout step failed)"; exit 1
+          fi
