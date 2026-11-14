@@ -64,6 +64,8 @@ jobs:
       # verdict rests on a stderr comparison.
       - name: Install asciidoctor
         run: sudo gem install asciidoctor -v 2.0.26 --no-document
+      - name: Proof gate self-test (stub prover; positive and negative controls)
+        run: bash tests/workflows/check_proofs_test.sh
       - name: AsciiDoc render gate self-test (must catch what bare asciidoctor misses)
         run: bash tests/workflows/check_adoc_renders_test.sh
       - name: Every tracked .adoc renders clean
