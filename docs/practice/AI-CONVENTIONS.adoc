@@ -82,7 +82,7 @@ Applies only if this repo builds a container (it has a `build/container/` module
 
 - Runtime: **Podman** (never Docker).
 - File: **Containerfile** (never Dockerfile).
-- Base images: `cgr.dev/chainguard/wolfi-base:latest` or `cgr.dev/chainguard/static:latest`.
+- Base images: `cgr.dev/chainguard/wolfi-base` or `cgr.dev/chainguard/static`, pinned by digest (`@sha256:<digest>`); a tag is not a pin.
 
 === ABI/FFI Standard
 
