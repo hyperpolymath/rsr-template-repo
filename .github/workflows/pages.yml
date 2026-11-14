@@ -4,15 +4,21 @@
 # Replaces the orphan one-off Pages deployment with a reproducible build.
 name: GitHub Pages
 
+# Deployed AFTER Dogfood Gate completes on main, because the site now carries
+# badges/k9.json (the README's live K9 badge). There is one Pages site per
+# repository and a deployment replaces it wholesale, so the badge has to be part
+# of THE deployment; a second, earlier deploy from a bare push would erase it.
+# This also means a manual workflow_dispatch is gone: re-run Dogfood Gate on
+# main to redeploy. Pages deployments are not branch writes, so this satisfies
+# the Branch-Floor ruleset (which refused the old governance-badges branch).
 on:
-  push:
+  workflow_run:
+    workflows: ["Dogfood Gate"]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Least privilege: nothing at workflow level; each job asks for what it needs.
+permissions: {}
 
 # Serialise Pages deploys; never cancel an in-flight deploy.
 concurrency:
@@ -20,10 +26,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Freshness gate. Re-running an OLDER Dogfood Gate run (or a late-finishing one
+  # during a burst of merges) must not replace a newer run's badge: a green
+  # badge from an old commit would overwrite a red one from the current head.
+  # Only the run for the default branch's CURRENT head may deploy; a superseded
+  # run is skipped (not failed), because the newer run's own deployment follows.
+  gate:
+    # Only main pushes (never a PR or fork run), and not a cancelled gate run:
+    # a cancelled run staged nothing trustworthy to deploy.
+    if: >-
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    outputs:
+      current: ${{ steps.fresh.outputs.current }}
+    steps:
+      - name: Is this the default branch's current head?
+        id: fresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/HEAD" --jq .sha)"
+          if [ "$head" = "$RUN_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "Superseded: run is for ${RUN_SHA:0:12}, default branch is at ${head:0:12}; not deploying its badge."
+          fi
+
   build:
+    needs: gate
+    if: needs.gate.outputs.current == 'true'
+    permissions:
+      contents: read
+      actions: read   # download the badge artifact of the triggering run
+      pages: read     # configure-pages reads the Pages config (private repos)
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
+      # Deliberately NO `ref:`: a workflow_run job runs with this repository's
+      # permissions, so it builds the default branch (this repo's own trusted
+      # code) and never checks out the triggering run's head.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -70,6 +118,25 @@ jobs:
           fi
           cd .casket-ssg && cabal run casket-ssg -- build ../site ../_site
 
+      # The badge was staged by the gate's `badges` job from the lane result and
+      # evidence. A missing artifact fails this job loudly: deploying the site
+      # without it would silently delete the live badge.
+      - name: Fetch the staged badge
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: governance-badge-site
+          path: ${{ runner.temp }}/governance-badge-site
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Add the badge to the site
+        run: |
+          set -euo pipefail
+          test -f "$RUNNER_TEMP/governance-badge-site/badges/k9.json"
+          mkdir -p _site/badges
+          cp "$RUNNER_TEMP/governance-badge-site/badges/k9.json" _site/badges/k9.json
+          cat _site/badges/k9.json
+
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
@@ -79,6 +146,9 @@ jobs:
           path: '_site'
 
   deploy:
+    permissions:
+      pages: write
+      id-token: write
     timeout-minutes: 20
     environment:
       name: github-pages
