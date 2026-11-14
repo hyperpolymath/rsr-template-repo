@@ -798,6 +798,31 @@ async function main() {
             await api.close();
         }
 
+        // A label inherited from Object.prototype is still a valid label. With an
+        // existing foreign file the legacy lookup must fall back to "no legacy
+        // labels" and refuse cleanly, not throw a TypeError.
+        for (const inherited of ["constructor", "toString", "hasOwnProperty"]) {
+            const api = createApi({ branchExists: true, fileBytes: '{"schemaVersion":1,"label":"coverage","message":"success","color":"brightgreen"}\n' });
+            const url = await api.listen();
+            await test(`label "${inherited}" over an existing foreign file is refused, not a crash`, async () => {
+                const out = await runAsync([
+                    "publish",
+                    "--label", inherited,
+                    "--lane-result", "failure",
+                    "--artifact", failureArtifact,
+                    "--branch", BRANCH,
+                    "--path", DEST,
+                    "--repo", "example/template",
+                    "--api-url", url,
+                ]);
+                equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stderr}`);
+                check(!/TypeError/.test(out.stderr), `must not crash with a TypeError: ${out.stderr}`);
+                check(/refused/i.test(out.stderr), `stderr must say refused: ${out.stderr}`);
+                equal(api.writes().length, 0, "a foreign file must not be overwritten");
+            });
+            await api.close();
+        }
+
         // ---------------------------------------------------------------- 7
         section("7. Missing is not the same as broken");
 

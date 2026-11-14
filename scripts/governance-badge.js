@@ -167,7 +167,12 @@ function inspectBadge(text, label, { pairing = "strict" } = {}) {
     if (badge.schemaVersion !== 1) {
         errors.push(`schemaVersion is ${JSON.stringify(badge.schemaVersion)}, expected 1`);
     }
-    const legacy = pairing === "loose" && label !== undefined && (LEGACY_LABELS[label] || []).includes(badge.label);
+    // Own properties only: a label such as "constructor" or "toString" is a valid
+    // label, and a bare lookup would return the inherited built-in, not an array.
+    const legacyLabels = label !== undefined && Object.prototype.hasOwnProperty.call(LEGACY_LABELS, label)
+        ? LEGACY_LABELS[label]
+        : [];
+    const legacy = pairing === "loose" && label !== undefined && legacyLabels.includes(badge.label);
     if (label !== undefined && badge.label !== label && !legacy) {
         errors.push(`label is ${JSON.stringify(badge.label)}, expected ${JSON.stringify(label)}`);
     }
