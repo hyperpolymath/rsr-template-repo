@@ -18,6 +18,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The guard reads the TEMPLATE's token-bearing lines. In a repo minted from the
+# template the mint has already filled or deleted them, so there is nothing to
+# guard there (the same rule as tests/shape/rust_cli_root_shape_test.sh).
+if ! bash "$ROOT/scripts/is-template-tree.sh" "$ROOT"; then
+    echo "SKIP: mint scrub constructs (not the template tree; is-template-tree.sh says no)"
+    exit 0
+fi
 RECIPE="$ROOT/build/just/repo-init.just"
 LB=$(printf '\x7b\x7b'); RB=$(printf '\x7d\x7d')
 
