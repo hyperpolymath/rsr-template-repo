@@ -116,8 +116,8 @@ jobs:
         run: bash tests/workflows/mint_cleanup_test.sh
       - name: Self-name pass keeps issue references, provenance and detectors
         run: bash tests/workflows/self_name_pass_test.sh
-      - name: TEST-NEEDS is minted, not carried verbatim
-        run: bash tests/workflows/test_needs_minted_test.sh
+      - name: Carried tests survive a child tree
+        run: bash tests/workflows/verbatim_tests_child_safe_test.sh
       # Stage-2 trial of standards A7 8.1: an edict selected by identity. Trial
       # only; it gates nothing but its own fixtures.
       - name: Edict trial (A7 stage 2)
