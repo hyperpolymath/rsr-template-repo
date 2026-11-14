@@ -270,7 +270,7 @@ image build/publish jobs you no longer need.
 * Runtime: `cgr.dev/chainguard/wolfi-base@sha256:<digest>` (or
   `cgr.dev/chainguard/static@sha256:<digest>` for static binaries)
 
-Pin every `FROM` by digest with `scripts/pin-container-digests.sh`. A tag is not a pin: `scripts/check-container-pins.sh` rejects `:latest` and a tag-and-digest pair alike.
+Pin every `FROM` by digest with `scripts/pin-container-digests.sh`. A tag is not a pin: `scripts/check-container-pins.sh` rejects a `FROM` with a tag and no digest (`:latest` or a version tag). It accepts a tag followed by a digest, but then the tag does nothing, so write the digest alone.
 
 Chainguard images are minimal, low-CVE, and rebuilt daily (`apk` package
 manager, Alpine-compatible).
