@@ -58,12 +58,12 @@ if defect "$TMP/ctl" tests/guarded.sh; then echo "FAIL: a guarded test was flagg
 child_copy "$ROOT" "$TMP/child"
 bad=0 checked=0
 while IFS= read -r f; do
-    [ -f "$ROOT/$f" ] || continue
+    [[ -f "$ROOT/$f" ]] || continue
     grep -qE "$REMOVED_RE" "$ROOT/$f" || continue
     checked=$((checked + 1))
     if defect "$TMP/child" "$f"; then
         echo "FAIL: $f is carried verbatim but dies on a path the mint removes" >&2; bad=1
     fi
 done < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$ROOT/.machine_readable/mint-verbatim.txt" | grep -E '^tests/.*\.sh$')
-[ "$bad" -eq 0 ] || exit 1
+[[ "$bad" -eq 0 ]] || exit 1
 echo "PASS: $checked carried tests that name a removed path survive a child tree (2 controls)"

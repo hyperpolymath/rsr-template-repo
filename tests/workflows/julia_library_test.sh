@@ -9,7 +9,7 @@ repo=$(git rev-parse --show-toplevel)
 # This test reads archetypes/julia-library, which the mint removes from every
 # child; run there it dies on a missing fixture, a red build for a test about
 # the parent. Skip loudly, like tests/e2e/use_template_mint_test.sh.
-if [ ! -d "$repo/archetypes/julia-library" ]; then
+if [[ ! -d "$repo/archetypes/julia-library" ]]; then
     echo "SKIP: $repo has no archetypes/julia-library — this is a minted repository."
     echo "      Package UUID and job-timeout minting is a template-side check; run it in"
     echo "      hyperpolymath/rsr-template-repo."
