@@ -57,6 +57,8 @@ jobs:
             || { echo "::error::REPOSITORY-MAP.adoc is stale - run 'just repo-map'"; exit 1; }
       - name: AsciiDoc by default (no .md under docs/)
         run: bash scripts/check-no-md-in-docs.sh .
+      - name: AsciiDoc-by-default gate self-test (positive and negative controls)
+        run: bash tests/workflows/check_no_md_in_docs_test.sh
       - name: proof-status claims reader (positive and negative controls)
         run: bash tests/workflows/proof_claims_rows_test.sh
       # The rule above checks the file EXTENSION only, so a Markdown body
@@ -239,6 +241,9 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # A cancelled run must not leave a red verdict job behind.
+      - name: Fork governance verdict skips on cancel
+        run: bash tests/workflows/fork_governance_verdict_cancel_test.sh
       # The proof-status vocabulary must give one answer for an open row.
       - name: PROOF-STATUS vocabulary agrees with itself
         run: bash tests/workflows/proof_status_vocabulary_test.sh
