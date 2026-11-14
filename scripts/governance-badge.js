@@ -135,9 +135,11 @@ function renderBadge(label, state) {
 // A file on the badges branch carrying one of these (and otherwise a valid
 // shield badge) is a known predecessor of this lane's badge, so it is
 // migrated (replaced with the canonical badge) rather than refused as foreign.
-// Any other label stays a refusal. The old K9 lane was labelled "k9-deed L0" + U+2013 + "L2".
+// Any other label stays a refusal. The old K9 lane was labelled "k9-deed L0" + U+2013 + "L2";
+// a later renderer wrote "K9 L0" + U+2013 + "L2" (read on the governance-badges branches of
+// the estate, 14 Nov 2026: atoma has the second form, Apodeixis.jl the first).
 const LEGACY_LABELS = Object.freeze({
-    K9: Object.freeze(["k9-deed L0\u2013L2"]),
+    K9: Object.freeze(["k9-deed L0\u2013L2", "K9 L0\u2013L2"]),
 });
 
 // inspectBadge - is this text a shield-endpoint object?
