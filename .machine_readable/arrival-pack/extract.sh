@@ -57,13 +57,12 @@ lines() {
 # hash12 -> short content hash of stdin (drift provenance)
 hash12() { sha256sum | cut -c1-12; }
 
-# The identity is the deed's own TYPED literal (#u5"<name>", later #u8"<domain:name>"),
-# never a computed hex uuid. The uuid is derived from that name and never
-# stored (deed.abnf); printing its hex form put a version-5 literal in
-# CLAUDE.md, which ADR-008's strict gate (owner ruling D320, standards
-# governance job uuid-v7-conformance) rejects in every minted repo. The
-# typed literal says what the identifier is, as ADR-008 asks of legacy ids,
-# and follows the deed when it moves to version 8.
+# The identity is the deed's own TYPED literal, printed as written:
+# #uuid"<v8 id>" (minted once, A7 J11), or the computed #u8"<domain:name>".
+# The pack never prints a derived hex form of a name literal: that once put a
+# version 5 id in CLAUDE.md, which ADR-008's strict gate (owner ruling D320)
+# rejects in every minted repo. The typed literal says what the identifier is,
+# as ADR-008 asks.
 uuid_name="$(field '' repo-uuid)"
 uuid=""
 if [[ -n "$uuid_name" ]]; then
@@ -75,9 +74,11 @@ if [[ -n "$uuid_name" ]]; then
 fi
 [ -z "$uuid_name" ] || [ -n "$uuid" ] \
   || { echo "extract.sh: $(basename "$DEED") :repo-uuid is not a typed #uuid\"...\" or #u<n>\"...\" literal" >&2; exit 2; }
-# A version 5 identity is reported, never refused here: standards A1 C10 and
-# T30 call it v5-identity, a warning in lax mode (this reader) and an error in
-# strict mode (`just validate-rsr`). The chora id is the v8 id of the birth path.
+# A version 5 identity is reported, not refused, here: this is the arrival-pack
+# reader, not the gate. Standards A1 v0.4.5 C10 and T30 (ruling Q2) make
+# v5-identity and u5-identity errors in every mode, and `just validate-rsr`
+# and estate-rules (scripts/check-identity.sh) refuse them. The chora id is the
+# v8 id of the birth path.
 case "$uuid" in
   '#u5"'*|'#uuid"'????????-????-5*)
     echo "extract.sh: v5-identity: $(basename "$DEED") :repo-uuid $uuid is a version 5 id; the chora id is #uuid\"<v8 id of the birth path>\" (standards A1 V8)" >&2 ;;
