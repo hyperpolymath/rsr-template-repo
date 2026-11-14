@@ -65,5 +65,5 @@ echo "PASS: deed-field.sh --uuid refuses an uppercase or version 4 body"
 # without a note: it is not legacy.
 printf '(repo-deed\n  :repo-uuid #u8"gv-clade-index:%s")\n' "${names[0]}" > "$d/x_chora.deed"
 got=$("$bash_bin" "$repo/scripts/deed-field.sh" --uuid "$d/x_chora.deed" 2>"$work/err") || fail "#u8 literal failed"
-[ "$got" = "${want[0]}" ] && [ ! -s "$work/err" ] || fail "#u8 gave '$got' (stderr: $(cat "$work/err"))"
+[[ "$got" = "${want[0]}" && ! -s "$work/err" ]] || fail "#u8 gave '$got' (stderr: $(cat "$work/err"))"
 echo "PASS: deed-field.sh --uuid derives a #u8 literal quietly (S2)"

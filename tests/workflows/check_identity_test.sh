@@ -25,13 +25,14 @@ UPPER="#uuid\"$(printf '%s' 8e515699-3fb9-8785-8883-ef2a100c2e02 | tr a-f A-F)\"
 # deed REPO_UUID [BEHOLDING] -> path of a minimal repo deed
 n=0
 deed() {
+  local id="$1" behold="${2:-}"
   n=$((n + 1))
   local f="$FIXTURE/case$n/x_chora.deed"
   mkdir -p "$(dirname "$f")"
   {
     printf ';; SPDX-License-Identifier: CC-BY-SA-4.0\n(repo-deed :schema-version "1.0.0" :canonical-name "x"'
-    [ -n "${2:-}" ] && printf '\n  :beholding-chora %s' "$2"
-    [ -n "$1" ] && printf '\n  :repo-uuid %s' "$1"
+    [[ -n "$behold" ]] && printf '\n  :beholding-chora %s' "$behold"
+    [[ -n "$id" ]] && printf '\n  :repo-uuid %s' "$id"
     printf '\n  (identity :primary-forge github))\n'
   } > "$f"
   printf '%s' "$f"
@@ -46,7 +47,7 @@ expect_pass() {
 expect_fail() {
   local what="$1" f="$2" needle="$3" rc=0
   bash "$CHECKER" "$f" > "$FIXTURE/out" 2>&1 || rc=$?
-  [ "$rc" -eq 1 ] || { echo "FAIL: checker gave $rc, not 1, for $what" >&2; cat "$FIXTURE/out" >&2; exit 1; }
+  [[ "$rc" -eq 1 ]] || { echo "FAIL: checker gave $rc, not 1, for $what" >&2; cat "$FIXTURE/out" >&2; exit 1; }
   grep -qF -- "$needle" "$FIXTURE/out" || { echo "FAIL: checker did not say '$needle' for $what" >&2; cat "$FIXTURE/out" >&2; exit 1; }
 }
 
@@ -63,8 +64,8 @@ expect_fail "an upper-case :repo-uuid" "$(deed "$UPPER")" "not a lowercase versi
 expect_fail "a missing :repo-uuid" "$(deed "")" ":repo-uuid is missing"
 
 # Usage errors are 2, never a silent pass.
-rc=0; bash "$CHECKER" >/dev/null 2>&1 || rc=$?; [ "$rc" -eq 2 ] || { echo "FAIL: no argument gave $rc, not 2" >&2; exit 1; }
-rc=0; bash "$CHECKER" "$FIXTURE/none.deed" >/dev/null 2>&1 || rc=$?; [ "$rc" -eq 2 ] || { echo "FAIL: a missing deed gave $rc, not 2" >&2; exit 1; }
+rc=0; bash "$CHECKER" >/dev/null 2>&1 || rc=$?; [[ "$rc" -eq 2 ]] || { echo "FAIL: no argument gave $rc, not 2" >&2; exit 1; }
+rc=0; bash "$CHECKER" "$FIXTURE/none.deed" >/dev/null 2>&1 || rc=$?; [[ "$rc" -eq 2 ]] || { echo "FAIL: a missing deed gave $rc, not 2" >&2; exit 1; }
 
 # The template's own deed passes.
 expect_pass "the template's own deed" "$(cd "$(dirname "$CHECKER")/.." && pwd)/rsr-template-repo_chora.deed"

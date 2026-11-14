@@ -61,7 +61,7 @@ validate-rsr:
         # :beholding-chora is an error in every mode (A1 v0.4.5 T30). The rule
         # lives in scripts/check-identity.sh, tested by
         # tests/workflows/check_identity_test.sh and run in estate-rules.yml.
-        IDENT_OUT="$(bash scripts/check-identity.sh "$DEED")" || {
+        IDENT_OUT="$(bash scripts/check-identity.sh "$DEED" 2>&1)" || {
             printf "%s\n" "$IDENT_OUT"
             MISSING="$MISSING $DEED:identity-literals(see above)"
         }
