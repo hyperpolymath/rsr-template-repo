@@ -227,6 +227,10 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # The mint substitutes README.adoc, so a token in the badge prose would
+      # read as the child's own owner and repository name.
+      - name: README badge prose carries no brace token
+        run: bash tests/workflows/readme_badge_prose_test.sh
       # The README badge is generated output on an orphan branch. This proves
       # the state -> colour table (grey, never a stale green), the byte-equal
       # no-op, the orphan commit, the API-error classification and the workflow
