@@ -571,6 +571,7 @@ async function main() {
             ["missing final newline", SUCCESS_BADGE.trimEnd(), "success", SUCCESS_BADGE],
             ["legacy red skipped badge", '{"schemaVersion":1,"label":"K9","message":"skipped","color":"red"}\n', "skipped", SKIPPED_BADGE],
             ["legacy unrecognised message", '{"schemaVersion":1,"label":"K9","message":"pending","color":"blue"}\n', "success", SUCCESS_BADGE],
+            ["legacy K9 label (k9-deed L0\u2013L2), as published by the earlier renderer", '{"schemaVersion":1,"label":"k9-deed L0\u2013L2","message":"passing","color":"brightgreen"}\n', "success", SUCCESS_BADGE],
         ]) {
             await testWithApi(`existing ${name} is updated to canonical bytes`, {
                 branchExists: true, fileBytes: bytes,
@@ -772,6 +773,9 @@ async function main() {
             ["JSON array", "[]\n"],
             ["missing schemaVersion", '{"label":"K9","message":"failure","color":"red"}\n'],
             ["null message", '{"schemaVersion":1,"label":"K9","message":null,"color":"red"}\n'],
+            ["a foreign label that is not a K9 predecessor", '{"schemaVersion":1,"label":"coverage","message":"success","color":"brightgreen"}\n'],
+            ["the legacy K9 label with a missing message", '{"schemaVersion":1,"label":"k9-deed L0\u2013L2","color":"red"}\n'],
+            ["the legacy K9 label with the wrong schemaVersion", '{"schemaVersion":2,"label":"k9-deed L0\u2013L2","message":"passing","color":"brightgreen"}\n'],
             ...INVALID_BADGES,
         ]) {
             const api = createApi({ branchExists: true, fileBytes: text });
