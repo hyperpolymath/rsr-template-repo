@@ -251,6 +251,20 @@ expect_pass "mise gate (engine) detects julia at src/julia/Project.toml" mise --
 rm -rf "$JD/build"
 printf '[tools]\njust = "latest"\nshellcheck = "latest"\nyq = "latest"\ntrivy = "latest"\njulia = "latest"\n' > "$JD/mise.toml"
 expect_pass "mise gate (--detect mirror) detects julia at src/julia/Project.toml" mise --root "$JD" --detect
+
+# AffineScript (.affine) is detected by BOTH detectors, needs no mise tool (the
+# compiler is a release binary), and its lint is a type-check of tracked files.
+AD="$WORK/affine-detect"; mkdir -p "$AD/src" "$AD/build/just"
+cp "$REPO_DIR/build/just/provision-lib.sh" "$AD/build/just/"
+printf 'fn main() -> Int { 0 }\n' > "$AD/src/main.affine"
+printf '[tools]\njust = "latest"\nshellcheck = "latest"\nyq = "latest"\n' > "$AD/mise.toml"
+if [ "$(cd "$AD" && PROVISION_ROOT="$AD" bash build/just/provision-lib.sh langs 2>/dev/null | tr '\n' ' ' | xargs)" = affinescript ]; then
+    pass "provision-lib detects a .affine file as affinescript"
+else bad "provision-lib detects a .affine file as affinescript"; fi
+expect_pass "mise gate (engine) asks no mise tool for affinescript" mise --root "$AD"
+rm -rf "$AD/build"
+printf '[tools]\njust = "latest"\nshellcheck = "latest"\nyq = "latest"\ntrivy = "latest"\n' > "$AD/mise.toml"
+expect_pass "mise gate (--detect mirror) detects affinescript and asks no mise tool" mise --root "$AD" --detect
 # Same julia mise.toml, but the only Project.toml sits under node_modules: julia is
 # then declared for no detected language, which is the finding to look for.
 JV="$WORK/julia-vendored"; mkdir -p "$JV/node_modules/dep" "$JV/build/just"
