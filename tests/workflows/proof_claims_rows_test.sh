@@ -44,7 +44,33 @@ DOC
 check "claim rows are printed" 0 "$WORK/rows.adoc" "| C-2 | second claim"
 check "the header row is not printed" 0 "$WORK/rows.adoc" "| C-1 | first claim" "| ID | Claim"
 check "a table in another section is not printed" 0 "$WORK/rows.adoc" "| C-1 | first claim" "X-1"
-check "the shipped template file prints its empty-state row" 0 "$REPO_DIR/docs/status/PROOF-STATUS.adoc" "No claims yet"
+check "the shipped status file prints at least one row" 0 "$REPO_DIR/docs/status/PROOF-STATUS.adoc"
+# The empty state is a fixture, not the shipped file: an inherited repository
+# that records its first real claim must not fail this test.
+printf '== Claims\n\n|===\n| ID | Claim\n| - | No claims yet\n|===\n' >"$WORK/empty.adoc"
+check "an empty-state row is printed" 0 "$WORK/empty.adoc" "No claims yet"
+
+cat >"$WORK/compact.adoc" <<'DOC'
+== Claims
+
+|===
+|ID |Claim
+|C-1 |compact claim
+|===
+DOC
+check "compact cells (no space after the pipe) are printed" 0 "$WORK/compact.adoc" "|C-1 |compact claim"
+check "the compact header row is not printed" 0 "$WORK/compact.adoc" "compact claim" "|ID |Claim"
+
+cat >"$WORK/sourceblock.adoc" <<'DOC'
+== Claims
+
+No table, only an example:
+
+----
+| X-1 | looks like a row
+----
+DOC
+check "a pipe line outside a table is not a claim row" 1 "$WORK/sourceblock.adoc"
 
 printf '== Overview\n\ntext only\n' >"$WORK/nosection.adoc"
 check "no Claims section fails" 1 "$WORK/nosection.adoc"
