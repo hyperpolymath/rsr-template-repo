@@ -157,27 +157,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Checkout the pinned A2ML lister
-        id: lister
-        continue-on-error: true
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: metadatastician/standards
-          ref: f0b3cd4c464d33e1584f8528c17bce104555e256
-          path: .standards-list-a2ml
-          sparse-checkout: scripts/list-existing-a2ml.sh
-          sparse-checkout-cone-mode: false
-          persist-credentials: false
-
       - name: List existing A2ML files (never fails)
+        env:
+          STANDARDS_PIN: f0b3cd4c464d33e1584f8528c17bce104555e256
         run: |
-          # Staged outside the scanned tree, then the checkout is removed.
-          if [ -f .standards-list-a2ml/scripts/list-existing-a2ml.sh ]; then
-            cp .standards-list-a2ml/scripts/list-existing-a2ml.sh "$RUNNER_TEMP/"
-            rm -rf .standards-list-a2ml
-            bash "$RUNNER_TEMP/list-existing-a2ml.sh" . || echo "::warning::the existing-A2ML listing could not run (exit $?)"
+          # Best effort end to end, and visibly so: a missing pin, network or script
+          # becomes one ::warning::, never a red run and never a silently masked step
+          # (no continue-on-error). The script is fetched outside the scanned tree.
+          d="$RUNNER_TEMP/standards-list-a2ml"
+          if git init -q "$d" \
+             && git -C "$d" fetch -q --depth 1 https://github.com/metadatastician/standards.git "$STANDARDS_PIN" \
+             && git -C "$d" checkout -q FETCH_HEAD -- scripts/list-existing-a2ml.sh; then
+            bash "$d/scripts/list-existing-a2ml.sh" . || echo "::warning::the existing-A2ML listing could not run (exit $?)"
           else
-            echo "::warning::the pinned standards checkout has no scripts/list-existing-a2ml.sh (checkout outcome: ${{ steps.lister.outcome }}); the existing-A2ML listing did not run."
+            echo "::warning::could not fetch scripts/list-existing-a2ml.sh at $STANDARDS_PIN (the pin may predate it); the existing-A2ML listing did not run."
           fi
 
   # The DEED conformance lane (standards scripts/conformance-deed.sh, the same
@@ -232,7 +225,7 @@ jobs:
         # Also when a prerequisite step failed: a failed checkout leaves an empty
         # workspace that lints as "nothing to lint" and would otherwise go green.
         if: ${{ always() && env.ADVISORY == 'true' && (steps.lint.outcome == 'failure' || steps.checkout.outcome == 'failure' || steps.canon.outcome == 'failure' || steps.bun.outcome == 'failure') }}
-        continue-on-error: true
+        continue-on-error: ${{ env.ADVISORY == 'true' }}
         run: |
           # The script lives in the checkout this step may be reporting on, so the
           # fallback for its absence is inline: a failed checkout must still warn.
