@@ -61,8 +61,9 @@ for bad in "$(printf %s "${want[1]}" | tr a-f A-F)" "${want[1]/-8785-/-4785-}"; 
 done
 echo "PASS: deed-field.sh --uuid refuses an uppercase or version 4 body"
 
-# A legacy #u8 literal is derived through uuid-v8.sh, with a note on stderr.
+# A #u8 literal is accepted (A7 S2, A1 T30) and derived through uuid-v8.sh,
+# without a note: it is not legacy.
 printf '(repo-deed\n  :repo-uuid #u8"gv-clade-index:%s")\n' "${names[0]}" > "$d/x_chora.deed"
-got=$("$bash_bin" "$repo/scripts/deed-field.sh" --uuid "$d/x_chora.deed" 2>"$work/err") || fail "#u8 legacy literal failed"
-[ "$got" = "${want[0]}" ] && grep -q 'legacy #u8' "$work/err" || fail "#u8 gave '$got'"
-echo "PASS: deed-field.sh --uuid derives a legacy #u8 literal and says so"
+got=$("$bash_bin" "$repo/scripts/deed-field.sh" --uuid "$d/x_chora.deed" 2>"$work/err") || fail "#u8 literal failed"
+[[ "$got" = "${want[0]}" && ! -s "$work/err" ]] || fail "#u8 gave '$got' (stderr: $(cat "$work/err"))"
+echo "PASS: deed-field.sh --uuid derives a #u8 literal quietly (S2)"
