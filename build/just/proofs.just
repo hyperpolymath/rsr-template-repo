@@ -54,7 +54,8 @@ proof-status:
     # PROOF-STATUS may live at root, docs/status/ (post-#20), .md or .adoc (post-#23)
     for candidate in docs/status/PROOF-STATUS.adoc docs/status/PROOF-STATUS.md PROOF-STATUS.adoc PROOF-STATUS.md; do
         if [ -f "$candidate" ]; then
-            grep -E "^\| \*\*Total\*\*|^\| \*Total\*" "$candidate" 2>/dev/null || echo "(No summary row in $candidate)"
+            echo "Claims in $candidate (no overall total: a census is reported with its denominator):"
+            bash scripts/proof-claims-rows.sh "$candidate" || echo "(no claims rows found in $candidate)"
             exit 0
         fi
     done
