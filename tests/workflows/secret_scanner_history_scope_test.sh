@@ -139,9 +139,23 @@ else bad "PR adds then deletes a secret: range=$RANGE rc=$SCAN_RC"; fi
 r="$(make_repo full)"
 for ev in push schedule workflow_dispatch; do
   run_case "full_$ev" "$r" "$ev"
-  if [[ "$RANGE" = "HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "$ev: FULL scope, finds the old secret"
+  if [[ "$RANGE" = "--all" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "$ev: FULL scope, finds the old secret"
   else bad "$ev: range=$RANGE rc=$SCAN_RC"; fi
 done
+
+# 4b. A secret committed and deleted ONLY on an unmerged branch is still found
+#     by the full scan (every ref, not just HEAD's ancestors).
+r="$WORK/stray"; rm -rf "$r"; mkdir -p "$r"
+git -C "$r" init -q -b main
+printf '[extend]\nuseDefault = true\n' > "$r/.gitleaks-estate.toml"
+echo "readme" > "$r/README.txt"; commit "$r" base
+git -C "$r" checkout -q -b stray
+printf 'k = "%s"\n' "$SECRET" > "$r/s.txt"; commit "$r" "stray secret"
+rm "$r/s.txt"; commit "$r" "stray secret removed"
+git -C "$r" checkout -q main
+run_case stray "$r" push
+if [[ "$RANGE" = "--all" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "push: FULL scope finds a secret on an unmerged branch"
+else bad "push: secret on an unmerged branch missed (range=$RANGE rc=$SCAN_RC)"; fi
 
 # 5. PR checkout that is not a merge commit, with a known base: base..HEAD.
 r="$(make_repo pr_linear)"
@@ -153,12 +167,12 @@ else bad "PR without merge commit: range=$RANGE rc=$SCAN_RC"; fi
 
 # 6. PR whose base cannot be resolved: FULL, never nothing.
 run_case pr_nobase "$r" pull_request "0000000000000000000000000000000000000000"
-if [[ "$RANGE" = "HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR with unresolvable base: falls back to FULL"
+if [[ "$RANGE" = "--all" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR with unresolvable base: falls back to FULL"
 else bad "PR with unresolvable base: range=$RANGE rc=$SCAN_RC"; fi
 
 # 7. An empty range (base == HEAD) falls back to FULL instead of scanning 0 commits.
 run_case pr_empty "$r" pull_request "$(git -C "$r" rev-parse HEAD)"
-if [[ "$RANGE" = "HEAD" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR with empty range: falls back to FULL"
+if [[ "$RANGE" = "--all" ]] && [[ "$SCAN_RC" -ne 0 ]]; then ok "PR with empty range: falls back to FULL"
 else bad "PR with empty range: range=$RANGE rc=$SCAN_RC"; fi
 
 # 8. merge_group: base_sha..HEAD.
