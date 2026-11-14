@@ -19,15 +19,28 @@ trap 'rm -rf "$scratch"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# stale_lines FILE... — print "file:line:text" for each floating reference that
-# is not accompanied by a statement that it is pinned by digest.
+# stale_lines FILE... — print "file:line:text" for each floating reference.
+# Each image token is judged on its own, not by the words around it:
+#   * a token with a tag and no @sha256: digest is flagged whatever the line says
+#     (`wolfi-base:latest` stays flagged even beside the words "pin by digest");
+#   * a token with a digest is accepted (digest alone, or tag plus digest);
+#   * a bare token is accepted only when its line also says it is pinned by digest.
 stale_lines() {
-    local f
+    local f line tok
     for f in "$@"; do
         [[ -f "$f" ]] || continue
-        grep -nE 'cgr\.dev/chainguard/(wolfi-base|static)' "$f" \
-            | grep -viE 'sha256|digest' \
-            | sed "s|^|$f:|" || true
+        while IFS= read -r line; do
+            while IFS= read -r tok; do
+                [[ -n "$tok" ]] || continue
+                if [[ "$tok" == *@sha256:* ]]; then
+                    continue
+                elif [[ "$tok" == *:* ]]; then
+                    echo "$f:$line"; break
+                elif ! grep -qiE 'sha256|digest' <<<"$line"; then
+                    echo "$f:$line"; break
+                fi
+            done < <(grep -oE 'cgr\.dev/chainguard/(wolfi-base|static)[^[:space:]`"'"'"')]*' <<<"$line" || true)
+        done < <(grep -nE 'cgr\.dev/chainguard/(wolfi-base|static)' "$f" || true)
     done
 }
 
@@ -40,6 +53,10 @@ printf '%s\n' '- Runtime: `cgr.dev/chainguard/static:latest`.' > "$scratch/stati
 [[ -n "$(stale_lines "$scratch/bare.md")" ]] || fail 'control: a bare reference was not flagged'
 [[ -n "$(stale_lines "$scratch/ver.md")" ]] || fail 'control: a version-tagged reference was not flagged'
 [[ -n "$(stale_lines "$scratch/static.md")" ]] || fail 'control: a static:latest reference was not flagged'
+printf '%s\n' '- Base image: `cgr.dev/chainguard/wolfi-base:latest`; pin by digest with scripts/pin-container-digests.sh (sha256).' > "$scratch/mixed.md"
+[[ -n "$(stale_lines "$scratch/mixed.md")" ]] || fail 'control: a floating tag beside digest wording was not flagged'
+printf '%s\n' '- Base image: `cgr.dev/chainguard/wolfi-base:latest@sha256:0000000000000000000000000000000000000000000000000000000000000000`.' > "$scratch/tagdigest.md"
+[[ -z "$(stale_lines "$scratch/tagdigest.md")" ]] || fail 'control: a tag plus digest was flagged'
 [[ -z "$(stale_lines "$scratch/new.md")" ]] || fail 'control: the new wording was flagged'
 echo 'PASS: controls (old wording flagged, new wording accepted)'
 
