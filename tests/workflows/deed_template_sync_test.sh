@@ -40,5 +40,10 @@ before=$(sha256sum < "$scratch/own")
 rc=0; bash "$T" "$scratch/own" "$scratch/base" "$scratch/new" 2>/dev/null >/dev/null || rc=$?
 [ "$rc" -eq 1 ] && [ "$(sha256sum < "$scratch/own")" = "$before" ] && ok "edited clause: rc=1, deed untouched" || bad "edited clause: rc=$rc or deed changed"
 
+# 4. A deed without :canonical-name is a setup error (rc=2), not a merge conflict.
+printf '(repo-deed\n  (ply\n    (directory :id "a")))\n' > "$scratch/noname"
+rc=0; bash "$T" "$scratch/noname" "$scratch/base" "$scratch/new" 2>/dev/null >/dev/null || rc=$?
+[ "$rc" -eq 2 ] && ok "missing :canonical-name: rc=2" || bad "missing :canonical-name: rc=$rc"
+
 [ "$fails" -eq 0 ] || { echo "$fails control(s) failed"; exit 1; }
 echo "all deed-template-sync controls hold"
