@@ -38,7 +38,8 @@ for f in "$deed" "$base" "$new"; do
     [ -r "$f" ] || { echo "deed-template-sync: no readable deed: '$f'" >&2; exit 2; }
 done
 child_name="$(bash "$here/deed-field.sh" "$deed" "" canonical-name)"
-tpl_name="$(bash "$here/deed-field.sh" "$new" "" canonical-name)"
+base_name="$(bash "$here/deed-field.sh" "$base" "" canonical-name)"
+new_name="$(bash "$here/deed-field.sh" "$new" "" canonical-name)"
 
 rc=0
 for clause in "$@"; do
@@ -48,8 +49,8 @@ for clause in "$@"; do
     old="$(bash "$here/deed-clause.sh" get "$base" "$clause")" || old=""
     upd="$(bash "$here/deed-clause.sh" get "$new" "$clause")" \
         || { echo "deed-template-sync: ($clause) is absent from the template deed $new" >&2; rc=1; continue; }
-    old="${old//"${tpl_name}_chora.deed"/"${child_name}_chora.deed"}"
-    upd="${upd//"${tpl_name}_chora.deed"/"${child_name}_chora.deed"}"
+    old="${old//"${base_name}_chora.deed"/"${child_name}_chora.deed"}"
+    upd="${upd//"${new_name}_chora.deed"/"${child_name}_chora.deed"}"
     if [ "$mine" = "$upd" ]; then
         echo "deed-template-sync: ($clause) already matches the template"
     elif [ -n "$old" ] && [ "$mine" = "$old" ]; then

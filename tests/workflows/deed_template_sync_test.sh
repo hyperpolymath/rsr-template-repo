@@ -18,11 +18,12 @@ bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 deed() {
   printf '(repo-deed\n  :canonical-name "%s"\n  (ply\n    %s)\n  (status :phase "active"))\n' "$1" "$2"
 }
-deed tpl '(directory :id "a" :path "tpl_chora.deed" :description "one long line")' > "$scratch/base"
+deed old '(directory :id "a" :path "old_chora.deed" :description "one long line")' > "$scratch/base"
 deed tpl '(directory :id "a" :path "tpl_chora.deed"
       :description "wrapped")' > "$scratch/new"
 
-# 1. A child whose clause is the old template text takes the new text, renamed.
+# 1. A child whose clause is the old template text takes the new text, renamed;
+# the template itself was renamed (old -> tpl) between BASE and NEW.
 deed kid '(directory :id "a" :path "kid_chora.deed" :description "one long line")' > "$scratch/kid"
 bash "$T" "$scratch/kid" "$scratch/base" "$scratch/new" >/dev/null
 [ "$(cat "$scratch/kid")" = "$(deed kid '(directory :id "a" :path "kid_chora.deed"
