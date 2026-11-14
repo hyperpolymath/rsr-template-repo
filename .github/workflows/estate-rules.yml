@@ -239,6 +239,9 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # A cancelled run must not leave a red verdict job behind.
+      - name: Fork governance verdict skips on cancel
+        run: bash tests/workflows/fork_governance_verdict_cancel_test.sh
       # The proof-status vocabulary must give one answer for an open row.
       - name: PROOF-STATUS vocabulary agrees with itself
         run: bash tests/workflows/proof_status_vocabulary_test.sh
