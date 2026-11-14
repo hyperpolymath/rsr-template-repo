@@ -17,11 +17,8 @@ on:
     types: [completed]
     branches: [main]
 
-permissions:
-  contents: read
-  actions: read
-  pages: write
-  id-token: write
+# Least privilege: nothing at workflow level; each job asks for what it needs.
+permissions: {}
 
 # Serialise Pages deploys; never cancel an in-flight deploy.
 concurrency:
@@ -35,13 +32,17 @@ jobs:
     if: >-
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.conclusion != 'cancelled'
+    permissions:
+      contents: read
+      actions: read   # download the badge artifact of the triggering run
     timeout-minutes: 20
     runs-on: ubuntu-24.04
     steps:
+      # Deliberately NO `ref:`: a workflow_run job runs with this repository's
+      # permissions, so it builds the default branch (this repo's own trusted
+      # code) and never checks out the triggering run's head.
       - name: Checkout
         uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Checkout casket-ssg
         uses: actions/checkout@v7.0.1
@@ -114,6 +115,9 @@ jobs:
           path: '_site'
 
   deploy:
+    permissions:
+      pages: write
+      id-token: write
     timeout-minutes: 20
     environment:
       name: github-pages
