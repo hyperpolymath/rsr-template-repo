@@ -12,11 +12,12 @@ WF="${1:-$ROOT/.github/workflows/fork-governance.yml}"
 
 # Print the job-level `if:` of the verdict job (2-space job key, 4-space keys).
 verdict_if() {
+    local file="$1"
     awk '
         /^  verdict:[[:space:]]*$/ { injob=1; next }
         injob && /^  [A-Za-z0-9_-]+:[[:space:]]*$/ { injob=0 }
         injob && /^    if:/ { sub(/^    if:[[:space:]]*/, ""); print; exit }
-    ' "$1"
+    ' "$file"
 }
 
 check() {
