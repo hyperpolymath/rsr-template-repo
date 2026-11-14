@@ -80,8 +80,9 @@ jobs:
   # A2ML is retired (standards A7, owner ruling S3 of 2026-11-14: the A2ML
   # checks live in both governance-reusable.yml and this inline governance).
   # The hard gate is estate-rules.yml "No .a2ml files": no A2ML outside the
-  # shrink-only legacy ledger and 9-archive/, stricter than standards'
-  # diff-based no-new-a2ml. The advisory existing-A2ML lister joins this file
+  # shrink-only legacy ledger, 9-archive/ included, so an added, copied,
+  # renamed or moved A2ML file fails (owner ruling 2026-11-14: A2ML moves
+  # fail), as standards' diff-based no-new-a2ml does. The advisory existing-A2ML lister joins this file
   # once the standards pin carries scripts/list-existing-a2ml.sh; pins move
   # only through the applier (owner ruling, 2026-11-14).
 

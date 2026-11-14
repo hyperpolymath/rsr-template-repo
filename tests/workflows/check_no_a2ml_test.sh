@@ -35,13 +35,17 @@ git -C "$REPO" add AI.A2ML
 expect_fail "$REPO" "AI.A2ML"
 
 # Shrink-only ledger: a listed file passes, an unlisted one beside it still
-# fails, and 9-archive/ is out of scope.
+# fails, and 9-archive/ has no exemption: a listed file moved there stands at
+# an unlisted path and fails (owner ruling 2026-11-14).
 git -C "$REPO" rm -q --cached AI.A2ML && rm "$REPO/AI.A2ML"
 mkdir -p "$REPO/.machine_readable" "$REPO/9-archive/old"
 printf '[x]\n' > "$REPO/LISTED.a2ml"
-printf '[x]\n' > "$REPO/9-archive/old/ARCHIVED.a2ml"
 printf '# ledger\nLISTED.a2ml  # waiting for kyX\n' > "$REPO/.machine_readable/a2ml-legacy-allow.txt"
-git -C "$REPO" add LISTED.a2ml 9-archive .machine_readable
+git -C "$REPO" add LISTED.a2ml .machine_readable
+bash "$CHECKER" "$REPO" | grep -q '^PASS:'
+git -C "$REPO" mv LISTED.a2ml 9-archive/old/LISTED.a2ml
+expect_fail "$REPO" "9-archive/old/LISTED.a2ml"
+git -C "$REPO" mv 9-archive/old/LISTED.a2ml LISTED.a2ml
 bash "$CHECKER" "$REPO" | grep -q '^PASS:'
 printf '[x]\n' > "$REPO/NEW.a2ml"
 git -C "$REPO" add NEW.a2ml
