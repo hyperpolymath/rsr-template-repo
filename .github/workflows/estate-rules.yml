@@ -173,6 +173,12 @@ jobs:
       # equal to standards scripts/uuid-v8.js, and read without re-deriving.
       - name: Repo chora id is minted as UUIDv8 and read as written
         run: bash tests/workflows/uuid_v8_test.sh
+      # The deed's identity literals (standards A1 v0.4.5 T30, ruling Q2): a v5
+      # id or a #u5 literal in :repo-uuid or :beholding-chora fails in every mode.
+      - name: Identity literals are version 8 (#uuid or #u8)
+        run: bash scripts/check-identity.sh "$(bash scripts/deed-field.sh --find .)"
+      - name: Identity-literal gate self-test (v5, #u5, v4 and upper-case must fail)
+        run: bash tests/workflows/check_identity_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date
@@ -232,6 +238,10 @@ jobs:
       # The proof-status vocabulary must give one answer for an open row.
       - name: PROOF-STATUS vocabulary agrees with itself
         run: bash tests/workflows/proof_status_vocabulary_test.sh
+      # aspect_tests.sh is carried verbatim, so a project token on an active
+      # line would print literally in every minted repository.
+      - name: Aspect-test banner carries no unsubstituted token
+        run: bash tests/workflows/aspect_banner_test.sh
       # The README badge is generated output on an orphan branch. This proves
       # the state -> colour table (grey, never a stale green), the byte-equal
       # no-op, the orphan commit, the API-error classification and the workflow
