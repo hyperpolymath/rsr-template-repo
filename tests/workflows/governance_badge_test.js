@@ -1611,6 +1611,35 @@ async function main() {
             });
         }
 
+        // stage: the Pages route (no branch write, so the Branch-Floor ruleset is satisfied)
+        const stageDir = join(work, "stage-out");
+        const stageArgs = (laneResult, artifactPath) => [
+            "stage", "--label", LABEL, "--lane-result", laneResult,
+            "--artifact", artifactPath, "--out-dir", stageDir, "--path", DEST,
+        ];
+        for (const [lane, artifactPath, expected, code] of [
+            ["success", goodArtifact, SUCCESS_BADGE, 0],
+            ["failure", goodArtifact, FAILURE_BADGE, 0],
+            ["skipped", missingArtifact, SKIPPED_BADGE, 0],
+            ["success", missingArtifact, GREY_BADGE, 3],
+        ]) {
+            await test(`stage writes the ${lane} lane with evidence ${artifactPath === goodArtifact ? "present" : "missing"}`, () => {
+                rmSync(stageDir, { recursive: true, force: true });
+                const out = runSync(stageArgs(lane, artifactPath));
+                equal(out.code, code, out.stderr + out.stdout);
+                equal(readFileSync(join(stageDir, DEST), "utf8"), expected, "staged bytes");
+            });
+        }
+        await test("stage cannot be turned green by an artifact on a failed lane", () => {
+            const out = runSync(stageArgs("failure", goodArtifact));
+            equal(readFileSync(join(stageDir, DEST), "utf8"), FAILURE_BADGE, "no false green");
+            check(out.code === 0, "failure is an honest result, not a fault");
+        });
+        await test("stage refuses a path outside badges/ and a missing out-dir", () => {
+            equal(runSync(["stage", "--label", LABEL, "--lane-result", "success", "--artifact", goodArtifact, "--out-dir", stageDir, "--path", "../x.json"]).code, 2, "traversal");
+            equal(runSync(["stage", "--label", LABEL, "--lane-result", "success", "--artifact", goodArtifact, "--path", DEST]).code, 2, "no out-dir");
+        });
+
         await test("the workflow's artifact producer would render the same bytes", () => {
             const out = runSync(["render", "--label", "K9", "--state", "success"]);
             equal(out.stdout, SUCCESS_BADGE, "artifact bytes and publisher bytes must agree");

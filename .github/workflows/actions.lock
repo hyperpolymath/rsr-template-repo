@@ -64,6 +64,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'actions/configure-pages@v6.0.0'
         - 'actions/deploy-pages@v5.0.1'
+        - 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333'
         - 'actions/upload-pages-artifact@v5.0.0'
         - 'haskell-actions/setup@v2.12.1'
     '.github/workflows/proven-tests.yml':
