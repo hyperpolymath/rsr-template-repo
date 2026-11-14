@@ -19,22 +19,22 @@ FAILED=0
 CHECKS=0
 # names_literally OUTPUT PATTERN — fixed-string match, so a '.' in a filename is
 # not a regex wildcard and a near-miss like docs/NOTESXmd cannot satisfy it.
-names_literally() { grep -qF -- "$2" <<<"$1"; }
+names_literally() { local out="$1" pat="$2"; grep -qF -- "$pat" <<<"$out"; }
 
 check() { # LABEL EXPECTED_RC DIR [STDERR_PATTERN]
     local label="$1" want="$2" dir="$3" pat="${4:-}" rc=0 out
     out="$(bash "$GATE" "$dir" 2>&1)" || rc=$?
     CHECKS=$((CHECKS + 1))
-    if [ "$rc" -ne "$want" ]; then
+    if [[ "$rc" -ne "$want" ]]; then
         FAILED=$((FAILED + 1)); echo "  FAIL  $label (want rc=$want, got rc=$rc)"; echo "$out" | sed 's/^/        /'
-    elif [ -n "$pat" ] && ! names_literally "$out" "$pat"; then
+    elif [[ -n "$pat" ]] && ! names_literally "$out" "$pat"; then
         FAILED=$((FAILED + 1)); echo "  FAIL  $label (rc ok, output lacks: $pat)"; echo "$out" | sed 's/^/        /'
     else
         echo "  PASS  $label"
     fi
 }
 
-mk() { rm -rf "$WORK/$1"; mkdir -p "$WORK/$1"; }
+mk() { local d="$1"; rm -rf "$WORK/$d"; mkdir -p "$WORK/$d"; }
 
 # Positive: no docs/ directory at all.
 mk nodocs
@@ -83,4 +83,4 @@ else
 fi
 
 echo "$CHECKS controls, $FAILED failed"
-[ "$FAILED" -eq 0 ]
+[[ "$FAILED" -eq 0 ]]
