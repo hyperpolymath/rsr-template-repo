@@ -29,11 +29,12 @@ bullet() {
 }
 
 verdict() {
-    local file="$1" ung na flat
+    local file="$1" ung na flat uflat
     ung="$(bullet "$file" 'ungraded')"
     na="$(bullet "$file" 'n/a')"
     [[ -n "$ung" && -n "$na" ]] || { echo "no ungraded or n/a bullet"; return 1; }
-    grep -qF '`open`' <<<"$ung" || { echo "the ungraded bullet does not cover open rows"; return 1; }
+    uflat="$(tr -s "[:space:]" " " <<<"$ung")"
+    grep -qF 'an `open` row included' <<<"$uflat" || { echo "the ungraded bullet does not say an open row is included"; return 1; }
     flat="$(tr -s "[:space:]" " " <<<"$na")"
     grep -qF 'an `open` engineering obligation stays `ungraded`' <<<"$flat" || { echo "the n/a bullet does not say an open engineering obligation stays ungraded"; return 1; }
     grep -qF 'a claim that has none stays `ungraded`' "$file" || { echo "the no-receipt sentence is gone"; return 1; }
@@ -67,8 +68,12 @@ if verdict "$TMP/half.adoc" >/dev/null 2>&1; then echo "FAIL: a missing n/a bull
 sed 's/stays `ungraded`/must not be `ungraded`/' "$TARGET" > "$TMP/inverse.adoc"
 if verdict "$TMP/inverse.adoc" >/dev/null 2>&1; then echo "FAIL: the inverse wording was accepted" >&2; exit 1; fi
 
+# Control 5: the ungraded bullet saying the opposite (an open row is never included) is refused.
+perl -0pe 's/an\s+`open` row included/an `open` row is never included/' "$TARGET" > "$TMP/ungraded_inverse.adoc"
+if verdict "$TMP/ungraded_inverse.adoc" >/dev/null 2>&1; then echo "FAIL: the inverse ungraded wording was accepted" >&2; exit 1; fi
+
 # Control 3: dropping the no-receipt sentence is refused.
 sed 's/a claim that has none stays `ungraded`/a claim stays open/' "$TARGET" > "$TMP/nosentence.adoc"
 if verdict "$TMP/nosentence.adoc" >/dev/null 2>&1; then echo "FAIL: a missing no-receipt sentence was accepted" >&2; exit 1; fi
 
-echo "PASS: the PROOF-STATUS vocabulary agrees with itself (4 controls)"
+echo "PASS: the PROOF-STATUS vocabulary agrees with itself (5 controls)"
