@@ -87,6 +87,8 @@ jobs:
         run: bash tests/workflows/internal_links_test.sh
       - name: Deed clause writer controls
         run: bash tests/workflows/deed_clause_test.sh
+      - name: Deed template sync controls
+        run: bash tests/workflows/deed_template_sync_test.sh
       - name: Canon lockstep decision controls (spine strict, instance lag passes)
         run: bash tests/workflows/canon_pin_check_test.sh
       - name: Canon lockstep adoption tool controls
