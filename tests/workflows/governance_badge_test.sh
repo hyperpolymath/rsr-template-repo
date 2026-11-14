@@ -140,6 +140,7 @@ wiring_checks() {
     else
         wire_fail "the badges job is missing"
     fi
+    has "the badges job has its own steps: key (a lost key invalidates the whole workflow)" '^    steps:$' "$badge_job"
     has "the badges job needs the K9 lane" '^    needs: k9-validate$' "$badge_job"
     has "the badges job always runs, even after a failed or cancelled lane" '^    if: always\(\)' "$badge_job"
     has "the badges job only publishes from main" "github\.ref == 'refs/heads/main'" "$badge_job"
@@ -262,6 +263,8 @@ fire_case "dropping always() from the badges job" \
     "s/if: always\(\) && github\.event_name/if: github.event_name/"
 fire_case "re-excluding skipped lanes" \
     "s/(github\.ref == 'refs\/heads\/main')/\\1 \&\& needs.k9-validate.result != 'skipped'/"
+fire_case "losing the badges job's steps: key" \
+    "/^  badges:\$/,/^  [a-z0-9-]+:\$/ s/^    steps:\$//"
 fire_case "giving the badges job a branch-write permission again" \
     "s/^      contents: read\$/      contents: write/"
 fire_case "failing the artifact download instead of publishing grey" \
