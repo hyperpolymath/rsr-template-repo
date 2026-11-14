@@ -37,6 +37,13 @@ exit "${TH_RC:-0}"
 FAKE_SCANNER
 chmod +x "$T/th"
 
+# Isolate scanner discovery: the hook falls back to `trufflehog` on PATH and to
+# mise installs, so a real scanner on a developer machine would otherwise be
+# selected instead of the fake. Shadow it with a rejecting stub and give mise an
+# empty data dir, so only $TRUFFLEHOG can ever be chosen.
+mkdir -p "$T/bin" "$T/mise"
+printf '#!/bin/sh\nexit 1\n' > "$T/bin/trufflehog"; chmod +x "$T/bin/trufflehog"
+
 git init -q "$T/repo"
 git -C "$T/repo" config user.email t@example.invalid
 git -C "$T/repo" config user.name t
@@ -47,7 +54,7 @@ HEAD_SHA="$(git -C "$T/repo" rev-parse HEAD)"
 run() { # ranges depth rc [no_flag_support] -> sets RC, CALLS, ARGS
   export TH_LOG="$T/log"; : > "$TH_LOG"
   RC=0
-  INPUT_PATH="$T/repo" TRUFFLEHOG="$T/th" K9_PUSH_RANGES="$1" K9_SECRETS_MAX_DEPTH="$2" TH_RC="${3:-0}" NO_FLAG_SUPPORT="${4:-0}" \
+  PATH="$T/bin:$PATH" MISE_DATA_DIR="$T/mise" INPUT_PATH="$T/repo" TRUFFLEHOG="$T/th" K9_PUSH_RANGES="$1" K9_SECRETS_MAX_DEPTH="$2" TH_RC="${3:-0}" NO_FLAG_SUPPORT="${4:-0}" \
     bash "$SCRIPT" >"$T/out" 2>&1 || RC=$?
   CALLS="$(wc -l < "$TH_LOG" | tr -d ' ')"; ARGS="$(cat "$TH_LOG")"
 }
