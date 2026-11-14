@@ -87,7 +87,7 @@ COPYRIGHT="$(grep '^# SPDX-FileCopyrightText:' "$ROOT/mise.toml" 2>/dev/null || 
 
 render() {
     echo "# SPDX-License-Identifier: MPL-2.0"
-    [ -z "$COPYRIGHT" ] || printf '%s\n' "$COPYRIGHT"
+    [[ -z "$COPYRIGHT" ]] || printf '%s\n' "$COPYRIGHT"
     cat <<EOF
 #
 # The toolchain for this repository (${LANGS}). Rendered at mint by
