@@ -4,13 +4,13 @@
 #
 # check_proofs_test.sh — positive and negative controls for scripts/check-proofs.sh.
 #
-# The gate shells out to a real prover. These controls put a STUB prover first on
+# The gate shells out to a real prover. These controls put a FAKE prover first on
 # PATH, so they test the gate's own verdict logic (manifest coverage, quarantine,
 # toolchain absence, escape hatches, exit-0-with-an-error) and not the prover.
 # This is a test of the gate, not a proof that any proof checks. Nothing here
 # runs idris2, lean, agda or coqc.
 #
-# The stub treats a source file as a compile failure when it contains the word
+# The fake treats a source file as a compile failure when it contains the word
 # BROKEN, prints an `error:` line but exits 0 when it contains SILENTERR, and
 # otherwise exits 0 quietly.
 #
@@ -22,23 +22,23 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# A PATH with the shell tools the gate needs and NO prover; stubs are added per case.
+# A PATH with the shell tools the gate needs and NO prover; fakes are added per case.
 BASEBIN="$WORK/basebin"; mkdir -p "$BASEBIN"
 for t in bash sed grep find sort comm mktemp cat head dirname basename rm tr cut wc awk env; do
     p="$(command -v "$t" 2>/dev/null || true)"
     [ -n "$p" ] && ln -s "$p" "$BASEBIN/$t"
 done
-STUBBIN="$WORK/stubbin"; mkdir -p "$STUBBIN"
+FAKEBIN="$WORK/fakebin"; mkdir -p "$FAKEBIN"
 for t in coqc lean agda; do
-    cat >"$STUBBIN/$t" <<'STUB'
+    cat >"$FAKEBIN/$t" <<'FAKE'
 #!/usr/bin/env bash
-if [ "${1:-}" = "--version" ]; then echo "stub 0"; exit 0; fi
+if [ "${1:-}" = "--version" ]; then echo "fake 0"; exit 0; fi
 f="${@: -1}"
-if grep -q BROKEN "$f" 2>/dev/null; then echo "error: stub compile failure in $f"; exit 1; fi
-if grep -q SILENTERR "$f" 2>/dev/null; then echo "error: stub reports an error but exits 0"; exit 0; fi
+if grep -q BROKEN "$f" 2>/dev/null; then echo "error: fake compile failure in $f"; exit 1; fi
+if grep -q SILENTERR "$f" 2>/dev/null; then echo "error: fake reports an error but exits 0"; exit 0; fi
 exit 0
-STUB
-    chmod +x "$STUBBIN/$t"
+FAKE
+    chmod +x "$FAKEBIN/$t"
 done
 
 FAILED=0; CHECKS=0
@@ -48,15 +48,15 @@ fixture() {
     cp "$REPO_DIR/scripts/check-proofs.sh" "$REPO_DIR/scripts/scan-dangerous.sh" "$d/scripts/"
     echo "$d"
 }
-# run LABEL WANT_RC DIR PROVER WITH_STUBS PATTERN
+# run LABEL WANT_RC DIR PROVER WITH_FAKES PATTERN
 run() {
-    local label="$1" want="$2" dir="$3" prover="$4" stubs="$5" pat="${6:-}" rc=0 out p
-    p="$BASEBIN"; [ "$stubs" = yes ] && p="$STUBBIN:$BASEBIN"
+    local label="$1" want="$2" dir="$3" prover="$4" fakes="$5" pat="${6:-}" rc=0 out p
+    p="$BASEBIN"; [ "$fakes" = yes ] && p="$FAKEBIN:$BASEBIN"
     out="$(PATH="$p" bash "$dir/scripts/check-proofs.sh" $prover 2>&1)" || rc=$?
     CHECKS=$((CHECKS + 1))
     if [ "$rc" -ne "$want" ]; then
         FAILED=$((FAILED + 1)); echo "  FAIL  $label (want rc=$want, got rc=$rc)"; sed 's/^/        /' <<<"$out" | tail -12
-    elif [ -n "$pat" ] && ! grep -q -- "$pat" <<<"$out"; then
+    elif [ -n "$pat" ] && ! grep -qF -- "$pat" <<<"$out"; then
         FAILED=$((FAILED + 1)); echo "  FAIL  $label (rc ok, output lacks: $pat)"; sed 's/^/        /' <<<"$out" | tail -12
     else
         echo "  PASS  $label"
