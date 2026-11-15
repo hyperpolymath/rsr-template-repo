@@ -20,9 +20,33 @@ let data = import "claude-md-data.json" in
 # owner's voice. Until then the estate-common block is explicitly DRAFT.
 let manifesto_pin = "DRAFT-unratified" in
 
+# The estate deny list, stated once: the language-policy line below prints it,
+# and the anchor override compares the anchor's allowed list against it.
+let estate_denied = ["Nix", "Python", "Go", "TypeScript", "ReScript", "AGPL"] in
+
+# An anchor overrides the estate policy for its repo in two ways: it forbids
+# what the estate permits, and it allows what the estate denies. Both are
+# rendered, or the pack would tell an agent that an estate denial applies in a
+# repo whose anchor allows the language (Codex review of sholes#13). A language
+# the anchor allows and the estate does not deny is no override and is not
+# listed. Names are compared as written.
+let anchor_allows_denied =
+  std.array.filter (fun l => std.array.elem l estate_denied) data.anchor_allowed
+in
 let anchor_override =
-  if std.array.length data.anchor_forbidden == 0 then ""
-  else "\n- **Anchor override** (ANCHOR) — This repo's anchor forbids: %{std.string.join ", " data.anchor_forbidden}. The anchor overrides the estate policy above."
+  let allows = std.string.join ", " anchor_allows_denied in
+  let forbids = std.string.join ", " data.anchor_forbidden in
+  let has_allows = std.array.length anchor_allows_denied > 0 in
+  let has_forbids = std.array.length data.anchor_forbidden > 0 in
+  let lead = "\n- **Anchor override** (ANCHOR) — This repo's anchor " in
+  let tail = ". The anchor overrides the estate policy above." in
+  if has_allows && has_forbids then
+    "%{lead}allows, where the estate policy above denies: %{allows}; it forbids: %{forbids}%{tail}"
+  else if has_allows then
+    "%{lead}allows, where the estate policy above denies: %{allows}%{tail}"
+  else if has_forbids then
+    "%{lead}forbids: %{forbids}%{tail}"
+  else ""
 in
 
 let provenance = "DEED@%{data.h_deed} ANCHOR@%{data.h_anchor}"
@@ -89,7 +113,7 @@ checks until a pinned kyq executable passes positive and negative tests.
 - **Before you invent, rename, or consolidate anything: STOP and check the map + IS-NOT.**
 
 ## Estate language policy (overridable per-repo via AGENTIC)
-Deny: **Nix, Python, Go, TypeScript, ReScript, AGPL**. (Guix, not Nix.)
+Deny: **%{std.string.join ", " estate_denied}**. (Guix, not Nix.)
 JavaScript runtime: **Bun** > Deno > pnpm > npm (last resort, permitted), from one `package.json` that carries every runtime's lock (`bun.lock`, `deno.lock`, `pnpm-lock.yaml`), all written by `js-runtimes regen` (owner ruling 2026-10-14, standards LANGUAGE-POLICY §1.3–§1.4). Deno is permitted again; `package-lock.json` stays refused.
 Use plain JavaScript when this tooling is needed. TypeScript and ReScript migrate to AffineScript.
 
