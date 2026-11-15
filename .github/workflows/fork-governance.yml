@@ -206,7 +206,7 @@ jobs:
       contents: read
     env:
       # hyperpolymath/gitbot-fleet commit whose driver and adapters run.
-      FLEET_REF: e44af8144789594fcce891ccc7b77fc9a464a520
+      FLEET_REF: 14892a53a0c2c38c7a6dd44964b796ef3044e626
       # panic-attack commit for panicbot. Deliberately the SAME commit
       # static-analysis-gate.yml builds: panicbot is not enrolled today (the
       # grid's own panic-attack row already grades that scanner, so a second
