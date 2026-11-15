@@ -939,6 +939,18 @@ repo-init archetype="":
         -e "s|${LB}UUID${RB}|$(sed_rhs "${REPO_UUID}")|g"
         -e "s|${LB}DESCRIPTION${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
     )
+    # BEGIN pages-root-url
+    # A repository named <owner>.github.io is a user/organisation Pages site: it
+    # is served at https://<owner>.github.io/ with NO /<repo> segment, whereas a
+    # project site lives at https://<owner>.github.io/<repo>/. The README's K9
+    # badge points at the Pages site, so for the user-site form the /<repo> part
+    # must be dropped. This rule must run BEFORE the generic OWNER and REPO rules
+    # above are applied to a line, so it is put at the FRONT of SED_ARGS (sed
+    # applies -e expressions in order). It only matches that exact URL shape.
+    if [ "${REPO,,}" = "${OWNER,,}.github.io" ]; then
+        SED_ARGS=(-e "s|https://${LB}OWNER${RB}\\.github\\.io/${LB}REPO${RB}/|https://${LB}OWNER${RB}.github.io/|g" "${SED_ARGS[@]}")
+    fi
+    # END pages-root-url
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|$(sed_rhs "${AUTHOR_EMAIL_ALT}")|g")
     [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|$(sed_rhs "${AUTHOR_ORCID}")|g")
     [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|$(sed_rhs "${OPENSSF_BP_ID}")|g")
