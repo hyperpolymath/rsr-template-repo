@@ -302,10 +302,10 @@ pages_freshness_checks() {
     fi
 
     mkdir -p "$tmp/bin"
-    cat > "$tmp/bin/gh" <<'STUB'
+    cat > "$tmp/bin/gh" <<'FAKE_GH'
 #!/usr/bin/env bash
 echo "$FAKE_HEAD"
-STUB
+FAKE_GH
     chmod +x "$tmp/bin/gh"
 
     local head="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" other="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" out
