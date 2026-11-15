@@ -939,6 +939,15 @@ repo-init archetype="":
         -e "s|${LB}UUID${RB}|$(sed_rhs "${REPO_UUID}")|g"
         -e "s|${LB}DESCRIPTION${RB}|$(sed_rhs "${PROJECT_DESCRIPTION}")|g"
     )
+    # A repository named <owner>.github.io is a user/organisation Pages site served
+    # at the root, so the README badge URL must not carry /<repo>. The rule lives in
+    # scripts/pages-root-url.sh (one definition, also run by its test). It must be
+    # applied BEFORE the generic OWNER and REPO rules above reach a line, so it goes
+    # at the FRONT of SED_ARGS (sed applies -e expressions in order).
+    PAGES_ROOT_EXPR="$(bash scripts/pages-root-url.sh "${OWNER}" "${REPO}")"
+    if [ -n "$PAGES_ROOT_EXPR" ]; then
+        SED_ARGS=(-e "$PAGES_ROOT_EXPR" "${SED_ARGS[@]}")
+    fi
     [ -n "$AUTHOR_EMAIL_ALT" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_EMAIL_ALT${RB}|$(sed_rhs "${AUTHOR_EMAIL_ALT}")|g")
     [ -n "$AUTHOR_ORCID" ] && SED_ARGS+=(-e "s|${LB}AUTHOR_ORCID${RB}|$(sed_rhs "${AUTHOR_ORCID}")|g")
     [ -n "$OPENSSF_BP_ID" ] && SED_ARGS+=(-e "s|${LB}OPENSSF_BP_ID${RB}|$(sed_rhs "${OPENSSF_BP_ID}")|g")
