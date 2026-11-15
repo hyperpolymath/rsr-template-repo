@@ -156,7 +156,7 @@ without any exemption. Nothing here weakens, bypasses or excuses the ruleset.
   than silently deleting the live badge.
 * A freshness gate in `pages.yml` skips (does not fail) any run whose commit is no
   longer the default branch's head, so re-running an old Dogfood Gate run, or a
-  late finisher in a burst of merges, cannot overwrite the current badge.
+  late finisher in a burst of merges, cannot overwrite the current badge. The check runs twice: at the start (`gate` job) and again in the `deploy` job right before `actions/deploy-pages`, because the build can take up to 20 minutes and in-flight runs are not cancelled. A superseded run is skipped at either point.
 * There is one Pages site per repository and a deployment replaces it wholesale,
   which is why the badge travels *with* the site deployment. The consequence:
   `pages.yml` has no `push` or `workflow_dispatch` trigger any more; to
