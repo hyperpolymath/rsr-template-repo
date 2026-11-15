@@ -32,10 +32,10 @@ FAILED=0
 CHECKS=0
 # render ALLOWED_JSON FORBIDDEN_JSON -> the rendered region on stdout
 render() {
-    local dir="$WORK/case.$CHECKS"
+    local allowed="$1" forbidden="$2" dir="$WORK/case.$CHECKS"
     mkdir -p "$dir"
     cp "$AP/arrival-pack.ncl" "$dir/"
-    jq -cS --argjson a "$1" --argjson f "$2" '.anchor_allowed = $a | .anchor_forbidden = $f' \
+    jq -cS --argjson a "$allowed" --argjson f "$forbidden" '.anchor_allowed = $a | .anchor_forbidden = $f' \
         "$BASE" > "$dir/claude-md-data.json"
     nickel export --format raw "$dir/arrival-pack.ncl"
 }
