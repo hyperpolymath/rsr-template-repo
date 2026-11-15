@@ -19,11 +19,14 @@ honest state. Do not replace it with a percentage or an "overall" figure:
 * *Status token* (§5): `proven`, `proven-with-postulates`, `tested-only`,
   `argued`, `open`.
 * *PWG* (§8), always written with its prefix, never as a bare "Grade":
-** `PWG-3`: the Agda proof is `proven` under the canonical §2.1 invocation,
-   `agda --safe --without-K --cubical-compatible`;
+** `PWG-3`: the Agda proof is `proven` or `proven-with-postulates` under the
+   canonical §2.1 invocation, `agda --safe --without-K --cubical-compatible`,
+   and no recheck leg counts yet;
 ** `PWG-2i`: one recheck leg also counts (Rocq or Lean);
 ** `PWG-2ii`: both legs count;
-** `PWG-1`: every counted witness has a current receipt for the exact commit;
+** `PWG-1`: `PWG-2ii`, plus every counted witness (Agda, Rocq and Lean) has a
+   current receipt from a headless, isolated, pinned checker run on the exact
+   source commit;
 ** `ungraded`: a theory row below `PWG-3`, or any row with no receipt yet, an
    `open` row included, whether it is a theory theorem or an engineering
    obligation;
