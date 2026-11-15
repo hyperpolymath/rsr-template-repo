@@ -70,6 +70,12 @@ The descriptive family (working name *descriptiles*) describes what-is; the **co
 | contractiles | Normative doctrine: **Intend** (north-star) · **Must** (invariants) · **Trust** (security) · **Adjust** (accessibility / inclusive design) — the integral core that holds strong; plus **Dust** (exnovation drift) · **Bust** (failure / breakage, not drift). |
 | k9 | *Validation*. Kennel (data) / Yard (pure eval) / Hunt (guarded exec). |
 
+**The chora and CLADE are different things** (owner, 2026-11-15):
+- **The chora is ontological**: what this repo *is* and is meant to be in its context, code as identity. It holds the code's extension (what it is an instance of) and its intension (what defines it). Clade *placements* sit in it as identity facts; take them from chora-registry, never from a legacy file.
+- **`CLADE.deed` is epistemological**: how this repo's own content is ordered. Its scheme may be strict (Linnaean), judgement or none; membership may be single or multiple; a category is decided by its criterion. It is a descriptile, never identity. Create none until the standards `clade` module lands.
+- **The aesthetic spans both**: the repo as experienced from outside, and its ordering as experienced within.
+- A legacy `CLADE.a2ml`, or A2ML named `CLADE.deed`, feeds the chora and `STATE.deed` (standards `clade-to-repo-deed.adoc`), never a `CLADE.deed`.
+
 ## Canon pointers
 Estate data-format route: **kyq** handles exactly **TOML, Dhall, KYAML,
 I-JSON/JCS**. Preserve TOML/Dhall; migrate YAML/YML to KYAML and JSON variants
