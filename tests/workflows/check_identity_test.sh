@@ -67,7 +67,14 @@ expect_fail "a missing :repo-uuid" "$(deed "")" ":repo-uuid is missing"
 rc=0; bash "$CHECKER" >/dev/null 2>&1 || rc=$?; [[ "$rc" -eq 2 ]] || { echo "FAIL: no argument gave $rc, not 2" >&2; exit 1; }
 rc=0; bash "$CHECKER" "$FIXTURE/none.deed" >/dev/null 2>&1 || rc=$?; [[ "$rc" -eq 2 ]] || { echo "FAIL: a missing deed gave $rc, not 2" >&2; exit 1; }
 
-# The template's own deed passes.
-expect_pass "the template's own deed" "$(cd "$(dirname "$CHECKER")/.." && pwd)/rsr-template-repo_chora.deed"
+# The template's own deed passes. Only the template tree (scripts/is-template-tree.sh)
+# carries it under this name: a minted repository's deed is <name>_chora.deed, and this
+# test is carried into every child, so other trees skip this one control with a notice.
+ROOT="$(cd "$(dirname "$CHECKER")/.." && pwd)"
+if bash "$ROOT/scripts/is-template-tree.sh" "$ROOT"; then
+    expect_pass "the template's own deed" "$ROOT/rsr-template-repo_chora.deed"
+else
+    echo "SKIP: the template's-own-deed control (not the template tree; is-template-tree.sh says no)"
+fi
 
 echo "PASS: check-identity controls (v8 and #u8 pass; v5, #u5, v4, upper-case and missing fail; usage is 2)"
