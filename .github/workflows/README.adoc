@@ -166,10 +166,11 @@ without any exemption. Nothing here weakens, bypasses or excuses the ruleset.
 * It carries no workflows, no code and nothing that runs.
 * *Repository setting (owner):* Pages must be enabled with source
   "GitHub Actions". Pages host names are lower-case; a mixed-case owner name
-  needs the lower-case form in the README URL. A repository that is itself
-  named `<owner>.github.io` is a user/organisation Pages site served at the root,
-  so its badge URL has no `/<repo>` segment; the template's URL does not handle
-  that case and it must be edited by hand.
+  needs the lower-case form in the README URL. A repository named
+  `<owner>.github.io` is a user/organisation Pages site served at the root, so its
+  badge URL has no `/<repo>` segment; `just repo-init` drops it for that name form
+  (case-insensitively) and keeps it for every other repository.
+  `tests/workflows/user_pages_badge_url_test.sh` runs that rule.
 
 === What each colour means
 

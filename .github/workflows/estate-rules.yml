@@ -264,6 +264,12 @@ jobs:
       # they are proven able to fail.
       - name: Governance badge contract (state mapping, no-op, orphan, errors)
         run: bash tests/workflows/governance_badge_test.sh
+      # A repo named <owner>.github.io is a user/org Pages site served at the root,
+      # so the mint drops /<repo> from the README badge URL for that name form.
+      # Runs the real rule from repo-init.just against the real badge line, with a
+      # negative control; self-skips outside the template tree.
+      - name: Pages badge URL for a user/org site repo name
+        run: bash tests/workflows/user_pages_badge_url_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The

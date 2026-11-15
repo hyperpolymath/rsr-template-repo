@@ -18,7 +18,9 @@ the repo's own machine-readable truth.
 Two halves of the generated region:
 
 * *Estate-common* — identical in every repo; the Manifesto doctrine + format-family
-  orientation + canon pointers + language policy. Pinned to a Manifesto SHA once
+  orientation + canon pointers + language policy + the proof guidance (which
+  prover for which obligation; moved in from hand-authored text on 2026-11-15
+  so a wording fix reaches every repo by regenerating). Pinned to a Manifesto SHA once
   the wording is ratified (today: `DRAFT-unratified`).
 * *Repo-specific* — projected from this repo's deed: identity, IS / IS-NOT,
   position, constraints, golden path, state.
