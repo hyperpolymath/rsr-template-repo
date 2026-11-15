@@ -77,12 +77,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Pinned to a commit: an SSG that runs in the deploy path must not float.
-      - name: Checkout ddraig-ssg
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: hyperpolymath/ddraig-ssg
-          ref: c334dab63a25995ed5ce1256e4e633bad21adacd
-          path: .ddraig-ssg
+      # Fetched by that exact SHA and verified, rather than through
+      # actions/checkout with a repository+ref: in a workflow_run workflow,
+      # SonarCloud S7631 flags any such checkout as possibly running fork code,
+      # and cannot tell a hard-coded SHA of a trusted repository from a
+      # variable ref. This step avoids that pattern; it does not make the
+      # finding wrong. The pin is the control, and the test below enforces it.
+      - name: Fetch ddraig-ssg at the pinned commit
+        env:
+          DDRAIG_SHA: c334dab63a25995ed5ce1256e4e633bad21adacd
+        run: |
+          set -euo pipefail
+          git init -q .ddraig-ssg
+          git -C .ddraig-ssg fetch -q --depth 1 https://github.com/hyperpolymath/ddraig-ssg "$DDRAIG_SHA"
+          git -C .ddraig-ssg checkout -q --detach FETCH_HEAD
+          test "$(git -C .ddraig-ssg rev-parse HEAD)" = "$DDRAIG_SHA"
 
       # ddraig reads Markdown only and certifies every page (exactly one <h1>,
       # non-skipping headings); a page that fails certification FAILS the build
