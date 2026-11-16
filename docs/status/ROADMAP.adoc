@@ -18,6 +18,30 @@ version is 0.1.0 (`Justfile`, `CITATION.cff`, tag `v0.1.0`, deed
 
 == Milestones
 
+=== 2026-11-16 — contribution-guide and Hypatia consistency repairs
+
+The contribution canary counts all four supported root/.github guide paths
+once and rejects duplicates, including mixed-location and same-format pairs.
+Regression controls cover the four single guides, no guide and all six pairs.
+
+The RSR oracle now uses the same Hypatia revision as the SARIF scanner and
+verdict reporters: `6693f9aed8e4383f78a3d01b600b32663bf7a45c`. The existing
+OTP 27 oracle runtime and PinSites compiler guard remain in place. The
+workflow-edge gate also inspects Hypatia checkout refs, with controls for
+wrong, missing, duplicate and unresolved refs, environment bindings, quoted
+keys, repository casing and indentless steps. Shell examples are ignored.
+
+The suppression-policy description is reconciled with the pinned source.
+The stale RE008 Dependabot exemption is removed after checking the workflow's
+author-id gate, metadata handling and absence of checkout/artifact consumers.
+No exemption is added or broadened. These are execution/consistency repairs;
+a successful oracle invocation does not establish an RSR compliance tier.
+
+This upstream repair accompanies Secret Types PR #50. Existing template
+coverage/debt placeholders remain placeholders for newly minted repositories.
+
+=== Existing milestones
+
 [cols="5,1",options="header"]
 |===
 | Milestone | Done
