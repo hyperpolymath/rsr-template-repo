@@ -31,9 +31,12 @@ TEMPLATE — these rows describe the example files the template ships under
 minted repo, and a repo must not record them as its own unless it keeps those
 files. On mint, do one of:
 
-* keep a group *only if* the repo has that surface (an Idris2 ABI over an FFI
-for the ABI rows; a typed public API for the typing rows), and then repoint
-each row at the repo's own file and judge its status for real; or
+* keep a group *only if* the repo has that surface (any ABI or FFI for the ABI
+rows, whatever implements it; a typed public API for the typing rows), and then
+repoint each row at the repo's own file and judge its status for real. Where an
+example row does not fit the repo's interface (say, a C ABI with no Idris2
+layer), replace it with the obligation that interface does carry; never drop
+the group while the surface exists; or
 * delete the group and record here why it does not apply
 (a pure-theory repo has no ABI, FFI or exported API to state them about).
 
