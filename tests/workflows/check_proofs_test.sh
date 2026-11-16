@@ -126,6 +126,11 @@ printf '{-# OPTIONS -W noerror #-}\nmodule A where\n' >"$d/verification/proofs/a
 echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
 run "agda: an OPTIONS pragma that overrides -W error fails" 1 "$d" agda yes "OPTIONS pragma sets a warning flag"
 
+d="$(fixture agdawarnml)"; mkdir -p "$d/verification/proofs/agda"
+printf '{-# OPTIONS\n   -W noerror #-}\nmodule A where\n' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: a warning override split across lines fails" 1 "$d" agda yes "OPTIONS pragma sets a warning flag"
+
 d="$(fixture usage)"
 run "an unknown prover is a usage error (rc 2)" 2 "$d" nonsense yes "usage:"
 
