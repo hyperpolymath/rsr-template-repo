@@ -358,7 +358,10 @@ repo-init archetype="":
     # Derive the default for a DNS hostname and bare TOML service key, not
     # only an OCI image name: Julia dots and slug underscores need hyphens.
     # Explicit service answers still go through the validator unchanged.
-    DEFAULT_SERVICE_NAME="${REPO,,}"
+    # tr, not the Bash 4 case-conversion expansion: macOS ships Bash 3.2.
+    _repo_lc="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+    _owner_lc="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+    DEFAULT_SERVICE_NAME="$_repo_lc"
     DEFAULT_SERVICE_NAME="${DEFAULT_SERVICE_NAME//[._]/-}"
     if [ -d "build/container" ]; then
         echo ""
@@ -367,8 +370,8 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/$_owner_lc}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/$_owner_lc}}"
         # The values fill double-quoted KYAML scalars: refuse a value that
         # would break them now, before anything is written.
         bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
@@ -376,7 +379,7 @@ repo-init archetype="":
     else
         SERVICE_NAME="${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
+        REGISTRY="${REGISTRY:-ghcr.io/$_owner_lc}"
     fi
 
     # --- Derived values ---
