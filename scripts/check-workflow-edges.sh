@@ -106,8 +106,10 @@ env_pin() {
 # Supported form: block-mapping checkout steps, one with/repository/ref each;
 # sequence items may be indentless or further indented under steps. Step keys
 # follow the inline list-item key column; flow/aliased mappings fail closed.
-# A ref may be a full SHA or exactly env.NAME with one literal declaration in
-# workflow env or this job's env. Other expressions and ambiguous bindings fail.
+# A ref may be a full SHA or exactly env.NAME in workflow env or this job's env.
+# A unique job declaration overrides workflow env; sibling jobs cannot supply
+# values. Duplicate declarations in the selected scope and step-env bindings
+# fail closed. Whole-step flow mappings, aliases and anchors are unsupported.
 # Block scalar bodies are skipped: a shell example is not a checkout input.
 hypatia_checkouts() {
   awk '
@@ -120,12 +122,13 @@ hypatia_checkouts() {
     }
     function flush() {
       if (checkout && unsupported) target = 1
-      if (target && checkout) {
-        n++; refs[n] = ref; scopes[n] = job; sites[n] = start
-        if (uses != 1 || !checkout || withs != 1 || repos != 1 || nrefs != 1 || unsupported)
+      if (whole_unsupported || (target && checkout)) {
+        n++; refs[n] = ref; scopes[n] = job; step_scopes[n] = step_no; sites[n] = start
+        if (whole_unsupported) reasons[n] = "unsupported complete step mapping (flow, alias, anchor or non-inline key)"
+        else if (uses != 1 || !checkout || withs != 1 || repos != 1 || nrefs != 1 || unsupported)
           reasons[n] = "ambiguous or unsupported with/repository/ref checkout mapping"
       }
-      target = checkout = uses = withs = repos = nrefs = unsupported = 0
+      target = checkout = uses = withs = repos = nrefs = unsupported = whole_unsupported = 0
       ref = ""; wi = -1
     }
     BEGIN { si = step = seq = block = ei = -1; job = 0 }
@@ -136,34 +139,52 @@ hypatia_checkouts() {
       if (block >= 0 && ind > block) next
       block = -1
       body = substr(line, ind + 1); dash = ""
-      if (body ~ /^-[[:space:]]+/) { dash = "- "; sub(/^-[[:space:]]+/, "", body) }
+      if (body ~ /^-[[:space:]]+/) { match(body,/^-[[:space:]]+/); dash = substr(body,1,RLENGTH); sub(/^-[[:space:]]+/, "", body) }
       if (body ~ /^["\047][A-Za-z_][A-Za-z0-9_-]*["\047]:/) {
         at = index(body, ":")
         if (substr(body,1,1) == substr(body,at-1,1))
           body = substr(body,2,at-3) substr(body,at)
       }
       line = substr(line,1,ind) dash body
-      if (line ~ /:[[:space:]]*[|>][-+0-9]*([[:space:]]+#.*)?[[:space:]]*$/) block = ind
-      if (line ~ /^  [A-Za-z0-9_-]+:[[:space:]]*$/) { flush(); job++; si = step = seq = -1 }
+      header = line; sub(/[[:space:]]+#.*$/, "", header); sub(/[[:space:]]+$/, "", header)
+      if (line ~ /:[[:space:]]*[|>][-+0-9]*([[:space:]]+#.*)?[[:space:]]*$/) block = ind + length(dash)
+      if (header ~ /^  [A-Za-z0-9_-]+:[[:space:]]*$/) { flush(); job++; si = step = seq = -1 }
       if (ei >= 0 && ind <= ei) ei = -1
-      if (line ~ /^[ ]*env:[[:space:]]*$/) { ei = ind; es = (ind == 0 ? 0 : (ind == 4 ? job : -1)); next }
+      if (header ~ /^[ ]*env:[[:space:]]*$/) {
+        ei = ind
+        es = (ind == 0 ? 0 : (step >= 0 && ind == keycol ? "step-" step_no : (ind == 4 ? job : "unsupported")))
+        next
+      }
+      if (header ~ /^[ ]*env:/ && (ind == 0 || ind == 4)) {
+        unknown_env[(ind == 0 ? 0 : job)] = 1; next
+      }
       if (ei >= 0 && ind == ei + 2 && line ~ /^[ ]*[A-Z_][A-Z0-9_]*:/) {
         key = trim(line); sub(/:.*/, "", key); value = line; sub(/^[^:]*:/,"",value)
-        counts[key]++; values[key] = scalar(value); owners[key] = es
+        binding = es SUBSEP key; counts[binding]++; values[binding] = scalar(value)
       }
       if (si >= 0 && (ind < si || (ind == si && line !~ /^[ ]*-/))) { flush(); si = step = seq = -1 }
-      if (line ~ /^[ ]*steps:[[:space:]]*$/) { si = ind; seq = -1; next }
+      if (header ~ /^[ ]*steps:[[:space:]]*$/) { si = ind; seq = -1; next }
       if (si < 0) next
-      if (ind >= si && (seq < 0 || ind == seq) && line ~ /^[ ]*-[[:space:]]/) { flush(); seq = step = ind; start = FNR }
+      if (ind >= si && (seq < 0 || ind == seq) && line ~ /^[ ]*-([[:space:]]|$)/) {
+        flush(); seq = step = ind; keycol = ind + length(dash); start = FNR; step_no++
+        item = header; sub(/^[ ]*-[[:space:]]*/, "", item)
+        if (item !~ /^[A-Za-z_][A-Za-z0-9_-]*:/) whole_unsupported = 1
+      }
       if (step < 0) next
       if (wi >= 0 && ind <= wi) wi = -1
       text = trim(line); sub(/^-[[:space:]]+/, "", text)
-      if ((ind == step || ind == step + 2) && text ~ /^uses:/) {
+      if ((ind == step || ind == keycol) && text ~ /^env:/) {
+        env_header = text; sub(/[[:space:]]+#.*$/, "", env_header)
+        if (env_header ~ /^env:[[:space:]]*$/) { ei = keycol; es = "step-" step_no }
+        else unknown_step_env[step_no] = 1
+        next
+      }
+      if ((ind == step || ind == keycol) && text ~ /^uses:/) {
         uses++; value = text; sub(/^uses:[[:space:]]*/, "", value)
         if (tolower(scalar(value)) ~ /^actions\/checkout@/) checkout = 1
       }
-      if (ind == step + 2 && text ~ /^with:/) {
-        withs++; wi = ind
+      if ((ind == step || ind == keycol) && text ~ /^with:/) {
+        withs++; wi = keycol
         if (text !~ /^with:[[:space:]]*(#.*)?$/) {
           unsupported = 1
           if (index(text,"hyperpolymath/hypatia")) target = 1
@@ -191,11 +212,17 @@ hypatia_checkouts() {
         value = refs[i]
         if (value ~ /^\$\{\{[[:space:]]*env\.[A-Z_][A-Z0-9_]*[[:space:]]*\}\}$/) {
           key = value; sub(/^\$\{\{[[:space:]]*env\./,"",key); sub(/[[:space:]]*\}\}$/, "", key)
-          if (counts[key] != 1 || (owners[key] != 0 && owners[key] != scopes[i]))
+          local_binding = scopes[i] SUBSEP key; global_binding = 0 SUBSEP key
+          binding = (counts[local_binding] > 0 ? local_binding : global_binding)
+          if (unknown_step_env[step_scopes[i]] || counts["step-" step_scopes[i] SUBSEP key] > 0)
+            reasons[i] = "unsupported step-env binding for checkout ref"
+          else if (unknown_env[scopes[i]] || (binding == global_binding && unknown_env[0]))
+            reasons[i] = "unsupported env mapping in the applicable checkout scope"
+          else if (counts[binding] != 1)
             reasons[i] = "missing or ambiguous env binding for checkout ref"
-          value = values[key]
+          value = values[binding]
         }
-        if (length(value) != 40 || value ~ /[^0-9a-f]/)
+        if (reasons[i] == "" && (length(value) != 40 || value ~ /[^0-9a-f]/))
           reasons[i] = "missing or non-literal full-SHA checkout ref (or unresolved env binding)"
         if (reasons[i] != "") print "!\tline " sites[i] ": " reasons[i]
         else print value "\tline " sites[i]

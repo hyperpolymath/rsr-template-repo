@@ -261,6 +261,18 @@ expect_rc 0 "a matching pin in an indentless steps sequence is accepted"
 fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
 sed -i '/      - uses:/,$s/^/    /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a more-indented steps sequence cannot hide a wrong Hypatia pin"
+fresh >/dev/null; checkout_fixture main
+sed -i 's/      - uses:/      - name: |\n          Oracle checkout\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a multiline initial step name cannot hide a floating checkout ref"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i 's/      - uses:/      - name: |\n          Oracle checkout\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "a multiline initial name preserves sibling checkout key boundaries"
+fresh >/dev/null; checkout_fixture main
+sed -i -e 's/      - uses:/      -   uses:/' -e '/        with:/,$s/^/  /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "extra spaces after the list dash cannot hide a floating checkout ref"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i -e 's/      - uses:/      -   uses:/' -e '/        with:/,$s/^/  /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "checkout mappings use the actual inline key column after the dash"
 fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
 sed -i -e 's|hyperpolymath/hypatia|Hyperpolymath/Hypatia|' -e 's|actions/checkout@|Actions/Checkout@|' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "repository name casing cannot hide a different Hypatia checkout pin"
@@ -277,6 +289,74 @@ expect_rc 0 "an exact, uniquely declared workflow env binding resolves"
 fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
 sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "an exact, uniquely declared binding in the same job resolves"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/^  score:/i\  sibling:\n    env:\n      PIN: $HSHA\n    runs-on: ubuntu-24.04" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i 's/^  score:$/  score: # scanner/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a commented job header cannot borrow a sibling job env binding"
+says "the missing applicable binding is named" "env binding"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+cat >> "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<YML
+  sibling: # another checkout
+    env: # local binding
+      PIN: $HSHA
+    steps: # ordinary block steps
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: hyperpolymath/hypatia
+          ref: \${{ env.PIN }}
+YML
+expect_rc 0 "separate jobs may declare the same env variable name independently"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}' "$(printf 'env: # workflow binding\n  PIN: %s' "$HSHA")"
+expect_rc 0 "an env header with a trailing comment still supplies workflow scope"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}' 'env:
+  PIN: 1111111111111111111111111111111111111111'
+sed -i "/    runs-on:/i\    env: # job overrides workflow\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "a unique job binding overrides the same workflow env name"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}' "$(printf 'env:\n  PIN: %s' "$HSHA")"
+sed -i '/    runs-on:/i\    env:\n      PIN: 1111111111111111111111111111111111111111' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "the job override determines the checked ref, not the workflow value"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "duplicate declarations in the applicable job scope remain ambiguous"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+cat >> "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<'YML'
+        env:
+          PIN: 1111111111111111111111111111111111111111
+YML
+expect_rc 1 "a wrong step binding cannot hide behind the correct job binding"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i 's/      - uses:/      - env:\n          PIN: 1111111111111111111111111111111111111111\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a first-key step env override cannot borrow the correct job value"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+printf '        env: {PIN: 1111111111111111111111111111111111111111}\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an unsupported flow step env cannot hide a potentially overriding value"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}'
+sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i 's/      - uses:/      - env: {PIN: 1111111111111111111111111111111111111111}\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a first-key flow step env is refused rather than ignored"
+fresh >/dev/null; checkout_fixture '${{ env.PIN }}' "$(printf 'env:\n  PIN: %s' "$HSHA")"
+sed -i '/    runs-on:/i\    env: {PIN: 1111111111111111111111111111111111111111}' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an unsupported job env map cannot fall back to a correct workflow value"
+fresh >/dev/null; checkout_fixture main
+sed -i 's/    steps:/    steps: # oracle/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a commented steps header cannot hide a floating checkout ref"
+fresh >/dev/null
+cat > "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<'YML'
+name: Oracle checkout control
+jobs:
+  score:
+    steps:
+      - {uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1, with: {repository: hyperpolymath/hypatia, ref: main}}
+YML
+expect_rc 1 "an unsupported complete flow step is refused rather than ignored"
+says "the unsupported complete step syntax is named" "unsupported complete step mapping"
+fresh >/dev/null; checkout_fixture "$HSHA"
+printf '      - *checkout-options\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an unsupported whole-step alias is explicitly refused"
 fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
 expect_rc 1 "an undefined checkout env binding is refused"
 fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s\n  HYPATIA_SHA: %s' "$HSHA" "$HSHA")"
