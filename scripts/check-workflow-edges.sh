@@ -164,13 +164,15 @@ def inspect($root; $job; $entry):
   elif ($step.uses | text | ascii_downcase | startswith("actions/checkout@") | not) then empty
   elif ($step | has("with") | not) then empty
   elif ($step.with | type) != "object" then bad($where; "checkout with inputs must be a mapping")
-  elif ($step.with | has("repository") | not) then empty
-  elif ($step.with.repository | type) != "string" then bad($where; "uninspectable checkout repository selector")
-  elif ($step.with.repository | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
-  elif ($step.with.repository | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
+  elif ($step.with | to_entries | group_by(.key | ascii_downcase) | any(length > 1))
+    then bad($where; "checkout input names collide case-insensitively")
   else
-    $step.with as $inputs |
-    if ($inputs.ref | type) != "string" then bad($where; "missing or non-literal full-SHA checkout ref")
+    ($step.with | with_entries(.key |= ascii_downcase)) as $inputs |
+    if ($inputs | has("repository") | not) then empty
+    elif ($inputs.repository | type) != "string" then bad($where; "uninspectable checkout repository selector")
+    elif ($inputs.repository | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
+    elif ($inputs.repository | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
+    elif ($inputs.ref | type) != "string" then bad($where; "missing or non-literal full-SHA checkout ref")
     else ($inputs.ref | text) as $raw |
       (if ($raw | test("^\\$\\{\\{\\s*env\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\}\\}$"))
        then ($raw | capture("^\\$\\{\\{\\s*env\\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\}\\}$").name) as $name |

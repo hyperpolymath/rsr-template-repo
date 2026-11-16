@@ -253,6 +253,25 @@ YML
 }
 fresh >/dev/null; checkout_fixture "$HSHA"
 expect_rc 0 "a matching literal Hypatia checkout ref is accepted"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i -e 's/repository:/Repository:/' -e 's/          ref:/          Ref:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "mixed-case checkout input names preserve a matching pin"
+fresh >/dev/null; checkout_fixture main
+sed -i 's/repository:/Repository:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a mixed-case Repository input cannot hide a floating pin"
+fresh >/dev/null; checkout_fixture main
+sed -i 's/          ref:/          REF:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a mixed-case REF input is inspected"
+fresh >/dev/null; checkout_fixture "$HSHA"
+printf '          Ref: main\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "checkout ref inputs colliding after case normalization are refused"
+says "case-colliding inputs have an explicit diagnostic" "input names collide case-insensitively"
+fresh >/dev/null; checkout_fixture "$HSHA"
+printf '          Repository: example/other\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "case-colliding repository inputs cannot hide a target"
+fresh >/dev/null; checkout_fixture "$HSHA"
+printf '          Ref: %s\n' "$HSHA" >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "identical values do not excuse case-colliding checkout inputs"
 fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
 sed -i '/      - uses:/,$s/^  //' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a wrong Hypatia pin in an indentless steps sequence is refused"
