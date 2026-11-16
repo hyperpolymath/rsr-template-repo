@@ -5,7 +5,7 @@
 # is CONTRIBUTING.adoc (the estate writes prose in AsciiDoc) tripped it every
 # week. This runs the canary's own script, taken from the workflow, on
 # fixtures: an .adoc guide is enough, either form at the root or in .github/;
-# no guide at all, and both forms at once, still trip it.
+# no guide at all, and any pair of supported guides, still trip it.
 set -euo pipefail
 yq --version 2>&1 | grep -q mikefarah || { echo "FAIL: this test needs Mike Farah yq (Go, 4.53.3+); the yq on PATH is a different tool" >&2; exit 1; }
 repo=$(git rev-parse --show-toplevel)
@@ -26,7 +26,8 @@ fixture() {
 # run DIR — the canary's exit status; its output in $work/out.
 run() { (cd "$1" && GITHUB_STEP_SUMMARY=/dev/null bash "$work/canary.sh") > "$work/out" 2>&1; }
 
-for guide in CONTRIBUTING.adoc .github/CONTRIBUTING.adoc CONTRIBUTING.md .github/CONTRIBUTING.md; do
+guides=(CONTRIBUTING.md CONTRIBUTING.adoc .github/CONTRIBUTING.md .github/CONTRIBUTING.adoc)
+for guide in "${guides[@]}"; do
     d=$(fixture "ok-${guide//\//_}" "$guide")
     run "$d" || { cat "$work/out" >&2; fail "the canary tripped on a repository whose guide is $guide"; }
 done
@@ -35,10 +36,18 @@ echo 'PASS: a CONTRIBUTING guide in AsciiDoc or Markdown, at the root or in .git
 d=$(fixture none)
 if run "$d"; then fail 'the canary passed a repository with no CONTRIBUTING guide'; fi
 grep -q 'no CONTRIBUTING.adoc or CONTRIBUTING.md (would be created)' "$work/out" || { cat "$work/out" >&2; fail 'the missing guide was not named'; }
-d=$(fixture both CONTRIBUTING.adoc CONTRIBUTING.md)
-if run "$d"; then fail 'the canary passed both CONTRIBUTING.md and CONTRIBUTING.adoc'; fi
-grep -q 'duplicate CONTRIBUTING.md + CONTRIBUTING.adoc' "$work/out" || { cat "$work/out" >&2; fail 'the duplicate guide was not named'; }
-echo 'PASS: (-) no guide, and both forms at once, still trip the canary'
+echo 'PASS: (-) no CONTRIBUTING guide trips the canary'
+
+# Every pair covers cross-directory, cross-format, and same-format duplicates.
+for ((i=0; i<${#guides[@]}; i++)); do
+    for ((j=i+1; j<${#guides[@]}; j++)); do
+        d=$(fixture "duplicate-$i-$j" "${guides[i]}" "${guides[j]}")
+        if run "$d"; then fail "the canary passed both ${guides[i]} and ${guides[j]}"; fi
+        grep -qF "duplicate CONTRIBUTING guides: ${guides[i]} ${guides[j]} (keep exactly one)" "$work/out" \
+            || { cat "$work/out" >&2; fail 'the duplicate warning did not name both paths'; }
+        echo "PASS: (-) duplicate ${guides[i]} and ${guides[j]} trip the canary"
+    done
+done
 
 # This repository itself is clean.
 (cd "$repo" && GITHUB_STEP_SUMMARY=/dev/null bash "$work/canary.sh") > "$work/out" 2>&1 \

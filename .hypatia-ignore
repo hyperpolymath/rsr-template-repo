@@ -49,10 +49,6 @@ research_extensions/RE005:.github/workflows/quality.yml
 research_extensions/RE005:.github/workflows/dot-wellknown-enforcement.yml
 research_extensions/RE005:.github/workflows/static-analysis-gate.yml
 
-# RE008 assumes the actor-name comparison is used with pull_request_target. The
-# Dependabot workflow uses the unprivileged pull_request event and also verifies
-# github.event.pull_request.user.login, so that threat model does not apply.
-research_extensions/RE008:.github/workflows/dependabot-automerge.yml
 
 # wrong_sha_pin compares 40-hex action pins against Hypatia's static May-2026
 # @sha_pins table (e.g. actions/checkout@v4 vs the current actions/checkout@v7.0.1

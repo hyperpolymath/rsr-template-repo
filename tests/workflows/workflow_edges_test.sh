@@ -233,6 +233,99 @@ cat >> "$WORK/repo/.github/workflows/hypatia-scan.yml" <<'YML'
 YML
 expect_rc 0 "a step action with a workflow-shaped path is not followed as a reusable call"
 unset EDGES_REUSABLE_DIR
+
+echo "=== 12. Hypatia checkout refs participate in the one-tool pin contract ==="
+checkout_fixture() {
+    local ref="$1" binding="${2:-}"
+    cat > "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<YML
+name: Oracle checkout control
+${binding}
+jobs:
+  score:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: hyperpolymath/hypatia
+          ref: ${ref}
+YML
+}
+fresh >/dev/null; checkout_fixture "$HSHA"
+expect_rc 0 "a matching literal Hypatia checkout ref is accepted"
+fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
+sed -i '/      - uses:/,$s/^  //' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a wrong Hypatia pin in an indentless steps sequence is refused"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i '/      - uses:/,$s/^  //' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "a matching pin in an indentless steps sequence is accepted"
+fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
+sed -i '/      - uses:/,$s/^/    /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a more-indented steps sequence cannot hide a wrong Hypatia pin"
+fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
+sed -i -e 's|hyperpolymath/hypatia|Hyperpolymath/Hypatia|' -e 's|actions/checkout@|Actions/Checkout@|' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "repository name casing cannot hide a different Hypatia checkout pin"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i -e "s/with:/'with':/" -e 's/repository:/"repository":/' -e "s/ref:/'ref':/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "matching checkout refs with quoted mapping keys are recognized"
+sed -i "s/$HSHA/1111111111111111111111111111111111111111/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "quoted mapping keys cannot hide a different Hypatia checkout pin"
+fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111 "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
+expect_rc 1 "a wrong literal checkout ref is caught even with the correct env pin"
+says "the disagreement identifies the actual checkout" "Hypatia checkout"
+fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
+expect_rc 0 "an exact, uniquely declared workflow env binding resolves"
+fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
+sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "an exact, uniquely declared binding in the same job resolves"
+fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
+expect_rc 1 "an undefined checkout env binding is refused"
+fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s\n  HYPATIA_SHA: %s' "$HSHA" "$HSHA")"
+expect_rc 1 "duplicate identical checkout env bindings are ambiguous"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i '/          ref:/d' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a Hypatia checkout with no ref is refused"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i "/          ref:/a\          ref: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "duplicate checkout ref inputs are refused"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i '/          repository:/a\          repository: hyperpolymath/hypatia' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "duplicate checkout repository inputs are refused"
+fresh >/dev/null; checkout_fixture "$HSHA"
+printf '        with:\n          repository: hyperpolymath/hypatia\n          ref: %s\n' "$HSHA" >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "duplicate checkout with maps are refused"
+fresh >/dev/null; checkout_fixture main
+expect_rc 1 "a floating Hypatia checkout ref is refused"
+fresh >/dev/null; checkout_fixture '${{ inputs.hypatia-ref }}'
+expect_rc 1 "an unresolved checkout expression is refused"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i 's|repository: hyperpolymath/hypatia|repository: \&repo hyperpolymath/hypatia|' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an unsupported anchored checkout repository fails closed"
+fresh >/dev/null; checkout_fixture "$HSHA"
+cat >> "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<'YML'
+      - name: 'repository: hyperpolymath/hypatia ref: wrong'
+        run: |
+          cat <<'EXAMPLE'
+          - uses: actions/checkout@a-decoy
+            with:
+              repository: hyperpolymath/hypatia
+              ref: a-shell-example-is-not-a-pin
+          EXAMPLE
+YML
+expect_rc 0 "quoted labels and shell block checkout examples are not pin inputs"
+fresh >/dev/null; checkout_fixture "$HSHA"
+cat >> "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<'YML'
+      - uses: owner/reporter@1111111111111111111111111111111111111111
+        with:
+          repository: hyperpolymath/hypatia
+YML
+expect_rc 0 "a non-checkout action repository input is not a checkout pin"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i "s|        with:|        with: {repository: hyperpolymath/hypatia, ref: $HSHA}|" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an unsupported flow-form checkout mapping fails closed"
+fresh >/dev/null; checkout_fixture "$HSHA"
+sed -i 's/        with:/        with: *checkout-options/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an aliased checkout with mapping fails closed"
+
 echo ""
 if [ "$fail" -ne 0 ]; then
     echo "FAIL: workflow edges suite (${pass} passed, ${fail} failed)" >&2

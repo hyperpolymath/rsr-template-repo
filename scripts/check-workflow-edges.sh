@@ -102,6 +102,108 @@ env_pin() {
 }
 
 
+# hypatia_checkouts FILE — literal checkout pins, including the RSR oracle.
+# Supported form: block-mapping checkout steps, one with/repository/ref each;
+# sequence items may be indentless or further indented under steps. Step keys
+# follow the inline list-item key column; flow/aliased mappings fail closed.
+# A ref may be a full SHA or exactly env.NAME with one literal declaration in
+# workflow env or this job's env. Other expressions and ambiguous bindings fail.
+# Block scalar bodies are skipped: a shell example is not a checkout input.
+hypatia_checkouts() {
+  awk '
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    function scalar(s) {
+      sub(/[[:space:]]+#.*$/, "", s); s = trim(s)
+      if ((substr(s,1,1) == "\047" && substr(s,length(s),1) == "\047") ||
+          (substr(s,1,1) == "\"" && substr(s,length(s),1) == "\"")) s = substr(s,2,length(s)-2)
+      return s
+    }
+    function flush() {
+      if (checkout && unsupported) target = 1
+      if (target && checkout) {
+        n++; refs[n] = ref; scopes[n] = job; sites[n] = start
+        if (uses != 1 || !checkout || withs != 1 || repos != 1 || nrefs != 1 || unsupported)
+          reasons[n] = "ambiguous or unsupported with/repository/ref checkout mapping"
+      }
+      target = checkout = uses = withs = repos = nrefs = unsupported = 0
+      ref = ""; wi = -1
+    }
+    BEGIN { si = step = seq = block = ei = -1; job = 0 }
+    {
+      line = $0; sub(/\r$/, "", line)
+      match(line,/^[ ]*/); ind = RLENGTH
+      if (line ~ /^[[:space:]]*(#|$)/) next
+      if (block >= 0 && ind > block) next
+      block = -1
+      body = substr(line, ind + 1); dash = ""
+      if (body ~ /^-[[:space:]]+/) { dash = "- "; sub(/^-[[:space:]]+/, "", body) }
+      if (body ~ /^["\047][A-Za-z_][A-Za-z0-9_-]*["\047]:/) {
+        at = index(body, ":")
+        if (substr(body,1,1) == substr(body,at-1,1))
+          body = substr(body,2,at-3) substr(body,at)
+      }
+      line = substr(line,1,ind) dash body
+      if (line ~ /:[[:space:]]*[|>][-+0-9]*([[:space:]]+#.*)?[[:space:]]*$/) block = ind
+      if (line ~ /^  [A-Za-z0-9_-]+:[[:space:]]*$/) { flush(); job++; si = step = seq = -1 }
+      if (ei >= 0 && ind <= ei) ei = -1
+      if (line ~ /^[ ]*env:[[:space:]]*$/) { ei = ind; es = (ind == 0 ? 0 : (ind == 4 ? job : -1)); next }
+      if (ei >= 0 && ind == ei + 2 && line ~ /^[ ]*[A-Z_][A-Z0-9_]*:/) {
+        key = trim(line); sub(/:.*/, "", key); value = line; sub(/^[^:]*:/,"",value)
+        counts[key]++; values[key] = scalar(value); owners[key] = es
+      }
+      if (si >= 0 && (ind < si || (ind == si && line !~ /^[ ]*-/))) { flush(); si = step = seq = -1 }
+      if (line ~ /^[ ]*steps:[[:space:]]*$/) { si = ind; seq = -1; next }
+      if (si < 0) next
+      if (ind >= si && (seq < 0 || ind == seq) && line ~ /^[ ]*-[[:space:]]/) { flush(); seq = step = ind; start = FNR }
+      if (step < 0) next
+      if (wi >= 0 && ind <= wi) wi = -1
+      text = trim(line); sub(/^-[[:space:]]+/, "", text)
+      if ((ind == step || ind == step + 2) && text ~ /^uses:/) {
+        uses++; value = text; sub(/^uses:[[:space:]]*/, "", value)
+        if (tolower(scalar(value)) ~ /^actions\/checkout@/) checkout = 1
+      }
+      if (ind == step + 2 && text ~ /^with:/) {
+        withs++; wi = ind
+        if (text !~ /^with:[[:space:]]*(#.*)?$/) {
+          unsupported = 1
+          if (index(text,"hyperpolymath/hypatia")) target = 1
+        }
+        next
+      }
+      if (wi >= 0 && text ~ /^(repository|ref):/) {
+        key = text; sub(/:.*/, "", key); value = text; sub(/^[^:]*:/,"",value); value = scalar(value)
+        if (ind != wi + 2) unsupported = 1
+        if (key == "repository") {
+          repos++
+          if (tolower(value) == "hyperpolymath/hypatia") target = 1
+          else if (value !~ /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/) { target = 1; unsupported = 1 }
+        }
+        else { nrefs++; ref = value }
+      } else if (wi >= 0 && index(tolower(text),"hyperpolymath/hypatia")) {
+        target = 1; unsupported = 1
+      } else if (wi >= 0 && text ~ /^<<:/) {
+        unsupported = 1
+      }
+    }
+    END {
+      flush()
+      for (i=1; i<=n; i++) {
+        value = refs[i]
+        if (value ~ /^\$\{\{[[:space:]]*env\.[A-Z_][A-Z0-9_]*[[:space:]]*\}\}$/) {
+          key = value; sub(/^\$\{\{[[:space:]]*env\./,"",key); sub(/[[:space:]]*\}\}$/, "", key)
+          if (counts[key] != 1 || (owners[key] != 0 && owners[key] != scopes[i]))
+            reasons[i] = "missing or ambiguous env binding for checkout ref"
+          value = values[key]
+        }
+        if (length(value) != 40 || value ~ /[^0-9a-f]/)
+          reasons[i] = "missing or non-literal full-SHA checkout ref (or unresolved env binding)"
+        if (reasons[i] != "") print "!\tline " sites[i] ": " reasons[i]
+        else print value "\tline " sites[i]
+      }
+    }
+  ' "$1"
+}
+
 # reusable_calls FILE — every job-level reusable-workflow call in FILE
 # (`uses: OWNER/REPO/.github/workflows/X.yml@REF` outside every job's `steps:`
 # block), one per line. A producer may delegate its scan to such a call, and
@@ -281,8 +383,21 @@ for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
     case "$v" in
       *'${{'* | 'latest' | 'HEAD') continue ;; # floating by design, documented at the pin
     esac
-    printf '%s\t%s\t%s\n' "$var" "$v" "$(basename "$wf")" >> "$pins_file"
+    pin_name="$var"; [ "$var" != HYPATIA_REF ] || pin_name=HYPATIA_SHA
+    printf '%s\t%s\t%s\n' "$pin_name" "$v" "$(basename "$wf")" >> "$pins_file"
   done
+  checkout_rows="$(hypatia_checkouts "$wf")" || {
+    fail "$(basename "$wf") checkout refs could not be inspected"
+    continue
+  }
+  while IFS=$'\t' read -r pin site; do
+    [ -n "$pin" ] || continue
+    if [ "$pin" = '!' ]; then
+      fail "$(basename "$wf") Hypatia checkout ${site}"
+    else
+      printf '%s\t%s\t%s\n' HYPATIA_SHA "$pin" "$(basename "$wf") (Hypatia checkout ${site})" >> "$pins_file"
+    fi
+  done <<< "$checkout_rows"
   # A reusable call's hypatia-ref input pins the same scanner as HYPATIA_SHA.
   if [ -n "$(reusable_calls "$wf")" ]; then
     v="$(env_pin "$wf" hypatia-ref | head -n1)"

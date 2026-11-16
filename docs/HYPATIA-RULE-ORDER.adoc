@@ -114,7 +114,38 @@ not silently copied: a repository that adopts the reusable adopts its pins, and
 must then change `scripts/check-workflow-edges.sh`'s expectation deliberately.
 
 *Enforced by.* `scripts/check-workflow-edges.sh` (identical-ref check plus the
-duplicate-pin scan).
+duplicate-pin scan). This includes Hypatia's RSR oracle checkout, its SARIF
+scanner and both verdict reporters. A checkout ref must be a literal full SHA
+or an exact `env.NAME` expression with one literal declaration in workflow env
+or the same job's env. Missing or duplicate checkout inputs, unresolved or
+ambiguous bindings, and unsupported checkout mapping forms fail closed. Shell
+block examples are not checkout inputs. No YAML runtime dependency is needed.
+
+=== Source audit for the common Hypatia pin (2026-11-16)
+
+The oracle, scanner and reporters use the same `6693f9aed8e4383f78a3d01b600b32663bf7a45c`
+source. Comparing `scanner_suppression.ex` at the former `be98f74` pin and this
+pin found two changes: `dogfooding` now receives the existing training-corpus
+defaults, and `Token assignment` joins the form-ambiguous secret labels whose
+commented documentation examples are masked. The total language ban, universal
+exclude list, module-scoped defaults and OR combination of built-in and
+repository exemptions are otherwise unchanged. The layer descriptions above
+now name the existing `.hypatia-exemptions.md`, integration-workflow and
+rule-specific harvested-registry exclusions explicitly. No repository
+exemption was added or broadened. The grid pin and renderer/library digests
+remain independent and unchanged.
+
+The retained research-extension exemptions are RE001/RE005, not an advisory
+classification of the module. At this pin RE001 is high or warning depending on
+job context, RE005 is warning, and RE008 is critical. The old RE008 exemption
+for `dependabot-automerge.yml` is removed: the workflow contains no bot comparison
+using `github.actor`. Its `pull_request` job checks both PR-author login and
+immutable id `49699333`, executes a pinned metadata action and fixed scripts,
+checks GitHub Advisory data and semver before requesting native auto-merge with
+`--match-head-commit`, and has no checkout or artifact consumer. PR body and
+metadata enter scripts through environment variables. The job requests contents
+and pull-request write access; this audit does not call it read-only. The
+obsolete exemption would otherwise hide a future critical actor-gate regression.
 
 === C3 — panicbot versus the direct panic-attack row
 

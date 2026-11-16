@@ -58,7 +58,12 @@ jobs:
           a2ml_left=$(find . -path ./.git -prune -o -type f -name '*.a2ml' -print | head -5)
           [ -z "$a2ml_left" ] || warn "retired .a2ml files present (move their facts into the repo deed): $(echo $a2ml_left)"
           # would-DELETE: duplicate community files
-          [ -f "CONTRIBUTING.md" ] && [ -f "CONTRIBUTING.adoc" ] && warn "duplicate CONTRIBUTING.md + CONTRIBUTING.adoc (one would be removed)"
+          contributing_guides=()
+          for guide in CONTRIBUTING.md CONTRIBUTING.adoc .github/CONTRIBUTING.md .github/CONTRIBUTING.adoc; do
+            [ ! -f "$guide" ] || contributing_guides+=("$guide")
+          done
+          [ "${#contributing_guides[@]}" -le 1 ] \
+            || warn "duplicate CONTRIBUTING guides: ${contributing_guides[*]} (keep exactly one)"
           if [ -f "README.md" ] && [ -f "README.adoc" ] && [ "$(wc -l < README.md)" -lt 5 ]; then
             warn "stub README.md alongside README.adoc (would be removed)"
           fi
@@ -73,7 +78,7 @@ jobs:
           # The estate writes its prose in AsciiDoc: CONTRIBUTING.adoc is the guide,
           # not a gap (the .md was dropped in 1486d06 and the canary tripped on
           # a rule that had diverged from the norm). Either form, root or .github/.
-          [ -f "CONTRIBUTING.md" ] || [ -f ".github/CONTRIBUTING.md" ] || [ -f "CONTRIBUTING.adoc" ] || [ -f ".github/CONTRIBUTING.adoc" ] \
+          [ "${#contributing_guides[@]}" -gt 0 ] \
             || warn "no CONTRIBUTING.adoc or CONTRIBUTING.md (would be created)"
 
           # --- unfixable compliance gaps (also drift) ---
