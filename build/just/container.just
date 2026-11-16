@@ -32,6 +32,19 @@ _engine := '''
         echo "Install one or set CONTAINER_ENGINE." >&2
         exit 1
     fi
+    # Only these three OCI engines are supported. rokur, svalinn, selur and the
+    # other stapeln components are services or tools inside the stack, not engines:
+    # an unsupported value fails here instead of being passed on to be run.
+    case "$ENGINE" in
+        podman|nerdctl|docker) ;;
+        *)
+            echo "error: unsupported container engine: '$ENGINE'." >&2
+            echo "Supported: podman, nerdctl, docker (set CONTAINER_ENGINE to one of them," >&2
+            echo "or unset it to auto-detect). rokur and svalinn are stack components," >&2
+            echo "not container engines." >&2
+            exit 2
+            ;;
+    esac
 '''
 
 # Initialise container templates — substitute placeholders with project values
@@ -70,7 +83,7 @@ container-init:
     PORT="${_PORT:-8080}"
 
     # Image paths are lower case; an owner login may not be.
-    _OWNER="${OWNER:-{{OWNER}}}"; _OWNER="${_OWNER,,}"
+    _OWNER="${OWNER:-{{OWNER}}}"; _OWNER="$(printf '%s' "$_OWNER" | tr '[:upper:]' '[:lower:]')"
     read -rp "Container registry [ghcr.io/${_OWNER}]: " _REGISTRY
     REGISTRY="${_REGISTRY:-ghcr.io/${_OWNER}}"
     bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY"
