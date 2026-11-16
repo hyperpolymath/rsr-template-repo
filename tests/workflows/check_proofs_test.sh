@@ -116,6 +116,16 @@ d="$(fixture hatch)"; printf 'Lemma a : True. Proof. Admitted.\n' >"$d/verificat
 echo 'verification/proofs/coq|a.v|gated|' >"$d/verification/proofs/coq/MANIFEST"
 run "a module that compiles but uses Admitted fails" 1 "$d" coq yes "RESULT: FAIL"
 
+d="$(fixture agdaok)"; mkdir -p "$d/verification/proofs/agda"
+printf '{-# OPTIONS --safe #-}\nmodule A where\n' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: a pragma without a warning flag passes" 0 "$d" agda yes "RESULT: PASS"
+
+d="$(fixture agdawarn)"; mkdir -p "$d/verification/proofs/agda"
+printf '{-# OPTIONS -W noerror #-}\nmodule A where\n' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: an OPTIONS pragma that overrides -W error fails" 1 "$d" agda yes "OPTIONS pragma sets a warning flag"
+
 d="$(fixture usage)"
 run "an unknown prover is a usage error (rc 2)" 2 "$d" nonsense yes "usage:"
 
