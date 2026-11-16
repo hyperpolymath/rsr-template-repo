@@ -281,8 +281,8 @@ repo-init archetype="":
     # the estate slug; every other mint takes the estate slug only.
     if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
         :
-    elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
+    elif [[ ! "$REPO" =~ ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ ]]; then
+        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens, starting with a letter (it becomes C and Zig identifiers, which cannot start with a digit)"
         [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
         exit 1
     fi
