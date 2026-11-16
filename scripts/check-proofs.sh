@@ -98,8 +98,10 @@ check_one() {
               fi
             fi ;;
     lean4)  out="$(cd "$ROOT/$root" && lean          "$rel" 2>&1)"; rc=$? ;;
-    # Canonical theory invocation, PROOF-POLICY §2.1 (standards). Do not weaken.
-    agda)   out="$(cd "$ROOT/$root" && agda --safe --without-K --cubical-compatible "$rel" 2>&1)"; rc=$? ;;
+    # Canonical theory invocation, PROOF-POLICY §2.1 (standards): --safe --without-K
+    # --cubical-compatible, with -W error so any warning fails. Suppress NO warning
+    # (no -W noX). Do not weaken.
+    agda)   out="$(cd "$ROOT/$root" && agda --safe --without-K --cubical-compatible -W error "$rel" 2>&1)"; rc=$? ;;
     coq)    out="$(cd "$ROOT/$root" && coqc           "$rel" 2>&1)"; rc=$? ;;
   esac
   set -e

@@ -106,7 +106,7 @@ wins. `verification/proofs/README.adoc` maps it onto this tree.
 |===
 | Code or obligation | Prover | Notes
 
-| Theory (type systems, lattices, metatheory, algebra) | *Agda*, rechecked in *Rocq* and *Lean* | Canonical invocation `agda --safe --without-K --cubical-compatible` (§2.1). The Rocq leg is Dedukti transport first, hand re-proof as the fallback; the Lean leg is re-proved until a released Lambdapi Lean exporter exists (§2). *No Mathlib*: a missing lemma is proved in Lean core.
+| Theory (type systems, lattices, metatheory, algebra) | *Agda*, rechecked in *Rocq* and *Lean* | Canonical invocation `agda --safe --without-K --cubical-compatible` with `-W error` and no warning suppressed (§2.1). The Rocq leg is Dedukti transport first, hand re-proof as the fallback; the Lean leg is re-proved until a released Lambdapi Lean exporter exists (§2). *No Mathlib*: a missing lemma is proved in Lean core.
 | APIs, ABIs, engineering properties | *Idris2* | `%default total`; no `believe_me` or `assert_total`.
 | Rust code | *Creusot* with *Pearlite* contracts, and *Verus* | On the code. Kani for `unsafe` and FFI seams, and Aeneas where Rust implements an Agda theorem, alongside and never instead (§1.2, §4.1).
 | Ada code | *SPARK* | GNATprove.
