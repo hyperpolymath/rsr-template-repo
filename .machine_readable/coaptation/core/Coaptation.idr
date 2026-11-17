@@ -271,7 +271,7 @@ resolveSound fs wm c prf with (lookupEntry (cid c) wm) proof e
 
 resolveComplete : (fs : List Fact) -> (wm : WMap) -> (c : Clause)
                -> HardResolved fs wm c -> passes (classify fs wm c) = True
-resolveComplete fs wm c (ByWitness {ss} e (MkWitness ne hs)) with (lookupEntry (cid c) wm)
+resolveComplete fs wm c (ByWitness {ss = s :: ss'} e (MkWitness IsNonEmpty hs)) with (lookupEntry (cid c) wm)
   resolveComplete fs wm c (ByWitness {ss = s :: ss'} Refl (MkWitness IsNonEmpty hs)) | Just (Descriptile (s :: ss')) =
     rewrite holdsAllSpecs fs (s :: ss') hs in Refl
 resolveComplete fs wm c (ByDeferral e h) with (lookupEntry (cid c) wm)
