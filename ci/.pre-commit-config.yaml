@@ -75,4 +75,5 @@ repos:
         entry: bash .machine_readable/arrival-pack/verify.sh
         language: system
         pass_filenames: false
-        files: '^([^/]+_chora\.deed|\.machine_readable/arrival-pack/.*|CLAUDE\.md)$'
+        # scripts/deed-field.sh is the reader extract.sh calls for every field.
+        files: '^([^/]+_chora\.deed|\.machine_readable/arrival-pack/.*|scripts/deed-field\.sh|CLAUDE\.md)$'

@@ -31,6 +31,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   capitals (any Julia package). They use a lower-cased `image` variable, by
   repo-init's default-service-name rule (`.` and `_` become `-`). Controls:
   `tests/workflows/container_image_name_test.sh`.
+* The `validate-claude-md` pre-commit hook did not run when
+  `scripts/deed-field.sh`, the reader `extract.sh` depends on, changed.
 * The K9 badge publisher failed on every push to `main` in minted repos: it
   wrote straight to the `governance-badges` branch, and the estate's
   `Branch-Floor` ruleset (all branches, `code_coverage` requires a pull
