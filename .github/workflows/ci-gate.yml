@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: MPL-2.0
+# CI gate — thin caller of the estate's interim gate, which lives in
+# hyperpolymath/proven-cicd-and-workflows as a reusable workflow. Do not copy
+# its jobs in here: a copy freezes at one cicd-suite commit and never receives
+# a fix.
+#
+# It emits the commit status `CI/gate`, which the Branch-Floor ruleset
+# requires. It is a COMMIT STATUS, not a check run, because a job inside a
+# reusable workflow gets the check-run name `<caller job> / <called job>`,
+# which always contains " / " and can never equal `CI/gate`.
+#
+# It runs from the DEFAULT branch via workflow_run, so a pull request cannot
+# alter this file, its pin or its list. The consequence: the PR that adds this
+# caller can never receive `CI/gate` itself, and must be merged past the gate
+# once (owner action).
+#
+# The required-check list is NOT in this repository: it lives in
+# proven-cicd-and-workflows/profiles/ci-gate/<owner>/<repo>.json at the pinned
+# SHA below, selected by github.repository.
+#
+# The job id MUST stay `gate`. The pin is a full SHA, never `@main` or a tag:
+# the account enforces sha_pinning_required. An A3 `estate-gate` replaces this
+# interim gate by changing ONE pin and ONE context (`with: context`) here.
+#
+# Trigger types: `completed` re-evaluates a finished workflow; `in_progress`
+# flips the status to pending when a rerun starts, so a stale success never
+# survives a rerun.
+#
+# ONBOARDED in actions.lock (workflow key plus a leaf dependency record for the
+# suite reusable) because this repository's lock-sync gate requires every
+# job-level reusable ref to be keyed there; see the suite README, "Consumers
+# with a lock-sync gate". The record's ref is the symbolic `main`, never the SHA.
+#
+# No `secrets:` line: the reusable consumes none.
+name: CI gate
+
+on:
+  workflow_run:
+    workflows: ["**", "!CI gate"]
+    types: [completed, in_progress]
+
+permissions:
+  statuses: write
+  checks: read
+  actions: read
+  contents: read
+
+concurrency:
+  group: ci-gate-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.event.workflow_run.name != 'CI gate'
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@7a5713bb062218540cf4474596b3fac2835352e4 # cicd-suite ci-gate
+    with:
+      context: "CI/gate"

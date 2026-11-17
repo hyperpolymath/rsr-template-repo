@@ -108,6 +108,26 @@ canonical tools, run from a standards checkout (`STANDARDS_DIR`), and skip
 with a notice when none is present. k9iser is retired estate-wide: contracts
 are authored to `1-formats/k9/spec/K9-CONTRACT-SPEC.adoc`, never generated.
 
+== `ci-gate.yml` publishes the `CI/gate` status (interim)
+
+`ci-gate.yml` is a thin caller of the reusable of the same name in
+hyperpolymath/proven-cicd-and-workflows. It emits the commit status `CI/gate`,
+which the Branch-Floor ruleset requires. It is a commit status, not a check run,
+because a reusable's check-run name is `<caller job> / <job>` and can never equal
+`CI/gate`.
+
+* It runs on `workflow_run` (`completed` and `in_progress`: a rerun flips the
+  status to pending, so a stale success never survives), so GitHub always uses the copy on the default
+  branch: a pull request cannot alter the gate, its pin or its list. The pull
+  request that adds it can never receive `CI/gate` itself and must be merged past
+  the gate once.
+* The required-check list is not in this repository. It lives in
+  `proven-cicd-and-workflows/profiles/ci-gate/<owner>/<repo>.json` at the pinned
+  SHA.
+* It is onboarded in `actions.lock` (workflow key plus a leaf record for the suite
+  reusable, `ref: main`), because the lock-sync gate requires it. An A3 `estate-gate` replaces it by changing the pin and the
+  context.
+
 == The README badges are generated output (GitHub Pages)
 
 Every repository minted from this template publishes one Shields-endpoint JSON
