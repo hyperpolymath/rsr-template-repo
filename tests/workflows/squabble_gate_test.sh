@@ -390,7 +390,7 @@ assert_rc 2 'missing workflow directory is setup failure' bash "$REPO_ROOT/scrip
 echo "=== 5b. Typed status mapping: a workflow_run commit-status publisher ==="
 # `CI/gate => status:<file>` is certified as a publisher, never as a job name.
 SUITE_REUSABLE='hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml'
-SUITE_PIN='0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7'
+SUITE_PIN='d2140a5a789e4ebec52f1bab0074181012660c3b'
 status_tree="$WORK/status-publisher"
 fresh_status() { # fresh_status [uses] [context] [on-block]
   local uses="${1:-$SUITE_REUSABLE@$SUITE_PIN}" ctx="${2:-CI/gate}"
@@ -449,6 +449,105 @@ assert_rc 0 'status mapping message: missing file' grep -qF 'missing status publ
 fresh_status
 printf 'CI/gate => .github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
 assert_rc 1 'plain mapping: a workflow_run publisher is still not a pull_request producer' check_status
+# The full caller as the suite template ships it (pull_request start, workflow_run, schedule,
+# workflow_dispatch; jobs `gate` and `gate-pr`) must satisfy the checker.
+fresh_status_caller() {
+  local gate="$SUITE_REUSABLE@$SUITE_PIN" pr="$SUITE_REUSABLE@$SUITE_PIN"
+  fresh_status "$gate"
+  cat > "$status_tree/.github/workflows/ci-gate.yml" <<YML
+name: CI gate
+on:
+  pull_request:
+  workflow_run:
+    workflows: ["**", "!CI gate"]
+    types: [completed, in_progress]
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch: {}
+jobs:
+  gate:
+    if: github.event_name != 'pull_request'
+    uses: $gate
+    with:
+      context: "CI/gate"
+  gate-pr:
+    if: github.event_name == 'pull_request'
+    uses: $pr
+    with:
+      context: "CI/gate"
+YML
+}
+fresh_status_caller
+assert_rc 0 'status mapping: the template caller shape (pull_request start, gate and gate-pr jobs) passes' check_status
+# The shipped callers keep the shape the suite's templates define.
+cat > "$WORK/caller-shape.js" <<'JS'
+import { readFileSync } from "node:fs";
+const [, , gateFile, guardFile, allowFile] = process.argv;
+const errs = [];
+const need = (ok, msg) => { if (!ok) errs.push(msg); };
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const SUITE = "hyperpolymath/proven-cicd-and-workflows/.github/workflows/";
+const pinOf = (uses, file) => { const m = String(uses).match(new RegExp("^" + SUITE.replace(/[./]/g, "\\$&") + file.replace(/\./g, "\\.") + "@([0-9a-f]{40})$")); return m ? m[1] : null; };
+const gate = Bun.YAML.parse(readFileSync(gateFile, "utf8"));
+const on = gate.on ?? gate.true ?? {};
+need("pull_request" in on, "ci-gate.yml has no pull_request trigger");
+const prTypes = on.pull_request?.types;
+need(prTypes === undefined || prTypes === null || ["opened", "synchronize", "reopened"].every((t) => prTypes.includes(t)), "pull_request types drop opened, synchronize or reopened");
+need(same(on.workflow_run?.workflows, ["**", "!CI gate"]), "workflow_run workflows is not [\"**\", \"!CI gate\"]");
+need(same([...(on.workflow_run?.types ?? [])].sort(), ["completed", "in_progress"]), "workflow_run types is not completed and in_progress");
+need(Array.isArray(on.schedule) && on.schedule.length > 0 && on.schedule.every((s) => typeof s.cron === "string"), "no schedule cron");
+need("workflow_dispatch" in on, "no workflow_dispatch trigger");
+need(!("pull_request_target" in on), "ci-gate.yml must not trigger on pull_request_target");
+need(!("concurrency" in gate), "ci-gate.yml has a concurrency block, which the suite template deliberately omits");
+const p = gate.permissions ?? {};
+need(p.statuses === "write" && p.actions === "read" && p.contents === "read" && p["pull-requests"] === "read", "ci-gate.yml permissions are not statuses write, actions read, contents read, pull-requests read");
+need(same(Object.keys(gate.jobs ?? {}).sort(), ["gate", "gate-pr"]), "ci-gate.yml jobs are not exactly gate and gate-pr");
+const pins = new Set();
+for (const id of ["gate", "gate-pr"]) {
+  const j = gate.jobs?.[id] ?? {};
+  const pin = pinOf(j.uses, "ci-gate.yml");
+  need(pin !== null, `job ${id} does not call the suite ci-gate reusable at a 40-hex pin`);
+  if (pin) pins.add(pin);
+  need(j.with?.context === "CI/gate", `job ${id} with.context is not exactly CI/gate`);
+  need(j.secrets === undefined, `job ${id} passes secrets`);
+}
+need(String(gate.jobs?.gate?.if ?? "").includes("github.event_name != 'pull_request'"), "gate does not exclude the pull_request event");
+need(String(gate.jobs?.["gate-pr"]?.if ?? "").includes("github.event_name == 'pull_request'") && String(gate.jobs?.["gate-pr"]?.if ?? "").includes("github.event.pull_request.head.repo.full_name == github.repository"), "gate-pr is not limited to same-repository pull_request");
+const guard = Bun.YAML.parse(readFileSync(guardFile, "utf8"));
+const gon = guard.on ?? guard.true ?? {};
+need(same(Object.keys(gon), ["pull_request_target"]), "the tamper guard caller must trigger on pull_request_target alone");
+need(["opened", "reopened", "synchronize", "edited", "labeled", "unlabeled"].every((t) => (gon.pull_request_target?.types ?? []).includes(t)), "the tamper guard caller does not react to opened, reopened, synchronize, edited, labeled and unlabeled");
+const gp = guard.permissions ?? {};
+need(same(Object.keys(gp).sort(), ["contents", "pull-requests"]) && gp.contents === "read" && gp["pull-requests"] === "read", "the tamper guard caller permissions are not exactly contents read and pull-requests read");
+const gj = guard.jobs?.guard ?? {};
+need(same(Object.keys(guard.jobs ?? {}), ["guard"]), "the tamper guard caller has a job other than guard");
+const gpin = pinOf(gj.uses, "ci-gate-tamper-guard.yml");
+need(gpin !== null, "the tamper guard caller does not call the suite reusable at a 40-hex pin");
+if (gpin) pins.add(gpin);
+need(gj.steps === undefined && gj.secrets === undefined, "the tamper guard caller runs steps or passes secrets");
+need(pins.size === 1, `the gate and the guard are not pinned to one suite commit (${[...pins].join(", ")})`);
+need(readFileSync(guardFile, "utf8").includes("gate-change-approved"), "the tamper guard caller does not name the approval label gate-change-approved");
+const allow = readFileSync(allowFile, "utf8");
+need(!/guard \/ check|tamper-guard/.test(allow), "the tamper guard is listed as a required context, which is a later round");
+if (errs.length) { console.error(errs.join("\n")); process.exit(1); }
+console.log("caller shape ok: pin " + [...pins][0]);
+JS
+assert_rc 0 'shipped ci-gate.yml and ci-gate-tamper-guard-caller.yml keep the suite template shape, one 40-hex pin, no concurrency' \
+  bun "$WORK/caller-shape.js" "$REPO_ROOT/.github/workflows/ci-gate.yml" "$REPO_ROOT/.github/workflows/ci-gate-tamper-guard-caller.yml" "$REPO_ROOT/.machine_readable/required-contexts-allow.txt"
+# Negative controls: each break of the shape is caught.
+shape_neg() { # shape_neg <label> <sed expr> <file: gate|guard>
+  local g="$WORK/shape-gate.yml" t="$WORK/shape-guard.yml"
+  cp "$REPO_ROOT/.github/workflows/ci-gate.yml" "$g"; cp "$REPO_ROOT/.github/workflows/ci-gate-tamper-guard-caller.yml" "$t"
+  if [ "$3" = gate ]; then sed -i -e "$2" "$g"; else sed -i -e "$2" "$t"; fi
+  assert_rc 1 "caller shape: $1" bun "$WORK/caller-shape.js" "$g" "$t" "$REPO_ROOT/.machine_readable/required-contexts-allow.txt"
+}
+shape_neg 'dropping the pull_request trigger is caught' 's/^  pull_request:$/  merge_group:/' gate
+shape_neg 'dropping in_progress is caught' 's/types: \[completed, in_progress\]/types: [completed]/' gate
+shape_neg 'a concurrency block is caught' 's/^permissions:/concurrency: {group: x}\npermissions:/' gate
+shape_neg 'a wrong context on gate-pr is caught' '/gate-pr:/,$ s/context: "CI\/gate"/context: "CI\/other"/' gate
+shape_neg 'a guard pinned to main is caught' 's/ci-gate-tamper-guard.yml@[0-9a-f]\{40\}/ci-gate-tamper-guard.yml@main/' guard
+shape_neg 'a guard on pull_request is caught' 's/^  pull_request_target:/  pull_request:/' guard
+shape_neg 'a guard pin that differs from the gate pin is caught' 's/ci-gate-tamper-guard.yml@[0-9a-f]\{40\}/ci-gate-tamper-guard.yml@0000000000000000000000000000000000000000/' guard
 # The repository's own allow-file passes against its own workflows.
 assert_rc 0 'the repository itself passes the checker' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$REPO_ROOT"
 
