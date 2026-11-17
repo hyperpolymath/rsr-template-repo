@@ -387,6 +387,71 @@ fresh_context
 rm -rf "$context_tree/.github/workflows"
 assert_rc 2 'missing workflow directory is setup failure' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 
+echo "=== 5b. Typed status mapping: a workflow_run commit-status publisher ==="
+# `CI/gate => status:<file>` is certified as a publisher, never as a job name.
+SUITE_REUSABLE='hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml'
+SUITE_PIN='0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7'
+status_tree="$WORK/status-publisher"
+fresh_status() { # fresh_status [uses] [context] [on-block]
+  local uses="${1:-$SUITE_REUSABLE@$SUITE_PIN}" ctx="${2:-CI/gate}"
+  local on="${3:-}"
+  [ -n "$on" ] || on=$'on:\n  workflow_run:\n    workflows: ["**", "!CI gate"]\n    types: [completed, in_progress]'
+  rm -rf "$status_tree"
+  mkdir -p "$status_tree/.github/workflows" "$status_tree/.machine_readable"
+  printf 'CI/gate => status:.github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+  printf 'name: CI gate\n%s\njobs:\n  gate:\n    uses: %s\n    with: {context: "%s"}\n' "$on" "$uses" "$ctx" > "$status_tree/.github/workflows/ci-gate.yml"
+}
+check_status() { bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$status_tree"; }
+fresh_status
+assert_rc 0 'status mapping: a workflow_run suite caller at a 40-hex pin with the exact context passes' check_status
+fresh_status './.github/workflows/ci-gate.yml'
+assert_rc 0 'status mapping: the local ./.github/workflows/ci-gate.yml reusable passes' check_status
+fresh_status
+rm "$status_tree/.github/workflows/ci-gate.yml"
+assert_rc 1 'status mapping: a missing publisher file fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  pull_request:'
+assert_rc 1 'status mapping: no workflow_run trigger fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [in_progress]'
+assert_rc 1 'status mapping: workflow_run without the completed type fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+assert_rc 1 'status mapping: a wrong with.context fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate '
+assert_rc 1 'status mapping: a context that differs only by whitespace fails' check_status
+fresh_status "hyperpolymath/other-repo/.github/workflows/ci-gate.yml@$SUITE_PIN"
+assert_rc 1 'status mapping: a uses: that is not the suite ci-gate reusable fails' check_status
+fresh_status "hyperpolymath/proven-cicd-and-workflows/.github/workflows/other.yml@$SUITE_PIN"
+assert_rc 1 'status mapping: another workflow of the suite fails' check_status
+for pin in main v1 "${SUITE_PIN:0:39}" "${SUITE_PIN}0" "${SUITE_PIN^^}"; do
+  fresh_status "$SUITE_REUSABLE@$pin"
+  assert_rc 1 "status mapping: a non-40-hex pin fails: $pin" check_status
+done
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN"
+printf 'CI/gate => status:\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 2 'status mapping: an empty status target is a setup failure' check_status
+# Each failure names what is wrong (not merely that something failed).
+status_says() { # status_says <label> <expected text> [uses] [context] [on-block]
+  local label="$1" text="$2"
+  shift 2
+  fresh_status "$@"
+  check_status >"$WORK/status-msg" 2>&1 || true
+  assert_rc 0 "status mapping message: $label" grep -qF -- "$text" "$WORK/status-msg"
+}
+status_says 'bad pin' 'not a 40-hex commit SHA' "$SUITE_REUSABLE@main"
+status_says 'wrong context' 'wrong with.context' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+status_says 'foreign reusable' 'has no job whose uses:' "hyperpolymath/other-repo/.github/workflows/ci-gate.yml@$SUITE_PIN"
+status_says 'no workflow_run' 'does not trigger on workflow_run' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  pull_request:'
+status_says 'no completed type' "do not include 'completed'" "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [in_progress]'
+fresh_status
+rm "$status_tree/.github/workflows/ci-gate.yml"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: missing file' grep -qF 'missing status publisher' "$WORK/status-msg"
+# A plain mapping keeps its meaning: it still needs a pull_request job of that name.
+fresh_status
+printf 'CI/gate => .github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 1 'plain mapping: a workflow_run publisher is still not a pull_request producer' check_status
+# The repository's own allow-file passes against its own workflows.
+assert_rc 0 'the repository itself passes the checker' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$REPO_ROOT"
+
 echo "=== 6. Installer verification order and publication boundaries (offline) ==="
 # Exercise main in a fresh Bash process so errexit is active even though
 # assert_rc captures failures. Only process boundaries are doubled; the real

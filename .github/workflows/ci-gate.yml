@@ -18,6 +18,12 @@
 # proven-cicd-and-workflows/profiles/ci-gate/<owner>/<repo>.json at the pinned
 # SHA below, selected by github.repository.
 #
+# Scheduled sweep: every 15 minutes (cron 7,22,37,52, off the hour to avoid the
+# top-of-hour load) the schedule re-evaluates CI/gate for the open pull request
+# heads and the default branch. This BOUNDS, but does not eliminate, a stale
+# status: statuses are last-writer-wins, and GitHub may delay or skip scheduled
+# runs. `pull-requests: read` is needed to list the open pull requests.
+#
 # The job id MUST stay `gate`. The pin is a full SHA, never `@main` or a tag:
 # the account enforces sha_pinning_required. An A3 `estate-gate` replaces this
 # interim gate by changing ONE pin and ONE context (`with: context`) here.
@@ -41,16 +47,12 @@ on:
   workflow_run:
     workflows: ["**", "!CI gate"]
     types: [completed, in_progress]
-
-permissions:
-  statuses: write
-  checks: read
-  actions: read
-  contents: read
-
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch: {}
+permissions: {statuses: write, actions: read, contents: read, pull-requests: read}
 jobs:
   gate:
-    if: github.event.workflow_run.name != 'CI gate'
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.name != 'CI gate'
     uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7 # cicd-suite ci-gate
-    with:
-      context: "CI/gate"
+    with: {context: "CI/gate"}
