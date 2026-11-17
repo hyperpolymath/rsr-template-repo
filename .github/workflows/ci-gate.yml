@@ -51,6 +51,6 @@ permissions:
 jobs:
   gate:
     if: github.event.workflow_run.name != 'CI gate'
-    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@c77a66d3bf2b698204c1ef40776f9c1df426a7df # cicd-suite ci-gate
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7 # cicd-suite ci-gate
     with:
       context: "CI/gate"

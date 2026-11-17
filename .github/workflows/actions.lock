@@ -6,7 +6,7 @@ workflows:
     '.github/workflows/build-notification.yml':
         - 'actions/checkout@v7.0.1'
     '.github/workflows/ci-gate.yml':
-        - 'hyperpolymath/proven-cicd-and-workflows@c77a66d3bf2b698204c1ef40776f9c1df426a7df'
+        - 'hyperpolymath/proven-cicd-and-workflows@0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
         - 'github/codeql-action@33d7b85da1a04171e211befe2c739303b9a4c066'
@@ -233,9 +233,9 @@ dependencies:
         commit: 'sha1-2155aa26a21758f2ba119f61bc7e0e1981c106fb'
         owner_id: 6759885
         repo_id: 1275650185
-    'hyperpolymath/proven-cicd-and-workflows@c77a66d3bf2b698204c1ef40776f9c1df426a7df':
+    'hyperpolymath/proven-cicd-and-workflows@0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7':
         ref: 'main'
-        commit: 'sha1-c77a66d3bf2b698204c1ef40776f9c1df426a7df'
+        commit: 'sha1-0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7'
         owner_id: 6759885
         repo_id: 1326697643
     'hyperpolymath/smtp-notify-action@v0.5.1':
