@@ -209,7 +209,11 @@ jobs:
       - name: Check Coq proofs
         run: |
           set -euo pipefail
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w proofs-coq \
+          # The coqorg image's ENTRYPOINT is `opam config exec --`, which needs the
+          # image's own user and opam root, so run as that user (not the runner's
+          # uid) and make the throwaway checkout writable for it.
+          chmod -R a+rwX "$PWD"
+          docker run --rm -v "$PWD:/w" -w /w proofs-coq \
             bash scripts/check-proofs.sh coq 2>&1 | tee "$RUNNER_TEMP/proofs.log"
           {
             echo '### Coq proof check'

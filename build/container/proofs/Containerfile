@@ -40,12 +40,14 @@ ENV PATH=/opt/lean/bin:$PATH
 RUN useradd --create-home --uid 1001 prover
 USER prover
 
-# ---- agda: Debian bookworm's Agda 2.6.3 (the version the MANIFEST was ground-truthed on) ----
-FROM debian@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS agda
+# ---- agda: Ubuntu 24.04 (noble) ships Agda 2.6.3, the version the MANIFEST was ground-truthed on.
+#      (Debian bookworm ships 2.6.2.2 and trixie 2.6.4.3, so neither would do.) ----
+FROM ubuntu@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8 AS agda
 RUN set -eu; \
     apt-get update; \
     apt-get install -y --no-install-recommends agda-bin; \
     rm -rf /var/lib/apt/lists/*; \
+    userdel --remove ubuntu 2>/dev/null || true; \
     useradd --create-home --uid 1001 prover
 USER prover
 
