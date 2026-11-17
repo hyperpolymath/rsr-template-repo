@@ -88,8 +88,12 @@ acceptance.
    `vendor.lock`, when a pinned file is missing, or when an unpinned file sits
    in a canon-owned path.
 ** *Source layer (needs network; required in CI).* Fetches
-   `vendor-manifest.toml` at the pinned source commit. Fails unless
-   `vendor.lock` matches it exactly: the same set of paths and the same hashes.
+   `vendor-manifest.toml` at the pinned source commit from
+   `hyperpolymath/rsr-template-repo` only. That repository is fixed in the
+   gate's code, never read from `vendor.lock`. The gate fails if `vendor.lock`
+   names any other source repository, so pointing the lock at a fork with a
+   matching manifest cannot pass. It also fails unless `vendor.lock` matches
+   the manifest exactly: the same set of paths and the same hashes.
    This catches a file and its pin edited together, and a canon-owned file
    removed together with its lock entry. Run locally without network, this
    layer reports *not run (offline)*. It never reports a pass.
@@ -181,6 +185,9 @@ practice.
 *** a one-byte hand edit fails (local layer);
 *** a missing file fails;
 *** a file and its `vendor.lock` entry edited together fails (source layer);
+*** a `vendor.lock` naming a source repository other than
+    `hyperpolymath/rsr-template-repo` (for example, a fork with a matching
+    manifest) fails (source layer);
 *** a canon-owned file and its lock entry removed together fails (source
     layer).
 ** Reporting tests: a stale pin reports *behind*; without network the source
