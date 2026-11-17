@@ -112,7 +112,7 @@ jobs:
       - name: Check Lean4 proofs
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/w" -w /w proofs-lean4 \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w proofs-lean4 \
             bash scripts/check-proofs.sh lean4 2>&1 | tee "$RUNNER_TEMP/proofs.log"
           {
             echo '### Lean4 proof check'
@@ -160,7 +160,7 @@ jobs:
       - name: Check Agda proofs
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/w" -w /w proofs-agda \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w proofs-agda \
             bash scripts/check-proofs.sh agda 2>&1 | tee "$RUNNER_TEMP/proofs.log"
           {
             echo '### Agda proof check'
@@ -209,7 +209,7 @@ jobs:
       - name: Check Coq proofs
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/w" -w /w proofs-coq \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/w" -w /w proofs-coq \
             bash scripts/check-proofs.sh coq 2>&1 | tee "$RUNNER_TEMP/proofs.log"
           {
             echo '### Coq proof check'

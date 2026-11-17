@@ -37,13 +37,19 @@ RUN set -eu; \
     rm -f /tmp/lean.tar.zst; \
     apt-get purge -y curl zstd; apt-get autoremove -y; rm -rf /var/lib/apt/lists/*
 ENV PATH=/opt/lean/bin:$PATH
+RUN useradd --create-home --uid 1001 prover
+USER prover
 
 # ---- agda: Debian bookworm's Agda 2.6.3 (the version the MANIFEST was ground-truthed on) ----
 FROM debian@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS agda
 RUN set -eu; \
     apt-get update; \
     apt-get install -y --no-install-recommends agda-bin; \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*; \
+    useradd --create-home --uid 1001 prover
+USER prover
 
 # ---- coq: official coqorg image, Coq 8.20 (coqorg/coq:8.20) ----
 FROM coqorg/coq@sha256:3675f124508d7bbfcd509000d5d67e76ed66c1945ccb1f455ce57c6e5d6d52a1 AS coq
+# The base image's own non-root user; CI additionally runs with the runner's uid.
+USER coq
