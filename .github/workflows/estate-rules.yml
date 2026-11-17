@@ -278,6 +278,9 @@ jobs:
       # negative control; self-skips outside the template tree.
       - name: Pages badge URL for a user/org site repo name
         run: bash tests/workflows/user_pages_badge_url_test.sh
+      # An image reference is lower case; a repo name (a Julia package) need not be.
+      - name: Container recipes use a lower-case image reference
+        run: bash tests/workflows/container_image_name_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The
