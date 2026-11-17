@@ -77,13 +77,28 @@ acceptance.
 . *Header.* Each canon-owned file carries a "Vendored from rsr-template-repo
   by `just coapt-realign`; DO NOT hand-edit" header, matching
   `provision-lib.sh`.
-. *Checked pin.* A gate (`just coapt-vendor-check`, wired into CI) fails when:
-** a canon-owned file's bytes differ from its pinned hash (a hand edit), or
-** a pinned file is missing, or an unpinned file sits in a canon-owned path.
+. *Source manifest.* This template publishes, at every commit, a
+  `vendor-manifest.toml` listing each canon-owned path and its sha256. The
+  manifest is generated from the tree, so it is the canon's own statement of
+  what a faithful copy contains.
+. *Checked pin.* A gate (`just coapt-vendor-check`) runs in two layers. A
+  local edit to both a file and `vendor.lock` must not pass, so the lock alone
+  is never trusted as the reference.
+** *Local layer (offline).* Fails when a canon-owned file's bytes differ from
+   `vendor.lock`, when a pinned file is missing, or when an unpinned file sits
+   in a canon-owned path.
+** *Source layer (needs network; required in CI).* Fetches
+   `vendor-manifest.toml` at the pinned source commit. Fails unless
+   `vendor.lock` matches it exactly: the same set of paths and the same hashes.
+   This catches a file and its pin edited together, and a canon-owned file
+   removed together with its lock entry. Run locally without network, this
+   layer reports *not run (offline)*. It never reports a pass.
 +
-It *reports* (does not fail) when the pinned commit is behind this template's
-`main` for a canon-owned file. Whether staleness becomes a failure after a
-grace period is a separate decision.
+*Staleness* is reported, not failed. With network, the gate compares the
+pinned commit with the template's current `main` and reports *current* or
+*behind*. Without network, it reports *unknown*; it never claims current.
+Whether staleness becomes a failure after a grace period is a separate
+decision.
 . *Propagation.* A downstream repo picks up a canon fix (such as #428) by
   running `just coapt-realign` in one small PR, with the gate proving the
   result. A fleet sweep becomes N mechanical realigns instead of N hand edits.
@@ -99,7 +114,8 @@ Doctrine 15 asks the most elegant option to be labelled.
 | *A. Generated, checked pin over vendored copies (proposed)*
 | The canon's own diagnosis (canon-spine §7) and the `provision-set`
   precedent. No new toolchain at check time; works for Idris, Nickel and shell
-  alike; offline; reviewable diffs.
+  alike; reviewable diffs. The local layer works offline; the source layer
+  needs one fetch of a public commit, which CI always has.
 | Copies still exist and need a realign PR each. The gate has to be wired
   estate-wide to mean anything.
 
@@ -159,9 +175,17 @@ practice.
   hash every Coaptation file and classify it as identical, behind (matches an
   older template commit) or customised. This confirms or corrects the
   ownership split.
-. *Prototype on this template.* Add `vendor.lock`, `coapt-realign` and
-  `coapt-vendor-check`. Negative tests: a one-byte hand edit fails; a missing
-  file fails; a stale pin reports. Positive test: a clean realign passes.
+. *Prototype on this template.* Add `vendor-manifest.toml`, `vendor.lock`,
+  `coapt-realign` and `coapt-vendor-check`.
+** Negative tests:
+*** a one-byte hand edit fails (local layer);
+*** a missing file fails;
+*** a file and its `vendor.lock` entry edited together fails (source layer);
+*** a canon-owned file and its lock entry removed together fails (source
+    layer).
+** Reporting tests: a stale pin reports *behind*; without network the source
+   layer reports *not run (offline)* and staleness reports *unknown*.
+** Positive test: a clean realign passes both layers.
 . *Pilot.* Realign `metadatastician/idris2x` with #428 included and confirm
   `check-proofs.sh idris2` goes from FAIL to PASS there.
 . *Hypatia rule (estate-wide).* Flag any repo whose canon-owned Coaptation
