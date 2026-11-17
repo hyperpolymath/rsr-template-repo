@@ -84,6 +84,8 @@ jobs:
         run: bash scripts/check-no-a2ml.sh .
       - name: No-a2ml gate self-test (planted positives must fail)
         run: bash tests/workflows/check_no_a2ml_test.sh
+      - name: Bash 3.2 portability lint (no case-conversion expansion in build/just)
+        run: bash tests/workflows/bash3_portability_test.sh
       # Every repository-internal link resolves, and every document the deed
       # registers by id is where the deed says (or is marked removed-at-mint).
       # The same script is the probe of the must invariant internal-links-resolve.
