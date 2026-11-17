@@ -55,7 +55,7 @@ permissions: {statuses: write, actions: read, contents: read, pull-requests: rea
 jobs:
   gate:
     if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'CI gate')
-    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@c62c31a8ac4a8cce0c0c0c6c2258f2e3bc3e9f45 # cicd-suite ci-gate
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@d49708186e7234c2e1bcce2ceda7aed44a64c08d # cicd-suite ci-gate
     with: {context: "CI/gate"}
   # The pull_request start (permanent). workflow_run, schedule and workflow_dispatch run only from the
   # default branch, so without this job the pull request that adds or changes the gate never gets the
@@ -67,5 +67,5 @@ jobs:
   # unless the owner has approved it.
   gate-pr:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@c62c31a8ac4a8cce0c0c0c6c2258f2e3bc3e9f45 # cicd-suite ci-gate
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@d49708186e7234c2e1bcce2ceda7aed44a64c08d # cicd-suite ci-gate
     with: {context: "CI/gate"}
