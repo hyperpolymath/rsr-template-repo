@@ -44,6 +44,7 @@
 name: CI gate
 
 on:
+  pull_request:
   workflow_run:
     workflows: ["**", "!CI gate"]
     types: [completed, in_progress]
@@ -53,6 +54,18 @@ on:
 permissions: {statuses: write, actions: read, contents: read, pull-requests: read}
 jobs:
   gate:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.name != 'CI gate'
-    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@0862fe8b4001ccc5bbfda925ef31dfd232d2c0a7 # cicd-suite ci-gate
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'CI gate')
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@c62c31a8ac4a8cce0c0c0c6c2258f2e3bc3e9f45 # cicd-suite ci-gate
+    with: {context: "CI/gate"}
+  # The pull_request start (permanent). workflow_run, schedule and workflow_dispatch run only from the
+  # default branch, so without this job the pull request that adds or changes the gate never gets the
+  # status and the ruleset blocks it. It runs from the pull request's own branch and posts the same
+  # verdict, waiting (bounded) for the profile's checks to report. Same-repository branches only:
+  # fork and Dependabot tokens cannot write statuses, those are covered by the workflow_run job.
+  # No trust decision uses github.actor. A pull request can edit this file, so the Gate tamper guard
+  # (ci-gate-tamper-guard.yml, run from the default branch) fails a pull request that touches gate files
+  # unless the owner has approved it.
+  gate-pr:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@c62c31a8ac4a8cce0c0c0c6c2258f2e3bc3e9f45 # cicd-suite ci-gate
     with: {context: "CI/gate"}

@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MPL-2.0
+# Gate tamper guard - thin caller of the suite's reusable guard; copy to .github/workflows/ci-gate-tamper-guard.yml. pull_request_target runs this file from the
+# DEFAULT branch, so a pull request cannot edit it; the job never checks out or runs pull request code
+# (it reads the changed-file list through the API). The pin is a full SHA, never @main or a tag.
+# A pull request that touches gate files fails this check until the OWNER applies the label
+# `gate-change-approved` after the newest commit. AGENTS MUST NEVER APPLY THAT LABEL.
+# No `secrets:` line, minimal permissions. See docs/CI-GATE.adoc, "Tamper guard".
+name: Gate tamper guard
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  pull-requests: read
+  contents: read
+
+jobs:
+  guard:
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate-tamper-guard.yml@c62c31a8ac4a8cce0c0c0c6c2258f2e3bc3e9f45 # cicd-suite tamper guard
