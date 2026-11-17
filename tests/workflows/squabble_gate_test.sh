@@ -451,8 +451,8 @@ printf 'CI/gate => .github/workflows/ci-gate.yml\n' > "$status_tree/.machine_rea
 assert_rc 1 'plain mapping: a workflow_run publisher is still not a pull_request producer' check_status
 # The full caller as the suite template ships it (pull_request start, workflow_run, schedule,
 # workflow_dispatch; jobs `gate` and `gate-pr`) must satisfy the checker.
-fresh_status_caller() {
-  local gate="$SUITE_REUSABLE@$SUITE_PIN" pr="$SUITE_REUSABLE@$SUITE_PIN"
+fresh_status_caller() { # fresh_status_caller [gate-pr uses] [gate-pr context] [third-job uses]
+  local gate="$SUITE_REUSABLE@$SUITE_PIN" pr="${1:-$SUITE_REUSABLE@$SUITE_PIN}" prctx="${2:-CI/gate}" third="${3:-}"
   fresh_status "$gate"
   cat > "$status_tree/.github/workflows/ci-gate.yml" <<YML
 name: CI gate
@@ -474,11 +474,37 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: $pr
     with:
-      context: "CI/gate"
+      context: "$prctx"
 YML
+  if [ -n "$third" ]; then
+    printf '  third:\n    uses: %s\n    with:\n      context: "CI/gate"\n' "$third" >> "$status_tree/.github/workflows/ci-gate.yml"
+  fi
 }
 fresh_status_caller
 assert_rc 0 'status mapping: the template caller shape (pull_request start, gate and gate-pr jobs) passes' check_status
+# EVERY job that calls the suite reusable is checked, not just one of them.
+fresh_status_caller "$SUITE_REUSABLE@main"
+assert_rc 1 'status mapping: gate-pr on @main fails even beside a SHA-pinned gate job' check_status
+fresh_status_caller "$SUITE_REUSABLE@main"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the job id and the ref' grep -qF "job 'gate-pr' pins 'main', which is not a 40-hex commit SHA" "$WORK/status-msg"
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+assert_rc 1 'status mapping: gate-pr with a different context fails even beside a correct gate job' check_status
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the job with the wrong context' grep -qF "job 'gate-pr' passes the wrong with.context" "$WORK/status-msg"
+fresh_status_caller "$SUITE_REUSABLE@1111111111111111111111111111111111111111"
+assert_rc 1 'status mapping: two jobs on different 40-hex pins fail' check_status
+fresh_status_caller "$SUITE_REUSABLE@1111111111111111111111111111111111111111"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: different pins say every job must use the same pin' grep -qF 'every job must use the same pin' "$WORK/status-msg"
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' "$SUITE_REUSABLE@v1.2.3"
+assert_rc 1 'status mapping: a third job on a tag fails beside two correct jobs' check_status
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' "$SUITE_REUSABLE@${SUITE_PIN:0:7}"
+assert_rc 1 'status mapping: a third job on a short SHA fails' check_status
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' "$SUITE_REUSABLE@v1.2.3"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the tag job and its ref' grep -qF "job 'third' pins 'v1.2.3'" "$WORK/status-msg"
 # The shipped callers keep the shape the suite's templates define.
 cat > "$WORK/caller-shape.js" <<'JS'
 import { readFileSync } from "node:fs";

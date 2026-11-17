@@ -216,9 +216,11 @@ const SUITE_USES = /^hyperpolymath\/proven-cicd-and-workflows\/\.github\/workflo
 const LOCAL_USES = "./.github/workflows/ci-gate.yml";
 
 /**
- * Verify a `status:` publisher: a workflow_run caller (type `completed`) with a
- * job that calls the suite's ci-gate reusable at a 40-hex pin, or the local
- * copy, and passes `with.context` exactly equal to `ctx`.
+ * Verify a `status:` publisher:
+ * workflow_run caller (type `completed`). EVERY job that calls the suite's ci-gate
+ * reusable must be pinned at a full 40-hex SHA (or be the local reusable) and pass
+ * `with.context` exactly equal to `ctx`; at least one such job must exist, and
+ * the pinned jobs must share one pin.
  */
 function verifyStatusPublisher(ctx, relWf, fullWf) {
   const { doc, error } = parseWorkflow(fullWf);
@@ -239,22 +241,35 @@ function verifyStatusPublisher(ctx, relWf, fullWf) {
   const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
   const callers = [];
   const rejected = [];
+  const badPins = [];
   for (const [id, job] of Object.entries(jobs)) {
     const uses = typeof job?.uses === "string" ? job.uses : "";
     const m = uses.match(SUITE_USES);
-    if (uses === LOCAL_USES) callers.push({ id, job });
-    else if (m && /^[0-9a-f]{40}$/.test(m[1])) callers.push({ id, job });
-    else if (m) rejected.push(`job '${id}' pins '${m[1]}', which is not a 40-hex commit SHA`);
-    else if (/ci-gate\.yml/.test(uses)) rejected.push(`job '${id}' uses '${uses}', which is not the suite's ci-gate reusable`);
+    if (uses === LOCAL_USES) callers.push({ id, job, pin: null });
+    else if (m && /^[0-9a-f]{40}$/.test(m[1])) callers.push({ id, job, pin: m[1] });
+    else if (m) {
+      const why = `job '${id}' pins '${m[1]}', which is not a 40-hex commit SHA`;
+      rejected.push(why);
+      badPins.push(why);
+    } else if (/ci-gate\.yml/.test(uses)) rejected.push(`job '${id}' uses '${uses}', which is not the suite's ci-gate reusable`);
   }
   if (callers.length === 0) {
     const why = rejected.length > 0 ? `: ${rejected.join("; ")}` : "";
     fail(`status context '${ctx}' publisher '${relWf}' has no job whose uses: is hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@<40-hex> or ${LOCAL_USES}${why}`);
     return;
   }
-  if (!callers.some(({ job }) => job?.with?.context === ctx)) {
-    const got = callers.map(({ id, job }) => `${id}=${JSON.stringify(job?.with?.context ?? null)}`).join(", ");
-    fail(`status context '${ctx}' publisher '${relWf}' passes the wrong with.context (${got}); it must equal '${ctx}' exactly`);
+  // Every job that calls the suite reusable is held to the same rule, not just one of them: a
+  // second job (the pull_request start) on a mutable ref or another commit would otherwise pass.
+  for (const why of badPins) fail(`status context '${ctx}' publisher '${relWf}': ${why}`);
+  for (const { id, job } of callers) {
+    if (job?.with?.context !== ctx) {
+      fail(`status context '${ctx}' publisher '${relWf}' job '${id}' passes the wrong with.context (${JSON.stringify(job?.with?.context ?? null)}); it must equal '${ctx}' exactly`);
+    }
+  }
+  const pins = [...new Set(callers.filter((c) => c.pin !== null).map((c) => c.pin))];
+  if (pins.length > 1) {
+    const by = callers.filter((c) => c.pin !== null).map((c) => `${c.id}@${c.pin}`).join(", ");
+    fail(`status context '${ctx}' publisher '${relWf}' pins the suite reusable at more than one commit (${by}); every job must use the same pin`);
   }
 }
 
