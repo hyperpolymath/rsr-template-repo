@@ -1,0 +1,220 @@
+# SPDX-License-Identifier: MPL-2.0
+name: Proofs
+
+# Runs `scripts/check-proofs.sh <prover>` (the same script `just proof-check-<prover>`
+# calls) for every prover that carries proofs, so a green local run and a green CI
+# run mean the same thing. One job per prover; each job name is its own required
+# context.
+#
+# The script is fail-closed: a missing toolchain is a FAIL, never a skip; idris2
+# also requires no `Error:` line and the REPL's `:m` to answer `No holes`; every
+# prover runs scripts/scan-dangerous.sh. This workflow adds no `continue-on-error`
+# and no `|| true`.
+#
+# Toolchains (nothing floats):
+#   idris2 : ghcr.io/stefan-hoeck/idris2-pack@sha256:... (the image pages.yml uses)
+#   lean4, agda, coq : built from build/container/proofs/Containerfile, whose every
+#            FROM is digest-pinned (scripts/check-container-pins.sh). Each job then
+#            ASSERTS the version the tool reports, so a base that drifts fails by
+#            name instead of as a confusing proof error.
+#
+# Like lock-sync-gate.yml this file carries NO `uses:` (it checks out with git and
+# drives the runner's Docker directly), so it has no action to pin; actions.lock
+# holds only its own empty entry. Do not add a `uses:` to this file.
+#
+# No `paths:` filter, on purpose: a filtered workflow never reports on pull
+# requests that miss the filter, which deadlocks any ruleset requiring it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proofs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  idris2:
+    name: Idris2 proofs compile, no holes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out without actions/checkout
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
+          git init -q .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="${AUTH}" fetch -q --depth 1 origin "${SHA}"
+          git checkout -q FETCH_HEAD
+          echo "checked out ${SHA}"
+
+      - name: Check Idris2 proofs
+        env:
+          IDRIS2_PACK_IMAGE: ghcr.io/stefan-hoeck/idris2-pack@sha256:f0758996a931fb35d9ecb1de273c4d59dabe2a09b433afc7e357f65a08b7e1ff
+        run: |
+          set -euo pipefail
+          # check-proofs.sh prints `idris2 --version` first, so the version the job
+          # actually ran is on record in the log and the job summary.
+          docker run --rm -v "$PWD:/w" -w /w "$IDRIS2_PACK_IMAGE" \
+            bash scripts/check-proofs.sh idris2 2>&1 | tee "$RUNNER_TEMP/proofs.log"
+          {
+            echo '### Idris2 proof check'
+            echo '```'
+            sed -n '1,3p' "$RUNNER_TEMP/proofs.log"
+            tail -n 1 "$RUNNER_TEMP/proofs.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  lean4:
+    name: Lean4 proofs compile, no sorry
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out without actions/checkout
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
+          git init -q .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="${AUTH}" fetch -q --depth 1 origin "${SHA}"
+          git checkout -q FETCH_HEAD
+          echo "checked out ${SHA}"
+
+      - name: Build the Lean4 toolchain image
+        run: docker build --target lean4 -t proofs-lean4 -f build/container/proofs/Containerfile build/container/proofs
+
+      - name: Assert the Lean version matches lean-toolchain
+        run: |
+          set -euo pipefail
+          # lean-toolchain is `leanprover/lean4:v4.15.0`: the tag is the contract.
+          want="$(sed 's#.*:v##' verification/proofs/lean4/lean-toolchain | tr -d '[:space:]')"
+          got="$(docker run --rm proofs-lean4 lean --version)"
+          echo "lean-toolchain wants ${want}; image reports: ${got}"
+          case "$got" in
+            "Lean (version ${want},"*) ;;
+            *) echo "::error::Lean version drift: lean-toolchain wants ${want}, image reports: ${got}"; exit 1 ;;
+          esac
+
+      - name: Check Lean4 proofs
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/w" -w /w proofs-lean4 \
+            bash scripts/check-proofs.sh lean4 2>&1 | tee "$RUNNER_TEMP/proofs.log"
+          {
+            echo '### Lean4 proof check'
+            echo '```'
+            sed -n '1,3p' "$RUNNER_TEMP/proofs.log"
+            tail -n 1 "$RUNNER_TEMP/proofs.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  agda:
+    name: Agda proofs compile (safe, without-K)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # verification/proofs/agda/MANIFEST: ground-truthed with Agda 2.6.3.
+      AGDA_WANT: 2.6.3
+    steps:
+      - name: Check out without actions/checkout
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
+          git init -q .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="${AUTH}" fetch -q --depth 1 origin "${SHA}"
+          git checkout -q FETCH_HEAD
+          echo "checked out ${SHA}"
+
+      - name: Build the Agda toolchain image
+        run: docker build --target agda -t proofs-agda -f build/container/proofs/Containerfile build/container/proofs
+
+      - name: Assert the Agda version matches the MANIFEST
+        run: |
+          set -euo pipefail
+          got="$(docker run --rm proofs-agda agda --version | head -1)"
+          echo "MANIFEST wants Agda ${AGDA_WANT}; image reports: ${got}"
+          case "$got" in
+            "Agda version ${AGDA_WANT}"*) ;;
+            *) echo "::error::Agda version drift: MANIFEST wants ${AGDA_WANT}, image reports: ${got}"; exit 1 ;;
+          esac
+
+      - name: Check Agda proofs
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/w" -w /w proofs-agda \
+            bash scripts/check-proofs.sh agda 2>&1 | tee "$RUNNER_TEMP/proofs.log"
+          {
+            echo '### Agda proof check'
+            echo '```'
+            sed -n '1,3p' "$RUNNER_TEMP/proofs.log"
+            tail -n 1 "$RUNNER_TEMP/proofs.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  coq:
+    name: Coq proofs compile, no Admitted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # verification/proofs/coq/MANIFEST records no Coq version ("ground-truthed
+      # with coqorg/coq 8.20" is what this pin is; ground-truth it, do not trust it).
+      COQ_WANT: "8.20"
+    steps:
+      - name: Check out without actions/checkout
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
+          git init -q .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="${AUTH}" fetch -q --depth 1 origin "${SHA}"
+          git checkout -q FETCH_HEAD
+          echo "checked out ${SHA}"
+
+      - name: Build the Coq toolchain image
+        run: docker build --target coq -t proofs-coq -f build/container/proofs/Containerfile build/container/proofs
+
+      - name: Assert the Coq version matches the pin
+        run: |
+          set -euo pipefail
+          got="$(docker run --rm proofs-coq coqc --version | head -1)"
+          echo "pin wants Coq ${COQ_WANT}; image reports: ${got}"
+          case "$got" in
+            *"version ${COQ_WANT}."*|*"version ${COQ_WANT} "*) ;;
+            *) echo "::error::Coq version drift: pin wants ${COQ_WANT}, image reports: ${got}"; exit 1 ;;
+          esac
+
+      - name: Check Coq proofs
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/w" -w /w proofs-coq \
+            bash scripts/check-proofs.sh coq 2>&1 | tee "$RUNNER_TEMP/proofs.log"
+          {
+            echo '### Coq proof check'
+            echo '```'
+            sed -n '1,3p' "$RUNNER_TEMP/proofs.log"
+            tail -n 1 "$RUNNER_TEMP/proofs.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
