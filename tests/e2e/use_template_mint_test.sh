@@ -363,6 +363,20 @@ DEED="$C/mint-check_chora.deed"
 [ -f "$DEED" ] || fail 'the child deed was not renamed to mint-check_chora.deed'
 field() { bash "$C/scripts/deed-field.sh" "$DEED" "$@"; }
 
+# ── (0) the minted deed names the repository it was minted as ───────────────
+# scripts/check-identity-matches-repo.sh, run on the child as its CI runs it
+# (GITHUB_REPOSITORY set), must pass on a fresh mint: name, file name, owner,
+# forges and the birth-path id all agree. A different repository name must not.
+(cd "$C" && GITHUB_REPOSITORY=example-owner/mint-check \
+    bash scripts/check-identity-matches-repo.sh "$DEED") > "$work/identity-match.log" 2>&1 \
+    || { cat "$work/identity-match.log" >&2; fail 'the identity-matches-repo gate fails on a fresh mint'; }
+id_rc=0
+(cd "$C" && GITHUB_REPOSITORY=example-owner/not-mint-check \
+    bash scripts/check-identity-matches-repo.sh "$DEED") > "$work/identity-mismatch.log" 2>&1 || id_rc=$?
+[ "$id_rc" -eq 1 ] || { cat "$work/identity-mismatch.log" >&2; fail "the identity-matches-repo gate gave $id_rc, not 1, for another repository name"; }
+grep -q ':canonical-name' "$work/identity-mismatch.log" || fail 'the identity-matches-repo gate did not name the canonical-name mismatch'
+pass "(0) the gate that checks the deed names its repository passes on the fresh mint and fails for another name"
+
 # ── (a) provenance names the template's commit and tree ─────────────────────
 [ "$(field provenance template-repo)" = "$T_SLUG" ]     || fail "template-repo is $(field provenance template-repo), want $T_SLUG"
 [ "$(field provenance template-commit)" = "$T_COMMIT" ] || fail "template-commit is $(field provenance template-commit), want $T_COMMIT"
