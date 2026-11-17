@@ -31,6 +31,11 @@ Evidence gathered so far (one sample, not a census):
 * `metadatastician/idris2x` `main`: all ten Coaptation files are byte-identical
   to this template's `main`. That includes `witness-map.ncl` and
   `receipts/latest.toml`, which are repo-specific in meaning.
+* The same pattern shows outside proofs. #424 replaced Bash 4 `${var,,}` in
+  `build/just/repo-init.just` and `groove.just`, but every repo minted
+  earlier keeps the broken form until someone hand-sweeps it (a stopgap sweep
+  was commissioned on 2026-11-17). These template-owned `just` files are
+  further candidates for the same mechanism.
 * No GitHub workflow runs `proof-check-idris2`; only local `just ci` does. That
   is why `main` was red unnoticed. Wiring it is a separate PR.
 
