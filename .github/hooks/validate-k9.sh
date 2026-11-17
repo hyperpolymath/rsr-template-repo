@@ -33,7 +33,7 @@ case "$STANDARDS_DIR" in
 esac
 VALIDATOR="$STANDARDS_DIR/1-formats/k9/tools/k9-validate.sh"
 
-if [ ! -f "$VALIDATOR" ]; then
+if [[ ! -f "$VALIDATOR" ]]; then
     echo "::notice::K9: no standards checkout at $STANDARDS_DIR (set STANDARDS_DIR to run the validator locally); the k9-conformance lane validates in CI"
     exit 0
 fi
@@ -51,7 +51,7 @@ cd "$REPO"
 # NUL-delimited end to end: with core.quotePath, newline output would hand
 # the validator a quoted, escaped name instead of the tracked path.
 mapfile -d '' -t files < <(git ls-files -z -- '*.k9.ncl' '*.k9' '*.k9.lock' | sort -z)
-if [ "${#files[@]}" -eq 0 ]; then
+if [[ "${#files[@]}" -eq 0 ]]; then
     echo "::notice::K9: no tracked K9 file"
     exit 0
 fi
@@ -66,9 +66,9 @@ for f in "${files[@]}"; do
     rc=0
     out="$(bash "$VALIDATOR" --json --strict --layer "$LAYER" -- "$f")" || rc=$?
     verdict="$(printf '%s\n' "$out" | sed -n 's/.*"verdict":"\([a-z]*\)".*/\1/p' | head -n 1)"
-    if [ "$rc" -eq 0 ] && [ "$verdict" = "pass" ]; then
+    if [[ "$rc" -eq 0 && "$verdict" == "pass" ]]; then
         echo "    pass"
-    elif [ "$verdict" = "routed" ]; then
+    elif [[ "$verdict" == "routed" ]]; then
         dialect="$(printf '%s\n' "$out" | sed -n 's/.*"dialect":"\([^"]*\)".*/\1/p' | head -n 1)"
         echo "::error file=$f::K9: routed to the ${dialect:-unknown} dialect, which this lane cannot validate; routed is not a pass"
         errors=$((errors + 1))
@@ -80,5 +80,5 @@ for f in "${files[@]}"; do
 done
 
 echo "K9: ${#files[@]} file(s), ${errors} failing (validator: $VALIDATOR)"
-[ "$errors" -eq 0 ] || { echo "::error::K9 validation failed for ${errors} file(s)"; exit 1; }
+[[ "$errors" -eq 0 ]] || { echo "::error::K9 validation failed for ${errors} file(s)"; exit 1; }
 echo "K9 validation passed."
