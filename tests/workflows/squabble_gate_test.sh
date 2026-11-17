@@ -387,6 +387,256 @@ fresh_context
 rm -rf "$context_tree/.github/workflows"
 assert_rc 2 'missing workflow directory is setup failure' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$context_tree"
 
+echo "=== 5b. Typed status mapping: a workflow_run commit-status publisher ==="
+# `CI/gate => status:<file>` is certified as a publisher, never as a job name.
+SUITE_REUSABLE='hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml'
+SUITE_PIN='d2140a5a789e4ebec52f1bab0074181012660c3b'
+status_tree="$WORK/status-publisher"
+fresh_status() { # fresh_status [uses] [context] [on-block]
+  local uses="${1:-$SUITE_REUSABLE@$SUITE_PIN}" ctx="${2:-CI/gate}"
+  local on="${3:-}"
+  [ -n "$on" ] || on=$'on:\n  workflow_run:\n    workflows: ["**", "!CI gate"]\n    types: [completed, in_progress]'
+  rm -rf "$status_tree"
+  mkdir -p "$status_tree/.github/workflows" "$status_tree/.machine_readable"
+  printf 'CI/gate => status:.github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+  printf 'name: CI gate\n%s\njobs:\n  gate:\n    uses: %s\n    with: {context: "%s"}\n' "$on" "$uses" "$ctx" > "$status_tree/.github/workflows/ci-gate.yml"
+}
+check_status() { bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$status_tree"; }
+fresh_status
+assert_rc 0 'status mapping: a workflow_run suite caller at a 40-hex pin with the exact context passes' check_status
+# A local reusable is a SEPARATE file that declares on.workflow_call: GitHub cannot run anything else
+# as a called workflow, and a workflow cannot call itself.
+fresh_status './.github/workflows/ci-gate.yml'
+assert_rc 1 'status mapping: the publisher calling itself as the local reusable fails' check_status
+fresh_status './.github/workflows/ci-gate.yml'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: a self-call says a workflow cannot call itself' grep -qF 'cannot call itself' "$WORK/status-msg"
+fresh_local() { # fresh_local <uses> <target on-block, or - for no target file>
+  local uses="$1" target="$2"
+  rm -rf "$status_tree"
+  mkdir -p "$status_tree/.github/workflows" "$status_tree/.machine_readable"
+  printf 'CI/gate => status:.github/workflows/gate-caller.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+  printf 'name: Gate caller\non:\n  workflow_run:\n    workflows: ["**"]\n    types: [completed]\njobs:\n  gate:\n    uses: %s\n    with: {context: "CI/gate"}\n' "$uses" > "$status_tree/.github/workflows/gate-caller.yml"
+  if [ "$target" != '-' ]; then
+    printf 'name: Local gate\n%s\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' "$target" > "$status_tree/.github/workflows/ci-gate.yml"
+  fi
+}
+LOCAL_TARGET='./.github/workflows/ci-gate.yml'
+fresh_local "$LOCAL_TARGET" $'on:\n  workflow_call:'
+assert_rc 0 'status mapping: a separate caller whose local target declares workflow_call passes' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  workflow_call:\n    inputs:\n      context: {type: string}'
+assert_rc 0 'status mapping: a local target with workflow_call inputs passes' check_status
+fresh_local "$LOCAL_TARGET" 'on: [workflow_call]'
+assert_rc 0 'status mapping: a local target with a workflow_call list passes' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  push:'
+assert_rc 1 'status mapping: a local target without workflow_call fails' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  push:'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the missing workflow_call' grep -qF 'does not declare on.workflow_call' "$WORK/status-msg"
+fresh_local "$LOCAL_TARGET" -
+assert_rc 1 'status mapping: a missing local target file fails' check_status
+fresh_local "$LOCAL_TARGET" -
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the missing target file' grep -qF 'names a file that does not exist' "$WORK/status-msg"
+fresh_local './.github/workflows/../workflows/ci-gate.yml' $'on:\n  workflow_call:'
+assert_rc 1 'status mapping: a local target path with .. fails even though the file exists' check_status
+fresh_local './.github/workflows/../workflows/ci-gate.yml' $'on:\n  workflow_call:'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the path traversal' grep -qF "contains '..' path traversal" "$WORK/status-msg"
+fresh_local '/etc/ci-gate.yml' $'on:\n  workflow_call:'
+assert_rc 1 'status mapping: an absolute local target fails' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  workflow_call:'
+sed -i 's|^    uses: .*|    uses: ./.github/workflows/ci-gate.yml|' "$status_tree/.github/workflows/gate-caller.yml"
+printf '  other:\n    uses: ./../outside/ci-gate.yml\n    with: {context: "CI/gate"}\n' >> "$status_tree/.github/workflows/gate-caller.yml"
+assert_rc 1 'status mapping: a second, bad local job fails beside a valid local job' check_status
+fresh_status
+rm "$status_tree/.github/workflows/ci-gate.yml"
+assert_rc 1 'status mapping: a missing publisher file fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  pull_request:'
+assert_rc 1 'status mapping: no workflow_run trigger fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [in_progress]'
+assert_rc 1 'status mapping: workflow_run without the completed type fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+assert_rc 1 'status mapping: a wrong with.context fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate '
+assert_rc 1 'status mapping: a context that differs only by whitespace fails' check_status
+fresh_status "hyperpolymath/other-repo/.github/workflows/ci-gate.yml@$SUITE_PIN"
+assert_rc 1 'status mapping: a uses: that is not the suite ci-gate reusable fails' check_status
+fresh_status "hyperpolymath/proven-cicd-and-workflows/.github/workflows/other.yml@$SUITE_PIN"
+assert_rc 1 'status mapping: another workflow of the suite fails' check_status
+for pin in main v1 "${SUITE_PIN:0:39}" "${SUITE_PIN}0" "${SUITE_PIN^^}"; do
+  fresh_status "$SUITE_REUSABLE@$pin"
+  assert_rc 1 "status mapping: a non-40-hex pin fails: $pin" check_status
+done
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN"
+printf 'CI/gate => status:\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 2 'status mapping: an empty status target is a setup failure' check_status
+# Each failure names what is wrong (not merely that something failed).
+status_says() { # status_says <label> <expected text> [uses] [context] [on-block]
+  local label="$1" text="$2"
+  shift 2
+  fresh_status "$@"
+  check_status >"$WORK/status-msg" 2>&1 || true
+  assert_rc 0 "status mapping message: $label" grep -qF -- "$text" "$WORK/status-msg"
+}
+status_says 'bad pin' 'not a 40-hex commit SHA' "$SUITE_REUSABLE@main"
+status_says 'wrong context' 'wrong with.context' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+status_says 'foreign reusable' 'has no job whose uses:' "hyperpolymath/other-repo/.github/workflows/ci-gate.yml@$SUITE_PIN"
+status_says 'no workflow_run' 'does not trigger on workflow_run' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  pull_request:'
+status_says 'no completed type' "do not include 'completed'" "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [in_progress]'
+fresh_status
+rm "$status_tree/.github/workflows/ci-gate.yml"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: missing file' grep -qF 'missing status publisher' "$WORK/status-msg"
+# A plain mapping keeps its meaning: it still needs a pull_request job of that name.
+fresh_status
+printf 'CI/gate => .github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+assert_rc 1 'plain mapping: a workflow_run publisher is still not a pull_request producer' check_status
+# A context may be mapped once. Any second mapping of it, in any combination of plain and status:,
+# is a setup failure naming the context and both lines (never merged, never overridden).
+dup_case() { # dup_case <label> <line 1> <line 2>
+  fresh_status
+  printf '%s\n%s\n' "$2" "$3" > "$status_tree/.machine_readable/required-contexts-allow.txt"
+  assert_rc 2 "duplicate context: $1 is a setup failure" check_status
+  check_status >"$WORK/status-msg" 2>&1 || true
+  assert_rc 0 "duplicate context message: $1 names the context and both lines" grep -qF "context 'CI/gate' is mapped more than once (line 1 and line 2)" "$WORK/status-msg"
+}
+dup_case 'status then plain' 'CI/gate => status:.github/workflows/ci-gate.yml' 'CI/gate => .github/workflows/ci-gate.yml'
+dup_case 'plain then status' 'CI/gate => .github/workflows/ci-gate.yml' 'CI/gate => status:.github/workflows/ci-gate.yml'
+dup_case 'plain then plain' 'CI/gate => .github/workflows/ci-gate.yml' 'CI/gate => .github/workflows/other.yml'
+dup_case 'status then status' 'CI/gate => status:.github/workflows/ci-gate.yml' 'CI/gate => status:.github/workflows/ci-gate.yml'
+# The full caller as the suite template ships it (pull_request start, workflow_run, schedule,
+# workflow_dispatch; jobs `gate` and `gate-pr`) must satisfy the checker.
+fresh_status_caller() { # fresh_status_caller [gate-pr uses] [gate-pr context] [third-job uses]
+  local gate="$SUITE_REUSABLE@$SUITE_PIN" pr="${1:-$SUITE_REUSABLE@$SUITE_PIN}" prctx="${2:-CI/gate}" third="${3:-}"
+  fresh_status "$gate"
+  cat > "$status_tree/.github/workflows/ci-gate.yml" <<YML
+name: CI gate
+on:
+  pull_request:
+  workflow_run:
+    workflows: ["**", "!CI gate"]
+    types: [completed, in_progress]
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch: {}
+jobs:
+  gate:
+    if: github.event_name != 'pull_request'
+    uses: $gate
+    with:
+      context: "CI/gate"
+  gate-pr:
+    if: github.event_name == 'pull_request'
+    uses: $pr
+    with:
+      context: "$prctx"
+YML
+  if [ -n "$third" ]; then
+    printf '  third:\n    uses: %s\n    with:\n      context: "CI/gate"\n' "$third" >> "$status_tree/.github/workflows/ci-gate.yml"
+  fi
+}
+fresh_status_caller
+assert_rc 0 'status mapping: the template caller shape (pull_request start, gate and gate-pr jobs) passes' check_status
+# EVERY job that calls the suite reusable is checked, not just one of them.
+fresh_status_caller "$SUITE_REUSABLE@main"
+assert_rc 1 'status mapping: gate-pr on @main fails even beside a SHA-pinned gate job' check_status
+fresh_status_caller "$SUITE_REUSABLE@main"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the job id and the ref' grep -qF "job 'gate-pr' pins 'main', which is not a 40-hex commit SHA" "$WORK/status-msg"
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+assert_rc 1 'status mapping: gate-pr with a different context fails even beside a correct gate job' check_status
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the job with the wrong context' grep -qF "job 'gate-pr' passes the wrong with.context" "$WORK/status-msg"
+fresh_status_caller "$SUITE_REUSABLE@1111111111111111111111111111111111111111"
+assert_rc 1 'status mapping: two jobs on different 40-hex pins fail' check_status
+fresh_status_caller "$SUITE_REUSABLE@1111111111111111111111111111111111111111"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: different pins say every job must use the same pin' grep -qF 'every job must use the same pin' "$WORK/status-msg"
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' "$SUITE_REUSABLE@v1.2.3"
+assert_rc 1 'status mapping: a third job on a tag fails beside two correct jobs' check_status
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' "$SUITE_REUSABLE@${SUITE_PIN:0:7}"
+assert_rc 1 'status mapping: a third job on a short SHA fails' check_status
+fresh_status_caller "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' "$SUITE_REUSABLE@v1.2.3"
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the tag job and its ref' grep -qF "job 'third' pins 'v1.2.3'" "$WORK/status-msg"
+# The shipped callers keep the shape the suite's templates define.
+cat > "$WORK/caller-shape.js" <<'JS'
+import { readFileSync } from "node:fs";
+const [, , gateFile, guardFile, allowFile] = process.argv;
+const errs = [];
+const need = (ok, msg) => { if (!ok) errs.push(msg); };
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const SUITE = "hyperpolymath/proven-cicd-and-workflows/.github/workflows/";
+const pinOf = (uses, file) => { const m = String(uses).match(new RegExp("^" + SUITE.replace(/[./]/g, "\\$&") + file.replace(/\./g, "\\.") + "@([0-9a-f]{40})$")); return m ? m[1] : null; };
+const gate = Bun.YAML.parse(readFileSync(gateFile, "utf8"));
+const on = gate.on ?? gate.true ?? {};
+need("pull_request" in on, "ci-gate.yml has no pull_request trigger");
+const prTypes = on.pull_request?.types;
+need(prTypes === undefined || prTypes === null || ["opened", "synchronize", "reopened"].every((t) => prTypes.includes(t)), "pull_request types drop opened, synchronize or reopened");
+need(same(on.workflow_run?.workflows, ["**", "!CI gate"]), "workflow_run workflows is not [\"**\", \"!CI gate\"]");
+need(same([...(on.workflow_run?.types ?? [])].sort(), ["completed", "in_progress"]), "workflow_run types is not completed and in_progress");
+need(Array.isArray(on.schedule) && on.schedule.length > 0 && on.schedule.every((s) => typeof s.cron === "string"), "no schedule cron");
+need("workflow_dispatch" in on, "no workflow_dispatch trigger");
+need(!("pull_request_target" in on), "ci-gate.yml must not trigger on pull_request_target");
+need(!("concurrency" in gate), "ci-gate.yml has a concurrency block, which the suite template deliberately omits");
+const p = gate.permissions ?? {};
+need(p.statuses === "write" && p.actions === "read" && p.contents === "read" && p["pull-requests"] === "read", "ci-gate.yml permissions are not statuses write, actions read, contents read, pull-requests read");
+need(same(Object.keys(gate.jobs ?? {}).sort(), ["gate", "gate-pr"]), "ci-gate.yml jobs are not exactly gate and gate-pr");
+const pins = new Set();
+for (const id of ["gate", "gate-pr"]) {
+  const j = gate.jobs?.[id] ?? {};
+  const pin = pinOf(j.uses, "ci-gate.yml");
+  need(pin !== null, `job ${id} does not call the suite ci-gate reusable at a 40-hex pin`);
+  if (pin) pins.add(pin);
+  need(j.with?.context === "CI/gate", `job ${id} with.context is not exactly CI/gate`);
+  need(j.secrets === undefined, `job ${id} passes secrets`);
+}
+// Whole conditions, whitespace-normalised, equal to the predicates in the suite's templates/ci-gate-caller.yml.
+const norm = (x) => String(x ?? "").replace(/\s+/g, " ").trim();
+need(norm(gate.jobs?.gate?.if) === "github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'CI gate')", "the gate if: is not exactly the suite template's predicate");
+need(norm(gate.jobs?.["gate-pr"]?.if) === "github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository", "the gate-pr if: is not exactly the suite template's predicate");
+const guard = Bun.YAML.parse(readFileSync(guardFile, "utf8"));
+const gon = guard.on ?? guard.true ?? {};
+need(same(Object.keys(gon), ["pull_request_target"]), "the tamper guard caller must trigger on pull_request_target alone");
+need(["opened", "reopened", "synchronize", "edited", "labeled", "unlabeled"].every((t) => (gon.pull_request_target?.types ?? []).includes(t)), "the tamper guard caller does not react to opened, reopened, synchronize, edited, labeled and unlabeled");
+const gp = guard.permissions ?? {};
+need(same(Object.keys(gp).sort(), ["contents", "pull-requests"]) && gp.contents === "read" && gp["pull-requests"] === "read", "the tamper guard caller permissions are not exactly contents read and pull-requests read");
+const gj = guard.jobs?.guard ?? {};
+need(same(Object.keys(guard.jobs ?? {}), ["guard"]), "the tamper guard caller has a job other than guard");
+const gpin = pinOf(gj.uses, "ci-gate-tamper-guard.yml");
+need(gpin !== null, "the tamper guard caller does not call the suite reusable at a 40-hex pin");
+if (gpin) pins.add(gpin);
+need(gj.steps === undefined && gj.secrets === undefined, "the tamper guard caller runs steps or passes secrets");
+need(pins.size === 1, `the gate and the guard are not pinned to one suite commit (${[...pins].join(", ")})`);
+need(readFileSync(guardFile, "utf8").includes("gate-change-approved"), "the tamper guard caller does not name the approval label gate-change-approved");
+const allow = readFileSync(allowFile, "utf8");
+need(!/guard \/ check|tamper-guard/.test(allow), "the tamper guard is listed as a required context, which is a later round");
+if (errs.length) { console.error(errs.join("\n")); process.exit(1); }
+console.log("caller shape ok: pin " + [...pins][0]);
+JS
+assert_rc 0 'shipped ci-gate.yml and ci-gate-tamper-guard-caller.yml keep the suite template shape, one 40-hex pin, no concurrency' \
+  bun "$WORK/caller-shape.js" "$REPO_ROOT/.github/workflows/ci-gate.yml" "$REPO_ROOT/.github/workflows/ci-gate-tamper-guard-caller.yml" "$REPO_ROOT/.machine_readable/required-contexts-allow.txt"
+# Negative controls: each break of the shape is caught.
+shape_neg() { # shape_neg <label> <sed expr> <file: gate|guard>
+  local g="$WORK/shape-gate.yml" t="$WORK/shape-guard.yml"
+  cp "$REPO_ROOT/.github/workflows/ci-gate.yml" "$g"; cp "$REPO_ROOT/.github/workflows/ci-gate-tamper-guard-caller.yml" "$t"
+  if [ "$3" = gate ]; then sed -i -e "$2" "$g"; else sed -i -e "$2" "$t"; fi
+  assert_rc 1 "caller shape: $1" bun "$WORK/caller-shape.js" "$g" "$t" "$REPO_ROOT/.machine_readable/required-contexts-allow.txt"
+}
+shape_neg 'a gate-pr condition with || true appended is caught' '/^  gate-pr:/,$ s/^\(    if: .*\)$/\1 || true/' gate
+shape_neg 'a gate condition prefixed with false && is caught' "s/^    if: github.event_name != 'pull_request'/    if: false \&\& github.event_name != 'pull_request'/" gate
+shape_neg 'dropping the pull_request trigger is caught' 's/^  pull_request:$/  merge_group:/' gate
+shape_neg 'dropping in_progress is caught' 's/types: \[completed, in_progress\]/types: [completed]/' gate
+shape_neg 'a concurrency block is caught' 's/^permissions:/concurrency: {group: x}\npermissions:/' gate
+shape_neg 'a wrong context on gate-pr is caught' '/gate-pr:/,$ s/context: "CI\/gate"/context: "CI\/other"/' gate
+shape_neg 'a guard pinned to main is caught' 's/ci-gate-tamper-guard.yml@[0-9a-f]\{40\}/ci-gate-tamper-guard.yml@main/' guard
+shape_neg 'a guard on pull_request is caught' 's/^  pull_request_target:/  pull_request:/' guard
+shape_neg 'a guard pin that differs from the gate pin is caught' 's/ci-gate-tamper-guard.yml@[0-9a-f]\{40\}/ci-gate-tamper-guard.yml@0000000000000000000000000000000000000000/' guard
+# The repository's own allow-file passes against its own workflows.
+assert_rc 0 'the repository itself passes the checker' bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$REPO_ROOT"
+
 echo "=== 6. Installer verification order and publication boundaries (offline) ==="
 # Exercise main in a fresh Bash process so errexit is active even though
 # assert_rc captures failures. Only process boundaries are doubled; the real
