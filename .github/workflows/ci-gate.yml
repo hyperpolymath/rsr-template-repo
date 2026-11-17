@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MPL-2.0
+# CI gate - thin caller of the estate's reusable gate in
+# hyperpolymath/proven-cicd-and-workflows. Do not copy its logic in here.
+#
+# It publishes the commit status `CI/gate` that the Branch-Floor ruleset requires.
+# It is a COMMIT STATUS (not a check run) because a job inside a reusable workflow
+# is named `<caller job> / <called job>`, which can never equal `CI/gate`.
+#
+# SELF-STARTING: the `pull_request` trigger runs this file from the pull request's own
+# branch, so the PR that adds or changes it already receives `CI/gate`. A workflow_run-
+# only caller runs from the default branch copy, so it cannot run before it merges and
+# the ruleset would block the very PR that adds it (deadlock).
+#   * gate-pr: same-repository branches (token can write statuses).
+#   * gate-wr: workflow_run, effective once this file is on the default branch; it
+#     covers fork and Dependabot pull requests (their pull_request token is read-only,
+#     so gate-pr fails loudly there) and pushes. It may also re-evaluate same-repository
+#     pull requests; each evaluation is fresh. No trust decision uses github.actor.
+#
+# The context is a `with:` input: change it here if the ruleset's spelling changes
+# (this repo requires `CI/gate`; the suite's own ruleset requires `CI / gate`).
+# The reusable is pinned by full commit SHA (the account enforces sha_pinning_required).
+# Verdict: success only if every other check and workflow run on the head SHA passed;
+# failure for anything else, including nothing observed or a timeout.
+# No secrets: the reusable consumes none.
+name: CI gate
+
+on:
+  pull_request:
+  workflow_run:
+    workflows: ["**", "!CI gate"]
+    types: [completed, in_progress]
+
+permissions:
+  statuses: write
+  checks: read
+  actions: read
+  contents: read
+
+jobs:
+  gate-pr:
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@ace986bbc8793bdfb94024d288053dd8b6e7ee16
+    with:
+      context: "CI/gate"
+  gate-wr:
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.name != 'CI gate'
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@ace986bbc8793bdfb94024d288053dd8b6e7ee16
+    with:
+      context: "CI/gate"
