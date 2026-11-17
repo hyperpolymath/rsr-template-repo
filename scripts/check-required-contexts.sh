@@ -20,15 +20,14 @@
 #      that the file exists, triggers on workflow_run with a `completed` type,
 #      has a job whose `uses:` is the suite's ci-gate reusable at a full
 #      40-hex pin (or the local ./.github/workflows/ci-gate.yml), and passes
-#      `with.context` exactly equal to the mapped context. YAML is read with
-#      mikefarah yq v4. A plain mapping keeps the semantics of item 1.
+#      `with.context` exactly equal to the mapped context. YAML is read in-process
+#      with Bun.YAML, as for item 1. A plain mapping keeps the semantics of item 1.
 #
 # Exit contract (proven-tests-and-benches 3-outcome convention):
 #   0 = all mapped required contexts are producible on pull_request and zero
 #       bypass commands exist in workflows
 #   1 = phantom/path-stranded required context or admin-bypass workflow found
-#   2 = setup error (missing repo directory, workflows directory, or allowfile;
-#       yq missing when a `status:` mapping needs it)
+#   2 = setup error (missing repo directory, workflows directory, or allowfile)
 set -euo pipefail
 
 REPO_ROOT="${1:-.}"
@@ -56,7 +55,6 @@ command -v bun >/dev/null 2>&1 || {
 bun run - "$REPO_ROOT" <<'JS'
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 
 const root = resolve(process.argv[2]);
 const wfDir = join(root, ".github/workflows");
@@ -205,15 +203,13 @@ if (existsSync(rulesetsDir)) {
   }
 }
 
-/** Parse one workflow file with mikefarah yq v4; exit 2 when yq is unusable. */
-function yqJson(file) {
-  const r = spawnSync("yq", ["-o=json", ".", file], { encoding: "utf8" });
-  if (r.error || r.status === null) {
-    console.error("check-required-contexts: yq (mikefarah v4) is required for a `status:` mapping");
-    process.exit(2);
+/** Parse one workflow file in-process with Bun.YAML (as the pull_request path does). */
+function parseWorkflow(file) {
+  try {
+    return { doc: Bun.YAML.parse(readFileSync(file, "utf8")) };
+  } catch (e) {
+    return { error: String(e?.message ?? e) };
   }
-  if (r.status !== 0) return { error: (r.stderr || "").trim() };
-  return { doc: JSON.parse(r.stdout) };
 }
 
 const SUITE_USES = /^hyperpolymath\/proven-cicd-and-workflows\/\.github\/workflows\/ci-gate\.yml@([^\s@]+)$/;
@@ -225,12 +221,12 @@ const LOCAL_USES = "./.github/workflows/ci-gate.yml";
  * copy, and passes `with.context` exactly equal to `ctx`.
  */
 function verifyStatusPublisher(ctx, relWf, fullWf) {
-  const { doc, error } = yqJson(fullWf);
+  const { doc, error } = parseWorkflow(fullWf);
   if (error !== undefined) {
     fail(`status context '${ctx}' publisher '${relWf}' is not parseable YAML: ${error}`);
     return;
   }
-  const onBlock = doc?.on;
+  const onBlock = doc?.on ?? doc?.true;
   const wr = onBlock && typeof onBlock === "object" && !Array.isArray(onBlock) ? onBlock.workflow_run : undefined;
   if (wr === undefined) {
     fail(`status context '${ctx}' publisher '${relWf}' does not trigger on workflow_run`);
