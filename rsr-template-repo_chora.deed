@@ -386,7 +386,7 @@
       :scan-enabled #t
       ; quick | standard | deep
       :scan-depth "standard"
-      :report-format "logtalk")
+      :report-format "json")
     (symbolic-rules
       ; Custom symbolic rules for this project
       ; (rule :name "no-unsafe-ffi" :pattern "believe_me|unsafeCoerce" :severity "critical")
