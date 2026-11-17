@@ -31,6 +31,9 @@
 # job-level reusable ref to be keyed there; see the suite README, "Consumers
 # with a lock-sync gate". The record's ref is the symbolic `main`, never the SHA.
 #
+# No `concurrency:` block: the reusable re-fetches before every status write, so
+# per-SHA serialisation would only delay the in_progress pending status.
+#
 # No `secrets:` line: the reusable consumes none.
 name: CI gate
 
@@ -44,10 +47,6 @@ permissions:
   checks: read
   actions: read
   contents: read
-
-concurrency:
-  group: ci-gate-${{ github.event.workflow_run.head_sha }}
-  cancel-in-progress: false
 
 jobs:
   gate:
