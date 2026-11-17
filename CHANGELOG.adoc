@@ -10,6 +10,22 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* The CLAUDE.md arrival pack told every repo that there are no `.a2ml` files
+  and that ANCHOR, AGENTIC, ECOSYSTEM, STATE, NEUROSYM and PLAYBOOK are deed
+  clauses. That is false in a repo that took the pack while its remaining A2ML
+  waits for conversion (found re-syncing `CoprocessorRuntime.jl`: 39 tracked
+  `.a2ml` files, a deed without `(agentic)`, `(neurosym)`, `(playbook)` or
+  `(bot-directives)`). `extract.sh` now reports the tracked `.a2ml` files and
+  the clauses the deed has, and `arrival-pack.ncl` states only what they show:
+  the count of legacy files (read-only pending conversion), the clauses
+  present, and for an absent clause that it is not yet in the deed, with the
+  legacy file named only where it is tracked. A repo with every clause and no
+  `.a2ml` file gets the same bytes as before. Controls:
+  `tests/workflows/arrival_pack_derived_facts_test.sh`.
+* `extract.sh` accepted a deed with content after its closing `)`, which
+  standards `deed_lint.js` rejects. `scripts/deed-field.sh --strict` now
+  checks that the deed is exactly one form, and `extract.sh` refuses one that
+  is not. Whitespace and comments after the form stay allowed.
 * The K9 badge publisher failed on every push to `main` in minted repos: it
   wrote straight to the `governance-badges` branch, and the estate's
   `Branch-Floor` ruleset (all branches, `code_coverage` requires a pull

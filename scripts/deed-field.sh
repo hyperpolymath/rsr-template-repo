@@ -15,6 +15,11 @@
 #   deed-field.sh --list DEED PATH KEY    the items of the list :KEY ( … ), one per line
 #   deed-field.sh --clause DEED PATH      the clause, one token per line (for hashing)
 #   deed-field.sh --has DEED PATH         exit 0 iff the clause exists
+#   deed-field.sh --strict DEED           exit 0 iff the deed is exactly one balanced form:
+#                                         nothing but whitespace and comments before or after
+#                                         it, as deed_lint.js requires ("trailing content
+#                                         after the form's closing ')'"); the other modes read
+#                                         the first form and ignore the rest
 #   deed-field.sh --find [DIR]            print the one *_chora.deed in DIR (default .)
 #   deed-field.sh --uuid DEED             the repo uuid: the body of :repo-uuid #uuid"…" as
 #                                         written (#u8 is derived; a #u5 is derived only to
@@ -46,12 +51,13 @@
 # never guesses.
 #
 # Exit: 0 found; 1 clause or key absent (nothing printed); 2 usage error or no
-# readable deed. --find exits 1 unless exactly one deed is present.
+# readable deed. --find exits 1 unless exactly one deed is present. --strict
+# exits 1 for content outside the form and 2 for a form that never closes.
 set -euo pipefail
 
 mode=value
 case "${1:-}" in
-  --list|--clause|--has|--uuid|--typed) mode="${1#--}"; shift ;;
+  --list|--clause|--has|--uuid|--typed|--strict) mode="${1#--}"; shift ;;
   --find)
     shopt -s nullglob
     deeds=("${2:-.}"/*_chora.deed)
@@ -140,6 +146,7 @@ END {
   }
   e = close_of(o)
   if (!e) exit 2
+  if (mode == "strict") exit (o == 1 && e == nt) ? 0 : 1
   if (mode == "has") exit 0
   if (mode == "clause") { for (t = o; t <= e; t++) print tok[t]; exit 0 }
   d = 0
