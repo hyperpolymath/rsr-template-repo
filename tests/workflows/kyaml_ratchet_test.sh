@@ -37,8 +37,8 @@ install_run=$(yq -r '.jobs.estate-rules.steps[] | select(.name == strenv(install
 label_matches_pin "$install_name" "$install_run" \
     || fail 'install step name must cite the standards commit its kyaml-format.sh URL pins'
 # Negative controls: the check must reject a stale label and an unlabeled name.
-label_matches_pin 'Install verified yq 4.53.3 and kyaml-format.sh (standards f0b3cd4)' "$install_run" \
-    && fail 'control: a stale label (8e48b1c) was accepted'
+label_matches_pin 'Install verified yq 4.53.3 and kyaml-format.sh (standards deadbee)' "$install_run" \
+    && fail 'control: a stale label (deadbee) was accepted'
 label_matches_pin 'Install verified yq 4.53.3 and kyaml-format.sh' "$install_run" \
     && fail 'control: a name with no cited commit was accepted'
 yq -r '.jobs.estate-rules.steps[] | select(.name == strenv(install_name)) | .run' "$workflow" > "$scratch/install.sh"
