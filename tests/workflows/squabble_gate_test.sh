@@ -404,8 +404,51 @@ fresh_status() { # fresh_status [uses] [context] [on-block]
 check_status() { bash "$REPO_ROOT/scripts/check-required-contexts.sh" "$status_tree"; }
 fresh_status
 assert_rc 0 'status mapping: a workflow_run suite caller at a 40-hex pin with the exact context passes' check_status
+# A local reusable is a SEPARATE file that declares on.workflow_call: GitHub cannot run anything else
+# as a called workflow, and a workflow cannot call itself.
 fresh_status './.github/workflows/ci-gate.yml'
-assert_rc 0 'status mapping: the local ./.github/workflows/ci-gate.yml reusable passes' check_status
+assert_rc 1 'status mapping: the publisher calling itself as the local reusable fails' check_status
+fresh_status './.github/workflows/ci-gate.yml'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: a self-call says a workflow cannot call itself' grep -qF 'cannot call itself' "$WORK/status-msg"
+fresh_local() { # fresh_local <uses> <target on-block, or - for no target file>
+  local uses="$1" target="$2"
+  rm -rf "$status_tree"
+  mkdir -p "$status_tree/.github/workflows" "$status_tree/.machine_readable"
+  printf 'CI/gate => status:.github/workflows/gate-caller.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
+  printf 'name: Gate caller\non:\n  workflow_run:\n    workflows: ["**"]\n    types: [completed]\njobs:\n  gate:\n    uses: %s\n    with: {context: "CI/gate"}\n' "$uses" > "$status_tree/.github/workflows/gate-caller.yml"
+  if [ "$target" != '-' ]; then
+    printf 'name: Local gate\n%s\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps: [{run: echo hi}]\n' "$target" > "$status_tree/.github/workflows/ci-gate.yml"
+  fi
+}
+LOCAL_TARGET='./.github/workflows/ci-gate.yml'
+fresh_local "$LOCAL_TARGET" $'on:\n  workflow_call:'
+assert_rc 0 'status mapping: a separate caller whose local target declares workflow_call passes' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  workflow_call:\n    inputs:\n      context: {type: string}'
+assert_rc 0 'status mapping: a local target with workflow_call inputs passes' check_status
+fresh_local "$LOCAL_TARGET" 'on: [workflow_call]'
+assert_rc 0 'status mapping: a local target with a workflow_call list passes' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  push:'
+assert_rc 1 'status mapping: a local target without workflow_call fails' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  push:'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the missing workflow_call' grep -qF 'does not declare on.workflow_call' "$WORK/status-msg"
+fresh_local "$LOCAL_TARGET" -
+assert_rc 1 'status mapping: a missing local target file fails' check_status
+fresh_local "$LOCAL_TARGET" -
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the missing target file' grep -qF 'names a file that does not exist' "$WORK/status-msg"
+fresh_local './.github/workflows/../workflows/ci-gate.yml' $'on:\n  workflow_call:'
+assert_rc 1 'status mapping: a local target path with .. fails even though the file exists' check_status
+fresh_local './.github/workflows/../workflows/ci-gate.yml' $'on:\n  workflow_call:'
+check_status >"$WORK/status-msg" 2>&1 || true
+assert_rc 0 'status mapping message: names the path traversal' grep -qF "contains '..' path traversal" "$WORK/status-msg"
+fresh_local '/etc/ci-gate.yml' $'on:\n  workflow_call:'
+assert_rc 1 'status mapping: an absolute local target fails' check_status
+fresh_local "$LOCAL_TARGET" $'on:\n  workflow_call:'
+sed -i 's|^    uses: .*|    uses: ./.github/workflows/ci-gate.yml|' "$status_tree/.github/workflows/gate-caller.yml"
+printf '  other:\n    uses: ./../outside/ci-gate.yml\n    with: {context: "CI/gate"}\n' >> "$status_tree/.github/workflows/gate-caller.yml"
+assert_rc 1 'status mapping: a second, bad local job fails beside a valid local job' check_status
 fresh_status
 rm "$status_tree/.github/workflows/ci-gate.yml"
 assert_rc 1 'status mapping: a missing publisher file fails' check_status
@@ -449,6 +492,19 @@ assert_rc 0 'status mapping message: missing file' grep -qF 'missing status publ
 fresh_status
 printf 'CI/gate => .github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
 assert_rc 1 'plain mapping: a workflow_run publisher is still not a pull_request producer' check_status
+# A context may be mapped once. Any second mapping of it, in any combination of plain and status:,
+# is a setup failure naming the context and both lines (never merged, never overridden).
+dup_case() { # dup_case <label> <line 1> <line 2>
+  fresh_status
+  printf '%s\n%s\n' "$2" "$3" > "$status_tree/.machine_readable/required-contexts-allow.txt"
+  assert_rc 2 "duplicate context: $1 is a setup failure" check_status
+  check_status >"$WORK/status-msg" 2>&1 || true
+  assert_rc 0 "duplicate context message: $1 names the context and both lines" grep -qF "context 'CI/gate' is mapped more than once (line 1 and line 2)" "$WORK/status-msg"
+}
+dup_case 'status then plain' 'CI/gate => status:.github/workflows/ci-gate.yml' 'CI/gate => .github/workflows/ci-gate.yml'
+dup_case 'plain then status' 'CI/gate => .github/workflows/ci-gate.yml' 'CI/gate => status:.github/workflows/ci-gate.yml'
+dup_case 'plain then plain' 'CI/gate => .github/workflows/ci-gate.yml' 'CI/gate => .github/workflows/other.yml'
+dup_case 'status then status' 'CI/gate => status:.github/workflows/ci-gate.yml' 'CI/gate => status:.github/workflows/ci-gate.yml'
 # The full caller as the suite template ships it (pull_request start, workflow_run, schedule,
 # workflow_dispatch; jobs `gate` and `gate-pr`) must satisfy the checker.
 fresh_status_caller() { # fresh_status_caller [gate-pr uses] [gate-pr context] [third-job uses]
@@ -537,8 +593,10 @@ for (const id of ["gate", "gate-pr"]) {
   need(j.with?.context === "CI/gate", `job ${id} with.context is not exactly CI/gate`);
   need(j.secrets === undefined, `job ${id} passes secrets`);
 }
-need(String(gate.jobs?.gate?.if ?? "").includes("github.event_name != 'pull_request'"), "gate does not exclude the pull_request event");
-need(String(gate.jobs?.["gate-pr"]?.if ?? "").includes("github.event_name == 'pull_request'") && String(gate.jobs?.["gate-pr"]?.if ?? "").includes("github.event.pull_request.head.repo.full_name == github.repository"), "gate-pr is not limited to same-repository pull_request");
+// Whole conditions, whitespace-normalised, equal to the predicates in the suite's templates/ci-gate-caller.yml.
+const norm = (x) => String(x ?? "").replace(/\s+/g, " ").trim();
+need(norm(gate.jobs?.gate?.if) === "github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'CI gate')", "the gate if: is not exactly the suite template's predicate");
+need(norm(gate.jobs?.["gate-pr"]?.if) === "github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository", "the gate-pr if: is not exactly the suite template's predicate");
 const guard = Bun.YAML.parse(readFileSync(guardFile, "utf8"));
 const gon = guard.on ?? guard.true ?? {};
 need(same(Object.keys(gon), ["pull_request_target"]), "the tamper guard caller must trigger on pull_request_target alone");
@@ -567,6 +625,8 @@ shape_neg() { # shape_neg <label> <sed expr> <file: gate|guard>
   if [ "$3" = gate ]; then sed -i -e "$2" "$g"; else sed -i -e "$2" "$t"; fi
   assert_rc 1 "caller shape: $1" bun "$WORK/caller-shape.js" "$g" "$t" "$REPO_ROOT/.machine_readable/required-contexts-allow.txt"
 }
+shape_neg 'a gate-pr condition with || true appended is caught' '/^  gate-pr:/,$ s/^\(    if: .*\)$/\1 || true/' gate
+shape_neg 'a gate condition prefixed with false && is caught' "s/^    if: github.event_name != 'pull_request'/    if: false \&\& github.event_name != 'pull_request'/" gate
 shape_neg 'dropping the pull_request trigger is caught' 's/^  pull_request:$/  merge_group:/' gate
 shape_neg 'dropping in_progress is caught' 's/types: \[completed, in_progress\]/types: [completed]/' gate
 shape_neg 'a concurrency block is caught' 's/^permissions:/concurrency: {group: x}\npermissions:/' gate

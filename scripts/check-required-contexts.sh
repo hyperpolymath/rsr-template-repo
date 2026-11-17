@@ -54,7 +54,7 @@ command -v bun >/dev/null 2>&1 || {
 
 bun run - "$REPO_ROOT" <<'JS'
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 const root = resolve(process.argv[2]);
 const wfDir = join(root, ".github/workflows");
@@ -160,6 +160,7 @@ function producedNames(doc, unresolved, chain = []) {
 //    `statusPublishers` holds the contexts whose mapping is `status:`-typed.
 const mapped = new Map();
 const statusPublishers = new Set();
+const mappedAtLine = new Map(); // a context may be mapped once, in any spelling
 const lines = readFileSync(allowPath, "utf8").split(/\r?\n/);
 for (let idx = 0; idx < lines.length; idx++) {
   const trimmed = lines[idx].trim();
@@ -169,6 +170,11 @@ for (let idx = 0; idx < lines.length; idx++) {
     console.error(`check-required-contexts: malformed mapping at line ${idx + 1}: ${lines[idx]}`);
     process.exit(2);
   }
+  if (mappedAtLine.has(parts[0])) {
+    console.error(`check-required-contexts: context '${parts[0]}' is mapped more than once (line ${mappedAtLine.get(parts[0])} and line ${idx + 1}); map each context exactly once, as either a plain or a status: mapping`);
+    process.exit(2);
+  }
+  mappedAtLine.set(parts[0], idx + 1);
   if (parts[1].startsWith("status:")) {
     const target = parts[1].slice("status:".length).trim();
     if (!target) {
@@ -216,9 +222,36 @@ const SUITE_USES = /^hyperpolymath\/proven-cicd-and-workflows\/\.github\/workflo
 const LOCAL_USES = "./.github/workflows/ci-gate.yml";
 
 /**
+ * Check a local `uses: ./...ci-gate.yml` target. GitHub runs a called workflow only if its `on`
+ * block has `workflow_call`, and a workflow cannot call itself, so the target is resolved under
+ * the repository root and read. Returns an error string, or null when the target is a valid reusable.
+ */
+function localTargetError(uses, fullWf) {
+  if (isAbsolute(uses)) return `'${uses}' is an absolute path`;
+  if (uses.split("/").includes("..")) return `'${uses}' contains '..' path traversal`;
+  const target = resolve(root, uses);
+  const rel = relative(root, target);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return `'${uses}' resolves outside the repository root`;
+  if (rel !== LOCAL_USES.slice(2)) return `'${uses}' is not directly the file ${LOCAL_USES}`;
+  if (target === resolve(fullWf)) return `'${uses}' is the publisher file itself, and a workflow cannot call itself`;
+  if (!existsSync(target)) return `'${uses}' names a file that does not exist`;
+  const { doc, error } = parseWorkflow(target);
+  if (error !== undefined) return `'${uses}' is not parseable YAML: ${error}`;
+  const onBlock = doc?.on ?? doc?.true;
+  const callable =
+    typeof onBlock === "string" ? onBlock === "workflow_call"
+    : Array.isArray(onBlock) ? onBlock.map(String).includes("workflow_call")
+    : onBlock && typeof onBlock === "object" ? "workflow_call" in onBlock
+    : false;
+  if (!callable) return `'${uses}' does not declare on.workflow_call, so GitHub cannot run it as a reusable workflow`;
+  return null;
+}
+
+/**
  * Verify a `status:` publisher:
  * workflow_run caller (type `completed`). EVERY job that calls the suite's ci-gate
- * reusable must be pinned at a full 40-hex SHA (or be the local reusable) and pass
+ * reusable must be pinned at a full 40-hex SHA (or be the local reusable, which must be a
+ * separate file that declares on.workflow_call) and pass
  * `with.context` exactly equal to `ctx`; at least one such job must exist, and
  * the pinned jobs must share one pin.
  */
@@ -241,16 +274,22 @@ function verifyStatusPublisher(ctx, relWf, fullWf) {
   const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
   const callers = [];
   const rejected = [];
-  const badPins = [];
+  const badRefs = [];
   for (const [id, job] of Object.entries(jobs)) {
     const uses = typeof job?.uses === "string" ? job.uses : "";
     const m = uses.match(SUITE_USES);
-    if (uses === LOCAL_USES) callers.push({ id, job, pin: null });
-    else if (m && /^[0-9a-f]{40}$/.test(m[1])) callers.push({ id, job, pin: m[1] });
+    if (uses === LOCAL_USES || ((uses.startsWith("./") || isAbsolute(uses)) && /ci-gate\.yml$/.test(uses))) {
+      const why = localTargetError(uses, fullWf);
+      if (why === null) callers.push({ id, job, pin: null });
+      else {
+        rejected.push(`job '${id}' uses ${why}`);
+        badRefs.push(`job '${id}' uses ${why}`);
+      }
+    } else if (m && /^[0-9a-f]{40}$/.test(m[1])) callers.push({ id, job, pin: m[1] });
     else if (m) {
       const why = `job '${id}' pins '${m[1]}', which is not a 40-hex commit SHA`;
       rejected.push(why);
-      badPins.push(why);
+      badRefs.push(why);
     } else if (/ci-gate\.yml/.test(uses)) rejected.push(`job '${id}' uses '${uses}', which is not the suite's ci-gate reusable`);
   }
   if (callers.length === 0) {
@@ -260,7 +299,7 @@ function verifyStatusPublisher(ctx, relWf, fullWf) {
   }
   // Every job that calls the suite reusable is held to the same rule, not just one of them: a
   // second job (the pull_request start) on a mutable ref or another commit would otherwise pass.
-  for (const why of badPins) fail(`status context '${ctx}' publisher '${relWf}': ${why}`);
+  for (const why of badRefs) fail(`status context '${ctx}' publisher '${relWf}': ${why}`);
   for (const { id, job } of callers) {
     if (job?.with?.context !== ctx) {
       fail(`status context '${ctx}' publisher '${relWf}' job '${id}' passes the wrong with.context (${JSON.stringify(job?.with?.context ?? null)}); it must equal '${ctx}' exactly`);
