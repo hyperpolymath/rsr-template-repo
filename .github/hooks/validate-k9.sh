@@ -20,7 +20,8 @@
 # Exit codes:
 #   0 — Every tracked K9 file passes, or no validator is available (skipped
 #       with a notice: CI still runs the lane)
-#   1 — A file failed
+#   1 — A file failed, or was routed to a dialect (such as coordination)
+#       that this lane cannot validate yet
 
 set -euo pipefail
 
@@ -47,16 +48,33 @@ if ! command -v nickel >/dev/null 2>&1; then
 fi
 
 cd "$REPO"
-mapfile -t files < <(git ls-files -- '*.k9.ncl' '*.k9' '*.k9.lock' | sort)
+# NUL-delimited end to end: with core.quotePath, newline output would hand
+# the validator a quoted, escaped name instead of the tracked path.
+mapfile -d '' -t files < <(git ls-files -z -- '*.k9.ncl' '*.k9' '*.k9.lock' | sort -z)
 if [ "${#files[@]}" -eq 0 ]; then
     echo "::notice::K9: no tracked K9 file"
     exit 0
 fi
 
+# A file passes only on the verdict "pass" with exit 0. The validator also
+# exits 0 when it routes a file out of scope (verdict "routed", for example
+# the coordination dialect), and routed is not passed: nothing here validates
+# those dialects yet, so a routed file fails closed.
 errors=0
 for f in "${files[@]}"; do
     echo "  Validating: $f"
-    if ! bash "$VALIDATOR" --strict --layer "$LAYER" "$f"; then
+    rc=0
+    out="$(bash "$VALIDATOR" --json --strict --layer "$LAYER" -- "$f")" || rc=$?
+    verdict="$(printf '%s\n' "$out" | sed -n 's/.*"verdict":"\([a-z]*\)".*/\1/p' | head -n 1)"
+    if [ "$rc" -eq 0 ] && [ "$verdict" = "pass" ]; then
+        echo "    pass"
+    elif [ "$verdict" = "routed" ]; then
+        dialect="$(printf '%s\n' "$out" | sed -n 's/.*"dialect":"\([^"]*\)".*/\1/p' | head -n 1)"
+        echo "::error file=$f::K9: routed to the ${dialect:-unknown} dialect, which this lane cannot validate; routed is not a pass"
+        errors=$((errors + 1))
+    else
+        printf '%s\n' "$out"
+        echo "::error file=$f::K9: verdict ${verdict:-none}, exit $rc"
         errors=$((errors + 1))
     fi
 done
