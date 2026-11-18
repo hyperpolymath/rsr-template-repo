@@ -8,7 +8,18 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+
 ==== Fixed
+* The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
+  `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
+  false `CI/gate` failure when a workflow name contains an emoji (GitHub
+  rejects 4-byte UTF-8 in a status description; fixed in
+  hyperpolymath/proven-cicd-and-workflows#144, seen on
+  hyperpolymath/resource-algebra#48). `ci-gate.yml`,
+  `ci-gate-tamper-guard-caller.yml`, `actions.lock` and
+  `tests/workflows/squabble_gate_test.sh` are updated to match. The new pin is
+  still a commit on an unmerged suite branch, so a second re-pin follows the
+  squash merge of hyperpolymath/proven-cicd-and-workflows#139.
 
 * The K9 badge publisher failed on every push to `main` in minted repos: it
   wrote straight to the `governance-badges` branch, and the estate's
