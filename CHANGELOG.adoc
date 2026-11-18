@@ -87,6 +87,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Added
 
+* `benches/template_bench.sh` explains a slow benchmark instead of reporting
+  one median. In `--json` and `--csv` mode it prints each workload's warm-up
+  and sample times on stderr (`bench-samples: …`), and when a median is over
+  the regression gate's absolute limit (2.5x the workload's mean in
+  `benches/baseline.json`) it runs the workload once more with xtrace and
+  prints the commands that took 5 ms or more (`bench-diag: …`). The document
+  on stdout and the exit codes are unchanged. Added after one CI run rated
+  `root_shape` at 10x its baseline with nothing in the log to say why.
 * **Chain minting: a minted repo can be minted again.** "Use this template"
   on a minted repo now mints correctly (owner ruling 2026-11-04, after the
   Codex review of #251 showed the grandchild inherited its parent's identity).
