@@ -13,7 +13,17 @@
 # ghcr.io/stefan-hoeck/idris2-pack image directly (same one pages.yml uses).
 #
 # Build:  docker|podman build --target <lean4|agda|coq> -f build/container/proofs/Containerfile build/container/proofs
-# Run:    <engine> run --rm -v "$PWD:/w" -w /w <image> bash scripts/check-proofs.sh <prover>
+#         (linux/amd64 only: the Lean tarball below is the x86-64 release; on an
+#         arm64 host add --platform linux/amd64 and run under emulation.)
+# Run:    lean4/agda: <engine> run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+#                       -v "$PWD:/w" -w /w <image> bash scripts/check-proofs.sh <prover>
+#           (the prover writes .olean/.agdai files beside the sources, so it must
+#            run as the checkout's owner)
+#         coq: keep the image's own `coq` user (its entrypoint is `opam config exec --`
+#              and needs that user's opam root: do NOT pass --user or HOME); run it on
+#              a disposable, world-writable copy of the checkout:
+#                cp -r . /tmp/proofs-w && chmod -R a+rwX /tmp/proofs-w
+#                <engine> run --rm -v /tmp/proofs-w:/w -w /w <image> bash scripts/check-proofs.sh coq
 #
 # The versions below are the ones verification/proofs/<prover>/MANIFEST were
 # ground-truthed with where it records one (Lean 4.15.0 = lean-toolchain; Agda
@@ -53,5 +63,6 @@ USER prover
 
 # ---- coq: official coqorg image, Coq 8.20 (coqorg/coq:8.20) ----
 FROM coqorg/coq@sha256:3675f124508d7bbfcd509000d5d67e76ed66c1945ccb1f455ce57c6e5d6d52a1 AS coq
-# The base image's own non-root user; CI additionally runs with the runner's uid.
+# The base image's own non-root user. CI keeps it (no --user) and makes the throwaway
+# checkout writable for it instead, so the image's opam environment is preserved.
 USER coq

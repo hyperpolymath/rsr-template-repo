@@ -11,12 +11,14 @@ name: Proofs
 # prover runs scripts/scan-dangerous.sh. This workflow adds no `continue-on-error`
 # and no `|| true`.
 #
-# Toolchains (nothing floats):
+# Toolchains (base images are pinned; what is installed on top is version-checked):
 #   idris2 : ghcr.io/stefan-hoeck/idris2-pack@sha256:... (the image pages.yml uses)
 #   lean4, agda, coq : built from build/container/proofs/Containerfile, whose every
 #            FROM is digest-pinned (scripts/check-container-pins.sh). Each job then
 #            ASSERTS the version the tool reports, so a base that drifts fails by
-#            name instead of as a confusing proof error.
+#            name instead of as a confusing proof error. The Agda *package build*
+#            (apt, from the pinned Ubuntu base) is not itself pinned: two builds
+#            reporting the same Agda version are indistinguishable to the check.
 #
 # Like lock-sync-gate.yml this file carries NO `uses:` (it checks out with git and
 # drives the runner's Docker directly), so it has no action to pin; actions.lock
@@ -152,10 +154,12 @@ jobs:
           set -euo pipefail
           got="$(docker run --rm proofs-agda agda --version | head -1)"
           echo "MANIFEST wants Agda ${AGDA_WANT}; image reports: ${got}"
-          case "$got" in
-            "Agda version ${AGDA_WANT}"*) ;;
-            *) echo "::error::Agda version drift: MANIFEST wants ${AGDA_WANT}, image reports: ${got}"; exit 1 ;;
-          esac
+          # Compare the whole release number for equality (2.6.3.1 must not pass
+          # as 2.6.3); a `-<commit>` suffix is not part of the release number.
+          tok="$(printf '%s' "$got" | sed -n 's/^Agda version \([0-9][0-9.]*[0-9]\).*/\1/p')"
+          if [ "$tok" != "${AGDA_WANT}" ]; then
+            echo "::error::Agda version drift: MANIFEST wants ${AGDA_WANT}, image reports: ${got}"; exit 1
+          fi
 
       - name: Check Agda proofs
         run: |
