@@ -149,7 +149,7 @@ jobs:
       # Installed before the mint steps: repo-init and container-init reformat the
       # container KYAML they fill (scripts/format-container-kyaml.sh), which needs
       # a yq that can write KYAML. The KYAML ratchet below uses the same install.
-      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)
+      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards f0b3cd4)
         run: |
           mkdir -p "$RUNNER_TEMP/yq-bin"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \

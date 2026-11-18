@@ -99,7 +99,19 @@ check_one() {
             fi ;;
     lean4)  out="$(cd "$ROOT/$root" && lean          "$rel" 2>&1)"; rc=$? ;;
     # Canonical theory invocation, PROOF-POLICY §2.1 (standards). Do not weaken.
-    agda)   out="$(cd "$ROOT/$root" && agda --safe --without-K --cubical-compatible "$rel" 2>&1)"; rc=$? ;;
+    # AGDA_LIBRARIES (from scripts/provision-agda-stdlib.sh) selects the pinned
+    # stdlib and ignores any ambient one. Agda needs a UTF-8 locale: keep the
+    # caller's when it is UTF-8, else C.UTF-8.
+    agda)   libargs=()
+            if [ -n "${AGDA_LIBRARIES:-}" ]; then
+              # -i . : with no project .agda-lib the source root is not searched by default.
+              libargs=(--library-file="$AGDA_LIBRARIES" --no-default-libraries -l standard-library -i .)
+            fi
+            loc=C.UTF-8
+            case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+              *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) loc="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" ;;
+            esac
+            out="$(cd "$ROOT/$root" && LC_ALL="$loc" agda --safe --without-K --cubical-compatible ${libargs[@]+"${libargs[@]}"} "$rel" 2>&1)"; rc=$? ;;
     coq)    out="$(cd "$ROOT/$root" && coqc           "$rel" 2>&1)"; rc=$? ;;
   esac
   set -e
