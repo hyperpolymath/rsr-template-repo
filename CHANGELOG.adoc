@@ -8,8 +8,8 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
-
 ==== Fixed
+
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
   `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
   false `CI/gate` failure when a workflow name contains an emoji (GitHub
