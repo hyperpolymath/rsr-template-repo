@@ -53,9 +53,14 @@
 #
 #   declared diverged   -> SKIPPED   (the repo deed's (variant) clause says so)
 #   retired VARIANT.a2ml -> BLOCKED  (whole repo; migrate it to the deed first)
-#   absent in repo      -> ADDED
+#   absent in repo      -> ADDED   (or ABSENT, left alone, with `absent = skip`)
 #   present, differs    -> UPDATED
 #   present, identical  -> UNCHANGED
+#
+# With `absent = skip` in [meta] (or --no-add) a path the repo does not hold is
+# reported ABSENT and never created: a targeted campaign then cannot plant a
+# file in a repo that lacks it, by construction and not by care over the repos
+# file. Existing campaigns keep the default (`absent = add`).
 #
 # With the known-version guard (`update-guard = known-versions` in [meta], or
 # --known-versions), "present, differs" is split in two:
@@ -108,6 +113,7 @@
 #                       merged yet — e.g. the stage-5 sweep branches.
 #   --branch NAME       branch to push to (default: the campaign name)
 #   --report FILE       write a TSV report
+#   --no-add            never create a missing path (also: [meta] absent = skip)
 #   --known-versions    enable the known-version guard (also: [meta] update-guard)
 #   --allow-tokens      permit propagating files with {{TOKEN}} placeholders
 #   --no-substitute     do not rewrite the spine name to the repo name
@@ -123,7 +129,7 @@ MANIFEST=""; REPOS_FILE=""; SPINE=""; WORK_DIR=""
 # The deed reader ships beside this script, whatever --spine names.
 CAMPAIGN_READ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/deed-field.sh"
 BATCH=""; BATCH_SIZE=25; PUSH=0; APPLY=0; BRANCH=""; REPORT=""; BASE_REF=""
-ALLOW_TOKENS=0; SUBSTITUTE=1; QUIET=0; GUARD=0
+ALLOW_TOKENS=0; SUBSTITUTE=1; QUIET=0; GUARD=0; NO_ADD=0
 
 die() { printf '%s: %s\n' "$PROG" "$1" >&2; exit 2; }
 note() { [ "$QUIET" -eq 1 ] || printf '%s\n' "$*"; }
@@ -143,6 +149,7 @@ while [ $# -gt 0 ]; do
         --push)        PUSH=1; shift ;;
         --apply)       APPLY=1; shift ;;
         --known-versions) GUARD=1; shift ;;
+        --no-add)      NO_ADD=1; shift ;;
         --allow-tokens) ALLOW_TOKENS=1; shift ;;
         --no-substitute) SUBSTITUTE=0; shift ;;
         --quiet|-q)    QUIET=1; shift ;;
@@ -194,6 +201,12 @@ while IFS= read -r line || [ -n "$line" ]; do
             case "$key" in
                 name)        [ -n "$val" ] && CAMP_NAME="$val" ;;
                 description) CAMP_DESC="$val" ;;
+                absent)
+                    case "$val" in
+                        skip) NO_ADD=1 ;;
+                        add) ;;
+                        *) die "unknown absent value '$val' in $MANIFEST" ;;
+                    esac ;;
                 update-guard)
                     case "$val" in
                         known-versions) GUARD=1 ;;
@@ -219,6 +232,7 @@ note "  manifest: $MANIFEST"
 note "  paths:    ${#PATHS[@]} declared, ${#EXCLUDES[@]} excluded"
 note "  branch:   $BRANCH"
 [ "$GUARD" -eq 1 ] && note "  guard:    known-versions (edited copies are left alone)"
+[ "$NO_ADD" -eq 1 ] && note "  absent:   skip (missing paths are never created)"
 [ -n "$BASE_REF" ] && note "  stacked on: $BASE_REF"
 if [ "$PUSH" -eq 1 ]; then
     note "  mode:     PUSH (commit and push each repository)"
@@ -364,7 +378,7 @@ excluded() { # path -> 0 if excluded by the manifest
 REPORT="${REPORT:-$WORK_DIR/campaign-report.tsv}"
 printf 'repo\tpath\toutcome\tdetail\n' > "$REPORT"
 
-ADDED=0; UPDATED=0; EDITED=0; PROMOTED=0; SKIPPED=0; REFUSED=0; NOCHANGE=0; FAILED=0
+ADDED=0; UPDATED=0; EDITED=0; ABSENT=0; PROMOTED=0; SKIPPED=0; REFUSED=0; NOCHANGE=0; FAILED=0
 
 for repo in "${SELECTED[@]}"; do
     [ -z "$repo" ] && continue
@@ -405,7 +419,7 @@ for repo in "${SELECTED[@]}"; do
     fi
 
     repo_changed=0
-    repo_added=0; repo_updated=0; repo_skipped=0; repo_refused=0; repo_edited=0
+    repo_added=0; repo_updated=0; repo_skipped=0; repo_refused=0; repo_edited=0; repo_absent=0
     updated_paths=()
 
     # Collect the spine's file list for the declared paths.
@@ -447,7 +461,10 @@ for repo in "${SELECTED[@]}"; do
         tmp="$(mktemp)"
         substitute "$src" "${repo##*/}" > "$tmp"
 
-        if [ ! -f "$dst" ]; then
+        if [ ! -f "$dst" ] && [ "$NO_ADD" -eq 1 ]; then
+            printf '%s\t%s\tABSENT\tnot held by the repo; not created (absent = skip)\n' "$repo" "$rel" >> "$REPORT"
+            repo_absent=$((repo_absent+1))
+        elif [ ! -f "$dst" ]; then
             printf '%s\t%s\tADDED\t-\n' "$repo" "$rel" >> "$REPORT"
             repo_added=$((repo_added+1)); repo_changed=1
             if [ "$APPLY" -eq 1 ] || [ "$PUSH" -eq 1 ]; then
@@ -492,7 +509,7 @@ for repo in "${SELECTED[@]}"; do
             done <<<"$out"
         done
     fi
-    PROMOTED=$((PROMOTED+repo_promoted)); EDITED=$((EDITED+repo_edited))
+    PROMOTED=$((PROMOTED+repo_promoted)); EDITED=$((EDITED+repo_edited)); ABSENT=$((ABSENT+repo_absent))
     ADDED=$((ADDED+repo_added)); UPDATED=$((UPDATED+repo_updated))
     SKIPPED=$((SKIPPED+repo_skipped)); REFUSED=$((REFUSED+repo_refused))
 
@@ -531,6 +548,7 @@ note "campaign '$CAMP_NAME' complete"
 note "  paths ADDED:     $ADDED"
 note "  paths UPDATED:   $UPDATED"
 note "  paths EDITED:    $EDITED (guard: matched no template version; left alone)"
+note "  paths ABSENT:    $ABSENT (not held; never created)"
 note "  lines PROMOTED:  $PROMOTED (MANIFEST quarantine -> gated)"
 note "  paths SKIPPED:   $SKIPPED (declared diverged / excluded)"
 note "  paths REFUSED:   $REFUSED (carried an unfilled placeholder)"

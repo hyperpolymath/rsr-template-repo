@@ -39,6 +39,9 @@ mk() { # name a-content b-content
 mk older "v1 older" "v1"            # unedited v1 (name substituted)
 mk edited "v2 AGPL-3.0-or-later local" "v2"   # a.idr edited, b.idr older
 mk current "v3 current" "v3"        # already current
+# partial: holds a.idr (unedited v1) but not b.idr
+mk partial "v1 partial" "v1"; rm -f "$work/src/partial/p/b.idr"; g0 -C "$work/src/partial" add -A; g0 -C "$work/src/partial" commit -q -m nob
+rm -rf "$work/remotes/owner/partial.git"; g0 clone -q --bare "$work/src/partial" "$work/remotes/owner/partial.git"
 mk slash "v1 slash" "v1"
 # slash: a source root written with a trailing slash still matches
 R="$work/src/slash"; printf '# header\np/|a.idr|quarantine| slashed\n' > "$R/v/MANIFEST"
@@ -47,8 +50,8 @@ g0 -C "$R" add -A; g0 -C "$R" commit -q -m slash; rm -rf "$work/remotes/owner/sl
 mk divd "v1 divd" "v1"; R="$work/src/divd"
 printf '(repo-deed\n  :canonical-name "divd"\n  (variant\n    :project "divd"\n    (paths\n      :diverged ("v/MANIFEST"))))\n' > "$R/divd_chora.deed"
 g0 -C "$R" add -A; g0 -C "$R" commit -q -m deed; rm -rf "$work/remotes/owner/divd.git"; g0 clone -q --bare "$R" "$work/remotes/owner/divd.git"
-printf 'owner/older\nowner/edited\nowner/current\nowner/slash\nowner/divd\n' > "$work/repos.txt"
-printf '[meta]\nname = t/guard\nupdate-guard = known-versions\n[paths]\np/a.idr\np/b.idr\n[promote]\nv/MANIFEST\n' > "$work/g.campaign"
+printf 'owner/older\nowner/edited\nowner/current\nowner/slash\nowner/divd\nowner/partial\n' > "$work/repos.txt"
+printf '[meta]\nname = t/guard\nupdate-guard = known-versions\nabsent = skip\n[paths]\np/a.idr\np/b.idr\n[promote]\nv/MANIFEST\n' > "$work/g.campaign"
 printf '[meta]\nname = t/noguard\n[paths]\np/a.idr\np/b.idr\n' > "$work/n.campaign"
 
 run() { # manifest report extra...
@@ -93,10 +96,16 @@ E="$work/run/repos/owner/edited"
 [[ "$(cat "$E/p/b.idr")" = v3 ]] || fail "edited repo's unedited b.idr not updated"
 [[ "$(cat "$E/v/MANIFEST")" = "${MF%$'\n'}" ]] || fail "MANIFEST of the edited repo changed though its quarantined module was not updated"
 
+# 2b. absent = skip: the missing path is reported ABSENT and not created
+REP="$work/rep2.tsv" row partial p/b.idr ABSENT
+[[ ! -e "$work/run/repos/owner/partial/p/b.idr" ]] || fail "absent = skip created a missing file"
+[[ "$(cat "$work/run/repos/owner/partial/p/a.idr")" = 'v3 partial' ]] || fail "partial's held path was not updated"
+
 # 3. negative control: without the guard an edited copy is overwritten (the
 #    old behaviour), proving the guard is what protects it
 run "$work/n.campaign" "$work/rep3.tsv"
 REP="$work/rep3.tsv" row edited p/a.idr UPDATED
+REP="$work/rep3.tsv" row partial p/b.idr ADDED   # negative control: default still adds
 grep -q EDITED "$work/rep3.tsv" && fail "guard active without being asked"
 
 # 4. unknown guard value is refused
