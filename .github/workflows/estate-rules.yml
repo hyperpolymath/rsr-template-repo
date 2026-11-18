@@ -40,6 +40,10 @@ jobs:
         run: bash tests/shape/check_root_shape_test.sh
       - name: Root-shape gate, rust-cli mint shape (Cargo optional, mise.lock kept)
         run: bash tests/shape/rust_cli_root_shape_test.sh
+      # The allowlist is baseline ∪ { gated modules whose capability is declared }.
+      # Every widening case is paired with a planted stray that must still fail.
+      - name: Root-shape gate, derived allowlist (capabilities + vendored gate table)
+        run: bash tests/shape/derived_root_allow_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
