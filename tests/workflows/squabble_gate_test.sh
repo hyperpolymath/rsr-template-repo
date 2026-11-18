@@ -390,7 +390,7 @@ assert_rc 2 'missing workflow directory is setup failure' bash "$REPO_ROOT/scrip
 echo "=== 5b. Typed status mapping: a workflow_run commit-status publisher ==="
 # `CI/gate => status:<file>` is certified as a publisher, never as a job name.
 SUITE_REUSABLE='hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml'
-SUITE_PIN='d2140a5a789e4ebec52f1bab0074181012660c3b'
+SUITE_PIN='4e9e680b0dfd842a457cf23271f9e005a88f766c'
 status_tree="$WORK/status-publisher"
 fresh_status() { # fresh_status [uses] [context] [on-block]
   local uses="${1:-$SUITE_REUSABLE@$SUITE_PIN}" ctx="${2:-CI/gate}"
