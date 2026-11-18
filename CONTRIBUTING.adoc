@@ -50,8 +50,7 @@ typed.
 . Check if it is already fixed in `main`.
 . Determine which perimeter the bug affects.
 
-*When reporting*, use the
-link:.github/ISSUE_TEMPLATE/bug_report.yml[bug report template] and include:
+*When reporting*, choose *Bug report* under Issues, New issue, and include:
 
 * Clear, descriptive title
 * Environment details (OS, versions, toolchain)
@@ -67,9 +66,8 @@ link:.github/ISSUE_TEMPLATE/bug_report.yml[bug report template] and include:
 . Search existing issues and discussions.
 . Consider which perimeter the feature belongs to.
 
-*When suggesting*, use the
-link:.github/ISSUE_TEMPLATE/feature_request.yml[feature request template]
-and include:
+*When suggesting*, choose *Feature request* under Issues, New issue, or
+open a thread in the Ideas category of Discussions, and include:
 
 * Problem statement (what pain point does this solve?)
 * Proposed solution
