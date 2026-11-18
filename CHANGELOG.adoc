@@ -46,6 +46,9 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   `scripts/deed-field.sh`, the reader `extract.sh` depends on, changed, nor
   when a commit only added or removed a tracked `.a2ml` file. It now runs on
   every commit (`always_run`).
+* The container workflow's best-effort Trivy step scanned
+  `<repository name>:latest`; it scans the reference the plain build tags
+  (`just --evaluate image`).
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
   `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
   false `CI/gate` failure when a workflow name contains an emoji (GitHub

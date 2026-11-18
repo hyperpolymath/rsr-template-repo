@@ -32,8 +32,11 @@ equal() {
 }
 # image NAME -> the image name the recipes use for a project called NAME
 image() { just --set project "$1" --evaluate image 2>&1; }
-# refs NAME RECIPE -> every "<name>:latest" reference the recipe would run, one per line
-refs() { just --set project "$1" --dry-run "$2" 2>&1 | grep -oE '[^ ]+:latest' | sort -u; }
+# refs NAME RECIPE -> every image operand tagged latest that the recipe prints,
+# whole, one per line: a `:latest-debug` operand comes out as itself and fails
+# the comparison. `--dry-run` prints every branch of a recipe, so this reads the
+# plain-engine branches; it does not show which branch a tree would take.
+refs() { just --set project "$1" --dry-run "$2" 2>&1 | grep -oE '[^ ]+:latest[^ ]*' | sort -u; }
 
 equal "a lower-case slug is unchanged"           "$(image my-project)"            "my-project"
 equal "capitals are lowered, the dot becomes -"  "$(image CoprocessorRuntime.jl)" "coprocessorruntime-jl"
@@ -52,6 +55,10 @@ else
     CHECKS=$((CHECKS + 1)); FAILED=$((FAILED + 1))
     echo "  FAIL  repo-init.just no longer derives DEFAULT_SERVICE_NAME in two lines; update this control"
 fi
+
+# The extraction keeps the whole operand, so a longer tag cannot pass as latest.
+equal "a :latest-debug operand is read whole" \
+    "$(grep -oE '[^ ]+:latest[^ ]*' <<<'engine push coprocessorruntime-jl:latest-debug')" "coprocessorruntime-jl:latest-debug"
 
 for recipe in container-build container-push container-run; do
     equal "$recipe uses a valid reference for CoprocessorRuntime.jl" \
