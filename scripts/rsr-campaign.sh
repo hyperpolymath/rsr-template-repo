@@ -46,6 +46,8 @@
 #   spine-relative paths to propagate ('dir/' means the whole directory)
 #   [exclude]
 #   paths never to touch, even inside a propagated directory
+#   [promote]
+#   per-repo MANIFEST files whose quarantine lines are promoted (see below)
 #
 # Per repository, per path:
 #
@@ -54,6 +56,26 @@
 #   absent in repo      -> ADDED
 #   present, differs    -> UPDATED
 #   present, identical  -> UNCHANGED
+#
+# With the known-version guard (`update-guard = known-versions` in [meta], or
+# --known-versions), "present, differs" is split in two:
+#
+#   differs, byte-identical to SOME historical spine version of the path
+#                       -> UPDATED   (an older, unedited copy)
+#   differs, matches no historical version
+#                       -> EDITED    (a local edit: reported, never touched)
+#
+# History comes from `git log` of the spine, with the spine name rewritten to
+# the target's name exactly as for the current version, so an older mint
+# qualifies. A shallow spine is deepened first; if that fails the run stops.
+# Anything the guard cannot prove unedited is left alone: licence lines and
+# local fixes are never clobbered.
+#
+# An optional [promote] section names per-repo MANIFEST files (spine-relative,
+# format <root>|<module>|<status>|<note>). When a path the campaign UPDATED is
+# listed there as `quarantine`, ONLY that line's status becomes `gated`, with a
+# dated note, in the same commit. check-proofs.sh fails on an "unexpected pass"
+# otherwise. No other line is touched and the file is never rewritten whole.
 #
 # SAFETY PROPERTIES, each deliberate:
 #
@@ -86,6 +108,7 @@
 #                       merged yet — e.g. the stage-5 sweep branches.
 #   --branch NAME       branch to push to (default: the campaign name)
 #   --report FILE       write a TSV report
+#   --known-versions    enable the known-version guard (also: [meta] update-guard)
 #   --allow-tokens      permit propagating files with {{TOKEN}} placeholders
 #   --no-substitute     do not rewrite the spine name to the repo name
 #   --quiet             less per-repo output
@@ -100,7 +123,7 @@ MANIFEST=""; REPOS_FILE=""; SPINE=""; WORK_DIR=""
 # The deed reader ships beside this script, whatever --spine names.
 CAMPAIGN_READ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/deed-field.sh"
 BATCH=""; BATCH_SIZE=25; PUSH=0; APPLY=0; BRANCH=""; REPORT=""; BASE_REF=""
-ALLOW_TOKENS=0; SUBSTITUTE=1; QUIET=0
+ALLOW_TOKENS=0; SUBSTITUTE=1; QUIET=0; GUARD=0
 
 die() { printf '%s: %s\n' "$PROG" "$1" >&2; exit 2; }
 note() { [ "$QUIET" -eq 1 ] || printf '%s\n' "$*"; }
@@ -119,6 +142,7 @@ while [ $# -gt 0 ]; do
         --report)      REPORT="${2:?}"; shift 2 ;;
         --push)        PUSH=1; shift ;;
         --apply)       APPLY=1; shift ;;
+        --known-versions) GUARD=1; shift ;;
         --allow-tokens) ALLOW_TOKENS=1; shift ;;
         --no-substitute) SUBSTITUTE=0; shift ;;
         --quiet|-q)    QUIET=1; shift ;;
@@ -152,7 +176,7 @@ mkdir -p "$WORK_DIR"
 MANIFEST_SECTION=""
 CAMP_NAME="${MANIFEST##*/}"; CAMP_NAME="${CAMP_NAME%.campaign}"
 CAMP_DESC=""
-PATHS=(); EXCLUDES=()
+PATHS=(); EXCLUDES=(); PROMOTES=()
 
 while IFS= read -r line || [ -n "$line" ]; do
     # strip comments and surrounding space
@@ -170,10 +194,17 @@ while IFS= read -r line || [ -n "$line" ]; do
             case "$key" in
                 name)        [ -n "$val" ] && CAMP_NAME="$val" ;;
                 description) CAMP_DESC="$val" ;;
+                update-guard)
+                    case "$val" in
+                        known-versions) GUARD=1 ;;
+                        none) ;;
+                        *) die "unknown update-guard '$val' in $MANIFEST" ;;
+                    esac ;;
             esac
             ;;
         paths)    PATHS+=("$line") ;;
         exclude)  EXCLUDES+=("$line") ;;
+        promote)  PROMOTES+=("$line") ;;
         *)        die "line outside a known section in $MANIFEST: $line" ;;
     esac
 done < "$MANIFEST"
@@ -187,6 +218,7 @@ note "  spine:    $SPINE"
 note "  manifest: $MANIFEST"
 note "  paths:    ${#PATHS[@]} declared, ${#EXCLUDES[@]} excluded"
 note "  branch:   $BRANCH"
+[ "$GUARD" -eq 1 ] && note "  guard:    known-versions (edited copies are left alone)"
 [ -n "$BASE_REF" ] && note "  stacked on: $BASE_REF"
 if [ "$PUSH" -eq 1 ]; then
     note "  mode:     PUSH (commit and push each repository)"
@@ -196,6 +228,54 @@ else
     note "  mode:     dry-run (nothing written)"
 fi
 hr
+
+# ---------------------------------------------------------------------------
+# Known-version guard: the spine needs its history
+# ---------------------------------------------------------------------------
+if [ "$GUARD" -eq 1 ] && [ "$(git -C "$SPINE" rev-parse --is-shallow-repository)" = true ]; then
+    git -C "$SPINE" fetch -q --unshallow 2>/dev/null \
+        || die "known-version guard needs spine history and the shallow spine could not be deepened"
+fi
+
+# known_version DST REL REPO -> 0 if DST is byte-identical to some historical
+# spine version of REL (spine name rewritten to REPO, as for the current one).
+known_version() {
+    local dst="$1" rel="$2" repo="$3" c t found=1
+    t="$(mktemp)"
+    while IFS= read -r c; do
+        [ -z "$c" ] && continue
+        git -C "$SPINE" cat-file blob "$c:$rel" > "$t.raw" 2>/dev/null || continue
+        substitute "$t.raw" "$repo" > "$t"
+        if cmp -s "$t" "$dst"; then found=0; break; fi
+    done < <(git -C "$SPINE" log --format=%H -- "$rel")
+    rm -f "$t" "$t.raw"
+    return $found
+}
+
+# promote_manifest FILE REL-LIST... : quarantine -> gated for each updated
+# path, that line only. Prints one PROMOTED line per change.
+promote_manifest() {
+    local mf="$1"; shift
+    local rel line root mod st note out changed=0 tmpf
+    [ -f "$mf" ] || return 0
+    tmpf="$(mktemp)"; cp "$mf" "$tmpf"
+    for rel in "$@"; do
+        out="$(mktemp)"
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in '#'*|'') printf '%s\n' "$line" >> "$out"; continue ;; esac
+            IFS='|' read -r root mod st note <<<"$line"
+            if [ "$root/$mod" = "$rel" ] && [ "$st" = quarantine ]; then
+                printf '%s|%s|gated| promoted %s by campaign %s: compiles after the fix (was:%s)\n' \
+                    "$root" "$mod" "$(date -u +%F)" "$CAMP_NAME" "$note" >> "$out"
+                printf 'PROMOTED %s\n' "$rel"
+            else
+                printf '%s\n' "$line" >> "$out"
+            fi
+        done < "$tmpf"
+        mv "$out" "$tmpf"
+    done
+    cp "$tmpf" "$mf"; rm -f "$tmpf"
+}
 
 # ---------------------------------------------------------------------------
 # Repo selection — same batch arithmetic as the stage-5 sweep, so operators
@@ -281,7 +361,7 @@ excluded() { # path -> 0 if excluded by the manifest
 REPORT="${REPORT:-$WORK_DIR/campaign-report.tsv}"
 printf 'repo\tpath\toutcome\tdetail\n' > "$REPORT"
 
-ADDED=0; UPDATED=0; SKIPPED=0; REFUSED=0; NOCHANGE=0; FAILED=0
+ADDED=0; UPDATED=0; EDITED=0; PROMOTED=0; SKIPPED=0; REFUSED=0; NOCHANGE=0; FAILED=0
 
 for repo in "${SELECTED[@]}"; do
     [ -z "$repo" ] && continue
@@ -322,7 +402,8 @@ for repo in "${SELECTED[@]}"; do
     fi
 
     repo_changed=0
-    repo_added=0; repo_updated=0; repo_skipped=0; repo_refused=0
+    repo_added=0; repo_updated=0; repo_skipped=0; repo_refused=0; repo_edited=0
+    updated_paths=()
 
     # Collect the spine's file list for the declared paths.
     while IFS= read -r rel; do
@@ -371,9 +452,13 @@ for repo in "${SELECTED[@]}"; do
             fi
         elif cmp -s "$tmp" "$dst"; then
             printf '%s\t%s\tUNCHANGED\t-\n' "$repo" "$rel" >> "$REPORT"
+        elif [ "$GUARD" -eq 1 ] && ! known_version "$dst" "$rel" "${repo##*/}"; then
+            printf '%s\t%s\tEDITED\tmatches no historical template version; left alone\n' "$repo" "$rel" >> "$REPORT"
+            repo_edited=$((repo_edited+1))
         else
             printf '%s\t%s\tUPDATED\t-\n' "$repo" "$rel" >> "$REPORT"
             repo_updated=$((repo_updated+1)); repo_changed=1
+            updated_paths+=("$rel")
             if [ "$APPLY" -eq 1 ] || [ "$PUSH" -eq 1 ]; then
                 cp "$tmp" "$dst"
             fi
@@ -381,16 +466,35 @@ for repo in "${SELECTED[@]}"; do
         rm -f "$tmp"
     done < <(git -C "$SPINE" ls-files -- "${PATHS[@]}" 2>/dev/null | sort)
 
+    # Promote quarantined MANIFEST lines for the modules just updated.
+    repo_promoted=0
+    if [ "${#updated_paths[@]}" -gt 0 ]; then
+        for pm in ${PROMOTES+"${PROMOTES[@]}"}; do
+            [ -f "$dir/$pm" ] || continue
+            if [ "$APPLY" -eq 1 ] || [ "$PUSH" -eq 1 ]; then
+                out="$(promote_manifest "$dir/$pm" "${updated_paths[@]}")"
+            else
+                cp "$dir/$pm" "$WORK_DIR/.mf.dry"
+                out="$(promote_manifest "$WORK_DIR/.mf.dry" "${updated_paths[@]}")"
+            fi
+            while IFS= read -r l; do
+                [ -z "$l" ] && continue
+                printf '%s\t%s\tPROMOTED\t%s quarantine -> gated\n' "$repo" "${l#PROMOTED }" "$pm" >> "$REPORT"
+                repo_promoted=$((repo_promoted+1)); repo_changed=1
+            done <<<"$out"
+        done
+    fi
+    PROMOTED=$((PROMOTED+repo_promoted)); EDITED=$((EDITED+repo_edited))
     ADDED=$((ADDED+repo_added)); UPDATED=$((UPDATED+repo_updated))
     SKIPPED=$((SKIPPED+repo_skipped)); REFUSED=$((REFUSED+repo_refused))
 
     if [ "$repo_changed" -eq 0 ]; then
-        note "  $repo: no change ($repo_skipped skipped, $repo_refused refused)"
+        note "  $repo: no change ($repo_skipped skipped, $repo_refused refused, $repo_edited edited)"
         NOCHANGE=$((NOCHANGE+1))
         continue
     fi
 
-    detail="+$repo_added ~$repo_updated"
+    detail="+$repo_added ~$repo_updated promoted:$repo_promoted"
     if [ "$APPLY" -eq 0 ] && [ "$PUSH" -eq 0 ]; then
         note "  $repo: would change ($detail$([ "$repo_skipped" -gt 0 ] && printf ', %s skipped' "$repo_skipped"))"
         continue
@@ -418,6 +522,8 @@ hr
 note "campaign '$CAMP_NAME' complete"
 note "  paths ADDED:     $ADDED"
 note "  paths UPDATED:   $UPDATED"
+note "  paths EDITED:    $EDITED (guard: matched no template version; left alone)"
+note "  lines PROMOTED:  $PROMOTED (MANIFEST quarantine -> gated)"
 note "  paths SKIPPED:   $SKIPPED (declared diverged / excluded)"
 note "  paths REFUSED:   $REFUSED (carried an unfilled placeholder)"
 note "  repos unchanged: $NOCHANGE"

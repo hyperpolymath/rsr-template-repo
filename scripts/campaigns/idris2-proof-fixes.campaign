@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MPL-2.0
+#
+# idris2-proof-fixes.campaign: carry the Idris2 proof fixes of
+# rsr-template-repo PR 429 to the minted repositories that already hold the
+# modules: Coaptation.idr (resolveComplete covering under Idris 2 0.8.0) and
+# the four ABI modules (Layout, Platform, Pointers, Compliance) that did not
+# compile, with their MANIFEST lines promoted from quarantine to gated.
+#
+# TARGETED, NOT ESTATE-WIDE. "absent -> ADDED" must never fire here. Run it
+# only with a repos file of repositories that already hold these paths (the
+# census of the 2026-11-17 dry run), and ONLY after PR 429 has merged, with
+# --spine at a checkout of main that contains it.
+#
+# SAFE BY CONSTRUCTION:
+#   * update-guard = known-versions: a copy is updated only if it is
+#     byte-identical to some historical template version. Anything else
+#     (an AGPL licence header, a local fix) is reported EDITED and left alone;
+#     those repositories are patched by hand. Licence lines are owner-only.
+#   * [promote]: where a repo's MANIFEST quarantines an updated module, only
+#     that line becomes gated, in the same commit, because check-proofs.sh
+#     fails on a quarantined module that starts compiling.
+#
+# Do not use for hyperpolymath/developer-ecosystem (nested copies): by hand.
+[meta]
+name         = chore/idris2-proof-fixes
+description  = Idris2 proof fixes from rsr-template-repo PR 429 (Coaptation covering, ABI modules gated)
+update-guard = known-versions
+[paths]
+.machine_readable/coaptation/core/Coaptation.idr
+verification/proofs/idris2/ABI/Layout.idr
+verification/proofs/idris2/ABI/Platform.idr
+verification/proofs/idris2/ABI/Pointers.idr
+verification/proofs/idris2/ABI/Compliance.idr
+[promote]
+verification/proofs/idris2/MANIFEST
