@@ -5,6 +5,10 @@ version: 'v0.0.3'
 workflows:
     '.github/workflows/build-notification.yml':
         - 'actions/checkout@v7.0.1'
+    '.github/workflows/ci-gate-tamper-guard-caller.yml':
+        - 'hyperpolymath/proven-cicd-and-workflows@d2140a5a789e4ebec52f1bab0074181012660c3b'
+    '.github/workflows/ci-gate.yml':
+        - 'hyperpolymath/proven-cicd-and-workflows@d2140a5a789e4ebec52f1bab0074181012660c3b'
     '.github/workflows/codeql.yml':
         - 'actions/checkout@v7.0.1'
         - 'github/codeql-action@33d7b85da1a04171e211befe2c739303b9a4c066'
@@ -232,6 +236,11 @@ dependencies:
         commit: 'sha1-2155aa26a21758f2ba119f61bc7e0e1981c106fb'
         owner_id: 6759885
         repo_id: 1275650185
+    'hyperpolymath/proven-cicd-and-workflows@d2140a5a789e4ebec52f1bab0074181012660c3b':
+        ref: 'main'
+        commit: 'sha1-d2140a5a789e4ebec52f1bab0074181012660c3b'
+        owner_id: 6759885
+        repo_id: 1326697643
     'hyperpolymath/smtp-notify-action@v0.5.1':
         ref: 'v0.5.1'
         commit: 'sha1-e384daf6167a7a7567642d6a62060106244d2413'
