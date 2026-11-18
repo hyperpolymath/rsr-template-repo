@@ -264,7 +264,10 @@ promote_manifest() {
         while IFS= read -r line || [ -n "$line" ]; do
             case "$line" in '#'*|'') printf '%s\n' "$line" >> "$out"; continue ;; esac
             IFS='|' read -r root mod st note <<<"$line"
-            if [ "$root/$mod" = "$rel" ] && [ "$st" = quarantine ]; then
+            # check-proofs.sh accepts trailing slashes on a source root, so
+            # compare on the normalised root; the written line keeps the original.
+            nroot="$root"; while [[ "$nroot" == */ ]]; do nroot="${nroot%/}"; done
+            if [[ "$nroot/$mod" == "$rel" && "$st" == quarantine ]]; then
                 printf '%s|%s|gated| promoted %s by campaign %s: compiles after the fix (was:%s)\n' \
                     "$root" "$mod" "$(date -u +%F)" "$CAMP_NAME" "$note" >> "$out"
                 printf 'PROMOTED %s\n' "$rel"
@@ -471,6 +474,11 @@ for repo in "${SELECTED[@]}"; do
     if [ "${#updated_paths[@]}" -gt 0 ]; then
         for pm in ${PROMOTES+"${PROMOTES[@]}"}; do
             [ -f "$dir/$pm" ] || continue
+            # A MANIFEST the repo declared diverged is its own decision: report, skip.
+            if declared_diverged "$dir" "$pm"; then
+                printf '%s\t%s\tDIVERGED\tMANIFEST declared in the deed (variant) clause; promotion skipped\n' "$repo" "$pm" >> "$REPORT"
+                continue
+            fi
             if [ "$APPLY" -eq 1 ] || [ "$PUSH" -eq 1 ]; then
                 out="$(promote_manifest "$dir/$pm" "${updated_paths[@]}")"
             else

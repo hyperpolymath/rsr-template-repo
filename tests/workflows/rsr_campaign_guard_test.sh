@@ -39,7 +39,15 @@ mk() { # name a-content b-content
 mk older "v1 older" "v1"            # unedited v1 (name substituted)
 mk edited "v2 AGPL-3.0-or-later local" "v2"   # a.idr edited, b.idr older
 mk current "v3 current" "v3"        # already current
-printf 'owner/older\nowner/edited\nowner/current\n' > "$work/repos.txt"
+mk slash "v1 slash" "v1"
+# slash: a source root written with a trailing slash still matches
+R="$work/src/slash"; printf '# header\np/|a.idr|quarantine| slashed\n' > "$R/v/MANIFEST"
+g0 -C "$R" add -A; g0 -C "$R" commit -q -m slash; rm -rf "$work/remotes/owner/slash.git"; g0 clone -q --bare "$R" "$work/remotes/owner/slash.git"
+# divd: the deed declares the MANIFEST diverged; promotion must be skipped
+mk divd "v1 divd" "v1"; R="$work/src/divd"
+printf '(repo-deed\n  :canonical-name "divd"\n  (variant\n    :project "divd"\n    (paths\n      :diverged ("v/MANIFEST"))))\n' > "$R/divd_chora.deed"
+g0 -C "$R" add -A; g0 -C "$R" commit -q -m deed; rm -rf "$work/remotes/owner/divd.git"; g0 clone -q --bare "$R" "$work/remotes/owner/divd.git"
+printf 'owner/older\nowner/edited\nowner/current\nowner/slash\nowner/divd\n' > "$work/repos.txt"
 printf '[meta]\nname = t/guard\nupdate-guard = known-versions\n[paths]\np/a.idr\np/b.idr\n[promote]\nv/MANIFEST\n' > "$work/g.campaign"
 printf '[meta]\nname = t/noguard\n[paths]\np/a.idr\np/b.idr\n' > "$work/n.campaign"
 
@@ -60,7 +68,10 @@ row current p/a.idr UNCHANGED; row current p/b.idr UNCHANGED
 grep -qP "^owner/edited\tp/a.idr\tUPDATED" "$work/rep.tsv" && fail "an edited copy was classed UPDATED"
 grep -qP "^owner/(edited|current)\t.*\tPROMOTED" "$work/rep.tsv" && fail "promoted without an update to a quarantined module"
 [[ "$(git -C "$SS" rev-parse --is-shallow-repository)" = false ]] || fail "the shallow spine was not deepened"
-[[ ! -e "$work/run/repos/owner/older/p/a.idr" ]] || true
+# dry run must leave the clone byte-for-byte as the remote has it
+for f in p/a.idr p/b.idr v/MANIFEST; do
+    cmp -s "$work/src/older/$f" "$work/run/repos/owner/older/$f" || fail "the dry run changed older/$f"
+done
 
 # 2. apply: files and MANIFEST really change, and only as promised
 run "$work/g.campaign" "$work/rep2.tsv" --apply
@@ -72,6 +83,11 @@ p|b.idr|gated| keep me
 p|c.idr|quarantine| not touched
 '
 [[ "$(cat "$O/v/MANIFEST")" = "${want%$'\n'}" ]] || { diff <(printf '%s' "$want") "$O/v/MANIFEST" >&2 || true; fail "MANIFEST changed beyond the one quarantine line"; }
+S1="$work/run/repos/owner/slash"
+[[ "$(sed -n 2p "$S1/v/MANIFEST")" == "p/|a.idr|gated| promoted "* ]] || { cat "$S1/v/MANIFEST" >&2; fail "trailing-slash source root was not promoted (original root kept)"; }
+D1="$work/run/repos/owner/divd"
+cmp -s "$work/src/divd/v/MANIFEST" "$D1/v/MANIFEST" || fail "a deed-declared diverged MANIFEST was promoted"
+grep -qP "^owner/divd\tv/MANIFEST\tDIVERGED\t" "$work/rep2.tsv" || fail "diverged MANIFEST not reported"
 E="$work/run/repos/owner/edited"
 [[ "$(cat "$E/p/a.idr")" = 'v2 AGPL-3.0-or-later local' ]] || fail "edited a.idr was touched"
 [[ "$(cat "$E/p/b.idr")" = v3 ]] || fail "edited repo's unedited b.idr not updated"
