@@ -162,6 +162,8 @@ jobs:
             https://raw.githubusercontent.com/metadatastician/standards/f0b3cd4c464d33e1584f8528c17bce104555e256/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      - name: Rhodibot guide formats and missing or duplicate controls
+        run: bash tests/workflows/rhodibot_canary_test.sh
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
       - name: Mint refuses before writing when nickel or a KYAML yq is missing
