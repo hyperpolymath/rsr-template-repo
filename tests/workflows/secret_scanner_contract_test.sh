@@ -155,6 +155,21 @@ else
         wf="${line##*=>}"
         ctx="$(printf '%s' "$ctx" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
         wf="$(printf '%s' "$wf" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        # A `status:` mapping names a commit-status publisher (the CI/gate
+        # workflow_run caller), not a job: it can never be a job name here.
+        # scripts/check-required-contexts.sh verifies it fully (trigger,
+        # reusable pin, with.context); this test only refuses a missing file
+        # and leaves it out of the scanner-job count.
+        case "$wf" in
+            status:*)
+                wf="$(printf '%s' "${wf#status:}" | sed -e 's/^[[:space:]]*//')"
+                if [ -f "$REPO_DIR/$wf" ]; then
+                    ok "status context '$ctx' publisher $wf exists (verified by check-required-contexts.sh)"
+                else
+                    bad "status context '$ctx' names missing publisher '$wf'"
+                fi
+                continue ;;
+        esac
         mapped=$((mapped + 1))
         if [ ! -f "$REPO_DIR/$wf" ]; then
             bad "mapped context '$ctx' names missing workflow '$wf'"
