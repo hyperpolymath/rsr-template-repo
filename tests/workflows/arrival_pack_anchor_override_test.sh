@@ -79,7 +79,11 @@ check "allowed but not denied, nothing forbidden: no override line" \
 # The deny list is stated once in the engine: the policy line prints the same
 # list the override compares against.
 CHECKS=$((CHECKS + 1))
-if render '[]' '[]' 2>/dev/null | grep -qF 'Deny: **Nix, Python, Go, TypeScript, ReScript, AGPL**. (Guix, not Nix.)'; then
+# Rendered first, then searched: piped into `grep -q` under pipefail, the engine
+# could still be writing when grep found the line and left, and its SIGPIPE
+# failed the control at random.
+POLICY_OUT="$(render '[]' '[]' 2>/dev/null)"
+if grep -qF 'Deny: **Nix, Python, Go, TypeScript, ReScript, AGPL**. (Guix, not Nix.)' <<<"$POLICY_OUT"; then
     echo "  PASS  the language-policy line prints the estate deny list"
 else
     FAILED=$((FAILED + 1)); echo "  FAIL  the language-policy line prints the estate deny list"

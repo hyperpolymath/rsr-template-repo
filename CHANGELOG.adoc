@@ -19,20 +19,33 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   the clauses the deed has, and `arrival-pack.ncl` states only what they show:
   the count of legacy files (read-only pending conversion), the clauses
   present, and for an absent clause that it is not yet in the deed, with the
-  legacy file named only where it is tracked. A repo with every clause and no
-  `.a2ml` file gets the same bytes as before. Controls:
+  legacy file named only where it is tracked. This template gets the same
+  bytes as before. A deed that has a clause without the field the pack reads
+  from it (a `(status)` with no `:phase`) now renders "not declared" where it
+  rendered an empty value. Outside a git work tree the files are found on
+  disk and the region says "contains", not "tracks". Controls:
   `tests/workflows/arrival_pack_derived_facts_test.sh`.
+* `scripts/deed-field.sh` took a field's list value for a clause: in a deed
+  with `:example (agentic)` and no `(agentic)` clause, `--has DEED agentic`
+  was true, and a path lookup could read the list instead of a real clause
+  that followed it. A parenthesis after a keyword is that field's value
+  (deed.abnf), and the reader now skips it. Every clause path of this repo's
+  deed reads the same as before.
 * `extract.sh` accepted a deed with content after its closing `)`, which
   standards `deed_lint.js` rejects. `scripts/deed-field.sh --strict` now
   checks that the deed is exactly one form, and `extract.sh` refuses one that
-  is not. Whitespace and comments after the form stay allowed.
+  is not. Whitespace and comments after the form stay allowed. `--strict`
+  checks token boundaries; it does not replace the linter, which also refuses
+  a tab and a last comment with no line end.
 * `just container-build`, `container-push` and `container-run` tagged the image
   with the project name as written, an invalid reference for a name with
   capitals (any Julia package). They use a lower-cased `image` variable, by
   repo-init's default-service-name rule (`.` and `_` become `-`). Controls:
   `tests/workflows/container_image_name_test.sh`.
 * The `validate-claude-md` pre-commit hook did not run when
-  `scripts/deed-field.sh`, the reader `extract.sh` depends on, changed.
+  `scripts/deed-field.sh`, the reader `extract.sh` depends on, changed, nor
+  when a commit only added or removed a tracked `.a2ml` file. It now runs on
+  every commit (`always_run`).
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
   `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
   false `CI/gate` failure when a workflow name contains an emoji (GitHub

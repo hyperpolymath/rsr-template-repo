@@ -56,9 +56,10 @@ in
 # extract.sh, not assertions of this engine: the clauses the deed has (`has`),
 # the tracked legacy .a2ml files (`a2ml_count`), and the ones that carry the
 # name of a clause (`legacy`). A clause the deed lacks is stated as absent, and
-# a legacy file is named only if extract.sh found it tracked. A repo whose deed
-# has every clause and whose tree tracks no .a2ml file gets the text below
-# unchanged.
+# a legacy file is named only if extract.sh found it tracked. This template
+# (every clause, every field the pack reads, no .a2ml file) gets the text below
+# unchanged. A deed that has a clause but not the field the pack reads from it
+# (a (status) with no :phase) now reads "not declared" where it read empty.
 let has = data.has in
 let legacy = data.legacy in
 let ticks = fun files => std.string.join ", " (std.array.map (fun f => "`%{f}`") files) in
@@ -97,9 +98,11 @@ let clause_sentence =
 in
 let a2ml_sentence =
   let n = data.a2ml_count in
+  # Outside a git work tree the files were found on disk; nothing is tracked.
+  let holds = if data.a2ml_source == "git-index" then "tracks" else "contains" in
   if n == 0 then "There are no `.a2ml` files in this estate."
-  else if n == 1 then "This repo still tracks 1 legacy `.a2ml` file, awaiting conversion to deed clauses (kyX, ruling D313): it is read-only pending that conversion; never create, restore or extend one, and you may only delete content from it."
-  else "This repo still tracks %{std.string.from_number n} legacy `.a2ml` files, awaiting conversion to deed clauses (kyX, ruling D313): they are read-only pending that conversion; never create, restore or extend one, and you may only delete content from one."
+  else if n == 1 then "This repo still %{holds} 1 legacy `.a2ml` file, awaiting conversion to deed clauses (kyX, ruling D313): it is read-only pending that conversion; never create, restore or extend one, and you may only delete content from it."
+  else "This repo still %{holds} %{std.string.from_number n} legacy `.a2ml` files, awaiting conversion to deed clauses (kyX, ruling D313): they are read-only pending that conversion; never create, restore or extend one, and you may only delete content from one."
 in
 
 # The CHORA row names the clauses the deed has, in the order it always has.

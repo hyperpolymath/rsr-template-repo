@@ -205,6 +205,59 @@ mkdir -p "$T/a/b" "$T/.git/objects"
 printf 'x\n' > "$T/a/b/ONE.a2ml"; printf 'x\n' > "$T/TWO.a2ml"; printf 'x\n' > "$T/.git/objects/IGNORED.a2ml"
 COUNT="$(bash "$AP/extract.sh" "$T" | jq -r '.a2ml_count')"
 equal "counts 2 (.git/ is skipped)" "$COUNT" 2
+OUT="$(render "$T")" || { fail "tree outside git renders"; OUT=""; }
+contains "says 'contains', not 'tracks': nothing is tracked there" "$OUT" 'This repo still contains 2 legacy `.a2ml` files, awaiting conversion'
+lacks "does not say 'tracks' outside a git work tree" "$OUT" 'still tracks'
+# A backslash or a newline in a name is one path, not a quoted or a split one.
+printf 'x\n' > "$T/back\\slash.a2ml"; printf 'x\n' > "$T/"$'new\nline.a2ml'
+FILES="$(bash "$AP/extract.sh" "$T" | jq -c '.a2ml_files')"
+equal "a backslash and a newline in a name stay one path each (on disk)" "$FILES" '["TWO.a2ml","a/b/ONE.a2ml","back\\slash.a2ml","new\nline.a2ml"]'
+
+echo "== the git index: one count per path, names kept as written"
+T="$(mk_tree index with-clauses)"
+add_a2ml "$T" 'back\slash.a2ml'
+add_a2ml "$T" $'new\nline.a2ml'
+FILES="$(bash "$AP/extract.sh" "$T" | jq -c '.a2ml_files')"
+equal "a backslash and a newline in a name stay one path each (tracked)" "$FILES" '["back\\slash.a2ml","new\nline.a2ml"]'
+# A conflicted path has one index entry per stage; it is still one file.
+T="$(mk_tree conflict with-clauses)"
+printf '[legacy]\n' > "$T/BOTH.a2ml"
+BLOB="$(git -C "$T" hash-object -w "$T/BOTH.a2ml")"
+printf '100644 %s 1\tBOTH.a2ml\n100644 %s 2\tBOTH.a2ml\n100644 %s 3\tBOTH.a2ml\n' "$BLOB" "$BLOB" "$BLOB" \
+    | git -C "$T" update-index --index-info
+equal "the fixture has three index entries for the one path" "$(git -C "$T" ls-files -- '*.a2ml' | grep -c .)" 3
+equal "a conflicted path is counted once" "$(bash "$AP/extract.sh" "$T" | jq -c '[.a2ml_count, .a2ml_files]')" '[1,["BOTH.a2ml"]]'
+
+echo "== a list value named like a clause is not the clause (deed.abnf: value = … / quoted / list)"
+READER="$REPO_DIR/scripts/deed-field.sh"
+# has DEED PATH -> the exit status of deed-field.sh --has
+has() { local rc=0; bash "$READER" --has "$1" "$2" || rc=$?; echo "$rc"; }
+T="$(mk_tree listvalue)"
+D="$T/fixture_chora.deed"
+sed -i 's/^  (maturity :level beta)$/  :example (agentic)\n  :quoted '"'"'(neurosym)\n&/' "$D"
+equal "the fixture holds the two list-valued fields" "$(grep -cE '^  :(example \(agentic\)|quoted .\(neurosym\))$' "$D")" 2
+equal ":example (agentic) is no (agentic) clause"     "$(has "$D" agentic)"  1
+equal ":quoted '(neurosym) is no (neurosym) clause"   "$(has "$D" neurosym)" 1
+equal "the list is still read as the field's value"   "$(bash "$READER" --list "$D" '' example)" agentic
+equal "a real clause after the fields is still found" "$(has "$D" maturity)" 0
+OUT="$(render "$T")" || { fail "list-value tree renders"; OUT=""; }
+contains "the pack reports (agentic) and (neurosym) as absent" "$OUT" 'Not yet in its deed: `(agentic)`; `(neurosym)`; `(playbook)`.'
+lacks "the pack prints no AGENTIC constraints for a list value" "$OUT" 'fail-closed; evidence-per-step'
+# The same deed with a real (agentic) clause after the list-valued field.
+sed -i 's/^  (maturity :level beta)$/&\n  (agentic :version "9.9.9")/' "$D"
+equal "a real (agentic) clause beside the list value is found" "$(has "$D" agentic)" 0
+equal "and it is the clause that is read, not the list" "$(bash "$READER" "$D" agentic version)" 9.9.9
+
+echo "== a reader failure on a (bot-directives) sub-clause stops the run"
+T="$(mk_tree readerfail with-clauses)"
+# A stand-in reader: fails (rc 2) on a bot-directives sub-clause, else the real one.
+{
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'case "$*" in *bot-directives/*) echo "deed-field.sh: no readable deed (stand-in)" >&2; exit 2 ;; esac'
+    printf 'exec bash %q "$@"\n' "$READER"
+} > "$T/scripts/deed-field.sh"
+rc=0; bash "$AP/extract.sh" "$T" >/dev/null 2>&1 || rc=$?
+equal "extract.sh fails instead of reporting the sub-clause absent" "$rc" 2
 
 echo "== generate.sh and verify.sh agree on the partly migrated child"
 T="$(mk_tree e2e)"
@@ -216,10 +269,13 @@ else
 fi
 if grep -qF 'This repo still tracks 1 legacy `.a2ml` file' "$T/CLAUDE.md"; then pass "CLAUDE.md carries the derived count"; else fail "CLAUDE.md carries the derived count"; fi
 rm "$T/.machine_readable/6a2/AGENTIC.a2ml"; git -C "$T" rm -q --cached -- .machine_readable/6a2/AGENTIC.a2ml
-if ( cd "$T" && bash .machine_readable/arrival-pack/verify.sh >/dev/null 2>&1 ); then
-    fail "verify.sh reports drift once the legacy file is gone"
-else
+# Only the drift verdict counts: exit 1 with the stale-region diagnostic. Any
+# other failure of verify.sh (a missing tool, an unreadable deed) is not drift.
+rc=0; VOUT="$(cd "$T" && bash .machine_readable/arrival-pack/verify.sh 2>&1)" || rc=$?
+if [[ "$rc" -eq 1 ]] && grep -qF 'DRIFT: CLAUDE.md arrival-pack region is stale or hand-edited.' <<<"$VOUT"; then
     pass "verify.sh reports drift once the legacy file is gone (regenerate)"
+else
+    fail "verify.sh reports drift once the legacy file is gone (regenerate)" "rc=$rc" "$VOUT"
 fi
 
 echo "== whole-file parse: content outside the one (repo-deed …) form is refused (deed_lint.js does)"
@@ -245,16 +301,25 @@ equal "deed-field.sh --strict accepts the well-formed deed" "$rc" 0
 printf 'x\n' > "$WORK/bad.deed"; cat "$WORK/ok.deed" >> "$WORK/bad.deed"
 rc=0; bash "$REPO_DIR/scripts/deed-field.sh" --strict "$WORK/bad.deed" || rc=$?
 equal "deed-field.sh --strict exits 1 on leading content" "$rc" 1
+# Byte 0x01 is the reader's record separator: one that ends the file was dropped.
+{ cat "$WORK/ok.deed"; printf '\001'; } > "$WORK/soh.deed"
+rc=0; bash "$REPO_DIR/scripts/deed-field.sh" --strict "$WORK/soh.deed" || rc=$?
+equal "deed-field.sh --strict exits 1 on a trailing 0x01 byte" "$rc" 1
 
 # Where the estate linter is checked out, it must agree with the strict mode.
 LINT="${STANDARDS_DIR:-$REPO_DIR/../standards}/1-formats/deed/tools/deed_lint.js"
 if command -v bun >/dev/null 2>&1 && [[ -f "$LINT" ]]; then
     cp "$WORK/ok.deed" "$WORK/okcase_chora.deed"
     { cat "$WORK/ok.deed"; printf 'trailing\n'; } > "$WORK/trail_chora.deed"
-    if bun "$LINT" "$WORK/okcase_chora.deed" >/dev/null 2>&1 && ! bun "$LINT" "$WORK/trail_chora.deed" >/dev/null 2>&1; then
-        pass "deed_lint.js agrees: the fixture is valid, the trailing-content variant is not"
+    rc=0; LOUT="$(bun "$LINT" "$WORK/okcase_chora.deed" 2>&1)" || rc=$?
+    equal "deed_lint.js accepts the fixture" "$rc" 0
+    # The linter must refuse the variant FOR its trailing content: a linter that
+    # could not run, or refused it for another reason, is not agreement.
+    rc=0; LOUT="$(bun "$LINT" "$WORK/trail_chora.deed" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]] && grep -qF "trailing content after the form's closing ')'" <<<"$LOUT"; then
+        pass "deed_lint.js refuses the trailing-content variant, by that diagnostic"
     else
-        fail "deed_lint.js agrees: the fixture is valid, the trailing-content variant is not"
+        fail "deed_lint.js refuses the trailing-content variant, by that diagnostic" "rc=$rc" "$LOUT"
     fi
 else
     echo "  SKIP  deed_lint.js cross-check (needs bun and a standards checkout: set STANDARDS_DIR, default ../standards)"

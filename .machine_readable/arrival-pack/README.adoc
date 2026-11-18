@@ -40,10 +40,11 @@ its remaining A2ML still waits for conversion (kyX, ruling D313). So
 `extract.sh` reports two facts about the tree, and `arrival-pack.ncl` states
 only what they show:
 
-* *The tracked `.a2ml` files* (`git ls-files '*.a2ml'`; outside a git work tree,
-  every `.a2ml` file under the tree except `.git/`). With none, the region says
-  there are none. Otherwise it gives the count and says the files are read-only
-  pending conversion.
+* *The tracked `.a2ml` files* (`git ls-files '*.a2ml'`, each path once). With
+  none, the region says there are none. Otherwise it gives the count and says
+  the files are read-only pending conversion. Outside a git work tree nothing
+  is tracked: every `.a2ml` file under the tree except `.git/` is counted
+  instead, and the region says the repo "contains" them, not "tracks".
 * *The clauses the deed has*, asked with `scripts/deed-field.sh --has`:
   `(anchor)`, `(agentic)`, `(ecosystem)`, `(status)`, `(maturity)`,
   `(neurosym)`, `(playbook)`, `(meta)` and the three sub-clauses of
@@ -58,16 +59,38 @@ regard to case), and any tracked `.a2ml` file under a `bot_directives/`
 directory for `(bot-directives)`. The match is by file name; the pack does not
 read the file.
 
-A repo whose deed has every clause and whose tree tracks no `.a2ml` file gets
-the same bytes as before. Deleting or converting a legacy file changes the
-region, so `just validate-claude-md` reports drift until `just claude-md` is
-run again. Controls: `tests/workflows/arrival_pack_derived_facts_test.sh`.
+This template gets the same bytes as before: its deed has every clause and
+every field the pack reads, and its tree tracks no `.a2ml` file. That is not
+true of every such repo. A deed that has a clause without the field the pack
+reads from it (a `(status)` with no `:phase`) used to render an empty value and
+now renders "not declared".
+
+Deleting or converting a legacy file changes the region, so
+`just validate-claude-md` reports drift until `just claude-md` is run again.
+Both commands read the git index, not the work tree, so the order matters:
+
+. stage the removal (`git rm <file>.a2ml`);
+. regenerate (`just claude-md`);
+. stage the result (`git add CLAUDE.md`), and commit the two together.
+
+A file deleted on disk but not staged still counts. The pre-commit hook runs on
+every commit for this reason: pre-commit passes no deleted path to a `files:`
+filter. Controls: `tests/workflows/arrival_pack_derived_facts_test.sh`.
 
 `extract.sh` also refuses a deed that is not exactly one form. `deed-field.sh`
 reads the first `(repo-deed …)` form and ignores what follows, while standards
 `deed_lint.js` rejects "trailing content after the form's closing ')'"; the
 reader's `--strict` mode closes that gap. Whitespace and comments after the
 form are allowed, as in the linter.
+
+`--strict` checks token boundaries only and does not replace `deed_lint.js`.
+The reader's tokeniser is more lenient than the grammar: it accepts a tab as
+whitespace and a last comment with no line end, and the linter refuses both.
+A deed must still pass the linter (`.github/hooks/validate-deed.sh`).
+
+The reader does not take a field's list value for a clause. In
+`:example (agentic)` the parentheses are a list (deed.abnf `value`), so the
+deed has no `(agentic)` clause and the pack says so.
 
 == Files
 

@@ -13,7 +13,8 @@
 # Besides the deed's fields it reports two facts about the tree, so the pack
 # states them instead of asserting them: which of the clauses the pack names
 # are in the deed (`has`), and the tracked legacy .a2ml files (`a2ml_files`,
-# `a2ml_count`, and `legacy`, the ones that carry the name of an absent clause).
+# `a2ml_count`, `a2ml_source` saying where they were found, and `legacy`, the
+# ones that carry the name of an absent clause).
 #
 # This is a READER only — it authors nothing. The deed remains the single
 # source of truth; arrival-pack.ncl renders this JSON into the CLAUDE.md region.
@@ -78,16 +79,23 @@ has_clause() {
   if [ "$rc" -eq 0 ]; then echo true; else echo false; fi
 }
 
-# a2ml_list -> the tracked legacy .a2ml files, one path per line, relative to
-# ROOT. Outside a git work tree nothing is tracked, so every .a2ml file under
-# ROOT (minus .git/) stands in for them. Sorted bytewise, so the order (and the
-# drift check's byte-compare) does not depend on the locale.
+# The tracked legacy .a2ml files are read from the git index. Outside a git
+# work tree nothing is tracked, so every .a2ml file under ROOT (minus .git/)
+# stands in for them, and the pack says "contains", not "tracks".
+a2ml_source=filesystem
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then a2ml_source=git-index; fi
+
+# a2ml_list -> those paths, NUL-delimited, each once. NUL-delimited end to end,
+# so git quotes nothing and a backslash or a newline in a name stays one path.
+# A conflicted path has one index entry per stage: `sort -u` counts it once.
+# Sorted bytewise, so the order (and the drift check's byte-compare) does not
+# depend on the locale.
 a2ml_list() {
-  if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$ROOT" -c core.quotePath=false ls-files -- '*.a2ml' | LC_ALL=C sort
+  if [ "$a2ml_source" = git-index ]; then
+    git -C "$ROOT" ls-files -z -- '*.a2ml'
   else
-    (cd "$ROOT" && find . -path ./.git -prune -o -type f -name '*.a2ml' -print | sed 's#^\./##' | LC_ALL=C sort)
-  fi
+    (cd "$ROOT" && find . -path ./.git -prune -o -type f -name '*.a2ml' -print0)
+  fi | LC_ALL=C sort -zu
 }
 
 # hash12 -> short content hash of stdin (drift provenance)
@@ -183,9 +191,12 @@ has_meta="$(has_clause meta)"
 # bot-directives is named by its three sub-clauses, so those are reported.
 bd_present=""
 for c in methodology coverage debt; do
-  if [ "$(has_clause "bot-directives/$c")" = true ]; then bd_present="$bd_present$c"$'\n'; fi
+  # Assigned first: inside the test, a reader failure (rc 2) would be lost.
+  has_bd="$(has_clause "bot-directives/$c")"
+  if [ "$has_bd" = true ]; then bd_present="$bd_present$c"$'\n'; fi
 done
-a2ml_files="$(a2ml_list)"
+# A JSON array; find's leading "./" is dropped so both sources name paths alike.
+a2ml_files="$(a2ml_list | jq -Rsc 'split("\u0000") | map(select(. != "") | ltrimstr("./"))')"
 
 jq -cnS \
   --arg canonical_name "$canonical_name" \
@@ -207,7 +218,8 @@ jq -cnS \
   --arg h_anchor       "$h_anchor" \
   --arg anchor_forbidden "$anchor_forbidden" \
   --arg anchor_allowed   "$anchor_allowed" \
-  --arg a2ml_files       "$a2ml_files" \
+  --argjson a2ml_files   "$a2ml_files" \
+  --arg a2ml_source      "$a2ml_source" \
   --arg bd_present       "$bd_present" \
   --argjson has_anchor    "$has_anchor" \
   --argjson has_agentic   "$has_agentic" \
@@ -217,14 +229,13 @@ jq -cnS \
   --argjson has_neurosym  "$has_neurosym" \
   --argjson has_playbook  "$has_playbook" \
   --argjson has_meta      "$has_meta" \
-  '($a2ml_files | split("\n") | map(select(. != ""))) as $f
+  '$a2ml_files as $f
    | def named($n): [$f[] | select((split("/") | last | ascii_downcase) == $n)];
    ($ARGS.named
-    | del(.a2ml_files, .bd_present, .has_anchor, .has_agentic, .has_ecosystem,
+    | del(.bd_present, .has_anchor, .has_agentic, .has_ecosystem,
           .has_status, .has_maturity, .has_neurosym, .has_playbook, .has_meta))
    | .anchor_forbidden |= (split("\n") | map(select(. != "")))
    | .anchor_allowed   |= (split("\n") | map(select(. != "")))
-   | .a2ml_files = $f
    | .a2ml_count = ($f | length)
    | .has = {anchor: $has_anchor, agentic: $has_agentic, ecosystem: $has_ecosystem,
              status: $has_status, maturity: $has_maturity, neurosym: $has_neurosym,

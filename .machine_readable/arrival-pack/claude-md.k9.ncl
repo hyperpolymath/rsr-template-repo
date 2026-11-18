@@ -42,7 +42,7 @@ K9!
     # Facts read from the tree, never authored: the pack states them instead of
     # asserting them, so a repo with legacy A2ML is not told it has none.
     tree_facts = [
-      "tracked .a2ml files: git ls-files '*.a2ml' (every .a2ml under the tree, minus .git/, outside a git work tree)",
+      "tracked .a2ml files: git ls-files '*.a2ml', each path once (every .a2ml under the tree, minus .git/, outside a git work tree, where the region says 'contains')",
       "which of (anchor) (agentic) (ecosystem) (status) (maturity) (neurosym) (playbook) (meta) (bot-directives (methodology) (coverage) (debt)) the deed has",
     ],
     estate_common = "hyperpolymath/manifesto@<pinned-sha>",  # DRAFT-unratified today
