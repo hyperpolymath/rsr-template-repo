@@ -24,7 +24,10 @@ fixture() {
     echo "$d"
 }
 # run DIR — the canary's exit status; its output in $work/out.
-run() { (cd "$1" && GITHUB_STEP_SUMMARY=/dev/null bash "$work/canary.sh") > "$work/out" 2>&1; }
+run() {
+    local directory="$1"
+    (cd "$directory" && GITHUB_STEP_SUMMARY=/dev/null bash "$work/canary.sh") > "$work/out" 2>&1
+}
 
 guides=(CONTRIBUTING.md CONTRIBUTING.adoc .github/CONTRIBUTING.md .github/CONTRIBUTING.adoc)
 for guide in "${guides[@]}"; do

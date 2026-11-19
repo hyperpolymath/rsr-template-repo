@@ -40,6 +40,21 @@ a successful oracle invocation does not establish an RSR compliance tier.
 This upstream repair accompanies Secret Types PR #50. Existing template
 coverage/debt placeholders remain placeholders for newly minted repositories.
 
+Further review found limitations in the checkout census's hand-written YAML
+reader. The follow-up uses verified yq 4.53.3 with a raw mapping-key uniqueness
+check before conversion, then structured job/step/input resolution. Estate
+Rules already supplies the pinned tool; Squabble and the Proven workflow now
+supply the same prerequisite. GitHub workflow-schema validity remains a
+separate check. Current-source parser controls and hosted CI are required
+before this source repair is considered complete.
+
+PR #418 merged as `0044ad92f9e6ef258b89f3e9b5ee7b748a4db2d2`, with the same
+tree as its reviewed head; the parser correction follows in a separate PR.
+The existing contribution-canary regression is now wired into Estate Rules.
+Shared Sonar maintainability corrections preserve the parser contract and
+fixture semantics. Fresh hosted validation must cover the revised source;
+the earlier 118-control local passes apply to the pre-Sonar snapshot only.
+
 === Existing milestones
 
 [cols="5,1",options="header"]

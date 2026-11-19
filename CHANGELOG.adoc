@@ -8,6 +8,28 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Added
+
+* **The drift gate derives its own declarations.** `check-mint-drift.sh
+  --emit-paths` prints the `(variant (paths …))` clause that declares every
+  finding of a replay of the mint; `--write-paths` writes it through
+  `deed-clause.sh` and checks again. Existing entries are kept; new additions
+  and removals collapse to the shallowest directory holding nothing the other
+  side has (a directory entry stays a checked claim); a divergence is always
+  one file. A wrong declaration is refused by name, never rewritten. First
+  measured on catachresis-colloquium/cytoville (611 tracked files, 479
+  byte-identical to the replay): its 131 undeclared findings (88 added, 40
+  diverged, 3 removed) became 36 added and 7 removed entries and 44 diverged
+  files, green under the gate as it was before this change as well as after.
+* **`(mint-answers :schema-version "1")`.** The answers say how they are read;
+  `replay-mint.sh` and `check-mint-drift.sh` read schemas 0 (none recorded)
+  and 1, and refuse any other before minting.
+* **`(provenance :derived-from-commit)` on a chain mint.** The parent's commit,
+  found by tree equality in its history (`resolve-template-pin.sh`, from
+  `RSR_PARENT_URL` or the parent's forge), so a chain child can later be
+  re-derived when its parent moves. Unresolvable stops the chain before it
+  writes; `RSR_ALLOW_UNPINNED=1` records `UNASSIGNED`, as for a root mint.
+
 ==== Fixed
 
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
@@ -47,6 +69,21 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   and is left in place for a follow-up removal.
 
 ==== Added
+
+* **A deed must name the repository it is checked out as.**
+  `scripts/check-identity-matches-repo.sh` fails when the deed's
+  `:canonical-name`, file name, `(identity :owner)`, `(forges :github)` or
+  `:repo-uuid` do not agree with the repository (`$GITHUB_REPOSITORY`, else the
+  git origin, else the directory name; `scripts/repo-slug.sh` is now the one
+  definition, shared with `is-template-tree.sh`). The id is recomputed as the
+  UUIDv8 of the birth path `github.com/<owner>/<name>`, in the domain
+  `chora-registry` or `gv-clade-index`. A renamed repo keeps its id and
+  records the old name in `(lineage :previous-names)`; a transferred repo
+  fails, because the deed cannot yet record a previous owner; a fork fails in
+  its own CI. There is no allow-list. Run in `estate-rules.yml` beside
+  `check-identity.sh`, which checks only the literal form and passed repos
+  that still carried the template's deed. The mint end-to-end test now
+  requires a fresh mint to pass it.
 
 * **Chain minting: a minted repo can be minted again.** "Use this template"
   on a minted repo now mints correctly (owner ruling 2026-11-04, after the

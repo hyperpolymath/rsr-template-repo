@@ -40,4 +40,13 @@ Nickel runner and its k9 service-automation component. See
 deed's `(policies …)` clauses.
 
 `(rsr-profile)` (repo deed clause):: This repository's declared RSR v2.0 capabilities,
-which gate which conformance criteria apply to it.
+which gate which conformance criteria apply to it. They also widen the root
+allowlist: `scripts/check-root-shape.sh` admits every root-level module the
+gate table gates on a declared capability.
+
+`template-capability-gates.toml`:: A byte copy of the canon's gate table
+(`metadatastician/standards` `.machine_readable/template-capability-gates.toml`),
+vendored so `scripts/check-root-shape.sh` can derive the root allowlist without
+fetching the canon. Its sha256 must equal the repo deed's `(canon :gates-sha256)`
+pin, or the check refuses to run (exit 2): adopting a canon release means bumping
+the pin and re-vendoring this file in the same commit. Never edit it here.

@@ -220,6 +220,10 @@ without any exemption. Nothing here weakens, bypasses or excuses the ruleset.
   badge URL has no `/<repo>` segment; `just repo-init` drops it for that name form
   (case-insensitively) and keeps it for every other repository.
   `tests/workflows/user_pages_badge_url_test.sh` runs that rule.
+  The slug check accepts that name form (`<owner>.github.io`, compared
+  case-insensitively with the owner; another owner's is still refused), so the
+  rule is reachable: `scripts/check-repo-slug.sh`, run by
+  `tests/workflows/repo_slug_check_test.sh`.
 
 === What each colour means
 

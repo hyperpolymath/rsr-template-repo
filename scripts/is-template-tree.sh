@@ -13,8 +13,8 @@
 #   * archetypes/ exists (the mint removes it, see docs/architecture/REPOSITORY-MAP.adoc);
 #   * the repository it is checked out as is rsr-template-repo: the basename of
 #     $GITHUB_REPOSITORY in CI, else of the git origin URL, else of ROOT's
-#     directory name. A copy of the template under another repo's name is a
-#     minted repo for this purpose.
+#     directory name (scripts/repo-slug.sh, the one definition). A copy of the
+#     template under another repo's name is a minted repo for this purpose.
 set -u
 root="${1:-.}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,11 +23,5 @@ deed="$root/rsr-template-repo_chora.deed"
 [ -d "$root/archetypes" ] || exit 1
 name="$(bash "$here/deed-field.sh" "$deed" "" canonical-name 2>/dev/null)" || exit 1
 [ "$name" = "rsr-template-repo" ] || exit 1
-if [ -n "${GITHUB_REPOSITORY:-}" ]; then
-  slug="${GITHUB_REPOSITORY##*/}"
-elif url="$(git -C "$root" remote get-url origin 2>/dev/null)" && [ -n "$url" ]; then
-  slug="${url##*/}"; slug="${slug%.git}"
-else
-  slug="$(basename "$(cd "$root" && pwd)")"
-fi
+slug="$(bash "$here/repo-slug.sh" --name "$root" 2>/dev/null)" || exit 1
 [ "$slug" = "rsr-template-repo" ]

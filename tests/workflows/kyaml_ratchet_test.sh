@@ -12,7 +12,7 @@ trap 'rm -rf "$scratch"' EXIT
 workflow="$repo/.github/workflows/estate-rules.yml"
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-install_name='Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)'
+install_name='Install verified yq 4.53.3 and kyaml-format.sh (standards f0b3cd4)'
 gate_name='Converted YAML stays KYAML'
 export install_name gate_name
 for step_name in "$install_name" "$gate_name"; do
@@ -24,6 +24,23 @@ for step_name in "$install_name" "$gate_name"; do
 done
 indices=$(yq -o json -I 0 '.jobs.estate-rules.steps | to_entries | [.[] | select(.value.name == strenv(install_name) or .value.name == strenv(gate_name)) | .value.name]' "$workflow")
 [[ "$indices" = "[\"$install_name\",\"$gate_name\"]" ]] || fail 'formatter installation must precede the ratchet'
+
+# The commit the step name cites must be the commit the download URL pins, so
+# a pin bump cannot leave a stale label behind (rsr-template-repo#425).
+label_matches_pin() { # $1 step name, $2 step run script
+    local label url
+    label=$(sed -nE 's/.*\(standards ([0-9a-f]{7,40})\)$/\1/p' <<<"$1")
+    url=$(sed -nE 's#.*metadatastician/standards/([0-9a-f]{40})/scripts/kyaml-format\.sh.*#\1#p' <<<"$2")
+    [[ -n "$label" && -n "$url" && "$url" == "$label"* ]]
+}
+install_run=$(yq -r '.jobs.estate-rules.steps[] | select(.name == strenv(install_name)) | .run' "$workflow")
+label_matches_pin "$install_name" "$install_run" \
+    || fail 'install step name must cite the standards commit its kyaml-format.sh URL pins'
+# Negative controls: the check must reject a stale label and an unlabeled name.
+label_matches_pin 'Install verified yq 4.53.3 and kyaml-format.sh (standards deadbee)' "$install_run" \
+    && fail 'control: a stale label (deadbee) was accepted'
+label_matches_pin 'Install verified yq 4.53.3 and kyaml-format.sh' "$install_run" \
+    && fail 'control: a name with no cited commit was accepted'
 yq -r '.jobs.estate-rules.steps[] | select(.name == strenv(install_name)) | .run' "$workflow" > "$scratch/install.sh"
 yq -r '.jobs.estate-rules.steps[] | select(.name == strenv(gate_name)) | .run' "$workflow" > "$scratch/gate.sh"
 
