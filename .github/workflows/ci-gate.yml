@@ -61,7 +61,7 @@ on:
   workflow_run:
     workflows:
       - "Dogfood Gate"
-      - "🔴 GATE: Invisible Character Detection"
+      - "\U0001F534 GATE: Invisible Character Detection"
       - "Estate Rules"
       - "Governance"
       - "Lock Sync Gate"
