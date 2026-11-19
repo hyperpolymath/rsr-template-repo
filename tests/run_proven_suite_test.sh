@@ -135,6 +135,13 @@ jq -e '.schema_version == 1 and .suite == "proven-bench" and .commit == "unknown
   and [.results[].name] == ["escape_hatches","ijson_jcs","required_contexts","root_shape"]
   and all(.results[]; .checksum == true and .iterations == 5 and .median_ns > 0)' \
   "$work/out" >/dev/null || fail 'JSON benchmark contract is wrong'
+# The per-sample diagnostic goes to stderr, one line per workload, and leaves
+# the JSON document on stdout untouched (checked above and as canonical below).
+for name in escape_hatches ijson_jcs required_contexts root_shape; do
+  grep -qE "^bench-samples: $name ms: warm-up [0-9]+; samples( [0-9]+){5}\$" "$work/err" \
+    || fail "no per-sample diagnostic for $name on stderr"
+done
+! grep -q 'bench-' "$work/out" || fail 'benchmark diagnostic leaked into the JSON document'
 for name in check-escape-hatches.sh check-ijson-jcs.sh check-required-contexts.sh check-root-shape.sh; do
   [[ "$(grep -cFx "$name" "$LANE_CALLS")" -eq 6 ]] || fail "$name needs one warmup plus five samples"
 done
