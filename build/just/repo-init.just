@@ -1607,8 +1607,10 @@ repo-init archetype="":
     {
         echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
         echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
-        echo "  ; here already appears in this repo's rendered files."
+        echo "  ; here already appears in this repo's rendered files, but :schema-version,"
+        echo "  ; which says how to read the rest (readers refuse one they do not know)."
         echo "  (mint-answers"
+        echo "    :schema-version \"1\""
         printf '%s\n' "${_ANSWERS[@]}"
         echo "    :mint-date \"${CURRENT_DATE}\")"
     } | put_clause mint-answers
