@@ -121,7 +121,9 @@ just validate-claude-md   # fail if the committed region drifted / was hand-edit
 * A repo's `(anchor (implementation-policy …))` renders as one "Anchor
   override" line in the repo-specific part: what `:forbidden` lists, and any
   language `:allowed` lists that the estate policy denies. An allowed language
-  the estate does not deny is no override and is not listed. The line is
+  the estate does not deny is no override and is not listed. AGPL is a licence
+  and is never counted as allowed. The "Constraints here" line names the same
+  allowed languages as exceptions to "banned langs". The override line is
   hidden when there is neither. Controls:
   `tests/workflows/arrival_pack_anchor_override_test.sh`.
 * The `(anchor)` clause currently encodes semantic-authority + golden-path; the

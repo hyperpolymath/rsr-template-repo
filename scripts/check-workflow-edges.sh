@@ -64,6 +64,21 @@ if [ ! -f "$PUBLISHER" ]; then
   exit 2
 fi
 
+# The YAML extractor needs Mike Farah yq, not the unrelated Python yq wrapper.
+# CI installs exact checksum-pinned 4.53.3; local runs require v4 >=4.53.3.
+if ! command -v yq >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+  echo "check-workflow-edges: setup requires Mike Farah yq >=4.53.3 (v4) and jq" >&2
+  exit 2
+fi
+yq_version="$(yq --version 2>&1)" || {
+  echo "check-workflow-edges: cannot read the required yq version" >&2; exit 2;
+}
+if [[ ! "$yq_version" =~ mikefarah/yq/.*version\ v([0-9]+)\.([0-9]+)\.([0-9]+) ]] ||
+   (( BASH_REMATCH[1] != 4 || BASH_REMATCH[2] < 53 || (BASH_REMATCH[2] == 53 && BASH_REMATCH[3] < 3) )); then
+  echo "check-workflow-edges: setup requires Mike Farah yq >=4.53.3 (v4); got $yq_version" >&2
+  exit 2
+fi
+
 # ── helpers ─────────────────────────────────────────────────────────────────
 errors=0
 fail() {
@@ -102,133 +117,84 @@ env_pin() {
 }
 
 
-# hypatia_checkouts FILE — literal checkout pins, including the RSR oracle.
-# Supported form: block-mapping checkout steps, one with/repository/ref each;
-# sequence items may be indentless or further indented under steps. Step keys
-# follow the inline list-item key column; flow/aliased mappings fail closed.
-# A ref may be a full SHA or exactly env.NAME in workflow env or this job's env.
-# A unique job declaration overrides workflow env; sibling jobs cannot supply
-# values. Duplicate declarations in the selected scope and step-env bindings
-# fail closed. Whole-step flow mappings, aliases and anchors are unsupported.
-# Block scalar bodies are skipped: a shell example is not a checkout input.
+# hypatia_checkouts FILE — inspect real YAML nodes, never source indentation.
+# Reject duplicate mapping keys on the raw AST before aliases are expanded or
+# JSON is emitted; JSON conversion alone preserves/loses ambiguity downstream.
+# yq decodes anchors, aliases, block scalars and flow maps. jq then checks typed
+# jobs/steps/inputs and literal env bindings with step > job > workflow priority.
+# An uninspectable overriding scope is an error, never permission to fall back.
 hypatia_checkouts() {
-  awk '
-    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-    function scalar(s) {
-      sub(/[[:space:]]+#.*$/, "", s); s = trim(s)
-      if ((substr(s,1,1) == "\047" && substr(s,length(s),1) == "\047") ||
-          (substr(s,1,1) == "\"" && substr(s,length(s),1) == "\"")) s = substr(s,2,length(s)-2)
-      return s
-    }
-    function flush() {
-      if (checkout && unsupported) target = 1
-      if (whole_unsupported || (target && checkout)) {
-        n++; refs[n] = ref; scopes[n] = job; step_scopes[n] = step_no; sites[n] = start
-        if (whole_unsupported) reasons[n] = "unsupported complete step mapping (flow, alias, anchor or non-inline key)"
-        else if (uses != 1 || !checkout || withs != 1 || repos != 1 || nrefs != 1 || unsupported)
-          reasons[n] = "ambiguous or unsupported with/repository/ref checkout mapping"
-      }
-      target = checkout = uses = withs = repos = nrefs = unsupported = whole_unsupported = 0
-      ref = ""; wi = -1
-    }
-    BEGIN { si = step = seq = block = ei = -1; job = 0 }
-    {
-      line = $0; sub(/\r$/, "", line)
-      match(line,/^[ ]*/); ind = RLENGTH
-      if (line ~ /^[[:space:]]*(#|$)/) next
-      if (block >= 0 && ind > block) next
-      block = -1
-      body = substr(line, ind + 1); dash = ""
-      if (body ~ /^-[[:space:]]+/) { match(body,/^-[[:space:]]+/); dash = substr(body,1,RLENGTH); sub(/^-[[:space:]]+/, "", body) }
-      if (body ~ /^["\047][A-Za-z_][A-Za-z0-9_-]*["\047]:/) {
-        at = index(body, ":")
-        if (substr(body,1,1) == substr(body,at-1,1))
-          body = substr(body,2,at-3) substr(body,at)
-      }
-      line = substr(line,1,ind) dash body
-      header = line; sub(/[[:space:]]+#.*$/, "", header); sub(/[[:space:]]+$/, "", header)
-      if (line ~ /:[[:space:]]*[|>][-+0-9]*([[:space:]]+#.*)?[[:space:]]*$/) block = ind + length(dash)
-      if (header ~ /^  [A-Za-z0-9_-]+:[[:space:]]*$/) { flush(); job++; si = step = seq = -1 }
-      if (ei >= 0 && ind <= ei) ei = -1
-      if (header ~ /^[ ]*env:[[:space:]]*$/) {
-        ei = ind
-        es = (ind == 0 ? 0 : (step >= 0 && ind == keycol ? "step-" step_no : (ind == 4 ? job : "unsupported")))
-        next
-      }
-      if (header ~ /^[ ]*env:/ && (ind == 0 || ind == 4)) {
-        unknown_env[(ind == 0 ? 0 : job)] = 1; next
-      }
-      if (ei >= 0 && ind == ei + 2 && line ~ /^[ ]*[A-Z_][A-Z0-9_]*:/) {
-        key = trim(line); sub(/:.*/, "", key); value = line; sub(/^[^:]*:/,"",value)
-        binding = es SUBSEP key; counts[binding]++; values[binding] = scalar(value)
-      }
-      if (si >= 0 && (ind < si || (ind == si && line !~ /^[ ]*-/))) { flush(); si = step = seq = -1 }
-      if (header ~ /^[ ]*steps:[[:space:]]*$/) { si = ind; seq = -1; next }
-      if (si < 0) next
-      if (ind >= si && (seq < 0 || ind == seq) && line ~ /^[ ]*-([[:space:]]|$)/) {
-        flush(); seq = step = ind; keycol = ind + length(dash); start = FNR; step_no++
-        item = header; sub(/^[ ]*-[[:space:]]*/, "", item)
-        if (item !~ /^[A-Za-z_][A-Za-z0-9_-]*:/) whole_unsupported = 1
-      }
-      if (step < 0) next
-      if (wi >= 0 && ind <= wi) wi = -1
-      text = trim(line); sub(/^-[[:space:]]+/, "", text)
-      if ((ind == step || ind == keycol) && text ~ /^env:/) {
-        env_header = text; sub(/[[:space:]]+#.*$/, "", env_header)
-        if (env_header ~ /^env:[[:space:]]*$/) { ei = keycol; es = "step-" step_no }
-        else unknown_step_env[step_no] = 1
-        next
-      }
-      if ((ind == step || ind == keycol) && text ~ /^uses:/) {
-        uses++; value = text; sub(/^uses:[[:space:]]*/, "", value)
-        if (tolower(scalar(value)) ~ /^actions\/checkout@/) checkout = 1
-      }
-      if ((ind == step || ind == keycol) && text ~ /^with:/) {
-        withs++; wi = keycol
-        if (text !~ /^with:[[:space:]]*(#.*)?$/) {
-          unsupported = 1
-          if (index(text,"hyperpolymath/hypatia")) target = 1
-        }
-        next
-      }
-      if (wi >= 0 && text ~ /^(repository|ref):/) {
-        key = text; sub(/:.*/, "", key); value = text; sub(/^[^:]*:/,"",value); value = scalar(value)
-        if (ind != wi + 2) unsupported = 1
-        if (key == "repository") {
-          repos++
-          if (tolower(value) == "hyperpolymath/hypatia") target = 1
-          else if (value !~ /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/) { target = 1; unsupported = 1 }
-        }
-        else { nrefs++; ref = value }
-      } else if (wi >= 0 && index(tolower(text),"hyperpolymath/hypatia")) {
-        target = 1; unsupported = 1
-      } else if (wi >= 0 && text ~ /^<<:/) {
-        unsupported = 1
-      }
-    }
-    END {
-      flush()
-      for (i=1; i<=n; i++) {
-        value = refs[i]
-        if (value ~ /^\$\{\{[[:space:]]*env\.[A-Z_][A-Z0-9_]*[[:space:]]*\}\}$/) {
-          key = value; sub(/^\$\{\{[[:space:]]*env\./,"",key); sub(/[[:space:]]*\}\}$/, "", key)
-          local_binding = scopes[i] SUBSEP key; global_binding = 0 SUBSEP key
-          binding = (counts[local_binding] > 0 ? local_binding : global_binding)
-          if (unknown_step_env[step_scopes[i]] || counts["step-" step_scopes[i] SUBSEP key] > 0)
-            reasons[i] = "unsupported step-env binding for checkout ref"
-          else if (unknown_env[scopes[i]] || (binding == global_binding && unknown_env[0]))
-            reasons[i] = "unsupported env mapping in the applicable checkout scope"
-          else if (counts[binding] != 1)
-            reasons[i] = "missing or ambiguous env binding for checkout ref"
-          value = values[binding]
-        }
-        if (reasons[i] == "" && (length(value) != 40 || value ~ /[^0-9a-f]/))
-          reasons[i] = "missing or non-literal full-SHA checkout ref (or unresolved env binding)"
-        if (reasons[i] != "") print "!\tline " sites[i] ": " reasons[i]
-        else print value "\tline " sites[i]
-      }
-    }
-  ' "$1"
+  local workflow="$1" preflight duplicates keys
+  preflight="$(yq -p yaml -o yaml -r -N '
+    ([.. | select(kind == "map") | to_entries | group_by(.key) |
+      .[] | select(length > 1)] | length) as $duplicates |
+    ([.. | select(kind == "map") | to_entries[] | .key |
+      select(kind != "scalar" or (tag != "!!str" and tag != "!!merge"))] | length) as $keys |
+    [$duplicates, $keys] | @tsv
+  ' "$workflow")" || return 1
+  while IFS=$'\t' read -r duplicates keys; do
+    [[ "$duplicates" =~ ^[0-9]+$ && "$keys" =~ ^[0-9]+$ ]] || return 1
+    if (( duplicates > 0 )); then
+      printf '!\tduplicate YAML mapping keys (raw AST)\n'; return 0
+    fi
+    if (( keys > 0 )); then
+      printf '!\taliased, complex or non-string YAML mapping keys are unsupported\n'; return 0
+    fi
+  done <<< "$preflight"
+  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" |
+    jq -sr '
+def text: gsub("^\\s+|\\s+$"; "");
+def row($pin; $where): [$pin, $where] | @tsv;
+def bad($where; $why): row("!"; $where + ": " + $why);
+def binding($scope; $name):
+  if ($scope | has("env") | not) then {present:false}
+  elif ($scope.env | type) != "object" then {error:"uninspectable env mapping for checkout env binding"}
+  elif ($scope.env | has($name)) then {present:true,value:$scope.env[$name]}
+  else {present:false} end;
+def lookup($scopes; $name):
+  reduce $scopes[] as $scope ({present:false};
+    if .present or has("error") then . else binding($scope; $name) end);
+def inspect($root; $job; $entry):
+  ("job " + ($job.key | tojson) + " step " + (($entry.key + 1) | tostring)) as $where |
+  $entry.value as $step |
+  if ($step | type) != "object" then bad($where; "step must be a mapping")
+  elif ($step | has("uses") | not) then empty
+  elif ($step.uses | type) != "string" then bad($where; "uninspectable uses selector")
+  elif ($step.uses | text | contains("${{")) then bad($where; "uninspectable uses selector expression")
+  elif ($step.uses | text | ascii_downcase | startswith("actions/checkout@") | not) then empty
+  elif ($step | has("with") | not) then empty
+  elif ($step.with | type) != "object" then bad($where; "checkout with inputs must be a mapping")
+  elif ($step.with | to_entries | group_by(.key | ascii_downcase) | any(length > 1))
+    then bad($where; "checkout input names collide case-insensitively")
+  else
+    ($step.with | with_entries(.key |= ascii_downcase)) as $inputs |
+    if ($inputs | has("repository") | not) then empty
+    elif ($inputs.repository | type) != "string" then bad($where; "uninspectable checkout repository selector")
+    elif ($inputs.repository | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
+    elif ($inputs.repository | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
+    elif ($inputs.ref | type) != "string" then bad($where; "missing or non-literal full-SHA checkout ref")
+    else ($inputs.ref | text) as $raw |
+      (if ($raw | test("^\\$\\{\\{\\s*env\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\}\\}$"))
+       then ($raw | capture("^\\$\\{\\{\\s*env\\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\}\\}$").name) as $name |
+            lookup([$step,$job.value,$root]; $name)
+       else {present:true,value:$raw} end) as $resolved |
+      if ($resolved | has("error")) then bad($where; $resolved.error)
+      elif ($resolved.present | not) then bad($where; "missing env binding for checkout ref")
+      elif ($resolved.value | type) != "string" then bad($where; "checkout env binding is not a literal string")
+      elif ($resolved.value | text | test("^[0-9a-f]{40}$") | not) then bad($where; "missing or non-literal full-SHA checkout ref (or unresolved env binding)")
+      else row(($resolved.value | text); $where) end
+    end
+  end;
+if length != 1 then bad("workflow"; "expected exactly one YAML document")
+elif (.[0] | type) != "object" then bad("workflow"; "root must be a mapping")
+elif (.[0].jobs | type) != "object" then bad("workflow"; "jobs must be a mapping")
+else .[0] as $root | $root.jobs | to_entries[] as $job |
+  if ($job.value | type) != "object" then bad("workflow"; "job must be a mapping")
+  elif ($job.value | has("steps") | not) then empty
+  elif ($job.value.steps | type) != "array" then bad("workflow"; "job steps must be a sequence")
+  else $job.value.steps | to_entries[] | inspect($root; $job; .) end
+end
+    '
 }
 
 # reusable_calls FILE — every job-level reusable-workflow call in FILE
@@ -285,8 +251,8 @@ reusable_source() {
 }
 # ── 1. workflow_run edges resolve to a workflow `name:` ─────────────────────
 # `workflow_run: workflows:` is a YAML list under the trigger. Read it as text:
-# the file is under this repository's control and a YAML parser is one more
-# dependency for a check whose whole value is running where nothing else does.
+# this legacy edge reader retains its existing implementation. The Hypatia
+# checkout reader below uses the required structured YAML parser.
 edges="$(awk '
   /^on:/ { in_on = 1; next }
   /^[^[:space:]#]/ { in_on = 0 }
@@ -410,7 +376,7 @@ for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
     case "$v" in
       *'${{'* | 'latest' | 'HEAD') continue ;; # floating by design, documented at the pin
     esac
-    pin_name="$var"; [ "$var" != HYPATIA_REF ] || pin_name=HYPATIA_SHA
+    pin_name="$var"; [[ "$var" != HYPATIA_REF ]] || pin_name=HYPATIA_SHA
     printf '%s\t%s\t%s\n' "$pin_name" "$v" "$(basename "$wf")" >> "$pins_file"
   done
   checkout_rows="$(hypatia_checkouts "$wf")" || {
@@ -418,8 +384,8 @@ for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
     continue
   }
   while IFS=$'\t' read -r pin site; do
-    [ -n "$pin" ] || continue
-    if [ "$pin" = '!' ]; then
+    [[ -n "$pin" ]] || continue
+    if [[ "$pin" = '!' ]]; then
       fail "$(basename "$wf") Hypatia checkout ${site}"
     else
       printf '%s\t%s\t%s\n' HYPATIA_SHA "$pin" "$(basename "$wf") (Hypatia checkout ${site})" >> "$pins_file"
