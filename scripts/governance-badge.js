@@ -875,7 +875,7 @@ function resolvePublishConfig(opts) {
     if (!repo) throw new UsageError("--repo (or GITHUB_REPOSITORY) is required");
     const token = opts.token || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
     if (!token) throw new UsageError("GITHUB_TOKEN (or GH_TOKEN) is required");
-    const apiUrl = opts["api-url"] || process.env.GITHUB_API_URL || "https://api.github.com";
+    const apiUrl = requireApiUrl(opts["api-url"] || process.env.GITHUB_API_URL || "https://api.github.com");
     const timeoutMs = Number(process.env.GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS ?? 30000);
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2147483647) {
         throw new UsageError("GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS must be an integer from 1 to 2147483647");
@@ -885,6 +885,22 @@ function resolvePublishConfig(opts) {
         throw new UsageError("--source-sha must be a complete 40-character Git commit SHA");
     }
     return { label, branch, dest, laneResult, repo, sourceRevision, http: { token, apiUrl, timeoutMs } };
+}
+
+// requireApiUrl - the API URL receives the bearer token with every request, so
+// it must be https; plain http is accepted only for a loopback host, which is
+// what the test suite's mock server uses. The value is not echoed back: a URL
+// can carry credentials.
+function requireApiUrl(value) {
+    let parsed;
+    try {
+        parsed = new URL(value);
+    } catch {
+        throw new UsageError("the API URL (--api-url or GITHUB_API_URL) is not a valid URL");
+    }
+    const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname);
+    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) return value;
+    throw new UsageError("the API URL (--api-url or GITHUB_API_URL) must use https; http is allowed only for a loopback host");
 }
 
 // defaultCommitMessage - the commit message used when --commit-message is absent.
