@@ -289,6 +289,10 @@ jobs:
       # negative control; self-skips outside the template tree.
       - name: Pages badge URL for a user/org site repo name
         run: bash tests/workflows/user_pages_badge_url_test.sh
+      # The slug check must admit <owner>.github.io or the rule above is unreachable.
+      # Runs the real scripts/check-repo-slug.sh the recipe calls; negative control.
+      - name: Repo slug check admits the user/org site name
+        run: bash tests/workflows/repo_slug_check_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The

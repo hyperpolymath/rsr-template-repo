@@ -8,6 +8,28 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Added
+
+* **The drift gate derives its own declarations.** `check-mint-drift.sh
+  --emit-paths` prints the `(variant (paths …))` clause that declares every
+  finding of a replay of the mint; `--write-paths` writes it through
+  `deed-clause.sh` and checks again. Existing entries are kept; new additions
+  and removals collapse to the shallowest directory holding nothing the other
+  side has (a directory entry stays a checked claim); a divergence is always
+  one file. A wrong declaration is refused by name, never rewritten. First
+  measured on catachresis-colloquium/cytoville (611 tracked files, 479
+  byte-identical to the replay): its 131 undeclared findings (88 added, 40
+  diverged, 3 removed) became 36 added and 7 removed entries and 44 diverged
+  files, green under the gate as it was before this change as well as after.
+* **`(mint-answers :schema-version "1")`.** The answers say how they are read;
+  `replay-mint.sh` and `check-mint-drift.sh` read schemas 0 (none recorded)
+  and 1, and refuse any other before minting.
+* **`(provenance :derived-from-commit)` on a chain mint.** The parent's commit,
+  found by tree equality in its history (`resolve-template-pin.sh`, from
+  `RSR_PARENT_URL` or the parent's forge), so a chain child can later be
+  re-derived when its parent moves. Unresolvable stops the chain before it
+  writes; `RSR_ALLOW_UNPINNED=1` records `UNASSIGNED`, as for a root mint.
+
 ==== Fixed
 
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
