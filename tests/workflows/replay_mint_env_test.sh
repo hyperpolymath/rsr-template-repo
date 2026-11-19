@@ -36,3 +36,14 @@ RSR_PACKAGE_UUID="$STRAY" replay "$work/recorded" --answers-from "$work/x_chora.
 [ "$(cat "$work/recorded/.env-probe")" = "$RECORDED|1" ] \
     || fail "a recorded replay passed '$(cat "$work/recorded/.env-probe")'; expected the recorded uuid"
 echo "PASS: replay-mint passes a package uuid only from recorded answers"
+
+# 3. (mint-answers :schema-version): a known one replays; one this replayer
+#    does not know is refused (exit 2) before anything is minted, never read
+#    as if it were the layout it knows.
+printf '(repo-deed\n  (mint-answers\n    :schema-version "1"\n    :repo "r"\n    :owner "o"))\n' > "$work/v1_chora.deed"
+replay "$work/v1" --answers-from "$work/v1_chora.deed" || fail "a schema-1 answer set was refused"
+printf '(repo-deed\n  (mint-answers\n    :schema-version "99"\n    :repo "r"\n    :owner "o"))\n' > "$work/v99_chora.deed"
+rc=0; PATH="$work/bin:$PATH" bash "$repo/scripts/replay-mint.sh" "$T" "$PIN" "$work/v99" --answers-from "$work/v99_chora.deed" >/dev/null 2>"$work/v99.err" || rc=$?
+[ "$rc" -eq 2 ] && grep -q 'schema-version "99"' "$work/v99.err" && [ ! -e "$work/v99" ] \
+    || fail "an unknown answers schema was not refused by name before minting (exit $rc)"
+echo "PASS: replay-mint reads answers schemas 0 and 1 and refuses one it does not know"

@@ -23,6 +23,9 @@ permissions:
 # metadatastician/standards@3f480e93c453271031da8890088f9cfc00d4de66: their lane scripts
 # (conformance-deed.sh, conformance-k9.sh) first exist at 159fda2c, after the pin above.
 # This commit is the last standards commit before #1574, which turned standards main red on 14 Nov; the lane scripts are identical to 159fda2c. The other sites stay on the older pin until each one is checked for compatibility.
+# The K9 lane has since moved on to metadatastician/standards@bfbe7369f3ce8011c63fa84a291656e2a40fb813,
+# which carries #1612: the delta column compares the change with its merge base
+# (`conformance-k9.sh base`) instead of the previous grid comment.
 jobs:
   governance:
     name: Estate Governance Policy
@@ -259,19 +262,18 @@ jobs:
 
   # The K9 conformance lane (standards scripts/conformance-k9.sh, the same code
   # as the nested k9-conformance.yml). Advisory by the same switch as above. The
-  # grid is written to the job summary; the delta column reads the previous grid
-  # comment on a pull request.
+  # grid is written to the job summary; the delta column grades the change
+  # against its merge base (a push: its `before`) with the same pinned checker.
   k9-conformance:
     name: K9 conformance
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: read
     env:
       ADVISORY: 'true'
       CANON: .standards-checkout
-      CANON_REF: 3f480e93c453271031da8890088f9cfc00d4de66
+      CANON_REF: bfbe7369f3ce8011c63fa84a291656e2a40fb813
       LANE: .standards-checkout/scripts/conformance-k9.sh
       NICKEL_VERSION: '1.18.0'
       NICKEL_SHA256: '9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb'
@@ -293,7 +295,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: metadatastician/standards
-          ref: 3f480e93c453271031da8890088f9cfc00d4de66
+          ref: bfbe7369f3ce8011c63fa84a291656e2a40fb813
           path: .standards-checkout
           sparse-checkout: |
             1-formats/k9
@@ -352,15 +354,18 @@ jobs:
         continue-on-error: ${{ env.ADVISORY == 'true' }}
         run: bash "$LANE" coord
 
-      - name: Read the grid comment from the previous revision (delta column)
+      - name: Grade the base tree with this checker (delta column)
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        if: github.event_name == 'pull_request'
+        # The same validator and renderer on the commit this change compares with
+        # (a pull request's merge base; a push's `before`), so "This PR vs its
+        # base" is like-for-like. A base that cannot be graded says so in the column.
         env:
-          GH_TOKEN: ${{ github.token }}
-          COMMENTS_URL: ${{ github.event.pull_request.comments_url }}
-          MARKER: '<!-- verdict-grid:k9 regenerated on every run -->'
-          GRID_AUTHOR: github-actions[bot]
-        run: bash "$LANE" previous
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LEDGER: .machine_readable/k9-contract-debt.txt
+          REQUIRE_FILES: 'false'
+          PR_NUMBER: ${{ github.event.pull_request.number || 'local' }}
+        run: bash "$LANE" base
 
       - name: Render the verdict grid
         id: grid

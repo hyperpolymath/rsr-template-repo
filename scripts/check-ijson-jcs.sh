@@ -61,11 +61,29 @@ for path in "$@"; do
   fi
 done
 
-# list_files PATH... — emit NUL-delimited .json/.jsonl paths, pruning .git,
-# node_modules, target, and _build directories.
+# list_files PATH... — emit NUL-delimited .json/.jsonl paths.
+# Inside a git work tree the scan is the repository's own files, as `git add -A`
+# would commit them: tracked, or untracked and not ignored. So ignored build
+# output (a prover's generated tree, target/, _build/) and a submodule's
+# checkout (a gitlink: another repository, governed by its own gate) are not
+# scanned, and no child has to edit this script to say so. Outside git, the
+# filesystem walk, pruning .git, node_modules, target and _build.
 list_files() {
-  find "$@" \( -name .git -o -name node_modules -o -name target -o -name _build \) -prune \
-    -o -type f \( -name '*.json' -o -name '*.jsonl' \) -print0
+  local path dir base
+  for path in "$@"; do
+    if [ -d "$path" ]; then dir="$path"; base=.; else dir="$(dirname "$path")"; base="$(basename "$path")"; fi
+    if git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      (cd "$dir" && git -c core.quotepath=off ls-files -z --cached --others --exclude-standard -- "$base") \
+        | while IFS= read -r -d '' f; do
+            case "$f" in *.json | *.jsonl) ;; *) continue ;; esac
+            # A gitlink lists as its directory; a deleted tracked file is gone.
+            if [ -f "$dir/$f" ] && [ ! -L "$dir/$f" ]; then printf '%s\0' "$dir/$f"; fi
+          done
+    else
+      find "$path" \( -name .git -o -name node_modules -o -name target -o -name _build \) -prune \
+        -o -type f \( -name '*.json' -o -name '*.jsonl' \) -print0
+    fi
+  done
 }
 
 # is_jsonc_carve_out PATH — return 0 for devcontainer.json or .vscode JSON paths;

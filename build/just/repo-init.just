@@ -281,8 +281,8 @@ repo-init archetype="":
     # the estate slug; every other mint takes the estate slug only.
     if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
         :
-    elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
+    elif [[ ! "$REPO" =~ ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ ]]; then
+        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens, starting with a letter (it becomes C and Zig identifiers, which cannot start with a digit)"
         [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
         exit 1
     fi
@@ -290,6 +290,12 @@ repo-init archetype="":
     ask "Owner [${OWNER:-}]: " _OWNER
     OWNER="${_OWNER:-${OWNER:-}}"
     [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
+
+    # Slug rule: scripts/check-repo-slug.sh (one definition, also run by its test).
+    # It runs here, not at the slug prompt, because the user/org Pages site name
+    # <owner>.github.io is only valid against OWNER, which is asked for after the
+    # slug. A Julia package repo is `<Name>.jl` (julia-library archetype only).
+    bash scripts/check-repo-slug.sh "$MINT_ARCH" "$OWNER" "$REPO" || exit 1
 
     ask "Author full name [${AUTHOR:-}]: " _AUTHOR
     AUTHOR="${_AUTHOR:-${AUTHOR:-}}"
@@ -358,7 +364,10 @@ repo-init archetype="":
     # Derive the default for a DNS hostname and bare TOML service key, not
     # only an OCI image name: Julia dots and slug underscores need hyphens.
     # Explicit service answers still go through the validator unchanged.
-    DEFAULT_SERVICE_NAME="${REPO,,}"
+    # tr, not the Bash 4 case-conversion expansion: macOS ships Bash 3.2.
+    _repo_lc="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+    _owner_lc="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+    DEFAULT_SERVICE_NAME="$_repo_lc"
     DEFAULT_SERVICE_NAME="${DEFAULT_SERVICE_NAME//[._]/-}"
     if [ -d "build/container" ]; then
         echo ""
@@ -367,8 +376,8 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/$_owner_lc}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/$_owner_lc}}"
         # The values fill double-quoted KYAML scalars: refuse a value that
         # would break them now, before anything is written.
         bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
@@ -376,7 +385,7 @@ repo-init archetype="":
     else
         SERVICE_NAME="${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
+        REGISTRY="${REGISTRY:-ghcr.io/$_owner_lc}"
     fi
 
     # --- Derived values ---
@@ -1607,8 +1616,10 @@ repo-init archetype="":
     {
         echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
         echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
-        echo "  ; here already appears in this repo's rendered files."
+        echo "  ; here already appears in this repo's rendered files, but :schema-version,"
+        echo "  ; which says how to read the rest (readers refuse one they do not know)."
         echo "  (mint-answers"
+        echo "    :schema-version \"1\""
         printf '%s\n' "${_ANSWERS[@]}"
         echo "    :mint-date \"${CURRENT_DATE}\")"
     } | put_clause mint-answers
