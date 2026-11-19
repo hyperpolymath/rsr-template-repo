@@ -841,6 +841,9 @@ async function cmdPublish(opts) {
         );
     });
     const defaultBranch = String(repoInfo?.default_branch || "");
+    if (defaultBranch && !isValidRefName(defaultBranch)) {
+        throw new RefusedError(`${repo} reports a default branch that is not a valid Git ref name; refusing to use it in a request path`);
+    }
     if (defaultBranch && defaultBranch === branch) {
         throw new UsageError(
             `--branch ${branch} is this repository's default branch; generated badges belong ` +
@@ -885,6 +888,18 @@ function resolvePublishConfig(opts) {
         throw new UsageError("--source-sha must be a complete 40-character Git commit SHA");
     }
     return { label, branch, dest, laneResult, repo, sourceRevision, http: { token, apiUrl, timeoutMs } };
+}
+
+// isValidRefName - the structural rules of git check-ref-format for a branch
+// name (a deliberate subset: no empty parts, no "..", no control characters or
+// ~ ^ : ? * [ \ or "@{", no leading or trailing dot or slash, no ".lock" part). The default
+// branch comes from an API response and is later placed in a request path, so a
+// value no real branch can have is refused rather than trusted.
+function isValidRefName(name) {
+    if (name === "@" || /[\u0000-\u0020\u007f~^:?*[\\]/.test(name)) return false;
+    if (name.includes("..") || name.includes("//") || name.includes("@{")) return false;
+    if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) return false;
+    return name.split("/").every((part) => !part.startsWith(".") && !part.endsWith(".lock"));
 }
 
 // requireApiUrl - the API URL receives the bearer token with every request, so
