@@ -36,6 +36,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"   # build/container/stapeln -> r
 
 # Container engine — podman (recommended), nerdctl or docker.
 ENGINE="${CONTAINER_ENGINE:-podman}"
+case "$ENGINE" in
+    podman|nerdctl|docker) ;;
+    *) echo "error: unsupported container engine: '$ENGINE' (supported: podman, nerdctl, docker)." >&2; exit 2 ;;
+esac
 
 PUSH=""
 for arg in "$@"; do

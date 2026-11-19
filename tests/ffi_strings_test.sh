@@ -20,7 +20,7 @@ sed -i -e 's/{{project}}/test_project/g' -e 's/{{PROJECT}}/TEST_PROJECT/g' \
 # token; map that prefix too, so the appended tests name the same functions.
 # Only the exported symbols are renamed: a slug such as `root` must not turn
 # Zig's `.root_module` into `.test_project_module`.
-prefix=$(sed -nE 's/^export fn ([a-z0-9_]+)_init\(\).*/\1/p' "$work/ffi/src/main.zig" | head -1)
+prefix=$(sed -nE 's/^export fn ([a-z][a-z0-9_]*)_init\(\).*/\1/p' "$work/ffi/src/main.zig" | head -1)
 [[ -n "$prefix" ]] || { echo 'FAIL: no `export fn <prefix>_init()` in src/interface/ffi/src/main.zig' >&2; exit 1; }
 if [[ "$prefix" != test_project ]]; then
   while IFS= read -r sym; do

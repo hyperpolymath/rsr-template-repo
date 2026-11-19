@@ -161,6 +161,26 @@ if ! grep -q 'repo slug must be lowercase alphanumeric words separated by single
 fi
 log_pass "Invalid Guix package slug rejected before instantiation"
 
+# The slug becomes the FFI export prefix ({{project}} -> <slug>_init), and a C
+# or Zig identifier cannot start with a digit. A digit-led slug must be refused.
+if (cd "$TEST_REPO_PATH" && \
+    RSR_NON_INTERACTIVE=1 \
+    PROJECT_NAME="$TEST_PROJECT_NAME" \
+    REPO="3d-thing" \
+    OWNER="$TEST_OWNER" \
+    AUTHOR="$TEST_AUTHOR" \
+    AUTHOR_EMAIL="$TEST_AUTHOR_EMAIL" \
+    just repo-init) > "$TEST_DIR/digit-slug.log" 2>&1; then
+    log_error "just repo-init accepted a digit-led slug, which yields an invalid C/Zig identifier"
+    exit 1
+fi
+if ! grep -q 'starting with a letter' "$TEST_DIR/digit-slug.log"; then
+    log_error "digit-led slug failed for the wrong reason"
+    cat "$TEST_DIR/digit-slug.log" >&2
+    exit 1
+fi
+log_pass "Digit-led slug rejected before instantiation"
+
 # Substitution is `just repo-init`'s job. This test MUST drive the real recipe:
 # a second, hand-rolled replacement list here would be a mock that silently
 # diverges from init.just (it did — it carried {{REPO_DESCRIPTION}} and
