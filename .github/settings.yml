@@ -51,9 +51,12 @@ repository:
   has_wiki: false
   has_downloads: true
   default_branch: main
+  # Squash only (rulesets/README.adoc): a merge commit breaks the linear
+  # history D216 enforces, and a rebase merge writes commits GitHub does not
+  # sign, which the required signatures of D215 refuse.
   allow_squash_merge: true
-  allow_merge_commit: true
-  allow_rebase_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false
   delete_branch_on_merge: true
   enable_automated_security_fixes: true
   enable_vulnerability_alerts: true
