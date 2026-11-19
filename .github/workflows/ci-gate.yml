@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# CI gate â thin caller of the estate's interim gate, which lives in
+# CI gate - thin caller of the estate's interim gate, which lives in
 # hyperpolymath/proven-cicd-and-workflows as a reusable workflow. Do not copy
 # its jobs in here: a copy freezes at one cicd-suite commit and never receives
 # a fix.
