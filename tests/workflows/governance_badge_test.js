@@ -547,20 +547,18 @@ function defineUnchangedCases({ work, missingArtifact, goodArtifact }) {
         });
     }
 
-    {
-        defineApiTest("byte-identical badge makes no commit", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            const summary = join(work, "summary-noop.md");
-            writeFileSync(summary, "");
-            const out = await runAsync(publishArgs(url, goodArtifact), { GITHUB_STEP_SUMMARY: summary });
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            check(/unchanged/i.test(out.stdout), `stdout must say unchanged: ${out.stdout}`);
-            equal(api.writes().length, 0, "no write request may be made");
-            equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the file must be untouched");
-            const text = readFileSync(summary, "utf8");
-            check(text.includes("### Governance badge"), "step summary must record the decision");
-            check(text.includes("unchanged"), "step summary must say unchanged");
-        });
-    }
+    defineApiTest("byte-identical badge makes no commit", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        const summary = join(work, "summary-noop.md");
+        writeFileSync(summary, "");
+        const out = await runAsync(publishArgs(url, goodArtifact), { GITHUB_STEP_SUMMARY: summary });
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        check(/unchanged/i.test(out.stdout), `stdout must say unchanged: ${out.stdout}`);
+        equal(api.writes().length, 0, "no write request may be made");
+        equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the file must be untouched");
+        const text = readFileSync(summary, "utf8");
+        check(text.includes("### Governance badge"), "step summary must record the decision");
+        check(text.includes("unchanged"), "step summary must say unchanged");
+    });
 
     defineApiTest("unusable evidence still fails when unavailable is already published", {
         branchExists: true, fileBytes: GREY_BADGE,
@@ -578,42 +576,38 @@ function defineChangedCases({ goodArtifact, failureArtifact }) {
     // ---------------------------------------------------------------- 3
     defineSection("3. Changed bytes publish exactly once");
 
-    {
-        defineApiTest("a failure replaces a green badge with a red one", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            const out = await runAsync([
-                "publish",
-                "--label", LABEL,
-                "--lane-result", "failure",
-                "--artifact", failureArtifact,
-                "--branch", BRANCH,
-                "--path", DEST,
-                "--repo", "example/template",
-                "--api-url", url,
-            ]);
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            const puts = api.puts();
-            equal(puts.length, 1, "exactly one contents PUT");
-            equal(puts[0].body.sha, "sha-initial", "the PUT carries the sha it compared against");
-            equal(puts[0].body.branch, BRANCH, "the PUT targets the orphan branch");
-            equal(Buffer.from(puts[0].body.content, "base64").toString(), FAILURE_BADGE, "the published bytes are the red badge");
-            equal(api.state.file.bytes.toString(), FAILURE_BADGE, "the branch now carries the red badge");
-            check(/published/.test(out.stdout), "stdout must report publication");
-            check(/commit=commit-/.test(out.stdout), "stdout must report the commit");
-        });
-    }
+    defineApiTest("a failure replaces a green badge with a red one", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        const out = await runAsync([
+            "publish",
+            "--label", LABEL,
+            "--lane-result", "failure",
+            "--artifact", failureArtifact,
+            "--branch", BRANCH,
+            "--path", DEST,
+            "--repo", "example/template",
+            "--api-url", url,
+        ]);
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        const puts = api.puts();
+        equal(puts.length, 1, "exactly one contents PUT");
+        equal(puts[0].body.sha, "sha-initial", "the PUT carries the sha it compared against");
+        equal(puts[0].body.branch, BRANCH, "the PUT targets the orphan branch");
+        equal(Buffer.from(puts[0].body.content, "base64").toString(), FAILURE_BADGE, "the published bytes are the red badge");
+        equal(api.state.file.bytes.toString(), FAILURE_BADGE, "the branch now carries the red badge");
+        check(/published/.test(out.stdout), "stdout must report publication");
+        check(/commit=commit-/.test(out.stdout), "stdout must report the commit");
+    });
 
-    {
-        // Same JSON semantics, different key order: a byte comparison must
-        // see a difference, because "do not canonicalise JSON to compare".
-        defineApiTest("a reordered but semantically equal file is REPLACED, not treated as a no-op", {
-            branchExists: true,
-            fileBytes: '{"label":"K9","schemaVersion":1,"message":"success","color":"brightgreen"}\n',
-        }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            equal(api.puts().length, 1, "byte differences must publish even when the JSON means the same");
-        });
-    }
+    // Same JSON semantics, different key order: a byte comparison must
+    // see a difference, because "do not canonicalise JSON to compare".
+    defineApiTest("a reordered but semantically equal file is REPLACED, not treated as a no-op", {
+        branchExists: true,
+        fileBytes: '{"label":"K9","schemaVersion":1,"message":"success","color":"brightgreen"}\n',
+    }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        equal(api.puts().length, 1, "byte differences must publish even when the JSON means the same");
+    });
 
     for (const [name, bytes, laneResult, expected] of [
         ["pretty-printed JSON", JSON.stringify(parseJson(SUCCESS_BADGE, "SUCCESS_BADGE"), null, 2) + "\n", "success", SUCCESS_BADGE],
@@ -639,80 +633,68 @@ function defineOrphanCases({ goodArtifact }) {
     // ---------------------------------------------------------------- 4
     defineSection("4. A missing branch is created as an orphan");
 
-    {
-        defineApiTest("first publication creates the branch with no parents", { branchExists: false }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            const posts = api.posts();
-            equal(posts.map((p) => p.route).join(","), "blobs-post,trees-post,commits-post,refs-post", "blob -> tree -> commit -> ref");
-            const commit = posts.find((p) => p.route === "commits-post");
-            check(Array.isArray(commit.body.parents), "the commit body must carry a parents array");
-            equal(commit.body.parents.length, 0, "the orphan commit must have NO parents (no main ancestry)");
-            const ref = posts.find((p) => p.route === "refs-post");
-            equal(ref.body.ref, `refs/heads/${BRANCH}`, "the ref is the badge branch, never main");
-            const tree = posts.find((p) => p.route === "trees-post");
-            check(!("base_tree" in tree.body), "the tree must not be based on another tree");
-            equal(tree.body.tree[0].path, DEST, "the tree carries the badge file");
-            equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the new branch carries the green badge");
-            check(/created-orphan-branch/.test(out.stdout), "stdout must name the orphan creation");
-        });
-    }
+    defineApiTest("first publication creates the branch with no parents", { branchExists: false }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        const posts = api.posts();
+        equal(posts.map((p) => p.route).join(","), "blobs-post,trees-post,commits-post,refs-post", "blob -> tree -> commit -> ref");
+        const commit = posts.find((p) => p.route === "commits-post");
+        check(Array.isArray(commit.body.parents), "the commit body must carry a parents array");
+        equal(commit.body.parents.length, 0, "the orphan commit must have NO parents (no main ancestry)");
+        const ref = posts.find((p) => p.route === "refs-post");
+        equal(ref.body.ref, `refs/heads/${BRANCH}`, "the ref is the badge branch, never main");
+        const tree = posts.find((p) => p.route === "trees-post");
+        check(!("base_tree" in tree.body), "the tree must not be based on another tree");
+        equal(tree.body.tree[0].path, DEST, "the tree carries the badge file");
+        equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the new branch carries the green badge");
+        check(/created-orphan-branch/.test(out.stdout), "stdout must name the orphan creation");
+    });
 
-    {
-        defineApiTest("a branch without the file gets the file, not a new branch", { branchExists: true, fileBytes: undefined }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            equal(api.posts().length, 0, "no blob/tree/commit/ref may be created");
-            const puts = api.puts();
-            equal(puts.length, 1, "one contents PUT creates the file");
-            check(!puts[0].body.sha, "a create carries no sha");
-            equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the file exists after the run");
-        });
-    }
+    defineApiTest("a branch without the file gets the file, not a new branch", { branchExists: true, fileBytes: undefined }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        equal(api.posts().length, 0, "no blob/tree/commit/ref may be created");
+        const puts = api.puts();
+        equal(puts.length, 1, "one contents PUT creates the file");
+        check(!puts[0].body.sha, "a create carries no sha");
+        equal(api.state.file.bytes.toString(), SUCCESS_BADGE, "the file exists after the run");
+    });
 }
 
 function defineGreyCases({ artifactDir, artifact, missingArtifact, goodArtifact }) {
     // ---------------------------------------------------------------- 5
     defineSection("5. Grey states for untrustworthy lanes");
 
-    {
-        defineApiTest("a missing lane artifact publishes grey and fails the step", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, missingArtifact));
-            equal(out.code, 3, `expected exit 3 (grey published, lane evidence unusable), got ${out.code}: ${out.stderr}`);
-            equal(api.puts().length, 1, "the grey badge must still be published");
-            equal(api.state.file.bytes.toString(), GREY_BADGE, "a green badge must never survive a missing artifact");
-            check(/::error::/.test(out.stdout), "the fault must be annotated");
-        });
-    }
+    defineApiTest("a missing lane artifact publishes grey and fails the step", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, missingArtifact));
+        equal(out.code, 3, `expected exit 3 (grey published, lane evidence unusable), got ${out.code}: ${out.stderr}`);
+        equal(api.puts().length, 1, "the grey badge must still be published");
+        equal(api.state.file.bytes.toString(), GREY_BADGE, "a green badge must never survive a missing artifact");
+        check(/::error::/.test(out.stdout), "the fault must be annotated");
+    });
 
-    {
-        defineApiTest("a malformed artifact publishes grey and fails the step", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            const broken = artifact("broken.json", '{"schemaVersion":1,"label":"K9",');
-            const out = await runAsync(publishArgs(url, broken));
-            equal(out.code, 3, `expected exit 3, got ${out.code}: ${out.stderr}`);
-            equal(api.state.file.bytes.toString(), GREY_BADGE, "malformed evidence cannot become green");
-        });
-    }
+    defineApiTest("a malformed artifact publishes grey and fails the step", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        const broken = artifact("broken.json", '{"schemaVersion":1,"label":"K9",');
+        const out = await runAsync(publishArgs(url, broken));
+        equal(out.code, 3, `expected exit 3, got ${out.code}: ${out.stderr}`);
+        equal(api.state.file.bytes.toString(), GREY_BADGE, "malformed evidence cannot become green");
+    });
 
-    {
-        defineApiTest("an artifact whose colour contradicts its message publishes grey", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            const tampered = artifact(
-                "tampered.json",
-                '{"schemaVersion":1,"label":"K9","message":"success","color":"red"}\n',
-            );
-            const out = await runAsync(publishArgs(url, tampered));
-            equal(out.code, 3, `expected exit 3, got ${out.code}: ${out.stderr}`);
-            equal(api.state.file.bytes.toString(), GREY_BADGE, "a contradictory artifact cannot become green");
-        });
-    }
+    defineApiTest("an artifact whose colour contradicts its message publishes grey", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        const tampered = artifact(
+            "tampered.json",
+            '{"schemaVersion":1,"label":"K9","message":"success","color":"red"}\n',
+        );
+        const out = await runAsync(publishArgs(url, tampered));
+        equal(out.code, 3, `expected exit 3, got ${out.code}: ${out.stderr}`);
+        equal(api.state.file.bytes.toString(), GREY_BADGE, "a contradictory artifact cannot become green");
+    });
 
-    {
-        defineApiTest("a success job whose artifact records another state publishes grey", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, artifact("skipped.json", SKIPPED_BADGE)));
-            equal(out.code, 3, `expected exit 3, got ${out.code}: ${out.stderr}`);
-            equal(api.state.file.bytes.toString(), GREY_BADGE, "inconsistent evidence cannot become green");
-        });
-    }
+    defineApiTest("a success job whose artifact records another state publishes grey", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, artifact("skipped.json", SKIPPED_BADGE)));
+        equal(out.code, 3, `expected exit 3, got ${out.code}: ${out.stderr}`);
+        equal(api.state.file.bytes.toString(), GREY_BADGE, "inconsistent evidence cannot become green");
+    });
 
     for (const [name, bytes] of [
         ...INVALID_BADGES,
@@ -861,55 +843,45 @@ function defineMissingVsBrokenCases({ goodArtifact }) {
     // ---------------------------------------------------------------- 7
     defineSection("7. Missing is not the same as broken");
 
-    {
-        defineApiTest("a 5xx contents read fails the run and creates nothing", { branchExists: false }, async (api, url) => {
-            api.state.script.set("contents-get", [503, 503, 503]);
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
-            equal(api.writes().length, 0, "an outage must never be treated as a missing branch");
-            check(/503/.test(out.stderr), `stderr must name the status: ${out.stderr}`);
-        });
-    }
+    defineApiTest("a 5xx contents read fails the run and creates nothing", { branchExists: false }, async (api, url) => {
+        api.state.script.set("contents-get", [503, 503, 503]);
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
+        equal(api.writes().length, 0, "an outage must never be treated as a missing branch");
+        check(/503/.test(out.stderr), `stderr must name the status: ${out.stderr}`);
+    });
 
-    {
-        defineApiTest("a 404 file with an unreadable ref fails the run and creates nothing", { branchExists: false }, async (api, url) => {
-            api.state.script.set("contents-get", [404]);
-            api.state.script.set("ref-get", [500, 500, 500]);
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
-            equal(api.posts().length, 0, "the branch must not be created when existence is unknown");
-            check(/500/.test(out.stderr), `stderr must name the status: ${out.stderr}`);
-        });
-    }
+    defineApiTest("a 404 file with an unreadable ref fails the run and creates nothing", { branchExists: false }, async (api, url) => {
+        api.state.script.set("contents-get", [404]);
+        api.state.script.set("ref-get", [500, 500, 500]);
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
+        equal(api.posts().length, 0, "the branch must not be created when existence is unknown");
+        check(/500/.test(out.stderr), `stderr must name the status: ${out.stderr}`);
+    });
 
-    {
-        // A transient blip must not be read as "missing": retry, then honour
-        // the definitive 404 that follows.
-        defineApiTest("a transient blip before a 404 is retried, not acted on", { branchExists: false }, async (api, url) => {
-            api.state.script.set("contents-get", [503]);
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            equal(api.state.branchExists, true, "the retry sees the real 404 and creates the orphan branch");
-        });
-    }
+    // A transient blip must not be read as "missing": retry, then honour
+    // the definitive 404 that follows.
+    defineApiTest("a transient blip before a 404 is retried, not acted on", { branchExists: false }, async (api, url) => {
+        api.state.script.set("contents-get", [503]);
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        equal(api.state.branchExists, true, "the retry sees the real 404 and creates the orphan branch");
+    });
 
-    {
-        defineApiTest("a 403 fails the run without writing", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            api.state.script.set("contents-get", [403]);
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
-            equal(api.writes().length, 0, "an auth failure must not write");
-        });
-    }
+    defineApiTest("a 403 fails the run without writing", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        api.state.script.set("contents-get", [403]);
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
+        equal(api.writes().length, 0, "an auth failure must not write");
+    });
 
-    {
-        defineApiTest("an unreachable API fails the run without writing", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            await api.close(); // nothing is listening on that port any more
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
-            check(/could not be reached|failed:/.test(out.stderr), `stderr must name the network failure: ${out.stderr}`);
-        });
-    }
+    defineApiTest("an unreachable API fails the run without writing", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        await api.close(); // nothing is listening on that port any more
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stdout}`);
+        check(/could not be reached|failed:/.test(out.stderr), `stderr must name the network failure: ${out.stderr}`);
+    });
 }
 
 function defineTimeoutCases({ goodArtifact }) {
@@ -1094,78 +1066,72 @@ function defineConcurrencyCases({ goodArtifact, failureArtifact }) {
         });
     }
 
-    {
-        defineApiTest("a lost race that already published the same bytes ends unchanged", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            let injected = false;
-            api.state.hook = (request, state) => {
-                if (request.route === "contents-put" && !injected) {
-                    injected = true;
-                    // Another run wins the race and writes the same badge we want.
-                    state.file = { sha: "sha-other", bytes: Buffer.from(FAILURE_BADGE, "utf8") };
-                    state.script.set("contents-put", [409]);
-                }
-            };
-            const out = await runAsync([
-                "publish",
-                "--label", LABEL,
-                "--lane-result", "failure",
-                "--artifact", failureArtifact,
-                "--branch", BRANCH,
-                "--path", DEST,
-                "--repo", "example/template",
-                "--api-url", url,
-            ]);
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            equal(api.puts().length, 1, "the second read shows identical bytes, so no second PUT");
-            check(/unchanged/i.test(out.stdout), `stdout must say unchanged: ${out.stdout}`);
-        });
-    }
+    defineApiTest("a lost race that already published the same bytes ends unchanged", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        let injected = false;
+        api.state.hook = (request, state) => {
+            if (request.route === "contents-put" && !injected) {
+                injected = true;
+                // Another run wins the race and writes the same badge we want.
+                state.file = { sha: "sha-other", bytes: Buffer.from(FAILURE_BADGE, "utf8") };
+                state.script.set("contents-put", [409]);
+            }
+        };
+        const out = await runAsync([
+            "publish",
+            "--label", LABEL,
+            "--lane-result", "failure",
+            "--artifact", failureArtifact,
+            "--branch", BRANCH,
+            "--path", DEST,
+            "--repo", "example/template",
+            "--api-url", url,
+        ]);
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        equal(api.puts().length, 1, "the second read shows identical bytes, so no second PUT");
+        check(/unchanged/i.test(out.stdout), `stdout must say unchanged: ${out.stdout}`);
+    });
 
-    {
-        defineApiTest("a lost race with different bytes re-reads and publishes against the new sha", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
-            let injected = false;
-            api.state.hook = (request, state) => {
-                if (request.route === "contents-put" && !injected) {
-                    injected = true;
-                    state.file = { sha: "sha-other", bytes: Buffer.from(SKIPPED_BADGE, "utf8") };
-                    state.script.set("contents-put", [409]);
-                }
-            };
-            const out = await runAsync([
-                "publish",
-                "--label", LABEL,
-                "--lane-result", "failure",
-                "--artifact", failureArtifact,
-                "--branch", BRANCH,
-                "--path", DEST,
-                "--repo", "example/template",
-                "--api-url", url,
-            ]);
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            const puts = api.puts();
-            equal(puts.length, 2, "conflict, re-read, publish");
-            equal(puts[1].body.sha, "sha-other", "the retry uses the sha it re-read");
-            equal(api.state.file.bytes.toString(), FAILURE_BADGE, "the final content is this run's badge");
-        });
-    }
+    defineApiTest("a lost race with different bytes re-reads and publishes against the new sha", { branchExists: true, fileBytes: SUCCESS_BADGE }, async (api, url) => {
+        let injected = false;
+        api.state.hook = (request, state) => {
+            if (request.route === "contents-put" && !injected) {
+                injected = true;
+                state.file = { sha: "sha-other", bytes: Buffer.from(SKIPPED_BADGE, "utf8") };
+                state.script.set("contents-put", [409]);
+            }
+        };
+        const out = await runAsync([
+            "publish",
+            "--label", LABEL,
+            "--lane-result", "failure",
+            "--artifact", failureArtifact,
+            "--branch", BRANCH,
+            "--path", DEST,
+            "--repo", "example/template",
+            "--api-url", url,
+        ]);
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        const puts = api.puts();
+        equal(puts.length, 2, "conflict, re-read, publish");
+        equal(puts[1].body.sha, "sha-other", "the retry uses the sha it re-read");
+        equal(api.state.file.bytes.toString(), FAILURE_BADGE, "the final content is this run's badge");
+    });
 
-    {
-        defineApiTest("a lost race creating the branch re-reads instead of forcing the ref", { branchExists: false }, async (api, url) => {
-            api.state.hook = (request, state) => {
-                if (request.route === "refs-post" && !state.script.get("refs-post")) {
-                    // Another run creates the branch first.
-                    state.branchExists = true;
-                    state.file = { sha: "sha-other", bytes: Buffer.from(SUCCESS_BADGE, "utf8") };
-                    state.script.set("refs-post", [422]);
-                }
-            };
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
-            equal(api.posts().filter((p) => p.route === "refs-post").length, 1, "the ref is attempted once");
-            equal(api.puts().length, 0, "the winner already published our bytes");
-            check(/unchanged/i.test(out.stdout), `stdout must say unchanged: ${out.stdout}`);
-        });
-    }
+    defineApiTest("a lost race creating the branch re-reads instead of forcing the ref", { branchExists: false }, async (api, url) => {
+        api.state.hook = (request, state) => {
+            if (request.route === "refs-post" && !state.script.get("refs-post")) {
+                // Another run creates the branch first.
+                state.branchExists = true;
+                state.file = { sha: "sha-other", bytes: Buffer.from(SUCCESS_BADGE, "utf8") };
+                state.script.set("refs-post", [422]);
+            }
+        };
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 0, `expected exit 0, got ${out.code}: ${out.stderr}`);
+        equal(api.posts().filter((p) => p.route === "refs-post").length, 1, "the ref is attempted once");
+        equal(api.puts().length, 0, "the winner already published our bytes");
+        check(/unchanged/i.test(out.stdout), `stdout must say unchanged: ${out.stdout}`);
+    });
 
     for (const fileBytes of [undefined, SUCCESS_BADGE]) {
         for (const status of [409, 422, 429, 503]) {
@@ -1520,22 +1486,18 @@ function defineGuardsCases({ goodArtifact }) {
         equal(out.code, 2, `expected exit 2, got ${out.code}: ${out.stderr}`);
     });
 
-    {
-        defineApiTest("a repository whose default branch is the badge branch is refused", { branchExists: false, defaultBranch: BRANCH }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 2, `expected exit 2, got ${out.code}: ${out.stderr}`);
-            equal(api.writes().length, 0, "nothing may be written to a default branch");
-        });
-    }
+    defineApiTest("a repository whose default branch is the badge branch is refused", { branchExists: false, defaultBranch: BRANCH }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 2, `expected exit 2, got ${out.code}: ${out.stderr}`);
+        equal(api.writes().length, 0, "nothing may be written to a default branch");
+    });
 
-    {
-        defineApiTest("a commit that comes back with a parent is refused", { branchExists: false, commitParents: ["1111111111111111111111111111111111111111"] }, async (api, url) => {
-            const out = await runAsync(publishArgs(url, goodArtifact));
-            equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stderr}`);
-            equal(api.posts().filter((p) => p.route === "refs-post").length, 0, "no ref may point at a non-orphan commit");
-            check(/parents/i.test(out.stderr), `stderr must explain: ${out.stderr}`);
-        });
-    }
+    defineApiTest("a commit that comes back with a parent is refused", { branchExists: false, commitParents: ["1111111111111111111111111111111111111111"] }, async (api, url) => {
+        const out = await runAsync(publishArgs(url, goodArtifact));
+        equal(out.code, 1, `expected exit 1, got ${out.code}: ${out.stderr}`);
+        equal(api.posts().filter((p) => p.route === "refs-post").length, 0, "no ref may point at a non-orphan commit");
+        check(/parents/i.test(out.stderr), `stderr must explain: ${out.stderr}`);
+    });
 
     defineTest("publish refuses to run without a token, and writes nothing", () => {
         const result = spawnSync(RUNTIME, [HELPER, ...publishArgs("http://127.0.0.1:1", goodArtifact)], {
