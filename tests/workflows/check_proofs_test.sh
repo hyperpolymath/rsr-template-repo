@@ -127,16 +127,20 @@ d="$(fixture hatch)"; printf 'Lemma a : True. Proof. Admitted.\n' >"$d/verificat
 echo 'verification/proofs/coq|a.v|gated|' >"$d/verification/proofs/coq/MANIFEST"
 run "a module that compiles but uses Admitted fails" 1 "$d" coq yes "RESULT: FAIL"
 
-for flag in --safe --without-K --cubical-compatible; do
-    d="$(fixture "agda-no${flag#--}")"; mkdir -p "$d/verification/proofs/agda"; echo 'module A where' >"$d/verification/proofs/agda/A.agda"
-    echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
-    sed -i "s/ $flag / /" "$d/scripts/check-proofs.sh"
-    if grep -q -- " $flag " "$d/scripts/check-proofs.sh"; then
-        CHECKS=$((CHECKS + 1)); FAILED=$((FAILED + 1)); echo "  FAIL  could not remove $flag from the gate copy"
-    else
-        run "agda: a gate without $flag fails" 1 "$d" agda yes "without $flag"
-    fi
-done
+d="$(fixture agdaok)"; mkdir -p "$d/verification/proofs/agda"
+printf '{-# OPTIONS --safe #-}\nmodule A where\n' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: a pragma without a warning flag passes" 0 "$d" agda yes "RESULT: PASS"
+
+d="$(fixture agdawarn)"; mkdir -p "$d/verification/proofs/agda"
+printf '{-# OPTIONS -W noerror #-}\nmodule A where\n' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: an OPTIONS pragma that overrides -W error fails" 1 "$d" agda yes "OPTIONS pragma sets a warning flag"
+
+d="$(fixture agdawarnml)"; mkdir -p "$d/verification/proofs/agda"
+printf '{-# OPTIONS\n   -W noerror #-}\nmodule A where\n' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: a warning override split across lines fails" 1 "$d" agda yes "OPTIONS pragma sets a warning flag"
 
 d="$(fixture usage)"
 run "an unknown prover is a usage error (rc 2)" 2 "$d" nonsense yes "usage:"

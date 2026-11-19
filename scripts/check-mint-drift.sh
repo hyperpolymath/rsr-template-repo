@@ -20,12 +20,26 @@
 # not proven), and every later edit to a file the mint produced shows up, by
 # name.
 #
-# Usage: check-mint-drift.sh <template-checkout> [child-dir]
+# Usage: check-mint-drift.sh [--emit-paths | --write-paths] <template-checkout> [child-dir]
 #   <template-checkout>  a clone of the template that contains :template-commit
 #   [child-dir]          the minted repo (default .)
+#   --emit-paths   print the (paths …) clause that would declare every finding,
+#                  derived from the replay, instead of failing on it. Existing
+#                  entries are kept; new additions and removals are collapsed
+#                  to the shallowest directory that holds nothing else (no file
+#                  the mint produces under an added one, no file of this repo's
+#                  under a removed one); a divergence is always one file.
+#   --write-paths  as --emit-paths, then replace the deed's (variant (paths …))
+#                  with it through scripts/deed-clause.sh and check again.
+# A declaration that is itself wrong (a revived removal, a declared addition
+# the mint produces, a missing declared addition) is never rewritten: both
+# modes refuse and name it, as the gate does. Which divergences are pending
+# upstream is a judgement, not a measurement: the emitted clause lists new
+# ones under :diverged, and moving one to :diverged-pending-upstream is yours.
 # Needs what a mint needs: just, rustc, nickel, and sha1sum, shasum or openssl
 # (uuidgen too, to replay a template commit older than scripts/uuid5-url.sh).
-# Exit: 0 no undeclared drift; 1 drift (listed); 2 usage or cannot replay.
+# Exit: 0 no undeclared drift (or a clause emitted / written and re-checked
+# green); 1 drift (listed); 2 usage or cannot replay.
 set -euo pipefail
 # This script runs git against other repositories (-C does not override
 # these), so an inherited location (a hook, another git caller) cannot redirect
@@ -33,7 +47,13 @@ set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE
 
-TDIR="${1:?usage: check-mint-drift.sh <template-checkout> [child-dir]}"
+MODE="check"
+case "${1:-}" in
+    --emit-paths) MODE="emit"; shift ;;
+    --write-paths) MODE="write"; shift ;;
+    -*) echo "check-mint-drift: unknown option $1" >&2; exit 2 ;;
+esac
+TDIR="${1:?usage: check-mint-drift.sh [--emit-paths | --write-paths] <template-checkout> [child-dir]}"
 CDIR="${2:-.}"
 TDIR="$(cd "$TDIR" && pwd)"; CDIR="$(cd "$CDIR" && pwd)"
 READ="$CDIR/scripts/deed-field.sh"
@@ -43,6 +63,12 @@ DEED="$(bash "$READ" --find "$CDIR")" || die "no single *_chora.deed in $CDIR"
 bash "$READ" --has "$DEED" mint-answers \
     || die "$(basename "$DEED") has no (mint-answers) clause: this repo was minted before answers were recorded, so its mint cannot be replayed"
 ans() { bash "$READ" "$DEED" mint-answers "$1" 2>/dev/null || true; }
+# (mint-answers :schema-version): none is schema 0, the layout before it was
+# recorded. One this gate does not know is refused, never read as if it were.
+case "$(ans schema-version)" in
+    ""|0|1) ;;
+    *) die "$(basename "$DEED") records (mint-answers :schema-version \"$(ans schema-version)\"), which this gate does not know (0, 1); use a newer scripts/check-mint-drift.sh" ;;
+esac
 PIN="$(bash "$READ" "$DEED" provenance template-commit 2>/dev/null || true)"
 SLUG="$(bash "$READ" "$DEED" provenance template-repo 2>/dev/null || true)"
 [[ "$PIN" =~ ^[0-9a-f]{40}$ ]] || die "(provenance :template-commit) is '${PIN}', not a commit"
@@ -116,10 +142,13 @@ fi
 #             exist here, and must be something the mint produces;
 #   operational-state  excluded from comparison altogether (ADR-0002).
 section() { bash "$READ" --list "$DEED" variant/paths "$1" 2>/dev/null || true; }
-ADDED="$(section added)"
-REMOVED="$(section removed)"
-DIVERGED="$(section diverged; section diverged-pending-upstream)"
-OPSTATE="$(section operational-state)"
+load_declarations() {
+    ADDED="$(section added)"
+    REMOVED="$(section removed)"
+    DIVERGED="$(section diverged; section diverged-pending-upstream)"
+    OPSTATE="$(section operational-state)"
+}
+load_declarations
 # match_len P LIST — the length of the longest entry in LIST covering P (0:
 # none); an exact path outranks any directory that holds it.
 match_len() {
@@ -192,43 +221,140 @@ same() {
 
 DRIFT=0
 report() { DRIFT=1; echo "DRIFT: $*"; }
-while IFS= read -r f; do
-    kind="$(declared "$f")"
-    if [ "$kind" = removed ]; then
-        report "$f exists here but is declared removed"
-    elif [ "$kind" = added ]; then
-        if in_replay "$f"; then report "$f is declared added, but the mint produces it (declare it diverged)"; fi
-    elif [ "$kind" = diverged ]; then
-        # A diverged path is one the mint produces and this repo changed; a new
-        # path declared diverged is an undeclared addition (Codex review of #275).
-        if ! in_replay "$f"; then report "$f is declared diverged, but the mint did not produce it (declare in paths.added)"; fi
-    elif [ "$kind" = opstate ]; then
-        :
-    elif ! in_replay "$f"; then
-        report "$f exists here but the mint did not produce it (declare in paths.added)"
-    elif ! same "$R/$f" "$CDIR/$f"; then
-        report "$f differs from what the mint produced, in content or mode (declare in paths.diverged, or restore it)"
+# finding KIND PATH MESSAGE — an undeclared difference of one KIND (added,
+# diverged, removed). The gate reports it; --emit-paths collects it instead, to
+# be declared. Anything else wrong is a report in every mode.
+NEW_ADD="$WORK/new.added"; NEW_DIV="$WORK/new.diverged"; NEW_REM="$WORK/new.removed"
+finding() {
+    if [ "$MODE" = check ]; then report "$2 $3"; else printf '%s\n' "$2" >> "$WORK/new.$1"; fi
+}
+compare() {
+    DRIFT=0
+    : > "$NEW_ADD"; : > "$NEW_DIV"; : > "$NEW_REM"
+    while IFS= read -r f; do
+        kind="$(declared "$f")"
+        if [ "$kind" = removed ]; then
+            report "$f exists here but is declared removed"
+        elif [ "$kind" = added ]; then
+            if in_replay "$f"; then report "$f is declared added, but the mint produces it (declare it diverged)"; fi
+        elif [ "$kind" = diverged ]; then
+            # A diverged path is one the mint produces and this repo changed; a new
+            # path declared diverged is an undeclared addition (Codex review of #275).
+            if ! in_replay "$f"; then report "$f is declared diverged, but the mint did not produce it (declare in paths.added)"; fi
+        elif [ "$kind" = opstate ]; then
+            :
+        elif ! in_replay "$f"; then
+            finding added "$f" "exists here but the mint did not produce it (declare in paths.added)"
+        elif ! same "$R/$f" "$CDIR/$f"; then
+            finding diverged "$f" "differs from what the mint produced, in content or mode (declare in paths.diverged, or restore it)"
+        fi
+    done < "$CLIST"
+    while IFS= read -r f; do
+        in_child "$f" && continue
+        kind="$(declared "$f")"
+        [ "$kind" = removed ] || [ "$kind" = opstate ] && continue
+        if [ "$kind" = diverged ]; then
+            report "$f is declared diverged but is absent here (declare it removed)"
+        else
+            finding removed "$f" "was produced by the mint but is absent here (declare in paths.removed)"
+        fi
+    done < "$RLIST"
+    # Every declared addition must actually be here.
+    while IFS= read -r e; do
+        [ -n "$e" ] || continue
+        case "$e" in
+            */) P="$e" awk 'index($0, ENVIRON["P"]) == 1 { f = 1; exit } END { exit !f }' "$CLIST" \
+                   || report "declared-added directory $e has no files here" ;;
+            *) in_child "$e" || report "declared-added $e is missing" ;;
+        esac
+    done <<< "$ADDED"
+}
+compare
+
+# ── --emit-paths / --write-paths: declare what was found ─────────────────────
+# collapse OURS THEIRS — the entries declaring every path in OURS (sorted, one
+# per line): each path's shallowest ancestor directory D/ under which every file
+# on OURS's side is in OURS (or already declared the same way) and THEIRS has
+# nothing, else the path itself. For additions OURS is this repo's file list and
+# THEIRS the replay's; for removals the other way round. A directory entry is a
+# claim the gate keeps checking: should the template later produce a file under
+# a directory declared added, the gate names it.
+# shellcheck disable=SC2094 # $found is only read, by the loop and by grep
+collapse() { # $1 kind  $2 found-list  $3 our-side list  $4 their-side list
+    local kind="$1" found="$2" ours="$3" theirs="$4" f d best
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        best="$f"; d="$f"
+        while [[ "$d" == */* ]]; do
+            d="${d%/*}"
+            # Nothing of theirs under d/, and everything of ours under d/ is found or declared that way.
+            P="$d/" awk 'index($0, ENVIRON["P"]) == 1 { f = 1; exit } END { exit !f }' "$theirs" && continue
+            if P="$d/" awk 'index($0, ENVIRON["P"]) == 1' "$ours" | while IFS= read -r o; do
+                    grep -qxF -- "$o" "$found" || [ "$(declared "$o")" = "$kind" ] || exit 1
+                done; then
+                best="$d/"
+            fi
+        done
+        printf '%s\n' "$best"
+    done < "$found" | LC_ALL=C sort -u
+}
+# drop_covered LIST — LIST without the entries another directory entry in it covers.
+drop_covered() {
+    local list e o
+    list="$(cat)"
+    while IFS= read -r e; do
+        [ -n "$e" ] || continue
+        while IFS= read -r o; do
+            [ "$o" != "$e" ] && [[ "$o" == */ ]] && [[ "$e" == "$o"* ]] && continue 2
+        done <<< "$list"
+        printf '%s\n' "$e"
+    done <<< "$list"
+}
+# deed_list KEY ENTRIES — one :KEY line of the clause, a list of deed strings.
+deed_list() {
+    local key="$1" e out=""
+    while IFS= read -r e; do
+        [ -n "$e" ] || continue
+        e="${e//\\/\\\\}"; e="${e//\"/\\\"}"
+        out="${out}"$'\n'"        \"$e\""
+    done <<< "$2"
+    if [ -z "$out" ]; then printf '      :%s ()' "$key"; else printf '      :%s (%s)' "$key" "${out#$'\n'        }"; fi
+}
+if [ "$MODE" != check ]; then
+    if [ "$DRIFT" -ne 0 ]; then
+        echo "check-mint-drift: an existing declaration is wrong (above); fix it by hand first — no clause emitted" >&2
+        exit 1
     fi
-done < "$CLIST"
-while IFS= read -r f; do
-    in_child "$f" && continue
-    kind="$(declared "$f")"
-    [ "$kind" = removed ] || [ "$kind" = opstate ] && continue
-    if [ "$kind" = diverged ]; then
-        report "$f is declared diverged but is absent here (declare it removed)"
-    else
-        report "$f was produced by the mint but is absent here (declare in paths.removed)"
-    fi
-done < "$RLIST"
-# Every declared addition must actually be here.
-while IFS= read -r e; do
-    [ -n "$e" ] || continue
-    case "$e" in
-        */) P="$e" awk 'index($0, ENVIRON["P"]) == 1 { f = 1; exit } END { exit !f }' "$CLIST" \
-               || report "declared-added directory $e has no files here" ;;
-        *) in_child "$e" || report "declared-added $e is missing" ;;
-    esac
-done <<< "$ADDED"
+    merged() { { printf '%s\n' "$1"; cat "$2"; } | sed '/^$/d' | LC_ALL=C sort -u | drop_covered; }
+    ADD_ENTRIES="$(merged "$ADDED" <(collapse added "$NEW_ADD" "$CLIST" "$RLIST"))"
+    REM_ENTRIES="$(merged "$REMOVED" <(collapse removed "$NEW_REM" "$RLIST" "$CLIST"))"
+    DIV_ENTRIES="$(merged "$(section diverged)" "$NEW_DIV")"
+    PENDING="$(section diverged-pending-upstream)"
+    CLAUSE="$WORK/paths.clause"
+    {
+        echo "    ; Files a minted repo owns from birth are (paths :diverged …). New"
+        echo "    ; entries are derived by scripts/check-mint-drift.sh --emit-paths from a"
+        echo "    ; replay of the mint; :diverged-pending-upstream is a judgement, not derived."
+        echo "    (paths"
+        deed_list added "$ADD_ENTRIES"; echo
+        deed_list removed "$REM_ENTRIES"; echo
+        deed_list diverged "$DIV_ENTRIES"
+        if [ -n "$PENDING" ]; then
+            echo; deed_list diverged-pending-upstream "$PENDING"
+        fi
+        if [ -n "$OPSTATE" ]; then echo; deed_list operational-state "$OPSTATE"; fi
+        echo ")"
+    } > "$CLAUSE"
+    n() { [ -s "$1" ] && wc -l < "$1" | tr -d ' ' || echo 0; }
+    echo "check-mint-drift: $(n "$NEW_ADD") added, $(n "$NEW_DIV") diverged, $(n "$NEW_REM") removed found against ${SLUG}@${PIN:0:12}" >&2
+    if [ "$MODE" = emit ]; then cat "$CLAUSE"; exit 0; fi
+    bash "$CDIR/scripts/deed-clause.sh" replace "$DEED" variant/paths "$CLAUSE" \
+        || die "could not write (variant (paths …)) into $(basename "$DEED")"
+    echo "check-mint-drift: wrote (variant (paths …)) in $(basename "$DEED"); checking again" >&2
+    MODE="check"
+    load_declarations
+    compare
+fi
 
 if [ "$DRIFT" -eq 0 ]; then
     echo "PASS: identical to a replay of the mint (${SLUG}@${PIN:0:12}, $(ans mint-date)), modulo declared variant paths"
