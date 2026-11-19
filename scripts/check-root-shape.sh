@@ -161,17 +161,30 @@ if [ "${#deeds[@]}" -gt 1 ]; then
 elif [ "${#deeds[@]}" -eq 1 ]; then
     if [ ! -f "$DEED_FIELD" ]; then
         derive_note "${deeds[0]#"$REPO_ROOT"/} found but $DEED_FIELD is absent; no capabilities read, static allowlist only"
-    elif bash "$DEED_FIELD" --has "${deeds[0]}" rsr-profile; then
+    # ONE pass over the deed (--kv), not one per field: deed-field.sh
+    # re-tokenises the whole deed on every call, so five field reads here cost
+    # more than the rest of this gate together (the Six-Sigma bench caught it).
+    # --kv exits 1 when the clause is absent, which is what --has answered.
+    elif PROFILE_KV="$(bash "$DEED_FIELD" --kv "${deeds[0]}" rsr-profile)"; then
         PROFILE_SOURCE="${deeds[0]#"$REPO_ROOT"/} (rsr-profile …)"
-        PROFILE_DIRECT="$(bash "$DEED_FIELD" --list "${deeds[0]}" rsr-profile capabilities || true)"
-        PROFILE_PRESET="$(bash "$DEED_FIELD" "${deeds[0]}" rsr-profile preset || true)"
-        PROFILE_ADD="$(bash "$DEED_FIELD" --list "${deeds[0]}" rsr-profile add || true)"
-        PROFILE_REMOVE="$(bash "$DEED_FIELD" --list "${deeds[0]}" rsr-profile remove || true)"
+        # Split in-shell: four awk/head forks for four short lists cost ~8 ms.
+        while IFS=$'\t' read -r k v; do
+            case "$k" in
+                capabilities) PROFILE_DIRECT+="${PROFILE_DIRECT:+$'\n'}$v" ;;
+                preset)       [ -n "$PROFILE_PRESET" ] || PROFILE_PRESET="$v" ;;   # first value only
+                add)          PROFILE_ADD+="${PROFILE_ADD:+$'\n'}$v" ;;
+                remove)       PROFILE_REMOVE+="${PROFILE_REMOVE:+$'\n'}$v" ;;
+            esac
+        done <<<"$PROFILE_KV"
     fi
-    # The pin is read whichever source carries the profile: it is the deed's
-    # statement of which gate table this repo implements.
-    [ -f "$DEED_FIELD" ] && GATES_PIN="$(bash "$DEED_FIELD" "${deeds[0]}" canon gates-sha256 || true)"
 fi
+# The pin is the deed's statement of which gate table this repo implements. It
+# is only consulted when capabilities are declared against a vendored table
+# (below), so it is read there, not on every run.
+gates_pin() {
+    [ "${#deeds[@]}" -eq 1 ] && [ -f "$DEED_FIELD" ] || return 0
+    bash "$DEED_FIELD" "${deeds[0]}" canon gates-sha256 || true
+}
 if [ -z "$PROFILE_SOURCE" ]; then
     for p in "$REPO_ROOT/.machine_readable/rsr-profile.a2ml" "$REPO_ROOT/machine-readable/rsr-profile.a2ml"; do
         [ -f "$p" ] || continue
@@ -192,22 +205,23 @@ GATE_ROWS=""
 if [ -f "$GATES_FILE" ]; then
     GATE_ROWS="$(gates_section gates | sed -nE 's/^[[:space:]]*"([^"]*)"[[:space:]]*=[[:space:]]*"([^"]*)".*/\1\t\2/p')"
 fi
-# root_names_of <row key>: its root-level alternatives, one per line.
-root_names_of() {
-    local alt alts name
-    IFS='|' read -r -a alts <<<"$1"
-    for alt in "${alts[@]}"; do
-        name="${alt%/}"
-        case "$name" in ''|*/*|*[\*\?\[]*) continue ;; esac
-        printf '%s\n' "$name"
-    done
-}
-while IFS=$'\t' read -r key cap; do
-    [ -n "$key" ] || continue
-    while IFS= read -r name; do
-        GATED_BY["$name"]="${GATED_BY[$name]:+${GATED_BY[$name]} or }'$cap'"
-    done < <(root_names_of "$key")
-done <<<"$GATE_ROWS"
+# ROOT_PAIRS: "name<TAB>capability" for every root-level alternative of every
+# gate row, in row order (one awk pass; a per-row bash subshell here was the
+# second-largest cost of this gate). An alternative is root-level when, with
+# one trailing '/' dropped, it is non-empty, has no '/' and no glob character.
+ROOT_PAIRS="$(printf '%s\n' "$GATE_ROWS" | awk -F'\t' '
+    NF >= 2 && $1 != "" {
+        n = split($1, alt, "|")
+        for (i = 1; i <= n; i++) {
+            name = alt[i]; sub(/\/$/, "", name)
+            if (name == "" || name ~ /\// || name ~ /[*?[]/) continue
+            print name "\t" $2
+        }
+    }')"
+while IFS=$'\t' read -r name cap; do
+    [ -n "$name" ] || continue
+    GATED_BY["$name"]="${GATED_BY[$name]:+${GATED_BY[$name]} or }'$cap'"
+done <<<"$ROOT_PAIRS"
 
 if [ -z "$PROFILE_DIRECT$PROFILE_PRESET$PROFILE_ADD" ]; then
     CAP_NOTE="no capabilities declared${PROFILE_SOURCE:+ in $PROFILE_SOURCE}; static allowlist only"
@@ -215,6 +229,7 @@ elif [ ! -f "$GATES_FILE" ]; then
     derive_note "capabilities declared in $PROFILE_SOURCE but no gate table at ${GATES_FILE#"$REPO_ROOT"/}; static allowlist only"
     CAP_NOTE="capabilities declared but no gate table at ${GATES_FILE#"$REPO_ROOT"/}; static allowlist only"
 else
+    GATES_PIN="$(gates_pin)"
     if [ -n "$GATES_PIN" ]; then
         have="$( (sha256sum "$GATES_FILE" 2>/dev/null || shasum -a 256 "$GATES_FILE") | awk '{print $1}')"
         if [ "$have" != "$GATES_PIN" ]; then
@@ -240,16 +255,14 @@ else
     declare -A HAS_CAP=()
     while IFS= read -r c; do [ -n "$c" ] && HAS_CAP["$c"]=1; done <<<"$EFFECTIVE"
 
-    while IFS=$'\t' read -r key cap; do
-        { [ -n "$key" ] && [ -n "${HAS_CAP[$cap]+x}" ]; } || continue
-        while IFS= read -r name; do
-            if [ -z "${ALLOW_SET[$name]+x}" ]; then
-                ALLOW_SET["$name"]=1
-                ALLOW+=("$name")
-                DERIVED+=("$name")
-            fi
-        done < <(root_names_of "$key")
-    done <<<"$GATE_ROWS"
+    while IFS=$'\t' read -r name cap; do
+        { [ -n "$name" ] && [ -n "${HAS_CAP[$cap]+x}" ]; } || continue
+        if [ -z "${ALLOW_SET[$name]+x}" ]; then
+            ALLOW_SET["$name"]=1
+            ALLOW+=("$name")
+            DERIVED+=("$name")
+        fi
+    done <<<"$ROOT_PAIRS"
 
     CAP_NOTE="capabilities from $PROFILE_SOURCE: $(printf '%s\n' "$EFFECTIVE" | paste -sd' ' -)"
     if [ "${#DERIVED[@]}" -gt 0 ]; then
