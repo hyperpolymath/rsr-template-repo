@@ -30,7 +30,8 @@
 # the parent's ("Use this template" on a minted repo), after the prompts, with
 # the new answers exported under the names repo-init reads, plus
 # TEMPLATE_REPO/TEMPLATE_OWNER (the parent) and RSR_MINT_DATE.
-# RSR_TEMPLATE_URL overrides where the template's history is read from.
+# RSR_TEMPLATE_URL overrides where the template's history is read from;
+# RSR_PARENT_URL where the parent's is (to name its commit).
 # Exit: 0 minted; 1 refused (reason on stderr, tree untouched); 2 usage.
 set -euo pipefail
 # This script runs git against other repositories (-C does not override
@@ -109,6 +110,28 @@ for s in replay-mint.sh deed-field.sh; do
     git -C "$WORK/template" show "${PIN}:scripts/$s" > "$PINNED/$s" 2>/dev/null \
         || die "the template commit ${PIN:0:12} has no scripts/$s, so its mint cannot be replayed for a chain; nothing was written"
 done
+
+# The parent's own commit, recorded as (provenance :derived-from-commit). The
+# slug and tree say what was carried; only a commit lets a later replay-merge
+# re-derive this repo when the parent moves (base = chain-mint(parent@old),
+# ours = chain-mint(parent@new)). "Use this template" drops the parent's
+# history, so the commit is found the way a root mint finds its template's:
+# by tree equality in the parent's history (scripts/resolve-template-pin.sh),
+# read from RSR_PARENT_URL or the parent's forge. Unresolvable stops the chain
+# before anything is written, as an unresolvable template stops a root mint;
+# RSR_ALLOW_UNPINNED=1 records UNASSIGNED instead.
+P_PIN_ARGS=(--slug "${TEMPLATE_OWNER}/${TEMPLATE_REPO}" --dir "$G")
+[ -z "${RSR_PARENT_URL:-}" ] || P_PIN_ARGS+=(--url "$RSR_PARENT_URL")
+if P_PIN_OUT="$(bash "$HERE/resolve-template-pin.sh" "${P_PIN_ARGS[@]}" 2>"$WORK/parent-pin.err")"; then
+    PARENT_COMMIT="$(sed -n 's/^commit=//p' <<<"$P_PIN_OUT")"
+    echo "  chain: parent ${TEMPLATE_OWNER}/${TEMPLATE_REPO}@${PARENT_COMMIT:0:12} ($(sed -n 's/^source=//p' <<<"$P_PIN_OUT"))"
+elif [ "${RSR_ALLOW_UNPINNED:-0}" = "1" ]; then
+    PARENT_COMMIT=UNASSIGNED
+    echo "  WARNING: the parent's commit is UNASSIGNED (RSR_ALLOW_UNPINNED=1); this repo cannot be re-derived from it"
+else
+    sed 's/^/    /' "$WORK/parent-pin.err" >&2
+    die "the parent's commit (${TEMPLATE_OWNER}/${TEMPLATE_REPO}) cannot be named: set RSR_PARENT_URL to a clone of the parent, or RSR_ALLOW_UNPINNED=1 to record UNASSIGNED; nothing was written"
+fi
 echo "  chain: replaying the parent's mint (${TSLUG}@${PIN:0:12}, its own answers)"
 bash "$PINNED/replay-mint.sh" "$WORK/template" "$PIN" "$WORK/base" --answers-from "$PDEED" \
     || die "the replay of the parent's mint failed (above); nothing was written"
@@ -310,7 +333,7 @@ declare_paths() {
 # are written as deed strings (\ and " escaped) by awk, which takes them as
 # data: a path holding &, |, " or \ cannot corrupt the clause or the command.
 write_deed() {
-    awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" \
+    awk -v slug="$TEMPLATE_SLUG" -v ptree="$PARENT_TREE" -v pcommit="$PARENT_COMMIT" \
         -v fa="$WORK/added.list" -v fr="$WORK/removed.list" -v fd="$WORK/diverged.list" '
         function load(file,    s, p) {
             s = ""
@@ -346,10 +369,12 @@ write_deed() {
             print "    ; minted from a minted repo: its own work since its mint was carried across"
             print "    :derived-from \"" slug "\""
             print "    :derived-from-tree \"" ptree "\""
+            print "    :derived-from-commit \"" pcommit "\""
         }
     ' "$WORK/deed.fresh" > "$WORK/deed.new"
     cat "$WORK/deed.new" > "$DEED"
     grep -q ':derived-from "' "$DEED" || die "could not record :derived-from in $(basename "$DEED")"
+    grep -q ":derived-from-commit \"$PARENT_COMMIT\"" "$DEED" || die "could not record :derived-from-commit in $(basename "$DEED")"
 }
 # regenerate — the derived files follow the merged tree and the new deed.
 # They run the CARRIED generators, so what they write is measured afterwards.
