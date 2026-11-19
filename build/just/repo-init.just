@@ -275,21 +275,15 @@ repo-init archetype="":
 
     ask "Repository slug (e.g. my-project): " REPO
     [ -z "$REPO" ] && echo "Error: repo slug required" && exit 1
-    # A Julia package repo is named after its package: `<Name>.jl`, where
-    # <Name> is the package's own identifier (UpperCamelCase by Julia
-    # convention). The julia-library archetype accepts that form as well as
-    # the estate slug; every other mint takes the estate slug only.
-    if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
-        :
-    elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
-        [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
-        exit 1
-    fi
-
     ask "Owner [${OWNER:-}]: " _OWNER
     OWNER="${_OWNER:-${OWNER:-}}"
     [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
+
+    # Slug rule: scripts/check-repo-slug.sh (one definition, also run by its test).
+    # It runs here, not at the slug prompt, because the user/org Pages site name
+    # <owner>.github.io is only valid against OWNER, which is asked for after the
+    # slug. A Julia package repo is `<Name>.jl` (julia-library archetype only).
+    bash scripts/check-repo-slug.sh "$MINT_ARCH" "$OWNER" "$REPO" || exit 1
 
     ask "Author full name [${AUTHOR:-}]: " _AUTHOR
     AUTHOR="${_AUTHOR:-${AUTHOR:-}}"
@@ -1607,8 +1601,10 @@ repo-init archetype="":
     {
         echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
         echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
-        echo "  ; here already appears in this repo's rendered files."
+        echo "  ; here already appears in this repo's rendered files, but :schema-version,"
+        echo "  ; which says how to read the rest (readers refuse one they do not know)."
         echo "  (mint-answers"
+        echo "    :schema-version \"1\""
         printf '%s\n' "${_ANSWERS[@]}"
         echo "    :mint-date \"${CURRENT_DATE}\")"
     } | put_clause mint-answers

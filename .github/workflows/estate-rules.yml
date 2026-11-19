@@ -198,6 +198,13 @@ jobs:
         run: bash scripts/check-identity.sh "$(bash scripts/deed-field.sh --find .)"
       - name: Identity-literal gate self-test (v5, #u5, v4 and upper-case must fail)
         run: bash tests/workflows/check_identity_test.sh
+      # The deed names the repository it is checked out as: canonical name, file
+      # name, owner, forges and the birth-path id. check-identity.sh checks only the
+      # literal form; a repo carrying a template's deed unrenamed passed it.
+      - name: Deed names the repository it is checked out as
+        run: bash scripts/check-identity-matches-repo.sh "$(bash scripts/deed-field.sh --find .)"
+      - name: Deed-names-the-repository gate self-test (carried-in deed, fork, transfer must fail)
+        run: bash tests/workflows/check_identity_matches_repo_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date
@@ -282,6 +289,10 @@ jobs:
       # negative control; self-skips outside the template tree.
       - name: Pages badge URL for a user/org site repo name
         run: bash tests/workflows/user_pages_badge_url_test.sh
+      # The slug check must admit <owner>.github.io or the rule above is unreachable.
+      # Runs the real scripts/check-repo-slug.sh the recipe calls; negative control.
+      - name: Repo slug check admits the user/org site name
+        run: bash tests/workflows/repo_slug_check_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The
