@@ -29,9 +29,13 @@ let estate_denied = ["Nix", "Python", "Go", "TypeScript", "ReScript", "AGPL"] in
 # rendered, or the pack would tell an agent that an estate denial applies in a
 # repo whose anchor allows the language (Codex review of sholes#13). A language
 # the anchor allows and the estate does not deny is no override and is not
-# listed. Names are compared as written.
+# listed. Names are compared as written. AGPL is a licence, not a language: no
+# anchor can lift that denial (owner ruling by selector, 2026-11-19), so it is
+# never counted as allowed.
 let anchor_allows_denied =
-  std.array.filter (fun l => std.array.elem l estate_denied) data.anchor_allowed
+  std.array.filter
+    (fun l => l != "AGPL" && std.array.elem l estate_denied)
+    data.anchor_allowed
 in
 let anchor_override =
   let allows = std.string.join ", " anchor_allows_denied in
@@ -47,6 +51,15 @@ let anchor_override =
   else if has_forbids then
     "%{lead}forbids: %{forbids}%{tail}"
   else ""
+in
+
+# The Constraints line must not contradict the override line: where the anchor
+# allows a denied language, "banned langs" names the exception (Codex review of
+# bactrian#39). With no such allowance the line is unchanged.
+let banned_langs =
+  if std.array.length anchor_allows_denied > 0 then
+    "banned langs (above, except those this repo's anchor allows: %{std.string.join ", " anchor_allows_denied})"
+  else "banned langs (above)"
 in
 
 let provenance = "DEED@%{data.h_deed} ANCHOR@%{data.h_anchor}"
@@ -167,7 +180,7 @@ and FRG letters, and ECHIDNA's `TrustLevel`, are different schemes.
 - **IS** — %{data.purpose}
 - **IS-NOT** — %{data.isnot}
 - **Where it sits** — pipeline position **%{data.pipeline_pos}**; chain `%{data.chain}`; coordination = `%{data.coordination}`.
-- **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: banned langs (above), secrets, state files in repo root, AGPL. Details: the deed's `(bot-directives (methodology) (coverage) (debt))` clauses.
+- **Constraints here** (AGENTIC) — fail-closed; evidence-per-step; no-silent-skip; rerun-after-fix; release-claim-requires-hard-pass. Never: %{banned_langs}, secrets, state files in repo root, AGPL. Details: the deed's `(bot-directives (methodology) (coverage) (debt))` clauses.
 - **Golden path** (ANCHOR) — `%{data.golden_smoke}` → %{data.golden_crit}.%{anchor_override}
 - **State** — phase %{data.phase}; maturity %{data.maturity}. Milestones and next actions: `docs/status/ROADMAP.adoc`.
 
