@@ -78,8 +78,8 @@
 
 "use strict";
 
-const { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, appendFileSync } = require("node:fs");
-const { dirname, join } = require("node:path");
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, appendFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Exit codes
@@ -110,7 +110,7 @@ const MESSAGES = new Set(Object.values(STATE_TABLE).map((s) => s.message));
 // API response must not be able to forge a line in it or to terminate a
 // `::error::` workflow command early.
 function oneLine(value) {
-    return String(value).replace(/[\r\n\u0000-\u001f\u007f]/g, " ");
+    return String(value).replace(/[\u0000-\u001f\u007f]/g, " ");
 }
 
 // normaliseState - anything not in the table becomes `unknown`, never success.
@@ -172,7 +172,7 @@ function inspectBadge(text, label, { pairing = "strict" } = {}) {
     }
     // Own properties only: a label such as "constructor" or "toString" is a valid
     // label, and a bare lookup would return the inherited built-in, not an array.
-    const legacyLabels = label !== undefined && Object.prototype.hasOwnProperty.call(LEGACY_LABELS, label)
+    const legacyLabels = label !== undefined && Object.hasOwn(LEGACY_LABELS, label)
         ? LEGACY_LABELS[label]
         : [];
     const legacy = pairing === "loose" && label !== undefined && legacyLabels.includes(badge.label);
@@ -321,19 +321,21 @@ function apiError(method, apiPath, response) {
  * @throws {SyntaxError} If a 200 response is not valid JSON; parsing is not retried.
  */
 async function getJSON(apiPath, http) {
-    let lastError;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
-        try {
-            const response = await request("GET", apiPath, http);
-            if (response.status === 200) return JSON.parse(response.text);
-            throw apiError("GET", apiPath, response);
-        } catch (err) {
-            if (!(err instanceof ApiError) || !err.transient) throw err;
-            lastError = err;
-            if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS * attempt);
-        }
+    return getJSONAttempt(apiPath, http, 1);
+}
+
+// getJSONAttempt - one attempt of getJSON; a transient failure sleeps and
+// recurses, so the retries run one after another without a loop.
+async function getJSONAttempt(apiPath, http, attempt) {
+    try {
+        const response = await request("GET", apiPath, http);
+        if (response.status === 200) return JSON.parse(response.text);
+        throw apiError("GET", apiPath, response);
+    } catch (err) {
+        if (!(err instanceof ApiError) || !err.transient || attempt >= MAX_RETRIES) throw err;
+        await sleep(RETRY_DELAY_MS * attempt);
+        return getJSONAttempt(apiPath, http, attempt + 1);
     }
-    throw lastError;
 }
 
 // getWithRetry - GET returning the raw response, with bounded retries for
@@ -342,22 +344,24 @@ async function getJSON(apiPath, http) {
 // "missing" means at its own endpoint. Retrying reads is what keeps a single
 // blip from stranding a stale (possibly green) badge until the next push.
 async function getWithRetry(apiPath, http) {
-    let lastError = null;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
-        let response = null;
-        try {
-            response = await request("GET", apiPath, http);
-        } catch (err) {
-            if (!(err instanceof ApiError) || !err.transient) throw err;
-            lastError = err;
-        }
-        if (response) {
-            if (classifyStatus(response.status) !== "transient") return response;
-            lastError = apiError("GET", apiPath, response);
-        }
-        if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY_MS * attempt);
+    return getWithRetryAttempt(apiPath, http, 1);
+}
+
+// getWithRetryAttempt - one attempt of getWithRetry. The outcome is either the
+// response to hand back or the transient error to retry on; anything else throws.
+async function getWithRetryAttempt(apiPath, http, attempt) {
+    let failure;
+    try {
+        const response = await request("GET", apiPath, http);
+        if (classifyStatus(response.status) !== "transient") return response;
+        failure = apiError("GET", apiPath, response);
+    } catch (err) {
+        if (!(err instanceof ApiError) || !err.transient) throw err;
+        failure = err;
     }
-    throw lastError;
+    if (attempt >= MAX_RETRIES) throw failure;
+    await sleep(RETRY_DELAY_MS * attempt);
+    return getWithRetryAttempt(apiPath, http, attempt + 1);
 }
 
 /**
@@ -541,7 +545,7 @@ function resolveIntent({ label, laneResult, artifact }) {
         text = readFileSync(artifact, "utf8");
     } catch (err) {
         return grey(
-            `the lane artifact ${artifact} could not be read (${err && err.code ? err.code : String(err)}),` +
+            `the lane artifact ${artifact} could not be read (${err?.code ? err.code : String(err)}),` +
                 ` so a "success" lane cannot be trusted`,
         );
     }
@@ -775,18 +779,20 @@ function finish({ label, dest, branch, intent, action, commit, faults }) {
         console.log(`::error::${oneLine(fault)}`);
     }
 
+    const commitCell = commitId ? ` (\`${oneLine(String(commitId).slice(0, 12))}\`)` : "";
+    const faultNote = faults.length ? `\n**Lane evidence was unusable:** ${faults.join("; ")}` : "";
     stepSummary([
         "",
         "### Governance badge",
         "",
         "| file | branch | state | message | colour | action |",
         "|---|---|---|---|---|---|",
-        `| \`${dest}\` | \`${branch}\` | ${intent.state} | ${entry.message} | ${entry.color} | ${action}${commitId ? ` (\`${oneLine(String(commitId).slice(0, 12))}\`)` : ""} |`,
+        `| \`${dest}\` | \`${branch}\` | ${intent.state} | ${entry.message} | ${entry.color} | ${action}${commitCell} |`,
         "",
         action === "unchanged"
             ? "The published badge already carried these exact bytes, so no commit was made."
             : "The `governance-badges` branch is generated output: an orphan branch with no common ancestor with `main`. It must never be merged.",
-        faults.length ? `\n**Lane evidence was unusable:** ${faults.join("; ")}` : "",
+        faultNote,
         "",
     ]);
 
@@ -822,6 +828,38 @@ function finish({ label, dest, branch, intent, action, commit, faults }) {
  * @throws {Error} Propagates artifact filesystem and unexpected payload errors.
  */
 async function cmdPublish(opts) {
+    const config = resolvePublishConfig(opts);
+    const { repo, branch, http, sourceRevision } = config;
+    const intent = resolveIntent({ label: config.label, laneResult: config.laneResult, artifact: opts.artifact });
+    const message = opts["commit-message"] || defaultCommitMessage(config.label, intent.state, sourceRevision);
+
+    // Refuse to touch a source branch, whatever --branch said and whatever the
+    // repository's default branch happens to be called.
+    const repoInfo = await getJSON(`/repos/${repo}`, http).catch((err) => {
+        throw new RefusedError(
+            `cannot read repository metadata for ${repo}: ${err.message} - not treating this as "the branch is missing"`,
+        );
+    });
+    const defaultBranch = String(repoInfo?.default_branch || "");
+    if (defaultBranch && defaultBranch === branch) {
+        throw new UsageError(
+            `--branch ${branch} is this repository's default branch; generated badges belong ` +
+                "on an orphan branch such as governance-badges",
+        );
+    }
+
+    const ctx = {
+        ...config,
+        intent,
+        message,
+        assertSourceCurrent: makeSourceCheck({ repo, http, sourceRevision, defaultBranch }),
+    };
+    return publishWithRetries(ctx, 1, null);
+}
+
+// resolvePublishConfig - validate every option and environment fallback that
+// publish needs before any network call is made.
+function resolvePublishConfig(opts) {
     const label = requireLabel(opts.label);
     const branch = requireBranch(opts.branch);
     const dest = requireDest(opts.path);
@@ -842,37 +880,25 @@ async function cmdPublish(opts) {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2147483647) {
         throw new UsageError("GOVERNANCE_BADGE_REQUEST_TIMEOUT_MS must be an integer from 1 to 2147483647");
     }
-    const http = { token, apiUrl, timeoutMs };
-
-    const intent = resolveIntent({ label, laneResult, artifact: opts.artifact });
     const sourceRevision = String(opts["source-sha"] || "");
     if (sourceRevision && !/^[a-f0-9]{40}$/.test(sourceRevision)) {
         throw new UsageError("--source-sha must be a complete 40-character Git commit SHA");
     }
+    return { label, branch, dest, laneResult, repo, sourceRevision, http: { token, apiUrl, timeoutMs } };
+}
+
+// defaultCommitMessage - the commit message used when --commit-message is absent.
+function defaultCommitMessage(label, state, sourceRevision) {
     const sourceSha = sourceRevision.slice(0, 12);
-    const message =
-        opts["commit-message"] ||
-        `badges: ${label} lane ${intent.state}${sourceSha ? ` (source ${sourceSha})` : ""}`;
+    const sourceNote = sourceSha ? ` (source ${sourceSha})` : "";
+    return `badges: ${label} lane ${state}${sourceNote}`;
+}
 
-    // Refuse to touch a source branch, whatever --branch said and whatever the
-    // repository's default branch happens to be called.
-    const repoInfo = await getJSON(`/repos/${repo}`, http).catch((err) => {
-        throw new RefusedError(
-            `cannot read repository metadata for ${repo}: ${err.message} - not treating this as "the branch is missing"`,
-        );
-    });
-    const defaultBranch = String((repoInfo && repoInfo.default_branch) || "");
-    if (defaultBranch && defaultBranch === branch) {
-        throw new UsageError(
-            `--branch ${branch} is this repository's default branch; generated badges belong ` +
-                "on an orphan branch such as governance-badges",
-        );
-    }
-
-    // Badge content belongs to one source revision, not merely one runner.
-    // Older push jobs can finish after newer ones despite concurrency and
-    // cannot overwrite the current revision's published badge.
-    const assertSourceCurrent = async () => {
+// makeSourceCheck - badge content belongs to one source revision, not merely
+// one runner. Older push jobs can finish after newer ones despite concurrency
+// and must not overwrite the current revision's published badge.
+function makeSourceCheck({ repo, http, sourceRevision, defaultBranch }) {
+    return async () => {
         if (!sourceRevision) return;
         if (!defaultBranch) {
             throw new RefusedError("repository does not identify its default branch; cannot establish source freshness");
@@ -885,113 +911,102 @@ async function cmdPublish(opts) {
         }
         const currentSha = head?.object?.sha;
         if (currentSha !== sourceRevision) {
+            const currentShort = String(currentSha || "<unknown>").slice(0, 12);
             throw new RefusedError(
-                `superseded source commit ${sourceRevision.slice(0, 12)}: ${defaultBranch} is at ${String(currentSha || "<unknown>").slice(0, 12)}; refusing stale badge publication`,
+                `superseded source commit ${sourceRevision.slice(0, 12)}: ${defaultBranch} is at ${currentShort}; refusing stale badge publication`,
             );
         }
     };
+}
 
-    let lastConflict = null;
-    for (let attempt = 1; attempt <= MAX_CONFLICT_ATTEMPTS; attempt += 1) {
-        await assertSourceCurrent();
-        const remote = await readRemote({ repo, branch, dest, http });
-
-        if (remote.kind === "present") {
-            const verdict = inspectBadge(remote.text, label, { pairing: "loose" });
-            if (!verdict.ok) {
-                throw new RefusedError(
-                    `the existing ${dest} on ${branch} is not a valid shield badge ` +
-                        `(${verdict.errors.join("; ")}); refusing to overwrite generated output ` +
-                        "this tool did not produce. Repair or delete the file by hand, then re-run.",
-                );
-            }
-            if (remote.bytes.equals(intent.bytes)) {
-                return finish({ label, dest, branch, intent, action: "unchanged", commit: null, faults: intent.faults });
-            }
-            await assertSourceCurrent();
-            let response;
-            try {
-                response = await putFile({
-                    repo, branch, dest, message, bytes: intent.bytes, sha: remote.sha, http,
-                });
-            } catch (err) {
-                // A lost response is not proof that the PUT failed. Re-read
-                // remote bytes before another write, exactly as for HTTP 409.
-                if (err instanceof ApiError && err.transient) {
-                    lastConflict = err;
-                    await sleep(RETRY_DELAY_MS * attempt);
-                    continue;
-                }
-                throw err;
-            }
-            if (response.status === 200 || response.status === 201) {
-                const sha = readJsonPath(response.text, "commit.sha");
-                return finish({ label, dest, branch, intent, action: "updated", commit: sha, faults: intent.faults });
-            }
-            const kind = classifyStatus(response.status);
-            if (kind === "conflict" || kind === "transient") {
-                lastConflict = apiError("PUT", contentsPathFor(repo, dest), response);
-                await sleep(RETRY_DELAY_MS * attempt);
-                continue;
-            }
-            throw apiError("PUT", contentsPathFor(repo, dest), response);
-        }
-
-        if (remote.kind === "absent-file") {
-            await assertSourceCurrent();
-            let response;
-            try {
-                response = await putFile({ repo, branch, dest, message, bytes: intent.bytes, http });
-            } catch (err) {
-                if (err instanceof ApiError && err.transient) {
-                    lastConflict = err;
-                    await sleep(RETRY_DELAY_MS * attempt);
-                    continue;
-                }
-                throw err;
-            }
-            if (response.status === 200 || response.status === 201) {
-                const sha = readJsonPath(response.text, "commit.sha");
-                return finish({ label, dest, branch, intent, action: "created", commit: sha, faults: intent.faults });
-            }
-            const kind = classifyStatus(response.status);
-            if (kind === "conflict" || kind === "transient") {
-                lastConflict = apiError("PUT", contentsPathFor(repo, dest), response);
-                await sleep(RETRY_DELAY_MS * attempt);
-                continue;
-            }
-            throw apiError("PUT", contentsPathFor(repo, dest), response);
-        }
-
-        // remote.kind === "absent-branch": create an orphan branch.
-        let created;
-        try {
-            await assertSourceCurrent();
-            created = await createOrphanBranch({ repo, branch, dest, message, bytes: intent.bytes, http });
-        } catch (err) {
-            if (err instanceof ApiError && err.transient) {
-                lastConflict = err;
-                await sleep(RETRY_DELAY_MS * attempt);
-                continue;
-            }
-            throw err;
-        }
-        if (created.conflict) {
-            // Another run created the branch between our read and our write.
-            // Re-read and compare instead of forcing our ref over theirs.
-            lastConflict = new RefusedError(
-                `another run created ${branch} while this one was publishing; re-reading`,
-            );
-            await sleep(RETRY_DELAY_MS * attempt);
-            continue;
-        }
-        return finish({ label, dest, branch, intent, action: "created-orphan-branch", commit: created.sha, faults: intent.faults });
+// publishWithRetries - one publication attempt per call. A conflict or transient
+// failure sleeps and recurses until MAX_CONFLICT_ATTEMPTS is spent, so the
+// attempts run strictly one after another without a loop.
+async function publishWithRetries(ctx, attempt, lastConflict) {
+    if (attempt > MAX_CONFLICT_ATTEMPTS) {
+        throw new RefusedError(
+            `gave up after ${MAX_CONFLICT_ATTEMPTS} attempts without a trustworthy publication` +
+                (lastConflict ? `: ${lastConflict.message}` : ""),
+        );
     }
+    await ctx.assertSourceCurrent();
+    const { repo, branch, dest, http, label, intent } = ctx;
+    const remote = await readRemote({ repo, branch, dest, http });
+    const outcome = await publishOnce(ctx, remote);
+    if (outcome.conflict) {
+        await sleep(RETRY_DELAY_MS * attempt);
+        return publishWithRetries(ctx, attempt + 1, outcome.conflict);
+    }
+    return finish({ label, dest, branch, intent, action: outcome.action, commit: outcome.commit, faults: intent.faults });
+}
 
-    throw new RefusedError(
-        `gave up after ${MAX_CONFLICT_ATTEMPTS} attempts without a trustworthy publication` +
-            (lastConflict ? `: ${lastConflict.message}` : ""),
-    );
+// publishOnce - act on what the remote holds. Return { action, commit } when
+// the badge is settled, or { conflict: Error } when the attempt must be redone
+// after re-reading remote state.
+async function publishOnce(ctx, remote) {
+    if (remote.kind === "present") return publishOverPresent(ctx, remote);
+    if (remote.kind === "absent-file") return publishFile(ctx, undefined, "created");
+    return publishOrphan(ctx);
+}
+
+// publishOverPresent - validate the existing badge, then leave identical bytes
+// alone or update it.
+async function publishOverPresent(ctx, remote) {
+    const { dest, branch, label, intent } = ctx;
+    const verdict = inspectBadge(remote.text, label, { pairing: "loose" });
+    if (!verdict.ok) {
+        throw new RefusedError(
+            `the existing ${dest} on ${branch} is not a valid shield badge ` +
+                `(${verdict.errors.join("; ")}); refusing to overwrite generated output ` +
+                "this tool did not produce. Repair or delete the file by hand, then re-run.",
+        );
+    }
+    if (remote.bytes.equals(intent.bytes)) return { action: "unchanged", commit: null };
+    return publishFile(ctx, remote.sha, "updated");
+}
+
+// publishFile - PUT the badge (an update when sha is given, a create otherwise)
+// and classify the answer.
+async function publishFile(ctx, sha, action) {
+    const { repo, branch, dest, message, intent, http } = ctx;
+    await ctx.assertSourceCurrent();
+    let response;
+    try {
+        response = await putFile({ repo, branch, dest, message, bytes: intent.bytes, sha, http });
+    } catch (err) {
+        // A lost response is not proof that the PUT failed. Re-read
+        // remote bytes before another write, exactly as for HTTP 409.
+        if (err instanceof ApiError && err.transient) return { conflict: err };
+        throw err;
+    }
+    if (response.status === 200 || response.status === 201) {
+        return { action, commit: readJsonPath(response.text, "commit.sha") };
+    }
+    const kind = classifyStatus(response.status);
+    const failure = apiError("PUT", contentsPathFor(repo, dest), response);
+    if (kind === "conflict" || kind === "transient") return { conflict: failure };
+    throw failure;
+}
+
+// publishOrphan - the branch is absent: create an orphan branch.
+async function publishOrphan(ctx) {
+    const { repo, branch, dest, message, intent, http } = ctx;
+    let created;
+    try {
+        await ctx.assertSourceCurrent();
+        created = await createOrphanBranch({ repo, branch, dest, message, bytes: intent.bytes, http });
+    } catch (err) {
+        if (err instanceof ApiError && err.transient) return { conflict: err };
+        throw err;
+    }
+    if (created.conflict) {
+        // Another run created the branch between our read and our write.
+        // Re-read and compare instead of forcing our ref over theirs.
+        return {
+            conflict: new RefusedError(`another run created ${branch} while this one was publishing; re-reading`),
+        };
+    }
+    return { action: "created-orphan-branch", commit: created.sha };
 }
 
 /**
@@ -1051,34 +1066,35 @@ async function main(argv) {
     throw new UsageError(`unknown command: ${command}`);
 }
 
+// exitCodeFor - report a failure the way the CLI always has: the message on
+// stderr, and the exit code that says what kind of failure it was.
+function exitCodeFor(err) {
+    if (err instanceof UsageError) {
+        console.error(`governance-badge: ${oneLine(err.message)}`);
+        usage();
+        return EXIT_USAGE;
+    }
+    if (err instanceof RefusedError) {
+        console.error(`governance-badge: refused: ${oneLine(err.message)}`);
+        return EXIT_REFUSED;
+    }
+    if (err instanceof ApiError) {
+        console.error(`governance-badge: ${oneLine(err.message)}`);
+        console.error(
+            "governance-badge: no write was attempted for an unknown remote state; " +
+                "an API error is never treated as a missing branch or file",
+        );
+        return EXIT_REFUSED;
+    }
+    console.error(`governance-badge: ${oneLine(err?.stack || err)}`);
+    return EXIT_REFUSED;
+}
+
 // process.exit() can truncate pending writes when stdout is a pipe (which is
 // how Actions captures a step's log, and how the "unchanged" notice reaches the
 // run page). Set the code and let the process drain and exit instead.
-main(process.argv.slice(2))
-    .then((code) => {
-        process.exitCode = code;
-    })
-    .catch((err) => {
-        if (err instanceof UsageError) {
-            console.error(`governance-badge: ${oneLine(err.message)}`);
-            usage();
-            process.exitCode = EXIT_USAGE;
-            return;
-        }
-        if (err instanceof RefusedError) {
-            console.error(`governance-badge: refused: ${oneLine(err.message)}`);
-            process.exitCode = EXIT_REFUSED;
-            return;
-        }
-        if (err instanceof ApiError) {
-            console.error(`governance-badge: ${oneLine(err.message)}`);
-            console.error(
-                "governance-badge: no write was attempted for an unknown remote state; " +
-                    "an API error is never treated as a missing branch or file",
-            );
-            process.exitCode = EXIT_REFUSED;
-            return;
-        }
-        console.error(`governance-badge: ${oneLine((err && err.stack) || err)}`);
-        process.exitCode = EXIT_REFUSED;
-    });
+try {
+    process.exitCode = await main(process.argv.slice(2));
+} catch (err) {
+    process.exitCode = exitCodeFor(err);
+}
