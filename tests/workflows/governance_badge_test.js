@@ -1346,6 +1346,28 @@ function defineGuardsCases({ goodArtifact }) {
     // ---------------------------------------------------------------- 9
     defineSection("9. Guards: the badge never touches a source branch");
 
+    for (const [name, apiUrl] of [
+        ["a non-loopback http URL", "http://api.example.test"],
+        ["a non-http scheme", "ftp://api.example.test"],
+        ["not a URL at all", "not a url"],
+        ["a URL carrying credentials over http", "http://user:hunter2@api.example.test"],
+    ]) {
+        defineTest(`an API URL that is ${name} is a usage error before any request`, () => {
+            const out = runSync(publishArgs(apiUrl, goodArtifact));
+            equal(out.code, 2, `expected usage error, got ${out.code}: ${out.stderr}`);
+            check(out.stderr.includes("the API URL"), `stderr must name the API URL: ${out.stderr}`);
+            check(!out.stderr.includes("hunter2") && !out.stderr.includes(apiUrl), "the URL must never be echoed, it may carry credentials");
+        });
+    }
+
+    for (const apiUrl of ["https://127.0.0.1:1", "http://localhost:1"]) {
+        defineTest(`an API URL of ${apiUrl} passes validation and fails only at the network`, () => {
+            const out = runSync(publishArgs(apiUrl, goodArtifact));
+            equal(out.code, 1, `expected a refused run, got ${out.code}: ${out.stderr}`);
+            check(/cannot read repository metadata/.test(out.stderr), `stderr must show the request was attempted: ${out.stderr}`);
+        });
+    }
+
     defineApiTest("superseded source run cannot overwrite the latest badge", {
         branchExists: true, fileBytes: FAILURE_BADGE,
         sourceHead: "ffffffffffffffffffffffffffffffffffffffff",
