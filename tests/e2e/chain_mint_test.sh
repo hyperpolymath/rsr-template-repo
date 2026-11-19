@@ -104,8 +104,12 @@ T_COMMIT=$(g -C "$T" rev-parse HEAD)
 T_SLUG="$(sed -n -E 's/^OWNER[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Justfile" | head -1)/$(sed -n -E 's/^REPO[[:space:]]*:=[[:space:]]*"([^"]+)".*/\1/p' "$T/Justfile" | head -1)"
 
 # use_template FROM COMMITISH DIR ORIGIN — what "Use this template" makes.
+# PARENT_URL_FOR[DIR] — the source a copy was made from: a chain mint names
+# its parent's commit from that history (RSR_PARENT_URL), network-free.
+declare -A PARENT_URL_FOR=()
 use_template() {
     rm -rf "$3"; mkdir -p "$3"
+    PARENT_URL_FOR["$3"]="$1"
     # The tree as a checkout writes it: GitHub copies the tree, it does not
     # git archive it (export-ignore, export-subst).
     GIT_INDEX_FILE="$work/use_template.index" g -C "$1" read-tree "$2"
@@ -123,6 +127,7 @@ mint() {
         ${RUSTUP_HOME:+RUSTUP_HOME="$RUSTUP_HOME"} ${CARGO_HOME:+CARGO_HOME="$CARGO_HOME"} \
         XDG_CONFIG_HOME="$cfg" GIT_CONFIG_GLOBAL="$cfg/gitconfig" GIT_CONFIG_NOSYSTEM=1 \
         RSR_NON_INTERACTIVE=1 RSR_TEMPLATE_URL="${MINT_TEMPLATE_URL:-$T}" RSR_MINT_TOOL_CACHE="$work/tools" \
+        RSR_PARENT_URL="${MINT_PARENT_URL-${PARENT_URL_FOR[$1]:-}}" \
         PROJECT_NAME="${9:-$3}" REPO="$3" OWNER="$4" AUTHOR="$5" AUTHOR_EMAIL="$6" \
         PROJECT_DESCRIPTION="$7" timeout 1200 just repo-init ${8:+"$8"} </dev/null) > "$2" 2>&1
 }
@@ -219,9 +224,24 @@ field() { bash "$G/scripts/deed-field.sh" "$DEED" "$@"; }
     || fail "provenance names $(field provenance template-repo)@$(field provenance template-commit), not the root template"
 [ "$(field provenance derived-from)" = elder-owner/elder-proj ] || fail 'provenance does not name the parent'
 [ "$(field provenance derived-from-tree)" = "$P_TREE" ] || fail 'provenance does not name the parent tree'
+[ "$(field provenance derived-from-commit)" = "$(g -C "$P" rev-parse HEAD)" ] \
+    || fail "provenance names parent commit '$(field provenance derived-from-commit)', not the parent's HEAD"
 [ "$(field mint-answers author)" = "Other Author" ] && [ "$(field mint-answers description)" = "Grand tools" ] \
     || fail '(mint-answers) are not the grandchild'"'"'s'
 pass "provenance names the root template commit and the parent; the answers are the grandchild's"
+# Negative control: a parent whose history cannot be read is not guessed at.
+# The chain stops before writing (as an unresolvable template stops a root
+# mint) and says how to name it.
+GNP="$work/no-parent-history"
+use_template "$P" HEAD "$GNP" git@github.com:other-owner/no-parent.git
+GNP_HEAD=$(g -C "$GNP" rev-parse HEAD)
+if MINT_PARENT_URL="$work/nowhere" mint "$GNP" "$work/no-parent.log" no-parent other-owner "Other Author" other@example.org "No parent"; then
+    fail "a chain mint whose parent commit cannot be named succeeded"
+fi
+grep -q "parent.s commit .*cannot be named" "$work/no-parent.log" || { tail -20 "$work/no-parent.log" >&2; fail "the unresolvable parent commit was not named"; }
+[ "$(g -C "$GNP" rev-parse HEAD)" = "$GNP_HEAD" ] && [ -z "$(g -C "$GNP" status --porcelain)" ] \
+    || fail "a refused chain mint (unresolvable parent commit) wrote to the tree"
+pass "(-) a parent commit that cannot be named stops the chain before it writes; one that can is recorded"
 
 # Nothing of the parent's identity or contacts survives (the Codex finding).
 # A file identical to the template's own copy is template text, not a leak

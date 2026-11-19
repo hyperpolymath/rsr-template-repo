@@ -43,3 +43,4 @@ scripts/survey-template-damage.sh          # searches children for an unfilled p
 scripts/check-mint-tokens.sh               # the gate's own comments name the tokens it checks
 tests/aspect_tests.sh                      # a comment names the lowercase brace token that symbol names may carry
 tests/workflows/test_needs_minted_test.sh  # fixtures name the brace placeholder the mint converts
+.machine_readable/template-capability-gates.toml  # byte copy of the canon gate table; sha256 is pinned by the deed (canon :gates-sha256), and the self-name pass would rewrite its "rsr-template-repo" prose

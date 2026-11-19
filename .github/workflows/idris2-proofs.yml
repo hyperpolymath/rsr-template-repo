@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: MPL-2.0
+name: Idris2 Proofs
+
+# Runs `scripts/check-proofs.sh idris2` (the same script `just proof-check-idris2`
+# calls), so a green local run and a green CI run mean the same thing. Until now
+# nothing in CI ran it: a non-covering Coaptation.idr sat on main unnoticed.
+#
+# The script is fail-closed: it requires exit 0, no `Error:` line, and the REPL's
+# `:m` to answer `No holes`; a missing toolchain is a FAIL, never a skip. This
+# workflow adds no `continue-on-error` and no `|| true`.
+#
+# Toolchain: the same digest-pinned image pages.yml builds ddraig-ssg with, run
+# on the runner's Docker. Like lock-sync-gate.yml this file carries NO `uses:`
+# (it checks out with git), so it has no action to pin and nothing to go stale
+# in actions.lock beyond its own empty entry. Do not add a `uses:` to this file.
+#
+# No `paths:` filter, on purpose: a filtered workflow never reports on pull
+# requests that miss the filter, which deadlocks any ruleset requiring it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: idris2-proofs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  idris2-proofs:
+    name: Idris2 proofs compile, no holes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out without actions/checkout
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${TOKEN}" | base64 -w0)"
+          git init -q .
+          git remote add origin "https://github.com/${REPO}.git"
+          git -c http.extraheader="${AUTH}" fetch -q --depth 1 origin "${SHA}"
+          git checkout -q FETCH_HEAD
+          echo "checked out ${SHA}"
+
+      - name: Check Idris2 proofs
+        env:
+          IDRIS2_PACK_IMAGE: ghcr.io/stefan-hoeck/idris2-pack@sha256:f0758996a931fb35d9ecb1de273c4d59dabe2a09b433afc7e357f65a08b7e1ff
+        run: |
+          set -euo pipefail
+          # check-proofs.sh prints `idris2 --version` first; it lands in the log
+          # (and below), so the version the job actually ran is on record.
+          docker run --rm -v "$PWD:/w" -w /w "$IDRIS2_PACK_IMAGE" \
+            bash scripts/check-proofs.sh idris2 2>&1 | tee "$RUNNER_TEMP/idris2-proofs.log"
+          # `tee` would mask a failing exit status without pipefail; pipefail is on.
+          {
+            echo '### Idris2 proof check'
+            echo '```'
+            sed -n '1,3p' "$RUNNER_TEMP/idris2-proofs.log"
+            tail -n 1 "$RUNNER_TEMP/idris2-proofs.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

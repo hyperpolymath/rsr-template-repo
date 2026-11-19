@@ -281,8 +281,8 @@ repo-init archetype="":
     # the estate slug; every other mint takes the estate slug only.
     if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
         :
-    elif [[ ! "$REPO" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens"
+    elif [[ ! "$REPO" =~ ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ ]]; then
+        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens, starting with a letter (it becomes C and Zig identifiers, which cannot start with a digit)"
         [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
         exit 1
     fi
@@ -290,6 +290,12 @@ repo-init archetype="":
     ask "Owner [${OWNER:-}]: " _OWNER
     OWNER="${_OWNER:-${OWNER:-}}"
     [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
+
+    # Slug rule: scripts/check-repo-slug.sh (one definition, also run by its test).
+    # It runs here, not at the slug prompt, because the user/org Pages site name
+    # <owner>.github.io is only valid against OWNER, which is asked for after the
+    # slug. A Julia package repo is `<Name>.jl` (julia-library archetype only).
+    bash scripts/check-repo-slug.sh "$MINT_ARCH" "$OWNER" "$REPO" || exit 1
 
     ask "Author full name [${AUTHOR:-}]: " _AUTHOR
     AUTHOR="${_AUTHOR:-${AUTHOR:-}}"
@@ -358,7 +364,10 @@ repo-init archetype="":
     # Derive the default for a DNS hostname and bare TOML service key, not
     # only an OCI image name: Julia dots and slug underscores need hyphens.
     # Explicit service answers still go through the validator unchanged.
-    DEFAULT_SERVICE_NAME="${REPO,,}"
+    # tr, not the Bash 4 case-conversion expansion: macOS ships Bash 3.2.
+    _repo_lc="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+    _owner_lc="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+    DEFAULT_SERVICE_NAME="$_repo_lc"
     DEFAULT_SERVICE_NAME="${DEFAULT_SERVICE_NAME//[._]/-}"
     if [ -d "build/container" ]; then
         echo ""
@@ -367,8 +376,8 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/$_owner_lc}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/$_owner_lc}}"
         # The values fill double-quoted KYAML scalars: refuse a value that
         # would break them now, before anything is written.
         bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
@@ -376,7 +385,7 @@ repo-init archetype="":
     else
         SERVICE_NAME="${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
+        REGISTRY="${REGISTRY:-ghcr.io/$_owner_lc}"
     fi
 
     # --- Derived values ---
@@ -1382,6 +1391,45 @@ repo-init archetype="":
     }
 
     DECLARES_AGAINST=$(bash scripts/deed-field.sh "$DEED_OUT" rsr-profile declares-against 2>/dev/null || true)
+
+    # Layout bindings (owner ruling 2026-11-16, rsr-template-repo#421). The
+    # template's (rsr-profile (layout …)) says where its tree keeps a gated
+    # module that is not at the gate table's default location, and standards
+    # check-rsr-profile.sh reads it there. The child inherits the tree, so it
+    # inherits each binding whose :at paths ALL survived the archetype prune
+    # above. A binding to a pruned path would be STALE there, so it is dropped,
+    # never carried as a claim about files the child does not have.
+    # layout_modules: one line per (module …): gate, then its :at paths,
+    # tab-separated, read from deed-field.sh's token stream (S = string).
+    layout_modules() {
+        bash scripts/deed-field.sh --clause "$DEED_OUT" rsr-profile/layout 2>/dev/null | awk '
+            $0 == "Amodule" { inmod = 1; gate = ""; ats = ""; next }
+            inmod && $0 == "A:gate" { want = "gate"; next }
+            inmod && $0 == "A:at" { want = "at"; next }
+            inmod && want == "gate" && substr($0, 1, 1) == "S" { gate = substr($0, 2); want = ""; next }
+            inmod && want == "at" && substr($0, 1, 1) == "S" { ats = ats "\t" substr($0, 2); next }
+            inmod && want == "at" && $0 == ")" { want = ""; printf "%s%s\n", gate, ats; inmod = 0; next }'
+    }
+    # deed_str VALUE: VALUE as a deed string literal.
+    deed_str() { local v="${1//\\/\\\\}"; printf '"%s"' "${v//\"/\\\"}"; }
+    CHILD_LAYOUT=""
+    while IFS=$'\t' read -r -a _mod; do
+        [ "${#_mod[@]}" -ge 2 ] || continue
+        _keep=1; _ats=""
+        for _at in "${_mod[@]:1}"; do
+            case "$_at" in
+                */) [ -d "${_at%/}" ] || _keep=0 ;;
+                *)  [ -e "$_at" ] || _keep=0 ;;
+            esac
+            _ats="${_ats:+$_ats }$(deed_str "$_at")"
+        done
+        if [ "$_keep" = 1 ]; then
+            CHILD_LAYOUT="${CHILD_LAYOUT}      (module :gate $(deed_str "${_mod[0]}") :at (${_ats}))"$'\n'
+        else
+            echo "  layout:     dropped the binding for ${_mod[0]} (its path was pruned at mint)"
+        fi
+    done <<< "$(layout_modules)"
+
     {
         echo "  ; rsr-profile — this repo's declared RSR v2.0 capabilities."
         echo "  ; Written by just repo-init on ${CURRENT_DATE}. The template's maximal"
@@ -1391,14 +1439,32 @@ repo-init archetype="":
         echo "    :spec \"rsr-criteria-v2\""
         echo "    :declares-against \"${DECLARES_AGAINST:-2.0.0-draft}\""
         if [ -n "$ARCH_PRESET" ]; then
-            echo "    :preset \"${ARCH_PRESET}\")"
+            echo "    :preset \"${ARCH_PRESET}\""
         else
             echo "    ; UNASSIGNED: declare capabilities (or a preset) — see standards"
             echo "    ; .machine_readable/template-capability-gates.toml"
-            echo "    :capabilities ())"
+            echo "    :capabilities ()"
         fi
+        if [ -n "$CHILD_LAYOUT" ]; then
+            echo "    ; Where this tree keeps a gated module off the gate table's default"
+            echo "    ; location (inherited from the template). Move a module, move its"
+            echo "    ; binding; delete one, delete its binding."
+            echo "    (layout"
+            printf '%s' "$CHILD_LAYOUT" | sed '$ s/$/)/'
+        fi
+        echo "    )"
     } | bash scripts/deed-clause.sh replace "$DEED_OUT" rsr-profile -
     echo "  profile:    $DEED_OUT (rsr-profile)${ARCH_PRESET:+  (preset $ARCH_PRESET)}"
+
+    # The folded AI manifest names the repo it describes: its :project is the
+    # deed's :canonical-name, which standards check-rsr-profile.sh requires
+    # before the clause satisfies the 0-AI-MANIFEST baseline. The template's
+    # says "rsr-template-repo"; written here through the one deed writer, so it
+    # never depends on the placeholder or self-name passes reaching it.
+    if bash scripts/deed-field.sh --has "$DEED_OUT" manifest; then
+        CHILD_CANONICAL="$(bash scripts/deed-field.sh "$DEED_OUT" "" canonical-name)"
+        bash scripts/deed-clause.sh set "$DEED_OUT" manifest project "$(deed_str "$CHILD_CANONICAL")"
+    fi
 
     # Provenance — the estate's answer-file (ADR-0002 contract shape, used
     # per ADR-0003 with direction=generated-from-core).
@@ -1550,8 +1616,10 @@ repo-init archetype="":
     {
         echo "  ; mint-answers — what just repo-init was answered on ${CURRENT_DATE}."
         echo "  ; Read by scripts/check-mint-drift.sh to replay the mint. Every value"
-        echo "  ; here already appears in this repo's rendered files."
+        echo "  ; here already appears in this repo's rendered files, but :schema-version,"
+        echo "  ; which says how to read the rest (readers refuse one they do not know)."
         echo "  (mint-answers"
+        echo "    :schema-version \"1\""
         printf '%s\n' "${_ANSWERS[@]}"
         echo "    :mint-date \"${CURRENT_DATE}\")"
     } | put_clause mint-answers
@@ -1990,7 +2058,7 @@ repo-init archetype="":
     echo "       gh repo edit ${OWNER}/${REPO} --description '<one line>' --homepage '${WEBSITE}'"
     echo "     Visibility is fail-closed private; flip deliberately if wanted:"
     echo "       gh repo edit ${OWNER}/${REPO} --visibility public --accept-visibility-change-consequences"
-    echo "     Register in chora-registry (formerly gv-clade-index); required contexts must equal emitted job ids."
+    echo "     Register in chora-registry; required contexts must equal emitted job ids."
     if [ -f ci/.gitlab-ci.yml ]; then
         echo ""
         echo "     GitLab mirror only: this repo keeps its GitLab CI config at"

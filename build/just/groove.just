@@ -46,7 +46,7 @@ groove-setup:
     # y/n answer, DEFAULT (y or n) applying to an empty answer.
     surface() {
         local a="${2:-$3}" v='#f'
-        [[ "${a,,}" == y* ]] && v='#t'
+        case "$a" in [yY]*) v='#t' ;; esac
         bash scripts/deed-clause.sh set "$DEED" "integrations/groove/api-surfaces/$1" enabled "$v"
     }
     surface rest "$REST" y

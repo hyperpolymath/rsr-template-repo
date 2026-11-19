@@ -108,6 +108,55 @@ canonical tools, run from a standards checkout (`STANDARDS_DIR`), and skip
 with a notice when none is present. k9iser is retired estate-wide: contracts
 are authored to `1-formats/k9/spec/K9-CONTRACT-SPEC.adoc`, never generated.
 
+== `ci-gate.yml` publishes the `CI/gate` status (interim)
+
+`ci-gate.yml` is a thin caller of the reusable of the same name in
+hyperpolymath/proven-cicd-and-workflows. It emits the commit status `CI/gate`,
+which the Branch-Floor ruleset requires. It is a commit status, not a check run,
+because a reusable's check-run name is `<caller job> / <job>` and can never equal
+`CI/gate`.
+
+* It starts on `pull_request` (job `gate-pr`, same-repository branches only: a
+  fork's or Dependabot's token cannot write statuses) so the pull request that
+  adds or changes the gate gets `CI/gate` itself and waits, within a bounded
+  budget, for the checks the profile names. `gate-pr` runs from the pull
+  request's own branch, so the tamper guard below is what makes an edit to the
+  gate visible.
+* It also runs on `workflow_run` (`completed` and `in_progress`: a rerun flips the
+  status to pending, so a stale success never survives), on a 15-minute
+  `schedule` sweep and on `workflow_dispatch`. GitHub runs those from the copy on
+  the default branch: a pull request cannot alter that job, its pin or its list.
+  The job `gate` skips the `pull_request` event. There is no `concurrency:` block,
+  as in the suite's template: the reusable re-reads the runs before it writes.
+* The required-check list is not in this repository. It lives in
+  `proven-cicd-and-workflows/profiles/ci-gate/<owner>/<repo>.json` at the pinned
+  SHA.
+* It is onboarded in `actions.lock` (workflow key plus a leaf record for the suite
+  reusable, `ref: main`), because the lock-sync gate requires it. An A3 `estate-gate` replaces it by changing the pin and the
+  context.
+
+=== `ci-gate-tamper-guard-caller.yml`: the gate tamper guard
+
+`ci-gate-tamper-guard-caller.yml` is a thin caller of the suite's reusable
+`ci-gate-tamper-guard.yml`, pinned to the same commit as the gate. It runs on
+`pull_request_target`, so GitHub uses the default-branch copy and a pull request
+cannot edit the guard that judges it; it never checks out or runs pull request
+code. A pull request that touches a gate file (`.github/workflows/ci-gate*.yml`,
+and `scripts/check-required-contexts.sh`, among the suite's gate files) fails
+`guard / check` until the owner applies the label `gate-change-approved`
+after the newest commit, and only a repository admin's label counts.
+
+* Only the owner applies `gate-change-approved`. An agent must never apply it.
+  It is tamper-evident, not tamper-proof; the suite's `docs/CI-GATE.adoc`,
+  "Tamper guard", states the limit.
+* The guard has a fixed set of protected paths in the suite's script; the caller
+  takes no `paths` input. In this repository
+  `.machine_readable/required-contexts-allow.txt` (the `CI/gate => status:` mapping)
+  is not in that set, so a change to it is not flagged by the guard.
+* It is onboarded in `actions.lock` like `ci-gate.yml` (its own workflow key, the
+  same leaf record for the suite). It is not yet a required context; listing
+  `guard / check` in the suite's profile is a later round, once the guard is on the default branch.
+
 == The README badges are generated output (GitHub Pages)
 
 Every repository minted from this template publishes one Shields-endpoint JSON
@@ -171,6 +220,10 @@ without any exemption. Nothing here weakens, bypasses or excuses the ruleset.
   badge URL has no `/<repo>` segment; `just repo-init` drops it for that name form
   (case-insensitively) and keeps it for every other repository.
   `tests/workflows/user_pages_badge_url_test.sh` runs that rule.
+  The slug check accepts that name form (`<owner>.github.io`, compared
+  case-insensitively with the owner; another owner's is still refused), so the
+  rule is reachable: `scripts/check-repo-slug.sh`, run by
+  `tests/workflows/repo_slug_check_test.sh`.
 
 === What each colour means
 
