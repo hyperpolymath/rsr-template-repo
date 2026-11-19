@@ -106,6 +106,25 @@ printf '// comment\n{ "b": 1, "a": 2 }\n' > "$WORK/t/.vscode/settings.json"
 expect 0 "Silence: tool-demanded JSONC skipped under --enforce" --enforce
 names "2 JSONC carve-out(s) skipped" "Silence: JSONC skips counted explicitly"
 
+echo "=== Scope: a git work tree scans the repository's own files ==="
+gt() { git -C "$WORK/t" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
+fresh; gt init -q
+printf '/verif/\n' > "$WORK/t/.gitignore"
+mkdir -p "$WORK/t/verif" "$WORK/t/vendor/sub"
+printf '{"b":1,"a":2}\n' > "$WORK/t/verif/generated.json"
+printf '{"b":1,"a":2}\n' > "$WORK/t/vendor/sub/upstream.json"
+printf '{"a":1}\n' > "$WORK/t/tracked.json"
+gt add .gitignore tracked.json
+gt update-index --add --cacheinfo "160000,$(printf 'x' | git hash-object --stdin),vendor/sub"
+expect 0 "Silence: ignored output and a submodule checkout are not scanned" --enforce
+names "1 file(s) checked, 1 canonical" "Silence: only the tracked file counted"
+printf '{"b":1,"a":2}\n' > "$WORK/t/untracked.json"
+expect 1 "Firing: an untracked, unignored file is still scanned" --enforce
+names "NOT CANONICAL t/untracked.json" "Firing: untracked file named"
+rm "$WORK/t/untracked.json"; printf '{"b":1,"a":2}\n' > "$WORK/t/tracked.json"
+expect 1 "Firing: an edited tracked file is scanned" --enforce
+names "NOT CANONICAL t/tracked.json" "Firing: tracked file named"
+
 echo "=== Setup / cannot-look outcomes (exit 2) ==="
 fresh
 got=0; bash "$SCRIPT" "$WORK/does-not-exist" >"$WORK/out" 2>&1 || got=$?
