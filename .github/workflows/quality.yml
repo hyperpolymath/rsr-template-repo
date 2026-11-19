@@ -58,8 +58,23 @@ jobs:
         run: |
           find . -type f -size +1M -not -path "./.git/*" | head -10 || echo "No large files"
       - name: EditorConfig check
-        uses: editorconfig-checker/action-editorconfig-checker@51f63319f592f97930c73d9c46184d20bd206393 # v3.0.0
+        # No third-party action here. The organisation's allowed-actions policy
+        # refuses editorconfig-checker/action-editorconfig-checker, and a refused
+        # action stops the WHOLE workflow at startup with no check reported
+        # (hyperpolymath/mathesis, Code Quality run 43624052718). A `run:` step
+        # is outside that policy. The release archive is pinned by SHA-256.
         continue-on-error: true
+        env:
+          EC_VERSION: v4.0.2
+          EC_SHA256: 44efaef3ed14c6ab52eb87481d78e5e5c204796dccf26e2f4598a61ba17f8003
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$tmp/ec.tgz" \
+            "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/${EC_VERSION}/editorconfig-checker-linux-amd64.tar.gz"
+          echo "${EC_SHA256}  $tmp/ec.tgz" | sha256sum -c -
+          tar -xzf "$tmp/ec.tgz" -C "$tmp" editorconfig-checker
+          "$tmp/editorconfig-checker"
   # The gates this template ships, and the proof that each one can fail.
   #
   # Nothing else in this workflow runs them: `just quality` is deliberately not
