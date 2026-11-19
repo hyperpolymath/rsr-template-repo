@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           tmp=$(mktemp -d)
-          curl -fsSL -o "$tmp/ec.tgz" \
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$tmp/ec.tgz" \
             "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/${EC_VERSION}/editorconfig-checker-linux-amd64.tar.gz"
           echo "${EC_SHA256}  $tmp/ec.tgz" | sha256sum -c -
           tar -xzf "$tmp/ec.tgz" -C "$tmp" editorconfig-checker
