@@ -244,6 +244,12 @@ function localTargetError(uses, fullWf) {
     : onBlock && typeof onBlock === "object" ? "workflow_call" in onBlock
     : false;
   if (!callable) return `'${uses}' does not declare on.workflow_call, so GitHub cannot run it as a reusable workflow`;
+  // The caller passes with.context, and GitHub refuses an input the called workflow does not
+  // declare, so the target must declare on.workflow_call.inputs.context as a string input.
+  const call = onBlock && typeof onBlock === "object" && !Array.isArray(onBlock) ? onBlock.workflow_call : undefined;
+  const ctxInput = call && typeof call === "object" ? call.inputs?.context : undefined;
+  if (!ctxInput || typeof ctxInput !== "object" || ctxInput.type !== "string")
+    return `'${uses}' does not declare on.workflow_call.inputs.context with type: string, so GitHub refuses the caller's with.context`;
   return null;
 }
 
