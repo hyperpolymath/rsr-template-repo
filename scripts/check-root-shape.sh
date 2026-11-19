@@ -267,10 +267,14 @@ elif [ "${#deeds[@]}" -eq 1 ]; then
             profile_from_deed_slow "${deeds[0]}"
         fi
     fi
-    # The pin is read whichever source carries the profile: it is the deed's
-    # statement of which gate table this repo implements.
-    [ -f "$DEED_FIELD" ] && GATES_PIN="$(bash "$DEED_FIELD" "${deeds[0]}" canon gates-sha256 || true)"
 fi
+# The pin is the deed's statement of which gate table this repo implements. It
+# is only consulted when capabilities are declared against a vendored table
+# (below), so it is read there, not on every run.
+gates_pin() {
+    [ "${#deeds[@]}" -eq 1 ] && [ -f "$DEED_FIELD" ] || return 0
+    bash "$DEED_FIELD" "${deeds[0]}" canon gates-sha256 || true
+}
 if [ -z "$PROFILE_SOURCE" ]; then
     for p in "$REPO_ROOT/.machine_readable/rsr-profile.a2ml" "$REPO_ROOT/machine-readable/rsr-profile.a2ml"; do
         [ -f "$p" ] || continue
@@ -332,6 +336,7 @@ elif [ ! -f "$GATES_FILE" ]; then
     derive_note "capabilities declared in $PROFILE_SOURCE but no gate table at ${GATES_FILE#"$REPO_ROOT"/}; static allowlist only"
     CAP_NOTE="capabilities declared but no gate table at ${GATES_FILE#"$REPO_ROOT"/}; static allowlist only"
 else
+    GATES_PIN="$(gates_pin)"
     if [ -n "$GATES_PIN" ]; then
         have="$(sha256sum "$GATES_FILE" 2>/dev/null || shasum -a 256 "$GATES_FILE" || true)"
         have="${have%%[[:space:]]*}"
