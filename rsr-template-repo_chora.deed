@@ -193,7 +193,8 @@
   (manifest
     :version "0.1.0"
     :last-updated "{{CURRENT_DATE}}"
-    :project "[YOUR-REPO-NAME]"
+    ; :project is this repo's :canonical-name; repo-init writes the child's.
+    :project "rsr-template-repo"
     :purpose "Canonical RSR (Rhodium Standard Repository) template — governance, CI/CD, machine-readable metadata, ABI/FFI seam and formal-verification scaffolding that hyperpolymath projects are instantiated from."
     (agent :name CLAUDE :role "proofs, compilers, repo-local implementation, CI/CD, formal verification, Rust/Idris2/Zig")
     (agent :name CHATGPT :role "prose, papers, publication review, standards docs, outreach drafts, letters")
@@ -386,7 +387,7 @@
       :scan-enabled #t
       ; quick | standard | deep
       :scan-depth "standard"
-      :report-format "logtalk")
+      :report-format "json")
     (symbolic-rules
       ; Custom symbolic rules for this project
       ; (rule :name "no-unsafe-ffi" :pattern "believe_me|unsafeCoerce" :severity "critical")
@@ -1051,14 +1052,20 @@
   ; denominator.
   ;
   ; rsr-template-repo is deliberately MAXIMAL: it ships scaffolding for FFI/ABI
-  ; seams, in-tree formal proofs, a container, a reproducible build, benchmarks,
+  ; seams, in-tree formal proofs, a reproducible build, benchmarks,
   ; a docs site, and the full governance trio — so a repo scaffolded FROM it can
   ; adopt any of them. Its declared set is therefore near-total, which is exactly
   ; what makes it the dogfood target (the gate requires Gold on the applicable
   ; set). Every capability below is grounded in a file/dir that actually exists
   ; in this tree; capabilities it does NOT have (rust, affinescript, mobile,
-  ; web-ui, api-service, published-package) are omitted so the oracle does not
-  ; score this repo against modules it does not carry.
+  ; web-ui, api-service, published-package, container) are omitted so the oracle
+  ; does not score this repo against modules it does not carry.
+  ;
+  ; (layout …) says where this tree keeps a gated module when that is not the
+  ; gate table's default location, so standards scripts/check-rsr-profile.sh
+  ; reads the layout from here instead of hard-coding it (owner ruling
+  ; 2026-11-16, rsr-template-repo#421). Every :at path must exist; a moved or
+  ; deleted module fails the check until its binding moves with it.
   (rsr-profile
     :version "1.0.0"
     :spec "rsr-criteria-v2"
@@ -1088,8 +1095,6 @@
       "formal-proofs"
       ; .github/workflows/pages.yml (casket/Pages)
       "docs-site"
-      ; build/container/ + .devcontainer/Containerfile
-      "container"
       ; build/guix.scm
       "reproducible-build"
       ; benches/
@@ -1097,6 +1102,9 @@
       ; full AUDIT/AFFIRMATION/GOVERNANCE/MAINTAINERS trio
       "governance-tier"
       )
+    (layout
+      ; The ABI package sits beside its sources, not at the repo root.
+      (module :gate "abi.ipkg" :at ("src/interface/abi.ipkg")))
   (notes
     ; Capabilities intentionally NOT declared (no corresponding code in tree):
     ;   rust           — no *.rs / Cargo.toml (the FFI/ABI layer is Zig + Idris2)
@@ -1105,6 +1113,10 @@
     ;   web-ui         — no browser UI
     ;   api-service    — not a network daemon
     ;   published-package — a scaffold template, not itself a registry artifact
+    ;   container      — no container recipe: build/container/Containerfile was
+    ;                    removed on 2026-10-30 as unpinned and non-building
+    ;                    (build/just/container.just). .devcontainer/Containerfile
+    ;                    is a development environment, not a product image.
     :omitted-rationale "Declaring a capability this repo lacks would make the oracle score it against a module it does not carry — the over-scaffolding failure v2.0 fixes. See 0-canon/TEMPLATE-APPLICABILITY-POLICY.adoc."))
   ; Egress attestation (standards ADR-009; grammar
   ; 1-formats/deed/spec/abnf/clauses/egress.abnf). Every job that reads a real

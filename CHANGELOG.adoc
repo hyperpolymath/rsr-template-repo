@@ -10,6 +10,30 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
+  `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
+  false `CI/gate` failure when a workflow name contains an emoji (GitHub
+  rejects 4-byte UTF-8 in a status description; fixed in
+  hyperpolymath/proven-cicd-and-workflows#144, seen on
+  hyperpolymath/resource-algebra#48). `ci-gate.yml`,
+  `ci-gate-tamper-guard-caller.yml`, `actions.lock` and
+  `tests/workflows/squabble_gate_test.sh` are updated to match. The new pin is
+  still a commit on an unmerged suite branch, so a second re-pin follows the
+  squash merge of hyperpolymath/proven-cicd-and-workflows#139.
+
+* The four quarantined Idris2 ABI proof modules
+  (`verification/proofs/idris2/ABI/{Layout,Platform,Pointers,Compliance}.idr`)
+  now compile under Idris 2 0.8.0 with no holes and no escape hatch, and are
+  `gated` in the MANIFEST; nothing is quarantined. `Layout` and `Platform`
+  lacked `import Data.Nat` (and `lteRefl` is gone from base; `reflexive` is
+  used). `FieldAligned` and `CABICompliant.sizeAligned` applied `SIsNonZero`
+  to an arbitrary alignment, which cannot typecheck; they now use
+  `ABI.Layout.Aligned`, which carries an erased non-zero witness, so an
+  alignment of 0 can no longer count as aligned (`zeroAlignmentNeverAligned`).
+  In `Pointers`, `nonNull` stays erased: `safePtrNeverNull` reruns the
+  decidable `ptr /= 0` test and refutes the other branch with the erased
+  witness, and `handlePtrEq` uses uniqueness of `So` proofs. These modules are
+  still template examples, not evidence for a minted repo's own claims.
 * The K9 badge publisher failed on every push to `main` in minted repos: it
   wrote straight to the `governance-badges` branch, and the estate's
   `Branch-Floor` ruleset (all branches, `code_coverage` requires a pull
@@ -120,6 +144,22 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Changed
 
+* `CI/gate` now also starts on `pull_request`, and a tamper guard is added.
+  `.github/workflows/ci-gate.yml` is rewritten from the suite's
+  `templates/ci-gate-caller.yml`: a same-repository `gate-pr` job on
+  `pull_request` posts `CI/gate` on the pull request that adds or changes the
+  gate, beside the existing `workflow_run`, `schedule` and `workflow_dispatch`
+  job `gate` (which skips `pull_request`). The new
+  `.github/workflows/ci-gate-tamper-guard-caller.yml` calls the suite's guard on
+  `pull_request_target`: a pull request that touches a gate file fails
+  `guard / check` until the owner applies the label `gate-change-approved`. The
+  guard is not a required context yet. Both callers pin
+  hyperpolymath/proven-cicd-and-workflows at `d2140a5a789e4ebec52f1bab0074181012660c3b`,
+  a provisional pin on a suite pull request branch (a placeholder until that pull request merges);
+  `actions.lock` is edited by hand to match (`gh actions-lock` v0.2.0 cannot lock
+  cross-repository reusable workflows) and `scripts/check-lock-sync.sh` is the
+  authority. `tests/workflows/squabble_gate_test.sh` section 5b asserts the new
+  triggers, the jobs and their pins, and the guard caller's shape.
 * **Agda proofs use PROOF-POLICY §2.1's invocation.** `scripts/check-proofs.sh
   agda` runs `agda --safe --without-K --cubical-compatible`, the canonical
   theory invocation (metadatastician/standards `3-practice/PROOF-POLICY.adoc`
