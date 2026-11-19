@@ -115,13 +115,26 @@ must then change `scripts/check-workflow-edges.sh`'s expectation deliberately.
 
 *Enforced by.* `scripts/check-workflow-edges.sh` (identical-ref check plus the
 duplicate-pin scan). This includes Hypatia's RSR oracle checkout, its SARIF
-scanner and both verdict reporters. A checkout ref must be a literal full SHA
-or an exact `env.NAME` expression with one literal declaration in the applicable
-workflow or job scope. Job env overrides workflow env; siblings remain isolated.
-A referenced checkout-step env binding is rejected as unsupported. Complete flow,
-aliased and anchored steps are also explicitly unsupported. Missing or duplicate checkout inputs, unresolved or
-ambiguous bindings, and unsupported checkout mapping forms fail closed. Shell
-block examples are not checkout inputs. No YAML runtime dependency is needed.
+scanner and both verdict reporters. Hypatia checkouts are read with Mike Farah
+`yq` (v4, at least 4.53.3) and `jq`, rather than by matching YAML indentation.
+Duplicate mapping keys are rejected on the raw YAML AST before alias expansion
+or JSON conversion. Aliased, complex and non-string mapping keys are rejected
+there as well, preventing different YAML keys from colliding as JSON properties.
+This restriction applies to keys; aliases in selector/input values are supported.
+Aliases and merges are expanded with
+`--yaml-fix-merge-anchor-to-spec=true`; flow maps and block scalars are decoded
+as actual values. Shell examples remain strings, not checkout inputs.
+
+A checkout ref must be a literal full SHA or an exact `env.NAME` expression.
+Literal bindings use step, then job, then workflow precedence; sibling jobs
+remain isolated. An uninspectable override never permits fallback. Missing or
+duplicate inputs, unresolved expressions, invalid YAML and uninspectable
+job/step/input shapes fail with exit 1. Missing or incompatible parser tools
+are setup failures (exit 2). CI uses the checksum-verified yq 4.53.3 installation
+before every direct or indirect caller. Standalone runs need those tools on PATH.
+These checks inspect the relevant parsed fields, not the complete GitHub
+workflow schema. The other reporting and reusable-workflow edge checks retain
+their existing implementation.
 
 === Source audit for the common Hypatia pin (2026-11-16)
 

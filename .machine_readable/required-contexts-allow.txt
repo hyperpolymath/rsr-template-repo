@@ -4,6 +4,12 @@
 # workflow files in `.github/workflows/` that produce them on `pull_request`.
 #
 # Format: <exact check context> => <.github/workflows/file.yml>
+#      or: <exact commit-status context> => status:<.github/workflows/file.yml>
+#
+# A `status:` mapping names a workflow_run publisher of a commit status (the
+# estate's CI gate caller). The checker verifies that the file exists, triggers on
+# workflow_run with a `completed` type, calls the suite's ci-gate reusable at a
+# 40-hex pin (or the local copy) and passes `with.context` equal to the context.
 #
 # Verified by `scripts/check-required-contexts.sh` (3-outcome 0/1/2) so a
 # renamed or path-filtered workflow can never silently strand pull requests
@@ -33,3 +39,4 @@
 scan / gitleaks => .github/workflows/secret-scanner.yml
 scan / rust-secrets => .github/workflows/secret-scanner.yml
 scan / shell-secrets => .github/workflows/secret-scanner.yml
+CI/gate => status:.github/workflows/ci-gate.yml
