@@ -1360,6 +1360,23 @@ function defineGuardsCases({ goodArtifact }) {
         });
     }
 
+    for (const [name, defaultBranch] of [
+        ["with a path-climbing part", "a/../b"],
+        ["with a space", "bad branch"],
+        ["with a query character", "main?x=1"],
+        ["ending in .lock", "main.lock"],
+    ]) {
+        defineApiTest(`a default branch ${name} is refused, not placed in a request path`, {
+            branchExists: true, fileBytes: SUCCESS_BADGE, defaultBranch,
+        }, async (api, url) => {
+            const out = await runAsync(publishArgs(url, goodArtifact));
+            equal(out.code, 1, `expected a refused run, got ${out.code}: ${out.stderr}`);
+            check(out.stderr.includes("not a valid Git ref name"), `stderr must name the reason: ${out.stderr}`);
+            equal(api.state.requests.map((r) => r.route).join(","), "repo", "no request may be built from the bad name");
+            equal(api.writes().length, 0, "nothing is written");
+        });
+    }
+
     for (const apiUrl of ["https://127.0.0.1:1", "http://localhost:1"]) {
         defineTest(`an API URL of ${apiUrl} passes validation and fails only at the network`, () => {
             const out = runSync(publishArgs(apiUrl, goodArtifact));
