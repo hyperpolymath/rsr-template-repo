@@ -448,6 +448,35 @@ if [ "$CANON_N" != "1" ]; then
 fi
 log_pass "Child deed carries minimal (rsr-profile), (variant), (provenance) and one (canon)"
 
+# (rsr-profile (layout …)) is the layout standards check-rsr-profile.sh reads
+# (owner ruling 2026-11-16, rsr-template-repo#421). Every binding the child
+# carries names a path the child's tree has: a binding to a pruned module
+# would be STALE there. Read from the deed-field.sh token stream.
+CHILD_ATS=$(bash "$DEED_READ" --clause "$CHILD" rsr-profile/layout 2>/dev/null \
+    | awk '$0 == "A:at" { on = 1; next } on && $0 == ")" { on = 0; next } on && /^S/ { print substr($0, 2) }')
+while IFS= read -r at; do
+    [ -n "$at" ] || continue
+    case "$at" in
+        */) [ -d "$TEST_REPO_PATH/${at%/}" ] ;;
+        *)  [ -e "$TEST_REPO_PATH/$at" ] ;;
+    esac || { log_error "child (rsr-profile (layout …)) binds $at, which the mint does not carry"; exit 1; }
+done <<< "$CHILD_ATS"
+# The template binds its ABI package; a mint that keeps src/interface/ keeps
+# the binding with it.
+if [ -e "$TEST_REPO_PATH/src/interface/abi.ipkg" ] && ! grep -qx 'src/interface/abi.ipkg' <<< "$CHILD_ATS"; then
+    log_error "child keeps src/interface/abi.ipkg but its (rsr-profile (layout …)) lost the binding"
+    exit 1
+fi
+# The folded AI manifest names the child, not the template: standards
+# check-rsr-profile.sh accepts the (manifest …) clause for the 0-AI-MANIFEST
+# baseline only when its :project is the deed's :canonical-name.
+CHILD_NAME="$(bash "$DEED_READ" "$CHILD" "" canonical-name)"
+if [ "$(bash "$DEED_READ" "$CHILD" manifest project 2>/dev/null || true)" != "$CHILD_NAME" ]; then
+    log_error "child (manifest :project) is not its :canonical-name ($CHILD_NAME)"
+    exit 1
+fi
+log_pass "Child (rsr-profile (layout …)) names only paths it carries; (manifest :project) is $CHILD_NAME"
+
 #==============================================================================
 # WWW SITE-OPERATIONS BUNDLE (issue #53)
 #==============================================================================

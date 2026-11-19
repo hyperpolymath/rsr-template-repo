@@ -25,6 +25,11 @@
 # template-only material removed at mint, or a module gated on a capability
 # the repo does not declare (see standards' template-capability-gates.toml).
 # Do NOT mark something optional merely to silence a failure.
+#
+# This file is the BASELINE only. scripts/check-root-shape.sh also admits every
+# root-level module that template-capability-gates.toml (vendored beside this
+# file) gates on a capability the repo profile declares, so a declared-rust repo
+# needs no Cargo.toml line here. Add a line only for what no gate row covers.
 
 # ─── Baseline: every RSR repo has these ──────────────────────────────────────
 README.adoc

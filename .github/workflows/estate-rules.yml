@@ -40,6 +40,10 @@ jobs:
         run: bash tests/shape/check_root_shape_test.sh
       - name: Root-shape gate, rust-cli mint shape (Cargo optional, mise.lock kept)
         run: bash tests/shape/rust_cli_root_shape_test.sh
+      # The allowlist is baseline ∪ { gated modules whose capability is declared }.
+      # Every widening case is paired with a planted stray that must still fail.
+      - name: Root-shape gate, derived allowlist (capabilities + vendored gate table)
+        run: bash tests/shape/derived_root_allow_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
@@ -145,7 +149,7 @@ jobs:
       # Installed before the mint steps: repo-init and container-init reformat the
       # container KYAML they fill (scripts/format-container-kyaml.sh), which needs
       # a yq that can write KYAML. The KYAML ratchet below uses the same install.
-      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)
+      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards f0b3cd4)
         run: |
           mkdir -p "$RUNNER_TEMP/yq-bin"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
@@ -158,6 +162,8 @@ jobs:
             https://raw.githubusercontent.com/metadatastician/standards/f0b3cd4c464d33e1584f8528c17bce104555e256/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      - name: Rhodibot guide formats and missing or duplicate controls
+        run: bash tests/workflows/rhodibot_canary_test.sh
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
       - name: Mint refuses before writing when nickel or a KYAML yq is missing
@@ -216,6 +222,9 @@ jobs:
       # A campaign over a file with no {{TOKEN}}s once exited at that file.
       - name: Campaign dry run finishes over a tokenless path
         run: bash tests/workflows/rsr_campaign_tokenless_test.sh
+      # The campaign must not clobber edited copies, and promotes one MANIFEST line.
+      - name: Campaign known-version guard and MANIFEST promote
+        run: bash tests/workflows/rsr_campaign_guard_test.sh
       # The CHECK half of the template contract. repo-init has always written an
       # answer-file (now the child deed's (provenance) clause); nothing ever read it.
       # This is the missing reader, and it covers the #200/#201/#203 class:
