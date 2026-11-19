@@ -3,13 +3,15 @@
 # gated      = must compile.  quarantine = known-broken, must keep failing.
 # Ground-truthed 2026-07-17 with idris2 0.7.0 (developer/tools/opt/pack);
 # rechecked 2026-11-09 with idris2 0.7.0 built from the v0.7.0 tag (Chez 9.5.8).
+# rechecked 2026-11-17 with idris2 0.8.0-6ca00e72e, the digest-pinned idris2-pack
+# image of .github/workflows/pages.yml; every module is gated, none quarantined.
 verification/proofs/idris2|ABI/Foreign.idr|gated| the one shipped Idris2 module that compiles — real content, not a stub
 verification/proofs/idris2|Types.idr|gated| compiles under idris2 0.7.0 (imports Data.Nat); promoted 2026-11-09 when check-proofs.sh reported an unexpected pass
 .machine_readable/coaptation/core|Coaptation.idr|gated| coaptation Must/Trust gate: hardGateSound, hardGateComplete, mustCannotGap, trustCannotGap
-verification/proofs/idris2|ABI/Layout.idr|quarantine| Undefined name NonZero (needs Data.Nat); then a genuine unification failure (S ?x vs f .fieldAlignment)
-verification/proofs/idris2|ABI/Platform.idr|quarantine| Undefined name LTE (needs Data.Nat); then Undefined name lteRefl
-verification/proofs/idris2|ABI/Pointers.idr|quarantine| .nonNull declared at quantity 0 (erased) yet projected into a value position, plus a unification failure — design decision, not a typo
-verification/proofs/idris2|ABI/Compliance.idr|quarantine| depends on quarantined ABI.Layout / ABI.Platform
+verification/proofs/idris2|ABI/Layout.idr|gated| promoted 2026-11-17 (idris2 0.8.0): imports Data.Nat; FieldAligned now carries an erased non-zero witness for the alignment (Aligned), so an alignment of 0 can no longer satisfy it
+verification/proofs/idris2|ABI/Platform.idr|gated| promoted 2026-11-17 (idris2 0.8.0): imports Data.Nat; lteRefl (gone from base) replaced by Control.Relation.reflexive
+verification/proofs/idris2|ABI/Pointers.idr|gated| promoted 2026-11-17 (idris2 0.8.0): nonNull stays erased; safePtrNeverNull reruns the decidable test and refutes the other branch with the erased witness; handlePtrEq via uniqueness of So proofs
+verification/proofs/idris2|ABI/Compliance.idr|gated| promoted 2026-11-17 (idris2 0.8.0): sizeAligned uses ABI.Layout.Aligned (non-zero struct alignment is now part of the claim)
 #
 # The repository's own ABI seam (src/interface/Abi/), checked from its source
 # root so module names match paths. Every repo minted from this template
