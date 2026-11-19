@@ -40,6 +40,10 @@ jobs:
         run: bash tests/shape/check_root_shape_test.sh
       - name: Root-shape gate, rust-cli mint shape (Cargo optional, mise.lock kept)
         run: bash tests/shape/rust_cli_root_shape_test.sh
+      # The allowlist is baseline ∪ { gated modules whose capability is declared }.
+      # Every widening case is paired with a planted stray that must still fail.
+      - name: Root-shape gate, derived allowlist (capabilities + vendored gate table)
+        run: bash tests/shape/derived_root_allow_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
@@ -147,7 +151,7 @@ jobs:
       # Installed before the mint steps: repo-init and container-init reformat the
       # container KYAML they fill (scripts/format-container-kyaml.sh), which needs
       # a yq that can write KYAML. The KYAML ratchet below uses the same install.
-      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards 8e48b1c)
+      - name: Install verified yq 4.53.3 and kyaml-format.sh (standards f0b3cd4)
         run: |
           mkdir -p "$RUNNER_TEMP/yq-bin"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location \
@@ -160,6 +164,8 @@ jobs:
             https://raw.githubusercontent.com/metadatastician/standards/f0b3cd4c464d33e1584f8528c17bce104555e256/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      - name: Rhodibot guide formats and missing or duplicate controls
+        run: bash tests/workflows/rhodibot_canary_test.sh
       - name: Non-interactive mint resolves every prompt from the environment
         run: bash tests/workflows/non_interactive_mint_test.sh
       - name: Mint refuses before writing when nickel or a KYAML yq is missing
@@ -194,6 +200,13 @@ jobs:
         run: bash scripts/check-identity.sh "$(bash scripts/deed-field.sh --find .)"
       - name: Identity-literal gate self-test (v5, #u5, v4 and upper-case must fail)
         run: bash tests/workflows/check_identity_test.sh
+      # The deed names the repository it is checked out as: canonical name, file
+      # name, owner, forges and the birth-path id. check-identity.sh checks only the
+      # literal form; a repo carrying a template's deed unrenamed passed it.
+      - name: Deed names the repository it is checked out as
+        run: bash scripts/check-identity-matches-repo.sh "$(bash scripts/deed-field.sh --find .)"
+      - name: Deed-names-the-repository gate self-test (carried-in deed, fork, transfer must fail)
+        run: bash tests/workflows/check_identity_matches_repo_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date
@@ -218,6 +231,9 @@ jobs:
       # A campaign over a file with no {{TOKEN}}s once exited at that file.
       - name: Campaign dry run finishes over a tokenless path
         run: bash tests/workflows/rsr_campaign_tokenless_test.sh
+      # The campaign must not clobber edited copies, and promotes one MANIFEST line.
+      - name: Campaign known-version guard and MANIFEST promote
+        run: bash tests/workflows/rsr_campaign_guard_test.sh
       # The CHECK half of the template contract. repo-init has always written an
       # answer-file (now the child deed's (provenance) clause); nothing ever read it.
       # This is the missing reader, and it covers the #200/#201/#203 class:
@@ -275,6 +291,10 @@ jobs:
       # negative control; self-skips outside the template tree.
       - name: Pages badge URL for a user/org site repo name
         run: bash tests/workflows/user_pages_badge_url_test.sh
+      # The slug check must admit <owner>.github.io or the rule above is unreachable.
+      # Runs the real scripts/check-repo-slug.sh the recipe calls; negative control.
+      - name: Repo slug check admits the user/org site name
+        run: bash tests/workflows/repo_slug_check_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The

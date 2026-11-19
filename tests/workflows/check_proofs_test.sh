@@ -33,6 +33,13 @@ for t in coqc lean agda; do
     cat >"$FAKEBIN/$t" <<'FAKE'
 #!/usr/bin/env bash
 if [ "${1:-}" = "--version" ]; then echo "fake 0"; exit 0; fi
+# The fake agda refuses unless it is called with PROOF-POLICY §2.1's flags, so
+# a gate that drops one of them fails these controls.
+if [ "$(basename "$0")" = agda ]; then
+  for flag in --safe --without-K --cubical-compatible; do
+    case " $* " in *" $flag "*) ;; *) echo "error: fake agda called without $flag"; exit 1 ;; esac
+  done
+fi
 f="${@: -1}"
 if grep -q BROKEN "$f" 2>/dev/null; then echo "error: fake compile failure in $f"; exit 1; fi
 if grep -q SILENTERR "$f" 2>/dev/null; then echo "error: fake reports an error but exits 0"; exit 0; fi
@@ -74,6 +81,10 @@ run "a quarantined module that still fails passes" 0 "$d" coq yes "expected"
 
 d="$(fixture none)"
 run "no proofs and no MANIFEST passes" 0 "$d" coq yes "nothing to check"
+
+d="$(fixture agdaflags)"; mkdir -p "$d/verification/proofs/agda"; echo 'module A where' >"$d/verification/proofs/agda/A.agda"
+echo 'verification/proofs/agda|A.agda|gated|' >"$d/verification/proofs/agda/MANIFEST"
+run "agda: the gate passes PROOF-POLICY §2.1's flags" 0 "$d" agda yes "RESULT: PASS"
 
 # --- negative controls ---------------------------------------------------------
 d="$(fixture notool)"; echo 'x' >"$d/verification/proofs/coq/a.v"

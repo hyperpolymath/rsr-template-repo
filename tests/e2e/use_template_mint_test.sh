@@ -363,6 +363,20 @@ DEED="$C/mint-check_chora.deed"
 [ -f "$DEED" ] || fail 'the child deed was not renamed to mint-check_chora.deed'
 field() { bash "$C/scripts/deed-field.sh" "$DEED" "$@"; }
 
+# ── (0) the minted deed names the repository it was minted as ───────────────
+# scripts/check-identity-matches-repo.sh, run on the child as its CI runs it
+# (GITHUB_REPOSITORY set), must pass on a fresh mint: name, file name, owner,
+# forges and the birth-path id all agree. A different repository name must not.
+(cd "$C" && GITHUB_REPOSITORY=example-owner/mint-check \
+    bash scripts/check-identity-matches-repo.sh "$DEED") > "$work/identity-match.log" 2>&1 \
+    || { cat "$work/identity-match.log" >&2; fail 'the identity-matches-repo gate fails on a fresh mint'; }
+id_rc=0
+(cd "$C" && GITHUB_REPOSITORY=example-owner/not-mint-check \
+    bash scripts/check-identity-matches-repo.sh "$DEED") > "$work/identity-mismatch.log" 2>&1 || id_rc=$?
+[ "$id_rc" -eq 1 ] || { cat "$work/identity-mismatch.log" >&2; fail "the identity-matches-repo gate gave $id_rc, not 1, for another repository name"; }
+grep -q ':canonical-name' "$work/identity-mismatch.log" || fail 'the identity-matches-repo gate did not name the canonical-name mismatch'
+pass "(0) the gate that checks the deed names its repository passes on the fresh mint and fails for another name"
+
 # ── (a) provenance names the template's commit and tree ─────────────────────
 [ "$(field provenance template-repo)" = "$T_SLUG" ]     || fail "template-repo is $(field provenance template-repo), want $T_SLUG"
 [ "$(field provenance template-commit)" = "$T_COMMIT" ] || fail "template-commit is $(field provenance template-commit), want $T_COMMIT"
@@ -519,6 +533,42 @@ if drift; then fail 'the drift gate passed a new file declared diverged'; fi
 grep -q '^DRIFT: new-thing.txt is declared diverged, but the mint did not produce it' "$work/drift.log" || { cat "$work/drift.log" >&2; fail 'the new file declared diverged was not named'; }
 rm "$C/new-thing.txt"; cp "$work/deed.before-div" "$DEED"
 pass "(d-) a new file declared diverged is named as an addition"
+# --emit-paths derives the declarations from the replay; --write-paths writes
+# them through deed-clause.sh and checks again. An addition is collapsed to the
+# shallowest directory that holds nothing the mint produces; a removal to the
+# shallowest directory this repo keeps nothing in; a divergence stays one file.
+emit() { (cd "$C" && RSR_MINT_TOOL_CACHE="$work/tools" bash scripts/check-mint-drift.sh "$@" "$T") > "$work/emit.out" 2> "$work/emit.err"; }
+cp "$DEED" "$work/deed.before-emit"
+mkdir -p "$C/extra/deep"; printf 'one\n' > "$C/extra/one.txt"; printf 'two\n' > "$C/extra/deep/two.txt"
+printf 'mine\n' > "$C/docs/mine.adoc"
+printf '\nedited after the mint\n' >> "$C/README.adoc"
+[ -d "$C/src/interface/ffi/test" ] || fail 'fixture: the mint did not produce src/interface/ffi/test/'
+mv "$C/src/interface/ffi/test" "$work/ffi-test.saved"
+emit --emit-paths || { cat "$work/emit.err" >&2; fail '--emit-paths failed on undeclared findings'; }
+for want in '"extra/"' '"docs/mine.adoc"' '"README.adoc"' '"src/interface/ffi/test/"' '"mint-probe.md"'; do
+    grep -qF "$want" "$work/emit.out" || { cat "$work/emit.out" >&2; fail "--emit-paths did not declare $want"; }
+done
+# Negative controls: no collapse over what the other side holds.
+! grep -qE '"(docs|src/interface|src/interface/ffi|extra/deep)/"' "$work/emit.out" \
+    || { cat "$work/emit.out" >&2; fail '--emit-paths collapsed over a directory the other side holds (or not to the shallowest)'; }
+cmp -s "$DEED" "$work/deed.before-emit" || fail '--emit-paths wrote the deed'
+emit --write-paths || { cat "$work/emit.err" "$work/emit.out" >&2; fail '--write-paths did not leave the gate green'; }
+drift || { cat "$work/drift.log" >&2; fail 'the gate is red after --write-paths'; }
+# The written directory entry is still a claim: a file the mint produces,
+# put back under a directory declared removed, is named.
+mkdir -p "$C/src/interface/ffi/test"; cp "$work/ffi-test.saved/README.adoc" "$C/src/interface/ffi/test/README.adoc"
+if drift; then fail 'a revived file under a derived removed directory passed'; fi
+grep -q '^DRIFT: src/interface/ffi/test/README.adoc exists here but is declared removed' "$work/drift.log" \
+    || { cat "$work/drift.log" >&2; fail 'the revived file under the derived removal was not named'; }
+# A wrong declaration is never rewritten: --emit-paths refuses and names it.
+if emit --emit-paths; then fail '--emit-paths emitted over a wrong declaration'; fi
+{ grep -q 'is declared removed' "$work/emit.out" && grep -q 'no clause emitted' "$work/emit.err"; } \
+    || { cat "$work/emit.out" "$work/emit.err" >&2; fail '--emit-paths did not refuse a wrong declaration by name'; }
+rm -r "$C/src/interface/ffi/test"; mv "$work/ffi-test.saved" "$C/src/interface/ffi/test"
+rm -r "$C/extra" "$C/docs/mine.adoc"; g -C "$C" checkout -q -- README.adoc
+cp "$work/deed.before-emit" "$DEED"
+drift || { cat "$work/drift.log" >&2; fail 'the drift gate is not green again after the --emit-paths controls'; }
+pass "(d) --emit-paths derives the declarations (collapsed safely), --write-paths writes them green; a wrong one is refused"
 # The replay's own git runs isolated from this machine's configuration: a
 # global pre-commit hook that rejects every commit changes nothing (Codex
 # review of #275).

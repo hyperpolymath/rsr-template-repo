@@ -13,6 +13,16 @@
 #      --admin`) — enforcing cicd-squabbler's core `squabble != bypass`
 #      invariant statically alongside the runtime binary.
 #
+#   1b. A mapping spelled `<context> => status:<.github/workflows/foo.yml>` names
+#      a COMMIT-STATUS publisher, not a pull_request job: a workflow_run caller
+#      of the estate's CI gate cannot have a check run of that name (a job in a
+#      reusable gets `<caller job> / <called job>`). The checker then requires
+#      that the file exists, triggers on workflow_run with a `completed` type,
+#      has a job whose `uses:` is the suite's ci-gate reusable at a full
+#      40-hex pin (or the local ./.github/workflows/ci-gate.yml), and passes
+#      `with.context` exactly equal to the mapped context. YAML is read in-process
+#      with Bun.YAML, as for item 1. A plain mapping keeps the semantics of item 1.
+#
 # Exit contract (proven-tests-and-benches 3-outcome convention):
 #   0 = all mapped required contexts are producible on pull_request and zero
 #       bypass commands exist in workflows
@@ -44,7 +54,7 @@ command -v bun >/dev/null 2>&1 || {
 
 bun run - "$REPO_ROOT" <<'JS'
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 const root = resolve(process.argv[2]);
 const wfDir = join(root, ".github/workflows");
@@ -145,8 +155,12 @@ function producedNames(doc, unresolved, chain = []) {
   return names;
 }
 
-// 1. Parse mapping file: "<context> => <.github/workflows/foo.yml>"
+// 1. Parse mapping file: "<context> => <.github/workflows/foo.yml>" or
+//    "<context> => status:<.github/workflows/foo.yml>". `mapped` holds the path;
+//    `statusPublishers` holds the contexts whose mapping is `status:`-typed.
 const mapped = new Map();
+const statusPublishers = new Set();
+const mappedAtLine = new Map(); // a context may be mapped once, in any spelling
 const lines = readFileSync(allowPath, "utf8").split(/\r?\n/);
 for (let idx = 0; idx < lines.length; idx++) {
   const trimmed = lines[idx].trim();
@@ -156,7 +170,22 @@ for (let idx = 0; idx < lines.length; idx++) {
     console.error(`check-required-contexts: malformed mapping at line ${idx + 1}: ${lines[idx]}`);
     process.exit(2);
   }
-  mapped.set(parts[0], parts[1]);
+  if (mappedAtLine.has(parts[0])) {
+    console.error(`check-required-contexts: context '${parts[0]}' is mapped more than once (line ${mappedAtLine.get(parts[0])} and line ${idx + 1}); map each context exactly once, as either a plain or a status: mapping`);
+    process.exit(2);
+  }
+  mappedAtLine.set(parts[0], idx + 1);
+  if (parts[1].startsWith("status:")) {
+    const target = parts[1].slice("status:".length).trim();
+    if (!target) {
+      console.error(`check-required-contexts: malformed status mapping at line ${idx + 1}: ${lines[idx]}`);
+      process.exit(2);
+    }
+    statusPublishers.add(parts[0]);
+    mapped.set(parts[0], target);
+  } else {
+    mapped.set(parts[0], parts[1]);
+  }
 }
 if (mapped.size === 0) {
   console.error("check-required-contexts: 0 contexts mapped in required-contexts-allow.txt");
@@ -180,12 +209,125 @@ if (existsSync(rulesetsDir)) {
   }
 }
 
+/** Parse one workflow file in-process with Bun.YAML (as the pull_request path does). */
+function parseWorkflow(file) {
+  try {
+    return { doc: Bun.YAML.parse(readFileSync(file, "utf8")) };
+  } catch (e) {
+    return { error: String(e?.message ?? e) };
+  }
+}
+
+const SUITE_USES = /^hyperpolymath\/proven-cicd-and-workflows\/\.github\/workflows\/ci-gate\.yml@([^\s@]+)$/;
+const LOCAL_USES = "./.github/workflows/ci-gate.yml";
+
+/**
+ * Check a local `uses: ./...ci-gate.yml` target. GitHub runs a called workflow only if its `on`
+ * block has `workflow_call`, and a workflow cannot call itself, so the target is resolved under
+ * the repository root and read. Returns an error string, or null when the target is a valid reusable.
+ */
+function localTargetError(uses, fullWf) {
+  if (isAbsolute(uses)) return `'${uses}' is an absolute path`;
+  if (uses.split("/").includes("..")) return `'${uses}' contains '..' path traversal`;
+  const target = resolve(root, uses);
+  const rel = relative(root, target);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return `'${uses}' resolves outside the repository root`;
+  if (rel !== LOCAL_USES.slice(2)) return `'${uses}' is not directly the file ${LOCAL_USES}`;
+  if (target === resolve(fullWf)) return `'${uses}' is the publisher file itself, and a workflow cannot call itself`;
+  if (!existsSync(target)) return `'${uses}' names a file that does not exist`;
+  const { doc, error } = parseWorkflow(target);
+  if (error !== undefined) return `'${uses}' is not parseable YAML: ${error}`;
+  const onBlock = doc?.on ?? doc?.true;
+  const callable =
+    typeof onBlock === "string" ? onBlock === "workflow_call"
+    : Array.isArray(onBlock) ? onBlock.map(String).includes("workflow_call")
+    : onBlock && typeof onBlock === "object" ? "workflow_call" in onBlock
+    : false;
+  if (!callable) return `'${uses}' does not declare on.workflow_call, so GitHub cannot run it as a reusable workflow`;
+  // The caller passes with.context, and GitHub refuses an input the called workflow does not
+  // declare, so the target must declare on.workflow_call.inputs.context as a string input.
+  const call = onBlock && typeof onBlock === "object" && !Array.isArray(onBlock) ? onBlock.workflow_call : undefined;
+  const ctxInput = call && typeof call === "object" ? call.inputs?.context : undefined;
+  if (!ctxInput || typeof ctxInput !== "object" || ctxInput.type !== "string")
+    return `'${uses}' does not declare on.workflow_call.inputs.context with type: string, so GitHub refuses the caller's with.context`;
+  return null;
+}
+
+/**
+ * Verify a `status:` publisher:
+ * workflow_run caller (type `completed`). EVERY job that calls the suite's ci-gate
+ * reusable must be pinned at a full 40-hex SHA (or be the local reusable, which must be a
+ * separate file that declares on.workflow_call) and pass
+ * `with.context` exactly equal to `ctx`; at least one such job must exist, and
+ * the pinned jobs must share one pin.
+ */
+function verifyStatusPublisher(ctx, relWf, fullWf) {
+  const { doc, error } = parseWorkflow(fullWf);
+  if (error !== undefined) {
+    fail(`status context '${ctx}' publisher '${relWf}' is not parseable YAML: ${error}`);
+    return;
+  }
+  const onBlock = doc?.on ?? doc?.true;
+  const wr = onBlock && typeof onBlock === "object" && !Array.isArray(onBlock) ? onBlock.workflow_run : undefined;
+  if (wr === undefined) {
+    fail(`status context '${ctx}' publisher '${relWf}' does not trigger on workflow_run`);
+  } else {
+    const types = wr && typeof wr === "object" ? wr.types : undefined;
+    if (!Array.isArray(types) || !types.includes("completed")) {
+      fail(`status context '${ctx}' publisher '${relWf}' workflow_run types do not include 'completed' (types: ${JSON.stringify(types ?? null)})`);
+    }
+  }
+  const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
+  const callers = [];
+  const rejected = [];
+  const badRefs = [];
+  for (const [id, job] of Object.entries(jobs)) {
+    const uses = typeof job?.uses === "string" ? job.uses : "";
+    const m = uses.match(SUITE_USES);
+    if (uses === LOCAL_USES || ((uses.startsWith("./") || isAbsolute(uses)) && /ci-gate\.yml$/.test(uses))) {
+      const why = localTargetError(uses, fullWf);
+      if (why === null) callers.push({ id, job, pin: null });
+      else {
+        rejected.push(`job '${id}' uses ${why}`);
+        badRefs.push(`job '${id}' uses ${why}`);
+      }
+    } else if (m && /^[0-9a-f]{40}$/.test(m[1])) callers.push({ id, job, pin: m[1] });
+    else if (m) {
+      const why = `job '${id}' pins '${m[1]}', which is not a 40-hex commit SHA`;
+      rejected.push(why);
+      badRefs.push(why);
+    } else if (/ci-gate\.yml/.test(uses)) rejected.push(`job '${id}' uses '${uses}', which is not the suite's ci-gate reusable`);
+  }
+  if (callers.length === 0) {
+    const why = rejected.length > 0 ? `: ${rejected.join("; ")}` : "";
+    fail(`status context '${ctx}' publisher '${relWf}' has no job whose uses: is hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml@<40-hex> or ${LOCAL_USES}${why}`);
+    return;
+  }
+  // Every job that calls the suite reusable is held to the same rule, not just one of them: a
+  // second job (the pull_request start) on a mutable ref or another commit would otherwise pass.
+  for (const why of badRefs) fail(`status context '${ctx}' publisher '${relWf}': ${why}`);
+  for (const { id, job } of callers) {
+    if (job?.with?.context !== ctx) {
+      fail(`status context '${ctx}' publisher '${relWf}' job '${id}' passes the wrong with.context (${JSON.stringify(job?.with?.context ?? null)}); it must equal '${ctx}' exactly`);
+    }
+  }
+  const pins = [...new Set(callers.filter((c) => c.pin !== null).map((c) => c.pin))];
+  if (pins.length > 1) {
+    const by = callers.filter((c) => c.pin !== null).map((c) => `${c.id}@${c.pin}`).join(", ");
+    fail(`status context '${ctx}' publisher '${relWf}' pins the suite reusable at more than one commit (${by}); every job must use the same pin`);
+  }
+}
+
 // 3. Verify each mapped producer workflow exists, triggers on pull_request, and
 //    has no pull_request.paths / paths-ignore filter that can strand a PR.
 for (const [ctx, relWf] of mapped.entries()) {
   const fullWf = join(root, relWf);
   if (!existsSync(fullWf)) {
-    fail(`required context '${ctx}' maps to missing workflow '${relWf}'`);
+    fail(`required context '${ctx}' maps to missing ${statusPublishers.has(ctx) ? "status publisher" : "workflow"} '${relWf}'`);
+    continue;
+  }
+  if (statusPublishers.has(ctx)) {
+    verifyStatusPublisher(ctx, relWf, fullWf);
     continue;
   }
   const doc = Bun.YAML.parse(readFileSync(fullWf, "utf8"));
@@ -234,5 +376,5 @@ if (errors > 0) {
   console.error(`check-required-contexts: ${errors} violation(s) found`);
   process.exit(1);
 }
-console.log(`OK: ${mapped.size} required status context(s) verified producible on pull_request; 0 admin-bypass workflows`);
+console.log(`OK: ${mapped.size - statusPublishers.size} required status context(s) verified producible on pull_request, ${statusPublishers.size} verified as commit-status publisher(s); 0 admin-bypass workflows`);
 JS
