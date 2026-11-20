@@ -391,11 +391,14 @@ echo "=== 5b. Typed status mapping: a workflow_run commit-status publisher ==="
 # `CI/gate => status:<file>` is certified as a publisher, never as a job name.
 SUITE_REUSABLE='hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml'
 SUITE_PIN='09878f2a2c0a8907cc69fe48973ea604753ecab1'
+# The shipped trigger policy (ci-gate.yml): the 12 profile workflows, completed only. Written with a
+# YAML escape for the one emoji so this file stays ASCII.
+GATE_WF='["Dogfood Gate", "\U0001F534 GATE: Invisible Character Detection", "Estate Rules", "Governance", "Lock Sync Gate", "Central Estate CI/CD Audit", "OpenSSF Compliance", "Proven Tests and Benches", "Code Quality", "Rust CI", "Secret Scanner", "CICD Squabbler"]'
 status_tree="$WORK/status-publisher"
 fresh_status() { # fresh_status [uses] [context] [on-block]
   local uses="${1:-$SUITE_REUSABLE@$SUITE_PIN}" ctx="${2:-CI/gate}"
   local on="${3:-}"
-  [ -n "$on" ] || on=$'on:\n  workflow_run:\n    workflows: ["**", "!CI gate"]\n    types: [completed, in_progress]'
+  [ -n "$on" ] || on=$'on:\n  workflow_run:\n    workflows: '"$GATE_WF"$'\n    types: [completed]'
   rm -rf "$status_tree"
   mkdir -p "$status_tree/.github/workflows" "$status_tree/.machine_readable"
   printf 'CI/gate => status:.github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
@@ -530,8 +533,8 @@ name: CI gate
 on:
   pull_request:
   workflow_run:
-    workflows: ["**", "!CI gate"]
-    types: [completed, in_progress]
+    workflows: $GATE_WF
+    types: [completed]
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
