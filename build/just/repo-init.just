@@ -275,6 +275,18 @@ repo-init archetype="":
 
     ask "Repository slug (e.g. my-project): " REPO
     [ -z "$REPO" ] && echo "Error: repo slug required" && exit 1
+    # A Julia package repo is named after its package: `<Name>.jl`, where
+    # <Name> is the package's own identifier (UpperCamelCase by Julia
+    # convention). The julia-library archetype accepts that form as well as
+    # the estate slug; every other mint takes the estate slug only.
+    if [[ "$MINT_ARCH" = "julia-library" && "$REPO" =~ ^[A-Z][A-Za-z0-9]*\.jl$ ]]; then
+        :
+    elif [[ ! "$REPO" =~ ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ ]]; then
+        echo "Error: repo slug must be lowercase alphanumeric words separated by single hyphens, starting with a letter (it becomes C and Zig identifiers, which cannot start with a digit)"
+        [ "$MINT_ARCH" = "julia-library" ] && echo "       (or, for a Julia package, <Name>.jl with <Name> in UpperCamelCase)"
+        exit 1
+    fi
+
     ask "Owner [${OWNER:-}]: " _OWNER
     OWNER="${_OWNER:-${OWNER:-}}"
     [ -z "$OWNER" ] && echo "Error: owner required" && exit 1
@@ -352,7 +364,10 @@ repo-init archetype="":
     # Derive the default for a DNS hostname and bare TOML service key, not
     # only an OCI image name: Julia dots and slug underscores need hyphens.
     # Explicit service answers still go through the validator unchanged.
-    DEFAULT_SERVICE_NAME="${REPO,,}"
+    # tr, not the Bash 4 case-conversion expansion: macOS ships Bash 3.2.
+    _repo_lc="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+    _owner_lc="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+    DEFAULT_SERVICE_NAME="$_repo_lc"
     DEFAULT_SERVICE_NAME="${DEFAULT_SERVICE_NAME//[._]/-}"
     if [ -d "build/container" ]; then
         echo ""
@@ -361,8 +376,8 @@ repo-init archetype="":
         SERVICE_NAME="${_SERVICE_NAME:-${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}}"
         ask "Primary port [${PORT:-8080}]: " _PORT
         PORT="${_PORT:-${PORT:-8080}}"
-        ask "Container registry [${REGISTRY:-ghcr.io/${OWNER,,}}]: " _REGISTRY
-        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/${OWNER,,}}}"
+        ask "Container registry [${REGISTRY:-ghcr.io/$_owner_lc}]: " _REGISTRY
+        REGISTRY="${_REGISTRY:-${REGISTRY:-ghcr.io/$_owner_lc}}"
         # The values fill double-quoted KYAML scalars: refuse a value that
         # would break them now, before anything is written.
         bash scripts/format-container-kyaml.sh --check-values "$SERVICE_NAME" "$PORT" "$REGISTRY" \
@@ -370,7 +385,7 @@ repo-init archetype="":
     else
         SERVICE_NAME="${SERVICE_NAME:-$DEFAULT_SERVICE_NAME}"
         PORT="${PORT:-8080}"
-        REGISTRY="${REGISTRY:-ghcr.io/${OWNER,,}}"
+        REGISTRY="${REGISTRY:-ghcr.io/$_owner_lc}"
     fi
 
     # --- Derived values ---
@@ -2043,7 +2058,7 @@ repo-init archetype="":
     echo "       gh repo edit ${OWNER}/${REPO} --description '<one line>' --homepage '${WEBSITE}'"
     echo "     Visibility is fail-closed private; flip deliberately if wanted:"
     echo "       gh repo edit ${OWNER}/${REPO} --visibility public --accept-visibility-change-consequences"
-    echo "     Register in chora-registry (formerly gv-clade-index); required contexts must equal emitted job ids."
+    echo "     Register in chora-registry; required contexts must equal emitted job ids."
     if [ -f ci/.gitlab-ci.yml ]; then
         echo ""
         echo "     GitLab mirror only: this repo keeps its GitLab CI config at"

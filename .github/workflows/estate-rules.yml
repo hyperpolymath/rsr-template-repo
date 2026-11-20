@@ -88,6 +88,8 @@ jobs:
         run: bash scripts/check-no-a2ml.sh .
       - name: No-a2ml gate self-test (planted positives must fail)
         run: bash tests/workflows/check_no_a2ml_test.sh
+      - name: Bash 3.2 portability lint (no case-conversion expansion in build/just)
+        run: bash tests/workflows/bash3_portability_test.sh
       # Every repository-internal link resolves, and every document the deed
       # registers by id is where the deed says (or is marked removed-at-mint).
       # The same script is the probe of the must invariant internal-links-resolve.
@@ -198,6 +200,13 @@ jobs:
         run: bash scripts/check-identity.sh "$(bash scripts/deed-field.sh --find .)"
       - name: Identity-literal gate self-test (v5, #u5, v4 and upper-case must fail)
         run: bash tests/workflows/check_identity_test.sh
+      # The deed names the repository it is checked out as: canonical name, file
+      # name, owner, forges and the birth-path id. check-identity.sh checks only the
+      # literal form; a repo carrying a template's deed unrenamed passed it.
+      - name: Deed names the repository it is checked out as
+        run: bash scripts/check-identity-matches-repo.sh "$(bash scripts/deed-field.sh --find .)"
+      - name: Deed-names-the-repository gate self-test (carried-in deed, fork, transfer must fail)
+        run: bash tests/workflows/check_identity_matches_repo_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date

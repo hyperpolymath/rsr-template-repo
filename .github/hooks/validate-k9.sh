@@ -20,7 +20,8 @@
 # Exit codes:
 #   0 — Every tracked K9 file passes, or no validator is available (skipped
 #       with a notice: CI still runs the lane)
-#   1 — A file failed
+#   1 — A file failed, or was routed to a dialect (such as coordination)
+#       that this lane cannot validate yet
 
 set -euo pipefail
 
@@ -32,7 +33,7 @@ case "$STANDARDS_DIR" in
 esac
 VALIDATOR="$STANDARDS_DIR/1-formats/k9/tools/k9-validate.sh"
 
-if [ ! -f "$VALIDATOR" ]; then
+if [[ ! -f "$VALIDATOR" ]]; then
     echo "::notice::K9: no standards checkout at $STANDARDS_DIR (set STANDARDS_DIR to run the validator locally); the k9-conformance lane validates in CI"
     exit 0
 fi
@@ -47,20 +48,37 @@ if ! command -v nickel >/dev/null 2>&1; then
 fi
 
 cd "$REPO"
-mapfile -t files < <(git ls-files -- '*.k9.ncl' '*.k9' '*.k9.lock' | sort)
-if [ "${#files[@]}" -eq 0 ]; then
+# NUL-delimited end to end: with core.quotePath, newline output would hand
+# the validator a quoted, escaped name instead of the tracked path.
+mapfile -d '' -t files < <(git ls-files -z -- '*.k9.ncl' '*.k9' '*.k9.lock' | sort -z)
+if [[ "${#files[@]}" -eq 0 ]]; then
     echo "::notice::K9: no tracked K9 file"
     exit 0
 fi
 
+# A file passes only on the verdict "pass" with exit 0. The validator also
+# exits 0 when it routes a file out of scope (verdict "routed", for example
+# the coordination dialect), and routed is not passed: nothing here validates
+# those dialects yet, so a routed file fails closed.
 errors=0
 for f in "${files[@]}"; do
     echo "  Validating: $f"
-    if ! bash "$VALIDATOR" --strict --layer "$LAYER" "$f"; then
+    rc=0
+    out="$(bash "$VALIDATOR" --json --strict --layer "$LAYER" -- "$f")" || rc=$?
+    verdict="$(printf '%s\n' "$out" | sed -n 's/.*"verdict":"\([a-z]*\)".*/\1/p' | head -n 1)"
+    if [[ "$rc" -eq 0 && "$verdict" == "pass" ]]; then
+        echo "    pass"
+    elif [[ "$verdict" == "routed" ]]; then
+        dialect="$(printf '%s\n' "$out" | sed -n 's/.*"dialect":"\([^"]*\)".*/\1/p' | head -n 1)"
+        echo "::error file=$f::K9: routed to the ${dialect:-unknown} dialect, which this lane cannot validate; routed is not a pass"
+        errors=$((errors + 1))
+    else
+        printf '%s\n' "$out"
+        echo "::error file=$f::K9: verdict ${verdict:-none}, exit $rc"
         errors=$((errors + 1))
     fi
 done
 
 echo "K9: ${#files[@]} file(s), ${errors} failing (validator: $VALIDATOR)"
-[ "$errors" -eq 0 ] || { echo "::error::K9 validation failed for ${errors} file(s)"; exit 1; }
+[[ "$errors" -eq 0 ]] || { echo "::error::K9 validation failed for ${errors} file(s)"; exit 1; }
 echo "K9 validation passed."

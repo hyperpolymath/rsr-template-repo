@@ -12,6 +12,8 @@
 # Each fix has a silence case and a firing (negative-control) case, so the
 # test cannot pass vacuously. Needs jq and a yq that accepts `yq -r`.
 set -uo pipefail
+yq --version 2>&1 | grep -q 'github.com/mikefarah/yq.*version v4\.' \
+  || { echo "FAIL: this test needs mikefarah yq v4 (CI pins v4.53.3); the yq on PATH is a different tool, or there is none" >&2; exit 1; }
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WF="$REPO/.github/workflows"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
