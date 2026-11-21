@@ -37,12 +37,12 @@ jobs:
       STANDARDS_PIN: 'f0b3cd4c464d33e1584f8528c17bce104555e256'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Checkout pinned standards policy scripts
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           repository: metadatastician/standards
           ref: f0b3cd4c464d33e1584f8528c17bce104555e256
@@ -108,7 +108,7 @@ jobs:
     if: ${{ github.event_name == 'pull_request' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           # Full history: the ratchet reads the Debtfile at the base commit
           # and scans commit messages between base and HEAD for a declared
@@ -117,7 +117,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout the pinned debt ratchet
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           repository: metadatastician/standards
           ref: f0b3cd4c464d33e1584f8528c17bce104555e256
@@ -165,7 +165,7 @@ jobs:
       - name: Checkout repository
         id: checkout
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
@@ -208,14 +208,14 @@ jobs:
       - name: Checkout repository
         id: checkout
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
       - name: Checkout the pinned DEED lane
         id: canon
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           repository: metadatastician/standards
           ref: 3f480e93c453271031da8890088f9cfc00d4de66
@@ -237,7 +237,7 @@ jobs:
       - name: Set up Bun
         id: bun
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.4.2"
 
@@ -281,7 +281,7 @@ jobs:
       - name: Checkout repository
         id: checkout
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Full history: the changed-file list is the merge-base diff and the
@@ -292,7 +292,7 @@ jobs:
       - name: Checkout the pinned K9 lane
         id: canon
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           repository: metadatastician/standards
           ref: bfbe7369f3ce8011c63fa84a291656e2a40fb813
@@ -326,7 +326,7 @@ jobs:
 
       - name: Set up Bun
         continue-on-error: ${{ env.ADVISORY == 'true' }}
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: "1.4.2"
 
