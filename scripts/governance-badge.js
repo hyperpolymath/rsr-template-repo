@@ -904,8 +904,11 @@ function isValidRefName(name) {
 
 // requireApiUrl - the API URL receives the bearer token with every request, so
 // it must be https; plain http is accepted only for a loopback host, which is
-// what the test suite's mock server uses. The value is not echoed back: a URL
-// can carry credentials.
+// what the test suite's mock server uses. It is a base that request() appends
+// "/repos/..." to, so a query, a fragment or embedded credentials (which fetch
+// refuses) would misroute or break every request and are refused here. The
+// serialised URL is returned, so requests use the value that was checked. The
+// value is not echoed back: a URL can carry credentials.
 function requireApiUrl(value) {
     let parsed;
     try {
@@ -913,8 +916,12 @@ function requireApiUrl(value) {
     } catch {
         throw new UsageError("the API URL (--api-url or GITHUB_API_URL) is not a valid URL");
     }
+    if (parsed.search || parsed.hash || parsed.username || parsed.password
+        || value.includes("?") || value.includes("#")) {
+        throw new UsageError("the API URL (--api-url or GITHUB_API_URL) must be a plain base URL: no query, fragment or credentials");
+    }
     const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname);
-    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) return value;
+    if (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback)) return parsed.href;
     throw new UsageError("the API URL (--api-url or GITHUB_API_URL) must use https; http is allowed only for a loopback host");
 }
 
