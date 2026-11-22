@@ -1,0 +1,207 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Architecture Decision Record: 0004-vendor-shared-proof-cores
+
+== 4. Vendor shared proof cores under a generated, checked pin
+
+Date: 2026-11-17
+
+=== Status
+
+Proposed. The owner chose the direction ("vendor, don't copy") on
+2026-11-17. This record sets out the mechanism for acceptance. Nothing here is
+implemented yet.
+
+=== Context
+
+`repo-init` copies the Coaptation pack (`.machine_readable/coaptation/`) into
+every repo minted from this template. The copies then live on their own:
+nothing records where a copy came from, and nothing notices when it falls
+behind the template.
+
+The cost showed up in November 2026.
+`core/Coaptation.idr` had a non-covering `with` block in `resolveComplete`, so
+`hardGateComplete`, the gate's completeness theorem, was not total, and
+`scripts/check-proofs.sh idris2` reported `RESULT: FAIL` on `main`. The fix
+(#428) is one line in the template, but every minted repo carries its own copy
+of the hole. Under the current scheme each copy needs its own hand-made PR.
+
+Evidence gathered so far (one sample, not a census):
+
+* `metadatastician/idris2x` `main`: all ten Coaptation files are byte-identical
+  to this template's `main`. That includes `witness-map.ncl` and
+  `receipts/latest.toml`, which are repo-specific in meaning.
+* The same pattern shows outside proofs. #424 replaced Bash 4 `${var,,}` in
+  `build/just/repo-init.just` and `groove.just`, but every repo minted
+  earlier keeps the broken form until someone hand-sweeps it (a stopgap sweep
+  was commissioned on 2026-11-17). These template-owned `just` files are
+  further candidates for the same mechanism.
+* No GitHub workflow runs `proof-check-idris2`; only local `just ci` does. That
+  is why `main` was red unnoticed. Wiring it is a separate PR.
+
+The canon has already said what is wrong with this kind of arrangement. It is
+not the copying. `standards` `3-practice/canon-spine/PROPOSAL.adoc` §7:
+"A submodule, or vendoring the canon into the spine. Both replace a manual pin
+with a heavier manual pin. The problem is that the pin is not generated and
+not checked, not that it is a pin."
+
+The estate already has a working instance of the fix. `provision-set mint`
+vendors `build/just/provision-lib.sh` into every repo, marks it "DO NOT
+hand-edit a vendored copy", keeps repo-specific facts in a separate deed, and
+`provision-set realign` overwrites the copy from canon
+(`standards` `3-practice/provisioning/`). `standards/canon.lock` likewise pins
+by byte-hash, not prose.
+
+=== Decision
+
+Treat the shared part of the Coaptation pack as *vendored canon* under a
+generated, checked pin, following the `provision-set` pattern.
+
+. *Split ownership.* Each file in the pack is either:
+** *canon-owned*: byte-identical everywhere; edited only in this template.
+   Candidates: `core/Coaptation.idr`, `coapt.ncl`, `coapt.k9.ncl`,
+   `grades.ncl`, `coapt.sh`, `extract-clauses.sh`, `extract-facts.sh`,
+   `verify.sh`. Or
+** *repo-owned*: may differ per repo. Candidates: `witness-map.ncl` and
+   `receipts/`. The worked example at the end of `Coaptation.idr` names this
+   template's real `must.anchor-clause` witness, so it moves to its own
+   repo-owned module (for example `core/CoaptationExample.idr`). That leaves
+   the core with no repo-specific content.
++
+The split is a candidate list. The census below confirms or corrects it before
+acceptance.
+. *Generated pin.* A lock file, `.machine_readable/coaptation/vendor.lock`
+  (TOML, which the estate format route preserves), records the source repo,
+  source commit and the sha256 of every canon-owned file. It is written only by
+  a tool (`just coapt-realign`), never by hand, like `actions.lock`.
+. *Header.* Each canon-owned file carries a "Vendored from rsr-template-repo
+  by `just coapt-realign`; DO NOT hand-edit" header, matching
+  `provision-lib.sh`.
+. *Source manifest.* This template publishes, at every commit, a
+  `vendor-manifest.toml` listing each canon-owned path and its sha256. The
+  manifest is generated from the tree, so it is the canon's own statement of
+  what a faithful copy contains.
+. *Checked pin.* A gate (`just coapt-vendor-check`) runs in two layers. A
+  local edit to both a file and `vendor.lock` must not pass, so the lock alone
+  is never trusted as the reference.
+** *Local layer (offline).* Fails when a canon-owned file's bytes differ from
+   `vendor.lock`, when a pinned file is missing, or when an unpinned file sits
+   in a canon-owned path.
+** *Source layer (needs network; required in CI).* Fetches
+   `vendor-manifest.toml` at the pinned source commit from
+   `hyperpolymath/rsr-template-repo` only. That repository is fixed in the
+   gate's code, never read from `vendor.lock`. The gate fails if `vendor.lock`
+   names any other source repository, so pointing the lock at a fork with a
+   matching manifest cannot pass. It also fails unless `vendor.lock` matches
+   the manifest exactly: the same set of paths and the same hashes.
+   This catches a file and its pin edited together, and a canon-owned file
+   removed together with its lock entry. Run locally without network, this
+   layer reports *not run (offline)*. It never reports a pass.
++
+*Staleness* is reported, not failed. With network, the gate compares the
+pinned commit with the template's current `main` and reports *current* or
+*behind*. Without network, it reports *unknown*; it never claims current.
+Whether staleness becomes a failure after a grace period is a separate
+decision.
+. *Propagation.* A downstream repo picks up a canon fix (such as #428) by
+  running `just coapt-realign` in one small PR, with the gate proving the
+  result. A fleet sweep becomes N mechanical realigns instead of N hand edits.
+
+==== Options considered
+
+Doctrine 15 asks the most elegant option to be labelled.
+
+[cols="1,3,3",options="header"]
+|===
+| Option | For | Against
+
+| *A. Generated, checked pin over vendored copies (proposed)*
+| The canon's own diagnosis (canon-spine §7) and the `provision-set`
+  precedent. No new toolchain at check time; works for Idris, Nickel and shell
+  alike; reviewable diffs. The local layer works offline; the source layer
+  needs one fetch of a public commit, which CI always has.
+| Copies still exist and need a realign PR each. The gate has to be wired
+  estate-wide to mean anything.
+
+| B. Publish the Idris core as a package (`.ipkg`, consumed via pack)
+| Removes the `.idr` copy entirely. Idiomatic for Idris.
+| Covers only the `.idr`: the Nickel and shell files still need A. It adds a
+  pack resolution step (network, pin) to every proof check. Two mechanisms for
+  one pack.
+
+| C. Git submodule
+| No copy in the tree.
+| Rejected by canon-spine §7 ("a heavier manual pin"); poor CI and Guix
+  ergonomics.
+
+| D. Guix package or channel providing the pack
+| Hermetic and in line with the estate's Guix preference; no copies.
+| Heaviest: every CI job and every developer needs Guix to run the gate. Worth
+  revisiting once the estate's Guix provisioning is uniform.
+
+| E. Status quo, plus a hash-matching sweep after each fix
+| No design work.
+| The sweep has to be re-run by hand after every fix, nothing prevents drift
+  in between, and it is the arrangement that let #428's hole spread.
+|===
+
+A is the most elegant option *under the canon's stated principle*. The defect
+is the unchecked pin, and A fixes exactly that with a mechanism the estate
+already runs. B and D remove the copies but add a toolchain dependency at
+check time. They become attractive only if A's realign PRs prove a burden in
+practice.
+
+=== Consequences
+
+==== Positive
+
+* A fix to the core lands once and reaches every repo by a tool-driven
+  realign, with a gate proving each copy matches.
+* Hand edits to vendored proof code fail loudly (doctrine 3) instead of
+  silently forking a proof.
+* "Which version of the proof core does repo X run?" gets a SHA-able answer.
+
+==== Negative
+
+* A new lock, a new gate and a new `just` recipe to maintain.
+* Repos that intentionally customised a canon-owned file (if the census finds
+  any) must move that customisation into a repo-owned file first.
+
+==== Neutral
+
+* The same mechanism could serve other template-vendored files. Generalising
+  it into `standards`, as one estate "vendored canon file" mechanism shared
+  with `provision-set`, is out of scope here and belongs in the canon.
+
+=== Before acceptance (evidence to gather)
+
+. *Census.* For each repo minted from this template (from chora-registry),
+  hash every Coaptation file and classify it as identical, behind (matches an
+  older template commit) or customised. This confirms or corrects the
+  ownership split.
+. *Prototype on this template.* Add `vendor-manifest.toml`, `vendor.lock`,
+  `coapt-realign` and `coapt-vendor-check`.
+** Negative tests:
+*** a one-byte hand edit fails (local layer);
+*** a missing file fails;
+*** a file and its `vendor.lock` entry edited together fails (source layer);
+*** a `vendor.lock` naming a source repository other than
+    `hyperpolymath/rsr-template-repo` (for example, a fork with a matching
+    manifest) fails (source layer);
+*** a canon-owned file and its lock entry removed together fails (source
+    layer).
+** Reporting tests: a stale pin reports *behind*; without network the source
+   layer reports *not run (offline)* and staleness reports *unknown*.
+** Positive test: a clean realign passes both layers.
+. *Pilot.* Realign `metadatastician/idris2x` with #428 included and confirm
+  `check-proofs.sh idris2` goes from FAIL to PASS there.
+. *Hypatia rule (estate-wide).* Flag any repo whose canon-owned Coaptation
+  files are unpinned or fail the check. This is filed against `hypatia`, not
+  this repo.
+
+=== Related
+
+* #428: the `resolveComplete` coverage fix that motivated this record.
+* `standards` `3-practice/canon-spine/PROPOSAL.adoc` §7;
+  `3-practice/provisioning/PROVISIONING-STANDARD.adoc`; `canon.lock`.
+* `.machine_readable/coaptation/README.adoc`.

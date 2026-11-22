@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-"use strict";
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 //
@@ -13,17 +12,18 @@
 // `--api-url`, exactly as it does in the workflow, so tests exercise the real
 // fetch/status paths rather than a stubbed function.
 //
-// Runtime-agnostic on purpose: CommonJS + node: builtins only, so it runs under
-// the estate's first-choice runtime (Bun) and under Node, which is what makes
-// the suite runnable outside CI. Spawn as: bun <this file> | node <this file>.
+// Runtime-agnostic on purpose: an ES module using node: builtins only, so it runs
+// under the estate's first-choice runtime (Bun) and under Node >= 22.7, which is
+// what makes the suite runnable outside CI. Spawn as: bun <this file> | node <this file>.
 
-const { spawn, spawnSync } = require("node:child_process");
-const { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
-const http = require("node:http");
-const { tmpdir } = require("node:os");
-const { join, resolve } = require("node:path");
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import http from "node:http";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const REPO_DIR = resolve(__dirname, "..", "..");
+const REPO_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const HELPER = join(REPO_DIR, "scripts", "governance-badge.js");
 const RUNTIME = process.execPath;
 const LABEL = "K9";
@@ -68,11 +68,11 @@ async function test(name, fn) {
     } catch (err) {
         failed += 1;
         failures.push({ name, err });
-        const detail = String(err && err.message ? err.message : err)
+        const detail = String(err?.message ? err.message : err)
             .replace(/[\r\n]+/g, " ")
             .slice(0, 400);
         console.log(`  FAIL: ${name}`);
-        console.log(`        ${String(err && err.message ? err.message : err).replace(/\n/g, "\n        ")}`);
+        console.log(`        ${String(err?.message ? err.message : err).replaceAll("\n", "\n        ")}`);
         // Surface the failing check through the run's annotations: the log
         // itself can be awkward to reach, and a bare "exit code 1" is not a
         // report.
@@ -88,6 +88,26 @@ function section(title) {
 function check(condition, message) {
     if (!condition) throw new Error(message);
 }
+
+// parseJson - JSON.parse that names what it was parsing. A malformed document
+// becomes a failure of the test that read it, with the offending text, rather
+// than an uncaught SyntaxError.
+function parseJson(text, what) {
+    try {
+        return JSON.parse(text);
+    } catch (err) {
+        throw new Error(`${what} is not valid JSON (${err.message}): ${JSON.stringify(String(text).slice(0, 200))}`);
+    }
+}
+
+// NODE_STACK_FRAME - a Node-internal frame of a stack trace: a line break, a
+// non-empty run of whitespace, "at", then frame text on the same line up to a
+// "(node:" location. It accepts exactly the strings that
+// /\n\s+at .*\(node:/ accepts, without that expression's backtracking. Taking
+// the last line break that is not the run's final character as the opening one,
+// the rest of the run is either indent (optionally ending in a line break) or a
+// lone line break; no two alternatives can match the same text.
+const NODE_STACK_FRAME = /\n(?:[^\S\n]+\n?|\n)at [^\r\n\u2028\u2029]*\(node:/;
 
 function equal(actual, expected, message) {
     if (actual !== expected) {
@@ -137,10 +157,10 @@ function createApi(options = {}) {
         if (pathname.includes("/contents/")) return method === "PUT" ? "contents-put" : "contents-get";
         if (pathname === `/repos/${state.repo}/git/ref/heads/${state.defaultBranch}`) return "source-ref-get";
         if (/\/git\/ref\/heads\//.test(pathname)) return "ref-get";
-        if (/\/git\/refs$/.test(pathname)) return "refs-post";
-        if (/\/git\/blobs$/.test(pathname)) return "blobs-post";
-        if (/\/git\/trees$/.test(pathname)) return "trees-post";
-        if (/\/git\/commits$/.test(pathname)) return "commits-post";
+        if (pathname.endsWith("/git/refs")) return "refs-post";
+        if (pathname.endsWith("/git/blobs")) return "blobs-post";
+        if (pathname.endsWith("/git/trees")) return "trees-post";
+        if (pathname.endsWith("/git/commits")) return "commits-post";
         return "unknown";
     }
 
@@ -181,7 +201,7 @@ function createApi(options = {}) {
         if (state.hook) state.hook(entry, state);
 
         const scripted = state.script.get(route);
-        if (scripted && scripted.length) {
+        if (scripted?.length) {
             const response = scripted.shift();
             if (response === "stall-headers") return;
             if (response === "stall-body") {
@@ -279,7 +299,7 @@ function createApi(options = {}) {
     }
 
     const server = http.createServer((req, res) => {
-        handle(req, res).catch((err) => send(res, 500, { message: String(err && err.message) }));
+        handle(req, res).catch((err) => send(res, 500, { message: String(err?.message) }));
     });
 
     return {
@@ -398,6 +418,16 @@ async function main() {
         // ---------------------------------------------------------------- 1
         section("1. State -> badge rendering is deterministic and total");
 
+        await test("the Node stack-frame detector matches frames and nothing else", () => {
+            check(NODE_STACK_FRAME.test("boom\n    at run (node:internal/main:1:1)"), "an indented Node frame matches");
+            check(NODE_STACK_FRAME.test("boom\n\n\t at run (node:internal/main:1:1)"), "a blank line before the frame still matches");
+            check(NODE_STACK_FRAME.test("boom\n\nat run (node:internal/main:1:1)"), "a lone blank line counts as the separator, as before");
+            check(!NODE_STACK_FRAME.test("boom\n    at run (file:///repo/a.js:1:1)"), "a non-Node frame does not match");
+            check(!NODE_STACK_FRAME.test("at run (node:internal/main:1:1)"), "a frame needs a preceding line break");
+            check(!NODE_STACK_FRAME.test("boom\nat run (node:internal/main:1:1)"), "a frame needs an indent");
+            check(!NODE_STACK_FRAME.test("boom\n    at run\n(node:internal/main:1:1)"), "the location must be on the frame's own line");
+        });
+
         await test("success renders brightgreen with the canonical bytes", () => {
             const out = runSync(["render", "--label", LABEL, "--state", "success"]);
             equal(out.code, 0, "render must exit 0");
@@ -414,7 +444,7 @@ async function main() {
             await test(`${state} renders lightgrey`, () => {
                 const out = runSync(["render", "--label", LABEL, "--state", state]);
                 equal(out.code, 0, "render must exit 0");
-                const badge = JSON.parse(out.stdout);
+                const badge = parseJson(out.stdout, "render output");
                 equal(badge.message, state, "message echoes the state");
                 equal(badge.color, "lightgrey", `${state} must be lightgrey`);
                 equal(badge.schemaVersion, 1, "schemaVersion is preserved");
@@ -426,7 +456,7 @@ async function main() {
             await test(`unrecognised lane result ${JSON.stringify(raw)} becomes unknown/lightgrey`, () => {
                 const out = runSync(["render", "--label", LABEL, "--state", raw]);
                 equal(out.code, 0, "render must exit 0");
-                const badge = JSON.parse(out.stdout);
+                const badge = parseJson(out.stdout, "render output");
                 equal(badge.message, "unknown", "unrecognised states are never echoed as success");
                 equal(badge.color, "lightgrey", "unrecognised states are grey");
             });
@@ -459,7 +489,7 @@ async function main() {
             await test(`render accepts the ${label.length}-character label boundary`, () => {
                 const out = runSync(["render", "--label", label, "--state", "success"]);
                 equal(out.code, 0, out.stderr);
-                equal(JSON.parse(out.stdout).label, label, "the label is preserved");
+                equal(parseJson(out.stdout, "render output").label, label, "the label is preserved");
             });
         }
 
@@ -567,7 +597,7 @@ async function main() {
         }
 
         for (const [name, bytes, laneResult, expected] of [
-            ["pretty-printed JSON", JSON.stringify(JSON.parse(SUCCESS_BADGE), null, 2) + "\n", "success", SUCCESS_BADGE],
+            ["pretty-printed JSON", JSON.stringify(parseJson(SUCCESS_BADGE, "SUCCESS_BADGE"), null, 2) + "\n", "success", SUCCESS_BADGE],
             ["missing final newline", SUCCESS_BADGE.trimEnd(), "success", SUCCESS_BADGE],
             ["legacy red skipped badge", '{"schemaVersion":1,"label":"K9","message":"skipped","color":"red"}\n', "skipped", SKIPPED_BADGE],
             ["legacy unrecognised message", '{"schemaVersion":1,"label":"K9","message":"pending","color":"blue"}\n', "success", SUCCESS_BADGE],
@@ -682,7 +712,7 @@ async function main() {
         for (const [name, bytes] of [
             ...INVALID_BADGES,
             ["reordered keys", '{"label":"K9","schemaVersion":1,"message":"success","color":"brightgreen"}\n'],
-            ["pretty-printed JSON", JSON.stringify(JSON.parse(SUCCESS_BADGE), null, 2) + "\n"],
+            ["pretty-printed JSON", JSON.stringify(parseJson(SUCCESS_BADGE, "SUCCESS_BADGE"), null, 2) + "\n"],
             ["missing final newline", SUCCESS_BADGE.trimEnd()],
             ["CRLF newline", SUCCESS_BADGE.replace(/\n$/, "\r\n")],
             ["UTF-8 byte order mark", "\uFEFF" + SUCCESS_BADGE],
@@ -725,7 +755,7 @@ async function main() {
                 try {
                     const out = await runAsync(publishArgs(url, file));
                     equal(out.code, 3, out.stderr);
-                    check(!/\n\s+at .*\(node:/.test(`${out.stdout}${out.stderr}`), "an unreadable artifact must not produce a stack trace");
+                    check(!NODE_STACK_FRAME.test(`${out.stdout}${out.stderr}`), "an unreadable artifact must not produce a stack trace");
                     check(/could not be read \(EACCES\)/.test(out.stdout), `the errno is named: ${out.stdout}`);
                     equal(api.state.file.bytes.toString(), GREY_BADGE, "unreadable evidence never publishes green");
                 } finally {
@@ -746,7 +776,7 @@ async function main() {
                 const out = await runAsync(publishArgs(url, goodArtifact, ["--lane-result", laneResult]));
                 equal(out.code, 0, out.stderr);
                 equal(api.puts().length, 1, "the lane result must replace the stale green");
-                const badge = JSON.parse(api.state.file.bytes.toString());
+                const badge = parseJson(api.state.file.bytes.toString(), "the published badge");
                 equal(badge.message, message, "the lane job remains authoritative");
                 equal(badge.color, color, "the artifact cannot make the badge green");
                 check(!out.stdout.includes("::error::"), "a non-success lane needs no success witness");
@@ -902,7 +932,7 @@ async function main() {
                 // PUT transport failures now reconcile against remote state.
                 // Three consecutive timeouts are needed to prove exhaustion.
                 const attempts = 3;
-                api.state.script.set(route, Array(attempts).fill(`stall-${phase}`));
+                api.state.script.set(route, new Array(attempts).fill(`stall-${phase}`));
                 const url = await api.listen();
                 try {
                     await test(`${route} with stalled ${phase} times out and fails closed`, async () => {
@@ -979,7 +1009,7 @@ async function main() {
                     const attempts = transient ? 3 : 1;
                     // Leave extra failures queued: the test must observe the
                     // limit, rather than accidentally succeed on the mock's default.
-                    api.state.script.set(route, Array(4).fill(status));
+                    api.state.script.set(route, new Array(4).fill(status));
                     const out = await runAsync(publishArgs(url, goodArtifact));
                     equal(out.code, 1, `HTTP ${status} must fail: ${out.stderr}`);
                     equal(api.state.requests.filter((r) => r.route === route).length, attempts, "only transient failures are retried, at most three times");
@@ -1171,13 +1201,13 @@ async function main() {
                 await testWithApi(`HTTP ${status} during ${fileBytes === undefined ? "file creation" : "file update"} exhausts bounded reconciliation`, {
                     branchExists: true, fileBytes,
                 }, async (api, url) => {
-                    api.state.script.set("contents-put", Array(4).fill(status));
+                    api.state.script.set("contents-put", new Array(4).fill(status));
                     const out = await runAsync(publishArgs(url, failureArtifact, ["--lane-result", "failure"]));
                     equal(out.code, 1, out.stderr);
                     equal(api.puts().length, 3, "publication stops after three failed writes");
                     equal(api.state.requests.filter((r) => r.route === "contents-get").length, 3, "every write attempt re-reads current contents");
                     equal(api.posts().length, 0, "contents conflicts never create an orphan branch");
-                    equal(api.state.file && api.state.file.bytes.toString(), fileBytes === undefined ? null : fileBytes, "failed writes preserve the original file state");
+                    equal(api.state.file?.bytes.toString() ?? null, fileBytes === undefined ? null : fileBytes, "failed writes preserve the original file state");
                     check(out.stderr.includes("gave up after 3 attempts"), "exhaustion is diagnosed explicitly");
                     for (const put of api.puts()) {
                         equal(put.body.sha, fileBytes === undefined ? undefined : "sha-initial", "only an existing file supplies a sha");
@@ -1357,10 +1387,10 @@ async function main() {
                     branchExists: false,
                 }, async (api, url) => {
                     const attempts = status === 503 ? 3 : 1;
-                    api.state.script.set(route, Array(4).fill(status));
+                    api.state.script.set(route, new Array(4).fill(status));
                     const out = await runAsync(publishArgs(url, goodArtifact));
                     equal(out.code, 1, out.stderr);
-                    const expectedRoutes = Array(attempts).fill(orphanRoutes.slice(0, index + 1).join(",")).join(",");
+                    const expectedRoutes = new Array(attempts).fill(orphanRoutes.slice(0, index + 1).join(",")).join(",");
                     equal(api.posts().map((r) => r.route).join(","), expectedRoutes, "only transient failures may restart the orphan sequence, at most three times");
                     equal(api.state.requests.filter((r) => r.route === "contents-get").length, attempts, "every restart must establish remote absence again");
                     equal(api.state.requests.filter((r) => r.route === "ref-get").length, attempts, "every restart must confirm branch absence");
@@ -1434,7 +1464,7 @@ async function main() {
             await testWithApi(`source-head HTTP ${status} cannot authorise badge publication`, {
                 branchExists: true, fileBytes: FAILURE_BADGE,
             }, async (api, url) => {
-                api.state.script.set("source-ref-get", Array(4).fill(status));
+                api.state.script.set("source-ref-get", new Array(4).fill(status));
                 const out = await runAsync(publishArgs(url, goodArtifact));
                 equal(out.code, 1, out.stderr);
                 equal(api.state.requests.filter((r) => r.route === "source-ref-get").length, status >= 429 ? 3 : 1, "only transient source-ref failures are retried");
@@ -1611,7 +1641,7 @@ async function main() {
                 check(text.startsWith("Earlier step\n"), "summary preserves previous step content");
                 check(text.includes(`| ${state} | ${state} | ${color} | ${action}`), "summary records the actual state, color and action");
                 equal(text.includes("**Lane evidence was unusable:**"), code === 3, "only unusable evidence adds the fault explanation");
-                equal(JSON.parse(api.state.file.bytes.toString()).message, state, "outputs agree with the published file");
+                equal(parseJson(api.state.file.bytes.toString(), "the published badge").message, state, "outputs agree with the published file");
             });
         }
 
@@ -1688,7 +1718,9 @@ async function main() {
     }
 }
 
-main().catch((err) => {
-    console.error(err && err.stack ? err.stack : err);
+try {
+    await main();
+} catch (err) {
+    console.error(err?.stack ? err.stack : err);
     process.exit(1);
-});
+}
