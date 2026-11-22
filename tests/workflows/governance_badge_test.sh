@@ -54,6 +54,14 @@ if [[ -z "$RUNTIME" ]]; then
     echo "FAIL: neither bun nor node is available to run the badge tests" >&2
     exit 2
 fi
+# The helper is an ES module in a .js file with no "type": "module". Node loads
+# that only with default syntax detection, which starts at 22.7 on the 22.x
+# line; an older Node fails on the first import with an unclear error.
+if [[ "$(basename "$RUNTIME")" == node ]] &&
+    ! "$RUNTIME" -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 7) ? 0 : 1)'; then
+    echo "FAIL: $RUNTIME $("$RUNTIME" --version) is too old for scripts/governance-badge.js; use Bun or Node 22.7 or later" >&2
+    exit 2
+fi
 
 echo "=== 1. Behaviour: rendering, publication decisions, API errors ==="
 echo "runtime: $RUNTIME ($("$RUNTIME" --version 2>&1 | head -1))"

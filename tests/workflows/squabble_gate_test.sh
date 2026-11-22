@@ -391,11 +391,14 @@ echo "=== 5b. Typed status mapping: a workflow_run commit-status publisher ==="
 # `CI/gate => status:<file>` is certified as a publisher, never as a job name.
 SUITE_REUSABLE='hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate.yml'
 SUITE_PIN='09878f2a2c0a8907cc69fe48973ea604753ecab1'
+# The shipped trigger policy (ci-gate.yml): the 12 profile workflows, completed only. Written with a
+# YAML escape for the one emoji so this file stays ASCII.
+GATE_WF='["Dogfood Gate", "\U0001F534 GATE: Invisible Character Detection", "Estate Rules", "Governance", "Lock Sync Gate", "Central Estate CI/CD Audit", "OpenSSF Compliance", "Proven Tests and Benches", "Code Quality", "Rust CI", "Secret Scanner", "CICD Squabbler"]'
 status_tree="$WORK/status-publisher"
 fresh_status() { # fresh_status [uses] [context] [on-block]
   local uses="${1:-$SUITE_REUSABLE@$SUITE_PIN}" ctx="${2:-CI/gate}"
   local on="${3:-}"
-  [ -n "$on" ] || on=$'on:\n  workflow_run:\n    workflows: ["**", "!CI gate"]\n    types: [completed, in_progress]'
+  [ -n "$on" ] || on=$'on:\n  workflow_run:\n    workflows: '"$GATE_WF"$'\n    types: [completed]'
   rm -rf "$status_tree"
   mkdir -p "$status_tree/.github/workflows" "$status_tree/.machine_readable"
   printf 'CI/gate => status:.github/workflows/ci-gate.yml\n' > "$status_tree/.machine_readable/required-contexts-allow.txt"
@@ -530,8 +533,8 @@ name: CI gate
 on:
   pull_request:
   workflow_run:
-    workflows: ["**", "!CI gate"]
-    types: [completed, in_progress]
+    workflows: $GATE_WF
+    types: [completed]
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
@@ -590,8 +593,9 @@ const on = gate.on ?? gate.true ?? {};
 need("pull_request" in on, "ci-gate.yml has no pull_request trigger");
 const prTypes = on.pull_request?.types;
 need(prTypes === undefined || prTypes === null || ["opened", "synchronize", "reopened"].every((t) => prTypes.includes(t)), "pull_request types drop opened, synchronize or reopened");
-need(same(on.workflow_run?.workflows, ["**", "!CI gate"]), "workflow_run workflows is not [\"**\", \"!CI gate\"]");
-need(same([...(on.workflow_run?.types ?? [])].sort(), ["completed", "in_progress"]), "workflow_run types is not completed and in_progress");
+const GATE_WORKFLOWS = ["Dogfood Gate", "\u{1F534} GATE: Invisible Character Detection", "Estate Rules", "Governance", "Lock Sync Gate", "Central Estate CI/CD Audit", "OpenSSF Compliance", "Proven Tests and Benches", "Code Quality", "Rust CI", "Secret Scanner", "CICD Squabbler"];
+need(same(on.workflow_run?.workflows, GATE_WORKFLOWS), "workflow_run workflows is not the 12 profile workflows");
+need(same([...(on.workflow_run?.types ?? [])].sort(), ["completed"]), "workflow_run types is not exactly completed");
 need(Array.isArray(on.schedule) && on.schedule.length > 0 && on.schedule.every((s) => typeof s.cron === "string"), "no schedule cron");
 need("workflow_dispatch" in on, "no workflow_dispatch trigger");
 need(!("pull_request_target" in on), "ci-gate.yml must not trigger on pull_request_target");
@@ -643,7 +647,9 @@ shape_neg() { # shape_neg <label> <sed expr> <file: gate|guard>
 shape_neg 'a gate-pr condition with || true appended is caught' '/^  gate-pr:/,$ s/^\(    if: .*\)$/\1 || true/' gate
 shape_neg 'a gate condition prefixed with false && is caught' "s/^    if: github.event_name != 'pull_request'/    if: false \&\& github.event_name != 'pull_request'/" gate
 shape_neg 'dropping the pull_request trigger is caught' 's/^  pull_request:$/  merge_group:/' gate
-shape_neg 'dropping in_progress is caught' 's/types: \[completed, in_progress\]/types: [completed]/' gate
+shape_neg 'adding in_progress back is caught' 's/types: \[completed\]/types: [completed, in_progress]/' gate
+shape_neg 'reverting to the workflows wildcard is caught' '/^    workflows:$/,/^    types:/ { /^      - /d }; s/^    workflows:$/    workflows: ["**", "!CI gate"]/' gate
+shape_neg 'dropping one profile workflow from the list is caught' '/- "Rust CI"/d' gate
 shape_neg 'a concurrency block is caught' 's/^permissions:/concurrency: {group: x}\npermissions:/' gate
 shape_neg 'a wrong context on gate-pr is caught' '/gate-pr:/,$ s/context: "CI\/gate"/context: "CI\/other"/' gate
 shape_neg 'a guard pinned to main is caught' 's/ci-gate-tamper-guard.yml@[0-9a-f]\{40\}/ci-gate-tamper-guard.yml@main/' guard

@@ -31,7 +31,8 @@
 # is called as
 #   exe tag    OWNER/REPO REF   -> print the 40-hex commit of tag/branch REF
 #   exe ids    OWNER/REPO       -> print "<owner_id> <repo_id>"
-#   exe nested OWNER/REPO SHA   -> print nested external uses (one per line)
+#   exe nested OWNER/REPO SHA [SUBPATH] -> print nested external uses (one per line)
+#                                of the action manifest at SUBPATH (default: repository root)
 # and exits non-zero when it cannot answer. The default resolver uses
 # git ls-remote, gh api / curl (ids) and raw.githubusercontent.com (action.yml).
 
@@ -63,7 +64,7 @@ done
 
 # ---------------- resolver ----------------
 default_resolver() {
-  local op="$1" or="$2" arg="${3:-}" out sha
+  local op="$1" or="$2" arg="${3:-}" sub="${4:-}" out sha
   case "$op" in
     tag)
       out=$(git ls-remote "https://github.com/$or.git" "refs/tags/$arg" "refs/tags/$arg^{}" "refs/heads/$arg") \
@@ -87,7 +88,7 @@ default_resolver() {
       local f code body
       for f in action.yml action.yaml; do
         body=$(mktemp)
-        code=$(curl -sS -o "$body" -w '%{http_code}' "https://raw.githubusercontent.com/$or/$arg/$f") \
+        code=$(curl -sS -o "$body" -w '%{http_code}' "https://raw.githubusercontent.com/$or/$arg/${sub:+$sub/}$f") \
           || { rm -f "$body"; return 1; }
         if [ "$code" = 200 ]; then
           # external uses: only (skip ./local and docker://)
@@ -128,35 +129,105 @@ function norm(r,   at, path, ref, n, parts) {
   if (split(path, parts, "/") < 2) return ""
   return tolower(parts[1] "/" parts[2]) "@" ref
 }
-FNR == 1 { p = FILENAME; sub(/.*\//, "", p); p = ".github/workflows/" p }
+# subpath of owner/repo/sub/dir@ref ("" for the repository root)
+function subof(r,   at, path, n, parts, k, s) {
+  at = 0
+  for (n = length(r); n > 0; n--) { if (substr(r, n, 1) == "@") { at = n; break } }
+  path = substr(r, 1, at - 1)
+  n = split(path, parts, "/"); s = ""
+  for (k = 3; k <= n; k++) s = s (s == "" ? "" : "/") parts[k]
+  return s
+}
+# Same-length copy of a line with the CONTENT of every quoted scalar blanked to
+# "_" (kept in step with shape() in check-lock-sync.sh): `{uses: x}` inside
+# `run: "echo {uses: x}"` is shell data, not a flow-mapping step. A quote only
+# opens at a token boundary, so an apostrophe inside a word swallows nothing.
+function shape(s,   out, i, c, q) {
+  out = ""; q = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == q) { q = ""; out = out c } else out = out "_" }
+    else if ((c == "\"" || c == "\047") && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]{\[,:]/)) { q = c; out = out c }
+    else out = out c
+  }
+  return out
+}
+FNR == 1 { p = FILENAME; sub(/.*\//, "", p); p = ".github/workflows/" p; stepind = -1; blkind = -1 }
 {
-  line = $0; cm = ""
+  line = $0
+  # block scalars (run: |) are data, not references
+  if (blkind >= 0) {
+    if (line !~ /[^[:space:]]/) next
+    match(line, /^[[:space:]]*/)
+    if (RLENGTH > blkind) next
+    blkind = -1
+  }
+  if (line ~ /:[[:space:]]*[|>][-+0-9]*[[:space:]]*(#.*)?$/) {
+    match(line, /^[[:space:]]*(-[[:space:]]+)?/)
+    blkind = RLENGTH
+  }
+  cm = ""
   if (match(line, /[[:space:]]+#/)) { cm = substr(line, RSTART + RLENGTH); line = substr(line, 1, RSTART - 1) }
-  if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
+  if (line ~ /[^[:space:]]/) {
+    match(line, /^[[:space:]]*/); ind = RLENGTH
+    if (stepind >= 0 && ind <= stepind) stepind = -1
+    if (line ~ /^[[:space:]]*steps:/) stepind = ind
+  }
+  raw = ""
+  shp = shape(line)
+  # flow-mapping step: matched on the quote-blanked shape, with an unquoted `{`
+  # at or before the match, so `uses:` inside a quoted scalar stays data
+  if (match(shp, /[{,][[:space:]]*uses:[[:space:]]*[^,}[:space:]]+/) && index(substr(shp, 1, RSTART), "{") > 0) {
+    raw = substr(line, RSTART + 1)
+    sub(/^[[:space:]]*uses:[[:space:]]*/, "", raw)
+    sub(/[,}[:space:]].*$/, "", raw)
+  } else if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
     raw = line
     sub(/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*/, "", raw)
+  }
+  if (raw != "") {
     gsub(/^["\047]|["\047]$/, "", raw)
     gsub(/[[:space:]]+$/, "", raw)
     n = norm(raw)
     if (n == "") next
     sub(/^[[:space:]]+/, "", cm); sub(/[[:space:]].*$/, "", cm)
     if (cm !~ /^[A-Za-z0-9._\/-]+$/) cm = ""
-    printf "%s\t%s\t%s\n", p, n, cm
+    # job-level reusable-workflow target (outside steps:, not a "- " item):
+    # stays a SHA pin outside the lock, so it is never recorded
+    if (stepind < 0 && line !~ /^[[:space:]]*-/ && raw ~ /\/\.github\/workflows\/[^\/@]+\.ya?ml@/) reuse[n] = 1
+    else action[n] = 1
+    cnt++; rp[cnt] = p; rn[cnt] = n; rc[cnt] = cm; rs[cnt] = subof(raw)
+  }
+}
+END {
+  for (i = 1; i <= cnt; i++) {
+    if ((rn[i] in reuse) && !(rn[i] in action)) continue
+    printf "%s\t%s\t%s\t%s\n", rp[i], rn[i], (rc[i] == "" ? "-" : rc[i]), (rs[i] == "" ? "-" : rs[i])
   }
 }' "${WORKFLOWS[@]}" > "$T/uses.tsv"
 
 # ---------------- phase 2: parse the existing lock ----------------
 # W path entry | P path | R key field value | N key nestedref
 "$AWK" '
+# one-line flow sequence `[ 'a@v1', "b@v2" ]` -> prints "<tag>\t<cur>\t<item>" per item
+function flow(tag, key, s,   n, parts, k, v) {
+  sub(/^[^[]*\[/, "", s); sub(/\].*$/, "", s)
+  n = split(s, parts, ",")
+  for (k = 1; k <= n; k++) {
+    v = parts[k]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^["\047]|["\047]$/, "", v)
+    if (v != "") print tag "\t" key "\t" v
+  }
+}
 /^version:/ { next }
 /^workflows:[[:space:]]*$/ { inwf = 1; indep = 0; next }
 /^dependencies:[[:space:]]*$/ { inwf = 0; indep = 1; next }
 /^[a-z_]+:/ { inwf = 0; indep = 0; next }
-inwf && /^    \047[^\047]+\047:/ { cur = $0; sub(/^    \047/, "", cur); sub(/\047:.*$/, "", cur); print "P\t" cur; next }
+inwf && /^    \047[^\047]+\047:/ { cur = $0; sub(/^    \047/, "", cur); sub(/\047:.*$/, "", cur); print "P\t" cur; if ($0 ~ /\047:[[:space:]]*\[[^]]/) flow("W", cur, $0); next }
 inwf && /^        - \047[^\047]+\047/ { v = $0; sub(/^        - \047/, "", v); sub(/\047.*$/, "", v); print "W\t" cur "\t" v; next }
 indep && /^    \047[^\047]+\047:/ { dk = $0; sub(/^    \047/, "", dk); sub(/\047:.*$/, "", dk); print "R\t" dk "\tkey\t"; next }
 indep && /^        (ref|commit|owner_id|repo_id):/ { f = $0; sub(/^        /, "", f); k = f; sub(/:.*$/, "", k); sub(/^[a-z_]+:[[:space:]]*/, "", f); print "R\t" dk "\t" k "\t" f; next }
 indep && /^            - \047[^\047]+\047/ { v = $0; sub(/^            - \047/, "", v); sub(/\047.*$/, "", v); print "N\t" dk "\t" v; next }
+indep && /^        uses:[[:space:]]*\[/ && dk != "" { flow("N", dk, $0); next }
 ' "$LOCK" > "$T/lock.tsv"
 
 lk() { local r="${1%%@*}"; printf '%s@%s' "${r,,}" "${1#*@}"; }
@@ -184,11 +255,18 @@ for l in "${!DKEY[@]}"; do
 done
 
 # ---------------- phase 3: new workflow sets, and records to resolve ----------------
-declare -A NEWWF TAGHINT
-while IFS=$'\t' read -r p ref cm; do
+declare -A NEWWF TAGHINT SUBS
+while IFS=$'\t' read -r p ref cm sub; do
   [ -n "$ref" ] || continue
+  [ "$cm" = "-" ] && cm=""
+  [ "$sub" = "-" ] && sub=""
   NEWWF[$p]+="$ref"$'\n'
   [ -n "$cm" ] && TAGHINT[$ref]="$cm"
+  # every distinct action path this ref is used at, one per line; the
+  # repository root is recorded as "." (never a real subpath), so root use is
+  # tracked explicitly and "sub-only" cannot be mistaken for "root + sub"
+  key="${sub:-.}"
+  case $'\n'"${SUBS[$ref]:-}" in *$'\n'"$key"$'\n'*) ;; *) SUBS[$ref]+="$key"$'\n' ;; esac
 done < "$T/uses.tsv"
 
 declare -A NEWREC_COMMIT NEWREC_REF NEWREC_IDS
@@ -212,7 +290,17 @@ for p in "${!NEWWF[@]}"; do
       [[ "$commit" =~ ^[0-9a-fA-F]{40}$ ]] || die "resolver returned a non-SHA for $or $r: '$commit'"
       commit="${commit,,}"; mref="$r"
     fi
-    nested=$(resolve nested "$or" "$commit") || die "cannot inspect $or@$commit for nested uses:"
+    # Probe the manifest of every action path this ref is used at: the root
+    # action.yml for `o/r@ref`, `<sub>/action.yml` for `o/r/<sub>@ref`.
+    nested=""
+    subs="${SUBS[$ref]:-}"
+    [ -n "$subs" ] || subs=$'.\n'
+    while IFS= read -r sp; do
+      [ -n "$sp" ] || continue
+      [ "$sp" != "." ] || sp=""
+      one=$(resolve nested "$or" "$commit" "$sp") || die "cannot inspect $or${sp:+/$sp}@$commit for nested uses:"
+      [ -z "$one" ] || nested+="${nested:+$'\n'}$one"
+    done < <(printf '%s' "$subs")
     [ -z "$nested" ] || die "$ref has nested external uses: (needs hand-made dependencies: records, then re-run): $(printf '%s' "$nested" | tr '\n' ' ')"
     ids="${REPOIDS[${or,,}]:-}"
     if [ -z "$ids" ]; then
@@ -265,7 +353,7 @@ done
 
 # ---------------- phase 6: write, validate, restore on failure ----------------
 {
-  sed -n '1,/^version:/p' "$T/lock.orig" | sed '$d'
+  "$AWK" '/^version:/ { exit } { print }' "$T/lock.orig"        # header comments only
   grep -m1 '^version:' "$T/lock.orig" || echo "version: 'v0.0.3'"
   echo "workflows:"
   for p in $(printf '%s\n' "${!WFPATH[@]}" | LC_ALL=C sort); do
@@ -299,11 +387,17 @@ done
   done
 } > "$T/lock.new"
 
-cp "$T/lock.new" "$LOCK"
-if ! bash "$CHECK" "$WF_DIR" > "$T/check.out" 2>&1; then
-  cp "$T/lock.orig" "$LOCK"
+# Validate the CANDIDATE in a staging copy; the live lock is never written until
+# the candidate has passed, and is then replaced by a same-directory rename, so a
+# failure (or an interrupt) can never leave a half-written or invalid actions.lock.
+mkdir "$T/stage"
+for f in "${WORKFLOWS[@]}"; do [ "$f" = "$LOCK" ] || cp "$f" "$T/stage/"; done
+cp "$T/lock.new" "$T/stage/actions.lock"
+if ! bash "$CHECK" "$T/stage" > "$T/check.out" 2>&1; then
   cat "$T/check.out" >&2
-  die "the repaired lock still fails check-lock-sync.sh; original actions.lock restored. Manual repair needed."
+  die "the repaired lock fails check-lock-sync.sh; the original actions.lock is untouched. Manual repair needed."
 fi
+cp "$T/lock.new" "$LOCK.tmp.$$"
+mv -f "$LOCK.tmp.$$" "$LOCK"
 note "actions.lock repaired and validated by check-lock-sync.sh"
 for l in "${NEWKEYS[@]}"; do note "  recorded ${DKEY[$l]} -> sha1-${NEWREC_COMMIT[$l]}"; done
