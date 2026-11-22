@@ -59,7 +59,7 @@ criteria in SCAFFOLD-LIFECYCLE.adoc:
    (echoed advice is not provisioning).
 3. **Configure** — identity, visibility, branch protection set out of band
    via `gh`/UI, once per repo; required contexts equal emitted job ids;
-   repo registered in `gv-clade-index`.
+   repo registered in `chora-registry`.
 4. **Harness** — CI green or accounted for, drift gate armed against the
    recorded pin, oracle able to score.
 
