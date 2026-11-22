@@ -67,7 +67,7 @@ none
 
 [source,bash]
 ----
-just proof-check-agda     # Agda: agda --safe --without-K --cubical-compatible
+just proof-check-agda     # Agda: agda --safe --without-K --cubical-compatible -W error
 just proof-check-coq      # Rocq recheck legs
 just proof-check-lean4    # Lean recheck legs (core only, no Mathlib)
 just proof-check-idris2   # Idris2 engineering proofs

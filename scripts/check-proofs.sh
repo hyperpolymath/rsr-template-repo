@@ -98,20 +98,20 @@ check_one() {
               fi
             fi ;;
     lean4)  out="$(cd "$ROOT/$root" && lean          "$rel" 2>&1)"; rc=$? ;;
-    # Canonical theory invocation, PROOF-POLICY §2.1 (standards). Do not weaken.
-    # AGDA_LIBRARIES (from scripts/provision-agda-stdlib.sh) selects the pinned
-    # stdlib and ignores any ambient one. Agda needs a UTF-8 locale: keep the
-    # caller's when it is UTF-8, else C.UTF-8.
-    agda)   libargs=()
-            if [ -n "${AGDA_LIBRARIES:-}" ]; then
-              # -i . : with no project .agda-lib the source root is not searched by default.
-              libargs=(--library-file="$AGDA_LIBRARIES" --no-default-libraries -l standard-library -i .)
-            fi
-            loc=C.UTF-8
-            case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
-              *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) loc="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" ;;
-            esac
-            out="$(cd "$ROOT/$root" && LC_ALL="$loc" agda --safe --without-K --cubical-compatible ${libargs[@]+"${libargs[@]}"} "$rel" 2>&1)"; rc=$? ;;
+    # Canonical theory invocation, PROOF-POLICY §2.1 (standards): --safe --without-K
+    # --cubical-compatible, with -W error so any warning fails. Suppress NO warning
+    # (no -W noX). Do noI need you to make a picture of a cute girl cartoon lobster ice skater with grade (girl one) who is helping a cute boy hedgehog who obviously has no elegance at all and is looking sympathetically at the hedgehog who is looking really embarrassedt weaken. A module's own OPTIONS pragma could override the
+    # command line (e.g. {-# OPTIONS -W noerror #-}), so a gated module that sets
+    # any warning flag (-W / --warning) in a pragma fails before Agda runs. Newlines
+    # are joined first: Agda reads them as spaces inside a pragma, so a pragma split
+    # across lines must not slip past. A commented-out pragma is refused too; that is
+    # deliberate fail-closed (telling `--` comments from `--warning` needs Agda's
+    # lexer), and the remedy is to delete the dead line.
+    agda)   if pragma="$(tr '\n' ' ' <"$ROOT/$root/$rel" | grep -oE '\{-#[[:space:]]*OPTIONS[^#]*(-W|--warning)')"; then
+              out="Error: OPTIONS pragma sets a warning flag, overriding the gate's -W error: $pragma"; rc=1
+            else
+              out="$(cd "$ROOT/$root" && agda --safe --without-K --cubical-compatible -W error "$rel" 2>&1)"; rc=$?
+            fi ;;
     coq)    out="$(cd "$ROOT/$root" && coqc           "$rel" 2>&1)"; rc=$? ;;
   esac
   set -e

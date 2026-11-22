@@ -4,7 +4,7 @@
 # estate repositories that already hold a template copy of the script.
 #
 # TARGETED, NOT ESTATE-WIDE. A dry run on 2026-11-10 over the 325 repositories
-# in gv-clade-index found the script in 6 of them; the other 263 would have had
+# in chora-registry found the script in 6 of them; the other 263 would have had
 # it ADDED, which this campaign must not do. Run it only with this repos file:
 #
 #   catachresis-colloquium/enterglide-ncc-137-k

@@ -64,12 +64,25 @@ fi
 
 # Build the allow set: strip comments, trailing slashes, and blank lines.
 # A leading '?' marks the entry optional; it is not part of the name.
-mapfile -t ALLOW_RAW < <(
-    sed -E 's/[[:space:]]*#.*$//' "$ALLOW_FILE" \
-        | sed -E 's|/$||' \
-        | awk 'NF' \
-        | sed -E 's/[[:space:]]+$//'
-)
+#
+# Read with builtins, one line at a time, in the order the old
+# sed | sed | awk | sed pipeline applied: (1) drop a '#' comment and the blanks
+# before it, (2) drop one trailing '/', (3) skip lines of only blanks (awk's
+# NF), (4) drop trailing whitespace. The Six-Sigma gate measures this script's
+# cost, and process count dominates it, so this gate forks only where no
+# builtin does the job.
+ALLOW_RAW=()
+if [ -r "$ALLOW_FILE" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [[ "$line" == *'#'* ]]; then
+            line="${line%%#*}"
+            line="${line%"${line##*[![:space:]]}"}"
+        fi
+        line="${line%/}"
+        [[ "$line" =~ ^[[:blank:]]*$ ]] && continue
+        ALLOW_RAW+=("${line%"${line##*[![:space:]]}"}")
+    done <"$ALLOW_FILE"
+fi
 
 declare -A ALLOW_SET=()
 REQUIRED=()
@@ -124,8 +137,14 @@ done
 # (canon :gates-sha256) pin. That last one is the canon-spine lockstep: a table
 # the repo has not adopted may not widen its root. Adopting a canon release is
 # therefore "bump the pin AND re-vendor the table", in one commit.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GATES_FILE="$(dirname "$ALLOW_FILE")/template-capability-gates.toml"
+_src="${BASH_SOURCE[0]}"
+_dir="${_src%/*}"
+case "$_src" in */*) [ -n "$_dir" ] || _dir=/ ;; *) _dir=. ;; esac
+_here="$PWD"
+cd -- "$_dir"
+SCRIPT_DIR="$PWD"
+cd -- "$_here"
+GATES_FILE="${ALLOW_FILE%/*}/template-capability-gates.toml"
 DEED_FIELD="$SCRIPT_DIR/deed-field.sh"
 declare -A GATED_BY=()   # every root-level gated name -> the capability (or capabilities) that admit it
 DERIVED=()               # names admitted by a declared capability and not already listed
@@ -149,10 +168,81 @@ scalar_on_key() {
 }
 
 PROFILE_DIRECT="" PROFILE_PRESET="" PROFILE_ADD="" PROFILE_REMOVE="" GATES_PIN="" PROFILE_SOURCE=""
+
+# The (rsr-profile …) clause is read ONCE with `deed-field.sh --clause`, which
+# prints its tokens one per line ("(" ")" A<atom> S<string>), and the four
+# fields are then taken from those tokens in-process. This replaces `--has`
+# plus four per-field calls, each of which was a bash and an awk process. The
+# readers below mirror deed-field.sh's own rules exactly: a key matches only at
+# the top level of the clause, the first match wins, a tagged literal prints its
+# string, #t/#f print as true/false. deed-field.sh itself is unchanged.
+CT=()          # the clause's tokens
+CT_AT=-1       # index of the :key last found by ct_find
+ct_find() {
+    local key="$1" i t d=0 last=$(( ${#CT[@]} - 1 ))
+    CT_AT=-1
+    for (( i = 1; i < last; i++ )); do
+        t="${CT[i]}"
+        if [ "$t" = "(" ]; then d=$(( d + 1 ))
+        elif [ "$t" = ")" ]; then d=$(( d - 1 ))
+        elif [ "$d" -eq 0 ] && [ "$t" = "A:$key" ]; then CT_AT=$i; return 0
+        fi
+    done
+    return 1
+}
+# A value token as deed-field.sh shows it: type tag dropped, #t/#f as words.
+ct_show() {
+    SHOWN="${1:1}"
+    if [ "$SHOWN" = "#t" ]; then SHOWN=true; elif [ "$SHOWN" = "#f" ]; then SHOWN=false; fi
+}
+# ct_scalar KEY: first value of :KEY into REPLY; returns 1 when absent or not a value.
+ct_scalar() {
+    REPLY=""
+    ct_find "$1" || return 1
+    local nx="${CT[CT_AT+1]-}" after="${CT[CT_AT+2]-}"
+    { [ -z "$nx" ] || [ "$nx" = "(" ] || [ "$nx" = ")" ]; } && return 1
+    if [[ "$nx" =~ ^A#[a-z0-9]+$ ]] && [ "${after:0:1}" = "S" ]; then
+        nx="$after"
+    fi
+    ct_show "$nx"
+    REPLY="$SHOWN"
+}
+# ct_list KEY: the items of the list :KEY ( … ), newline-joined, into REPLY;
+# returns 1 when absent or not a list. Trailing newlines are dropped, as `$(…)`
+# dropped them for the old per-field calls.
+ct_list() {
+    REPLY=""
+    ct_find "$1" || return 1
+    [ "${CT[CT_AT+1]-}" = "(" ] || return 1
+    local u t ld=0 out=""
+    for (( u = CT_AT + 2; u < ${#CT[@]}; u++ )); do
+        t="${CT[u]}"
+        if [ "$t" = "(" ]; then ld=$(( ld + 1 ))
+        elif [ "$t" = ")" ]; then
+            [ "$ld" -eq 0 ] && break
+            ld=$(( ld - 1 ))
+        elif [ "$ld" -eq 0 ]; then
+            ct_show "$t"
+            out+="$SHOWN"$'\n'
+        fi
+    done
+    while [[ "$out" == *$'\n' ]]; do out="${out%$'\n'}"; done
+    REPLY="$out"
+}
+# The token stream is one token per line, so a string holding a newline cannot
+# be told from tokens. Such a clause (a line that is not "(", ")", A… or S…)
+# is read with the per-field calls instead, which are exact.
+profile_from_deed_slow() {
+    PROFILE_DIRECT="$(bash "$DEED_FIELD" --list "$1" rsr-profile capabilities || true)"
+    PROFILE_PRESET="$(bash "$DEED_FIELD" "$1" rsr-profile preset || true)"
+    PROFILE_ADD="$(bash "$DEED_FIELD" --list "$1" rsr-profile add || true)"
+    PROFILE_REMOVE="$(bash "$DEED_FIELD" --list "$1" rsr-profile remove || true)"
+}
+
 deeds=()
 shopt -s nullglob
 for d in "$REPO_ROOT"/*_chora.deed "$REPO_ROOT"/.*_chora.deed; do
-    [ "$(basename "$d")" = "estate_chora.deed" ] || deeds+=("$d")
+    [ "${d##*/}" = "estate_chora.deed" ] || deeds+=("$d")
 done
 shopt -u nullglob
 if [ "${#deeds[@]}" -gt 1 ]; then
@@ -161,17 +251,30 @@ if [ "${#deeds[@]}" -gt 1 ]; then
 elif [ "${#deeds[@]}" -eq 1 ]; then
     if [ ! -f "$DEED_FIELD" ]; then
         derive_note "${deeds[0]#"$REPO_ROOT"/} found but $DEED_FIELD is absent; no capabilities read, static allowlist only"
-    elif bash "$DEED_FIELD" --has "${deeds[0]}" rsr-profile; then
+    elif clause="$(bash "$DEED_FIELD" --clause "${deeds[0]}" rsr-profile)"; then
         PROFILE_SOURCE="${deeds[0]#"$REPO_ROOT"/} (rsr-profile …)"
-        PROFILE_DIRECT="$(bash "$DEED_FIELD" --list "${deeds[0]}" rsr-profile capabilities || true)"
-        PROFILE_PRESET="$(bash "$DEED_FIELD" "${deeds[0]}" rsr-profile preset || true)"
-        PROFILE_ADD="$(bash "$DEED_FIELD" --list "${deeds[0]}" rsr-profile add || true)"
-        PROFILE_REMOVE="$(bash "$DEED_FIELD" --list "${deeds[0]}" rsr-profile remove || true)"
+        mapfile -t CT <<<"$clause"
+        clause_ok=1
+        for t in "${CT[@]}"; do
+            case "$t" in '('|')'|A*|S*) ;; *) clause_ok=0; break ;; esac
+        done
+        if [ "$clause_ok" -eq 1 ]; then
+            ! ct_list capabilities || PROFILE_DIRECT="$REPLY"
+            ! ct_scalar preset || PROFILE_PRESET="$REPLY"
+            ! ct_list add || PROFILE_ADD="$REPLY"
+            ! ct_list remove || PROFILE_REMOVE="$REPLY"
+        else
+            profile_from_deed_slow "${deeds[0]}"
+        fi
     fi
-    # The pin is read whichever source carries the profile: it is the deed's
-    # statement of which gate table this repo implements.
-    [ -f "$DEED_FIELD" ] && GATES_PIN="$(bash "$DEED_FIELD" "${deeds[0]}" canon gates-sha256 || true)"
 fi
+# The pin is the deed's statement of which gate table this repo implements. It
+# is only consulted when capabilities are declared against a vendored table
+# (below), so it is read there, not on every run.
+gates_pin() {
+    [ "${#deeds[@]}" -eq 1 ] && [ -f "$DEED_FIELD" ] || return 0
+    bash "$DEED_FIELD" "${deeds[0]}" canon gates-sha256 || true
+}
 if [ -z "$PROFILE_SOURCE" ]; then
     for p in "$REPO_ROOT/.machine_readable/rsr-profile.a2ml" "$REPO_ROOT/machine-readable/rsr-profile.a2ml"; do
         [ -f "$p" ] || continue
@@ -188,25 +291,43 @@ fi
 # [gates] rows as "alt|alt|…<TAB>capability". Read whenever the table is
 # present, so that a failure can say which declaration would admit an entry
 # even in a repo that declares nothing; deriving still needs a declaration.
+#
+# Read in-process with the rules gates_section and the old sed applied: the
+# body of the exact line "[gates]" up to the next line that starts with "[",
+# comment and blank lines skipped, then `"key" = "capability"` rows.
 GATE_ROWS=""
 if [ -f "$GATES_FILE" ]; then
-    GATE_ROWS="$(gates_section gates | sed -nE 's/^[[:space:]]*"([^"]*)"[[:space:]]*=[[:space:]]*"([^"]*)".*/\1\t\2/p')"
+    in_gates=0
+    re_row='^[[:space:]]*"([^"]*)"[[:space:]]*=[[:space:]]*"([^"]*)"'
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [ "$line" = "[gates]" ]; then in_gates=1; continue; fi
+        if [[ "$line" == '['* ]]; then in_gates=0; continue; fi
+        [ "$in_gates" -eq 1 ] || continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ "$line" =~ ^[[:blank:]]*$ ]] && continue
+        if [[ "$line" =~ $re_row ]]; then
+            GATE_ROWS+="${GATE_ROWS:+$'\n'}${BASH_REMATCH[1]}"$'\t'"${BASH_REMATCH[2]}"
+        fi
+    done <"$GATES_FILE"
 fi
-# root_names_of <row key>: its root-level alternatives, one per line.
+# root_names_of <row key>: its root-level alternatives, into ROOT_NAMES.
+# Sets an array instead of printing, so callers need no subshell per row.
 root_names_of() {
     local alt alts name
+    ROOT_NAMES=()
     IFS='|' read -r -a alts <<<"$1"
     for alt in "${alts[@]}"; do
         name="${alt%/}"
         case "$name" in ''|*/*|*[\*\?\[]*) continue ;; esac
-        printf '%s\n' "$name"
+        ROOT_NAMES+=("$name")
     done
 }
 while IFS=$'\t' read -r key cap; do
     [ -n "$key" ] || continue
-    while IFS= read -r name; do
+    root_names_of "$key"
+    for name in "${ROOT_NAMES[@]}"; do
         GATED_BY["$name"]="${GATED_BY[$name]:+${GATED_BY[$name]} or }'$cap'"
-    done < <(root_names_of "$key")
+    done
 done <<<"$GATE_ROWS"
 
 if [ -z "$PROFILE_DIRECT$PROFILE_PRESET$PROFILE_ADD" ]; then
@@ -215,8 +336,10 @@ elif [ ! -f "$GATES_FILE" ]; then
     derive_note "capabilities declared in $PROFILE_SOURCE but no gate table at ${GATES_FILE#"$REPO_ROOT"/}; static allowlist only"
     CAP_NOTE="capabilities declared but no gate table at ${GATES_FILE#"$REPO_ROOT"/}; static allowlist only"
 else
+    GATES_PIN="$(gates_pin)"
     if [ -n "$GATES_PIN" ]; then
-        have="$( (sha256sum "$GATES_FILE" 2>/dev/null || shasum -a 256 "$GATES_FILE") | awk '{print $1}')"
+        have="$(sha256sum "$GATES_FILE" 2>/dev/null || shasum -a 256 "$GATES_FILE" || true)"
+        have="${have%%[[:space:]]*}"
         if [ "$have" != "$GATES_PIN" ]; then
             echo "ERROR: ${GATES_FILE#"$REPO_ROOT"/} has sha256 $have," >&2
             echo "       but the deed's (canon :gates-sha256) pin is $GATES_PIN." >&2
@@ -233,25 +356,38 @@ else
             exit 2
         fi
     fi
-    EFFECTIVE="$(printf '%s\n%s\n%s\n' "$PROFILE_DIRECT" "$PRESET_CAPS" "$PROFILE_ADD" | sed '/^$/d' | sort -u)"
+    # Non-empty capability names, sorted and de-duplicated by the one sort
+    # that has no builtin (its locale order is shown in the PASS summary).
+    EFFECTIVE=""
+    while IFS= read -r c; do [ -n "$c" ] && EFFECTIVE+="$c"$'\n'; done \
+        <<<"$PROFILE_DIRECT"$'\n'"$PRESET_CAPS"$'\n'"$PROFILE_ADD"
+    [ -z "$EFFECTIVE" ] || EFFECTIVE="$(sort -u <<<"${EFFECTIVE%$'\n'}")"
     if [ -n "$PROFILE_REMOVE" ]; then
-        EFFECTIVE="$(comm -23 <(printf '%s\n' "$EFFECTIVE") <(printf '%s\n' "$PROFILE_REMOVE" | sort -u))"
+        # Set difference, order kept: what `comm -23` of two sorted lists gave.
+        declare -A REMOVE_SET=()
+        while IFS= read -r c; do [ -n "$c" ] && REMOVE_SET["$c"]=1; done <<<"$PROFILE_REMOVE"
+        kept=""
+        while IFS= read -r c; do
+            { [ -n "$c" ] && [ -z "${REMOVE_SET[$c]+x}" ]; } && kept+="$c"$'\n'
+        done <<<"$EFFECTIVE"
+        EFFECTIVE="${kept%$'\n'}"
     fi
     declare -A HAS_CAP=()
     while IFS= read -r c; do [ -n "$c" ] && HAS_CAP["$c"]=1; done <<<"$EFFECTIVE"
 
     while IFS=$'\t' read -r key cap; do
         { [ -n "$key" ] && [ -n "${HAS_CAP[$cap]+x}" ]; } || continue
-        while IFS= read -r name; do
+        root_names_of "$key"
+        for name in "${ROOT_NAMES[@]}"; do
             if [ -z "${ALLOW_SET[$name]+x}" ]; then
                 ALLOW_SET["$name"]=1
                 ALLOW+=("$name")
                 DERIVED+=("$name")
             fi
-        done < <(root_names_of "$key")
+        done
     done <<<"$GATE_ROWS"
 
-    CAP_NOTE="capabilities from $PROFILE_SOURCE: $(printf '%s\n' "$EFFECTIVE" | paste -sd' ' -)"
+    CAP_NOTE="capabilities from $PROFILE_SOURCE: ${EFFECTIVE//$'\n'/ }"
     if [ "${#DERIVED[@]}" -gt 0 ]; then
         CAP_NOTE="$CAP_NOTE; derived: ${DERIVED[*]}"
     else
@@ -271,19 +407,34 @@ fi
 #
 # Filtering through `git check-ignore` makes the check mean what it says. The
 # fallback keeps the script working outside a git worktree.
-mapfile -t ACTUAL < <(
-    cd "$REPO_ROOT" && \
-    find . -mindepth 1 -maxdepth 1 \
-        ! -name '.' \
-        -printf '%f\n' \
-    | { if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            git check-ignore --stdin --non-matching --verbose 2>/dev/null \
-                | sed -n 's/^::[[:space:]]//p'
-        else
-            cat
-        fi; } \
-    | sort
-)
+#
+# The names come from a glob (dotglob, so dotfiles too) in the repo root rather
+# than find, and the git-ignore answer is parsed with builtins rather than sed.
+# `git check-ignore` itself has no builtin, so it is still run. ACTUAL is in
+# glob order here: only EXTRAS is ever printed, and it is sorted below.
+ACTUAL=()
+_here="$PWD"
+if cd -- "$REPO_ROOT" 2>/dev/null; then
+    shopt -s dotglob nullglob
+    names=(*)
+    shopt -u dotglob nullglob
+    entries=()
+    for n in "${names[@]}"; do
+        [ "$n" = "." ] || [ "$n" = ".." ] || entries+=("$n")
+    done
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if [ "${#entries[@]}" -gt 0 ]; then
+            printf -v entry_list '%s\n' "${entries[@]}"
+            ignore_out="$(git check-ignore --stdin --non-matching --verbose 2>/dev/null <<<"${entry_list%$'\n'}" || true)"
+            while IFS= read -r line; do
+                [[ "$line" == "::"[[:space:]]* ]] && ACTUAL+=("${line:3}")
+            done <<<"$ignore_out"
+        fi
+    else
+        ACTUAL=("${entries[@]}")
+    fi
+    cd -- "$_here"
+fi
 
 declare -A ACTUAL_SET=()
 for entry in "${ACTUAL[@]}"; do
@@ -297,6 +448,11 @@ for entry in "${ACTUAL[@]}"; do
         EXTRAS+=("$entry")
     fi
 done
+# Print order is the locale `sort` order the whole listing used to be in. A
+# total order, so sorting just the extras gives the same sequence.
+if [ "${#EXTRAS[@]}" -gt 1 ]; then
+    mapfile -t EXTRAS < <(printf '%s\n' "${EXTRAS[@]}" | sort)
+fi
 
 # Direction 2 — required by the allowlist but not present.
 MISSING=()
