@@ -2,12 +2,14 @@
 # SPDX-License-Identifier: MPL-2.0
 #
 # check-lock-sync.sh — verify .github/workflows/actions.lock is in sync with the
-# workflow YAML, in BOTH directions (including job-level reusable-workflow refs),
+# workflow YAML, in BOTH directions (step actions; job-level reusable-workflow refs may stay outside the lock),
 # AND that the lockfile is TRANSITIVELY CLOSED.
 #
 # Validation clauses, each of which alone is insufficient:
 #
-#   1. every `uses:` in a workflow is locked under THAT workflow's own path;
+#   1. every step-action `uses:` in a workflow is locked under THAT workflow's own path
+#      (a ref used ONLY as a job-level reusable-workflow target is exempt: it may
+#      stay a SHA pin outside the lock);
 #   2. every lockfile entry is still referenced by its workflow (no orphans);
 #   3. every ref NAMED anywhere in the lockfile resolves to a top-level
 #      `dependencies:` record — the lockfile has no dangling edges.
@@ -44,7 +46,7 @@
 #   * a job-level ref ABSENT from the lockfile entirely is HARMLESS;
 #   * a ref PRESENT in the lockfile but unresolvable is FATAL.
 # So adding entries without closing them is strictly worse than adding nothing.
-# Clause 1 demands entries be added; only clause 3 makes that demand safe. Shipping
+# Clause 1 therefore does NOT demand job-level entries; where they are present, only clause 3 makes them safe. Shipping
 # clause 1 without clause 3 actively steers a developer into the fatal state:
 # Dependabot bumps a job-level ref -> clause 1 reds -> `gh actions-lock` is blind to
 # job-level refs and will not backfill -> the developer hand-adds the workflows:
@@ -152,6 +154,36 @@ function namedref(r,   count, part, j) {
   return 1
 }
 
+# Same-length copy of a line with the CONTENT of every quoted scalar blanked to
+# "_". `{uses: x}` inside `run: "echo '{uses: x}'"` is shell data, not a flow
+# mapping, and must not be read as a step. A quote only opens at a token
+# boundary, so an apostrophe inside a word (`it's`) swallows nothing.
+function shape(s,   out, i, c, q, p) {
+  out = ""; q = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == q) { q = ""; out = out c } else out = out "_" }
+    else if ((c == "\"" || c == "\047") && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]{\[,:]/)) { q = c; out = out c }
+    else out = out c
+  }
+  return out
+}
+
+# Items of a one-line flow sequence `... [ 'a@v1', "b@v2", c@v3 ]`, joined with
+# \034 (unit separator) after quotes and padding are stripped. Refs contain no commas.
+function flowitems(s,   n, parts, k, v, out) {
+  sub(/^[^[]*\[/, "", s); sub(/\].*$/, "", s)
+  n = split(s, parts, ",")
+  out = ""
+  for (k = 1; k <= n; k++) {
+    v = parts[k]
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+    gsub(/^["\047]|["\047]$/, "", v)
+    if (v != "") out = out (out == "" ? "" : "\034") v
+  }
+  return out
+}
+
 # ---------- pass 1: the lockfile ----------
 FILENAME == lockfile {
   if ($0 ~ /^version:[[:space:]]*/) {
@@ -222,17 +254,40 @@ FILENAME == lockfile {
       wantsrc[r] = wantsrc[r] " dependencies:" depkey
       next
     }
+    # "        uses: ['a@v1', 'b@v2']"  -- flow-form nested uses: of that record
+    if ($0 ~ /^        uses:[[:space:]]*\[/ && depkey != "") {
+      fl = flowitems($0)
+      nf = split(fl, fi, "\034")
+      for (q = 1; q <= nf; q++) {
+        if (fi[q] == "") continue
+        r = ck(fi[q]); disp[r] = fi[q]
+        want[r] = 1
+        wantsrc[r] = wantsrc[r] " dependencies:" depkey
+      }
+      next
+    }
     next
   }
 
   if (!inwf) next
 
-  # "    '.github/workflows/x.yml':"  or  "... : []"
+  # "    '.github/workflows/x.yml':"  or  "... : []"  or  "... : ['a@v1', 'b@v2']"
   if ($0 ~ /^    \047[^\047]+\047:/) {
     cur = $0
     sub(/^    \047/, "", cur)
     sub(/\047:.*$/, "", cur)
     seen_path[cur] = 1
+    if ($0 ~ /\047:[[:space:]]*\[[^]]/) {          # non-empty flow list
+      fl = flowitems($0)
+      nf = split(fl, fi, "\034")
+      for (q = 1; q <= nf; q++) {
+        if (fi[q] == "") continue
+        lr = ck(fi[q]); disp[lr] = fi[q]; lock[cur, lr] = 1
+        lockcount[cur]++
+        want[lr] = 1
+        wantsrc[lr] = wantsrc[lr] " " cur
+      }
+    }
     next
   }
   if ($0 ~ /^        - \047[^\047]+\047[[:space:]]*$/ && cur != "") {
@@ -249,9 +304,22 @@ FILENAME == lockfile {
 }
 
 # ---------- pass 2: the workflow YAML ----------
-FNR == 1 { wf = FILENAME; stepind = -1 }
+FNR == 1 { wf = FILENAME; stepind = -1; blkind = -1 }
 {
   line = $0
+  # A block scalar (`run: |`, `script: >-`) is data, not workflow structure: a
+  # `uses:` inside it is shell text or an example, never a reference. Skip every
+  # line indented deeper than the key that opened the block.
+  if (blkind >= 0) {
+    if (line !~ /[^[:space:]]/) next
+    match(line, /^[[:space:]]*/)
+    if (RLENGTH > blkind) next
+    blkind = -1
+  }
+  if (line ~ /:[[:space:]]*[|>][-+0-9]*[[:space:]]*(#.*)?$/) {
+    match(line, /^[[:space:]]*(-[[:space:]]+)?/)
+    blkind = RLENGTH      # column of the opening key (past any "- ")
+  }
   sub(/[[:space:]]+#.*$/, "", line)              # strip trailing comment
   # Track whether this line sits inside a job's `steps:` block, by
   # indentation: a `uses:` there is a step action, whatever its path looks
@@ -262,9 +330,22 @@ FNR == 1 { wf = FILENAME; stepind = -1 }
     if (stepind >= 0 && ind <= stepind) stepind = -1
     if (line ~ /^[[:space:]]*steps:/) stepind = ind
   }
-  if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
+  # Flow-mapping step: `- {uses: o/r@v1, name: x}`. Pull the uses: scalar out.
+  # The match is made on the quote-blanked shape of the line, and needs an
+  # unquoted `{` at or before it, so `uses:` text inside a quoted scalar (or a
+  # bare `a, uses: b` in plain text) is data, never a reference.
+  isflow = 0
+  shp = shape(line)
+  if (match(shp, /[{,][[:space:]]*uses:[[:space:]]*[^,}[:space:]]+/) && index(substr(shp, 1, RSTART), "{") > 0) {
+    raw = substr(line, RSTART + 1)
+    sub(/^[[:space:]]*uses:[[:space:]]*/, "", raw)
+    sub(/[,}[:space:]].*$/, "", raw)
+    isflow = 1
+  } else if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
     raw = line
     sub(/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*/, "", raw)
+  } else raw = ""
+  if (raw != "") {
     gsub(/^["\047]|["\047]$/, "", raw)
     gsub(/[[:space:]]+$/, "", raw)
     if (raw ~ /^\$\//) { dollar[wf] = dollar[wf] " " raw; next }   # known corruption
@@ -299,6 +380,11 @@ END {
     for (j = 1; j <= nu; j++) {
       if (u[j] == "" || (u[j] in uniq)) continue
       uniq[u[j]] = 1
+      # A ref used ONLY as a job-level reusable-workflow target stays a SHA pin
+      # outside the lock (see the header: absent is harmless, `gh actions-lock`
+      # does not backfill it, and hand-adding it is the fatal direction). It may
+      # be present (and is then closed by clause 3) or absent; never required.
+      if (ck(u[j]) in reusetgt && !(ck(u[j]) in actiontgt)) continue
       if (!((key SUBSEP ck(u[j])) in lock)) missing = missing " " u[j]
     }
     if (missing != "") {
@@ -472,7 +558,7 @@ END {
     exit 1
   }
   printf "actions.lock is in sync and transitively closed:\n"
-  printf "  * every uses: is locked under its own workflow path (job-level reusable refs included)\n"
+  printf "  * every step-action uses: is locked under its own workflow path (job-level reusable refs may stay outside the lock)\n"
   printf "  * every lockfile entry is still referenced\n"
   printf "  * every ref named in the lockfile resolves to a dependencies: record (0 dangling edges)\n"
   printf "  * every workflow file has a lockfile key (zero-uses: workflows included)\n"

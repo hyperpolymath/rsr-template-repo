@@ -41,7 +41,9 @@ jobs:
       - name: Check out without actions/checkout
         env:
           REPO: ${{ github.repository }}
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          # The PR MERGE commit (github.sha), not the PR head: judge what would
+          # actually land on the base branch.
+          SHA: ${{ github.sha }}
           TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
