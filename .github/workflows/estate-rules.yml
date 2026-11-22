@@ -381,6 +381,18 @@ jobs:
           set -euo pipefail
           bash tests/workflows/workflow_edges_test.sh
           bash scripts/check-workflow-edges.sh .
+      # A workflow copied into another repository keeps its `bash scripts/x.sh`
+      # lines but not the script (phronesis#122: empty-linter.yml synced without
+      # scripts/check-invisible-characters.sh). This step refuses that statically.
+      # It guards itself the way lock-sync-gate.yml does: if the scripts were not
+      # copied, the guard is missing too, and that is reported by name.
+      - name: Workflow-invoked scripts exist (no orphaned workflow copies)
+        run: |
+          set -euo pipefail
+          test -f scripts/check-workflow-script-refs.sh \
+            || { echo "::error::scripts/check-workflow-script-refs.sh is missing: this workflow was copied without its companion scripts/ and tests/"; exit 1; }
+          bash tests/workflows/check_workflow_script_refs_test.sh
+          bash scripts/check-workflow-script-refs.sh .
       # The grid itself is rendered by the pinned standards renderer, which the
       # tests stub: this proves the lane's evidence collection, digest refusal,
       # orange-not-green fallback and one-comment-per-PR behaviour, and that the
