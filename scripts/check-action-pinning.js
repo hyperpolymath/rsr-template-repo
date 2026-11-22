@@ -37,15 +37,19 @@
 //   gate that cannot see the common case reads as coverage and enforces nothing.
 //
 //   Flow mappings. `- { uses: x@v1 }` and `{ name: n, uses: x@v1 }` are the same
-//   step as the block form. The key is also recognised after `{` or `,`, and the
-//   value stops at `,` or `}`.
+//   step as the block form. On a line that opens a flow mapping the key is also
+//   recognised after `{` or `,`, and the value stops at `,` or `}`. In block form
+//   the scalar runs to the end of the line (or a ` #` comment): a `,` is part of
+//   it, so `x@<sha>,mutable` is a mutable tag, not a pinned SHA. `{ uses: ... }`
+//   inside a comment or a quoted shell argument is not a step.
 //
 //   Quoted values. `uses: 'x@v1'` and `uses: x@v1` are the same YAML scalar; the
 //   quotes are removed before the ref is compared.
 //
-//   Case-insensitive comparison. Workflows write `SonarSource/...`; the lockfile
-//   records `sonarsource/...`. Action refs are case-insensitive in practice, so
-//   a case-sensitive match reports a false positive on a correctly-pinned action.
+//   Case. Workflows write `SonarSource/...`; the lockfile records
+//   `sonarsource/...`, so the owner/repository part is compared case-
+//   insensitively. The tag is compared exactly (git ref names are case-
+//   sensitive), and so is the workflow path (ci.yml and CI.yml can coexist).
 //
 //   Only *.yml / *.yaml, depth 1. A bare recursive grep also reads actions.lock
 //   (whose `uses:` keys are lockfile entries, not refs) and *.yml.template
@@ -63,9 +67,10 @@ import { join } from "node:path";
 
 const WF = ".github/workflows";
 const LOCK = join(WF, "actions.lock");
-// A `uses:` key at the start of a line (after an optional list dash) or after
-// `{` / `,` in a flow mapping. The value stops at whitespace, `#`, `,` or `}`.
-const USES = /(?:^\s*-?\s*|[{,]\s*)uses:\s*([^\s#,}]+)/g;
+// Flow-mapping key: `uses:` right after `{` or `,`. A value stops at whitespace,
+// `#`, `,` or `}` (or is a quoted string). Only read on lines that open a flow
+// mapping, see usesRefs.
+const FLOW_USES = /[{,]\s*uses:\s*('[^']*'|"[^"]*"|[^\s#,}]+)/g;
 const SHA = /@[a-f0-9]{40}$/;
 // The lock writes a resolved commit as `sha1-` plus 40 lower-case hex digits.
 const LOCK_COMMIT = /^sha1-[0-9a-f]{40}$/;
@@ -93,10 +98,47 @@ function decode(raw) {
   return raw;
 }
 
+// Action refs are case-insensitive in the owner/repository part and case-
+// sensitive in the tag (git ref names are), so lower-case only the former.
+function normRef(ref) {
+  const at = ref.lastIndexOf("@");
+  return at === -1 ? ref.toLowerCase() : ref.slice(0, at).toLowerCase() + ref.slice(at);
+}
+
+// The value of a block-form `uses:` line, or null: the key sits at the start of
+// the line after any list dashes; the scalar runs to a ` #` comment or the end
+// of the line, so a `,` or `}` in it is part of the value, not a delimiter.
+function blockUses(line) {
+  let s = line.trimStart();
+  while (s.startsWith("- ")) s = s.slice(2).trimStart();
+  if (!s.startsWith("uses:")) return null;
+  const rest = s.slice("uses:".length).trim();
+  const q = rest[0];
+  if (q === "'" || q === '"') {
+    const end = rest.indexOf(q, 1);
+    if (end !== -1) return rest.slice(0, end + 1);
+  }
+  const hash = rest.search(/\s#/);
+  return (hash === -1 ? rest : rest.slice(0, hash)).trim();
+}
+
+// Every action ref a line declares. Flow-mapping keys count only on a line that
+// itself opens a flow mapping (`- { uses: x@v1 }`), so `{ uses: ... }` inside a
+// comment or a quoted shell argument is not read as a step.
+function usesRefs(line) {
+  const block = blockUses(line);
+  if (block !== null) return block === "" ? [] : [decode(block)];
+  let s = line.trimStart();
+  while (s.startsWith("- ")) s = s.slice(2).trimStart();
+  if (!s.startsWith("{")) return [];
+  return [...s.matchAll(FLOW_USES)].map((m) => decode(m[1]));
+}
+
 // Line-based read of the two sections of actions.lock that matter:
 //   workflows:    "<path>": [ "<ref>", ... ]
 //   dependencies: "<ref>":  { commit: "sha1-..." , ... }
-// Keys and refs are lower-cased: action refs are case-insensitive.
+// Workflow paths keep their case (a Linux checkout can hold ci.yml and CI.yml);
+// action refs are normalised by normRef.
 function parseLock(text) {
   const workflows = new Map(); // path -> Set of refs
   const deps = new Map(); // ref -> commit string ("" when absent)
@@ -110,18 +152,46 @@ function parseLock(text) {
       section = body.endsWith(":") ? body.slice(0, -1) : "";
       key = "";
     } else if (indent === 4 && body.endsWith(":")) {
-      key = unquote(body.slice(0, -1)).toLowerCase();
+      key = lockKey(section, unquote(body.slice(0, -1)));
       if (section === "workflows" && !workflows.has(key)) workflows.set(key, new Set());
       if (section === "dependencies" && !deps.has(key)) deps.set(key, "");
     } else if (indent === 8 && key !== "") {
-      if (section === "workflows" && body.startsWith("- ")) {
-        workflows.get(key).add(unquote(body.slice(2).trim()).toLowerCase());
-      } else if (section === "dependencies" && body.startsWith("commit:")) {
-        deps.set(key, unquote(body.slice("commit:".length).trim()));
-      }
+      lockField(section, key, body, workflows, deps);
     }
   }
   return { workflows, deps };
+}
+
+function lockKey(section, name) {
+  return section === "workflows" ? name : normRef(name);
+}
+
+function lockField(section, key, body, workflows, deps) {
+  if (section === "workflows" && body.startsWith("- ")) {
+    workflows.get(key).add(normRef(unquote(body.slice(2).trim())));
+  } else if (section === "dependencies" && body.startsWith("commit:")) {
+    deps.set(key, unquote(body.slice("commit:".length).trim()));
+  }
+}
+
+// Why `ref` (declared in workflow `wfPath`) is not pinned, or null when it is.
+function unpinnedReason(ref, wfPath, lock) {
+  if (EXEMPT_PREFIX.some((p) => ref.startsWith(p))) return null;
+  const at = ref.lastIndexOf("@");
+  const name = at === -1 ? ref : ref.slice(0, at);
+  const tag = at === -1 ? "" : ref.slice(at + 1);
+  if (name.toLowerCase() === EXEMPT_REPO || SHA.test(ref)) return null;
+  if (lock === null) return "not an inline SHA and there is no lockfile";
+  const entry = lock.workflows.get(wfPath);
+  if (entry === undefined) return "this workflow has no entry in actions.lock";
+  // subpath actions key by repo root: github/codeql-action/init -> github/codeql-action
+  const root = name.split("/").slice(0, 2).join("/");
+  const locked = [normRef(ref), normRef(`${root}@${tag}`)].find((c) => entry.has(c));
+  if (locked === undefined) return "not listed under this workflow in actions.lock";
+  if (!LOCK_COMMIT.test(lock.deps.get(locked) ?? "")) {
+    return "actions.lock has no resolved sha1 commit for it";
+  }
+  return null;
 }
 
 function main() {
@@ -143,39 +213,13 @@ function main() {
   const bad = [];
   for (const file of workflowFiles()) {
     const wf = join(WF, file);
-    const lockKey = `${WF}/${file}`.toLowerCase();
-    readFileSync(wf, "utf8")
-      .split("\n")
-      .forEach((line, i) => {
-        for (const m of line.matchAll(USES)) {
-          const ref = decode(m[1]);
-          const fail = (why) => bad.push(`${wf}:${i + 1}: ${ref} (${why})`);
-          if (EXEMPT_PREFIX.some((p) => ref.startsWith(p))) continue;
-          const at = ref.lastIndexOf("@");
-          const name = at === -1 ? ref : ref.slice(0, at);
-          const tag = at === -1 ? "" : ref.slice(at + 1);
-          if (name.toLowerCase() === EXEMPT_REPO) continue;
-          if (SHA.test(ref)) continue;
-          if (lock === null) {
-            fail("not an inline SHA and there is no lockfile");
-            continue;
-          }
-          const entry = lock.workflows.get(lockKey);
-          if (entry === undefined) {
-            fail("this workflow has no entry in actions.lock");
-            continue;
-          }
-          // subpath actions key by repo root: github/codeql-action/init -> github/codeql-action
-          const root = name.split("/").slice(0, 2).join("/");
-          const candidates = [ref, `${root}@${tag}`].map((c) => c.toLowerCase());
-          const locked = candidates.find((c) => entry.has(c));
-          if (locked === undefined) {
-            fail("not listed under this workflow in actions.lock");
-          } else if (!LOCK_COMMIT.test(lock.deps.get(locked) ?? "")) {
-            fail("actions.lock has no resolved sha1 commit for it");
-          }
-        }
-      });
+    const lines = readFileSync(wf, "utf8").split("\n");
+    for (const [i, line] of lines.entries()) {
+      for (const ref of usesRefs(line)) {
+        const why = unpinnedReason(ref, `${WF}/${file}`, lock);
+        if (why !== null) bad.push(`${wf}:${i + 1}: ${ref} (${why})`);
+      }
+    }
   }
 
   if (bad.length) {

@@ -10,6 +10,9 @@
 #   - flow-mapping `uses:` not seen
 #   - quoted refs not decoded
 #   - lock entry with no resolved sha1 commit
+#   - block-form value cut at a comma (a SHA-shaped prefix plus a mutable suffix)
+#   - flow-mapping text in a comment or a quoted shell argument read as a step
+#   - workflow path and tag compared case-insensitively
 # PINNING_SCRIPT overrides the script under test (used to confirm the mutants
 # are caught by the new script and missed by the old one).
 set -euo pipefail
@@ -21,37 +24,45 @@ trap 'rm -rf "$FIXTURE"' EXIT
 SHA40="0123456789abcdef0123456789abcdef01234567"
 pass=0
 fail=0
-n=0
 
-# lock_entry WORKFLOW REF...  -> a `workflows:` item
+CHECKOUT="actions/checkout@v7.0.1"
+USES_CHECKOUT="      - uses: $CHECKOUT"
+
+# lock_wf WORKFLOW REF...  -> a `workflows:` item
 lock_wf() {
-  local w="$1"; shift
+  local w="$1"
+  shift
   printf "    '.github/workflows/%s':\n" "$w"
   local r
   for r in "$@"; do printf "        - '%s'\n" "$r"; done
 }
 # lock_dep REF COMMIT -> a `dependencies:` item
 lock_dep() {
-  printf "    '%s':\n        ref: 'x'\n        commit: '%s'\n        owner_id: 1\n" "$1" "$2"
+  local ref="$1" commit="$2"
+  printf "    '%s':\n        ref: 'x'\n        commit: '%s'\n        owner_id: 1\n" "$ref" "$commit"
 }
 
-# case_dir -> prints a fresh fixture directory with an empty workflows dir
+# case_dir -> prints a fresh fixture directory with an empty workflows dir.
+# mktemp, not a counter: callers run this in a subshell, so a counter would not
+# advance and every case would share one directory.
 case_dir() {
-  n=$((n + 1))
-  local d="$FIXTURE/case$n"
+  local d
+  d=$(mktemp -d "$FIXTURE/case.XXXXXX")
   mkdir -p "$d/.github/workflows"
   printf '%s\n' "$d"
 }
 
 # workflow DIR NAME BODY
 workflow() {
-  printf '# SPDX-License-Identifier: MPL-2.0\nname: t\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n%s\n' "$3" \
-    > "$1/.github/workflows/$2"
+  local dir="$1" name="$2" body="$3"
+  printf '# SPDX-License-Identifier: MPL-2.0\nname: t\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n%s\n' "$body" \
+    > "$dir/.github/workflows/$name"
 }
 
 # lockfile DIR WORKFLOWS-BODY DEPENDENCIES-BODY
 lockfile() {
-  printf "version: 'v0.0.3'\nworkflows:\n%s\ndependencies:\n%s\n" "$2" "$3" > "$1/.github/workflows/actions.lock"
+  local dir="$1" wfs="$2" deps="$3"
+  printf "version: 'v0.0.3'\nworkflows:\n%s\ndependencies:\n%s\n" "$wfs" "$deps" > "$dir/.github/workflows/actions.lock"
 }
 
 # expect DESCRIPTION WANT DIR
@@ -61,7 +72,7 @@ expect() {
   out=$(cd "$d" && bun "$SCRIPT" 2>&1)
   got=$?
   set -e
-  if [ "$got" -eq "$want" ]; then
+  if [[ "$got" -eq "$want" ]]; then
     pass=$((pass + 1))
     echo "ok   $desc"
   else
@@ -81,8 +92,8 @@ d=$(case_dir); : # no workflows directory content at all
 rm -rf "$d/.github"
 expect "control: no .github/workflows" 0 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
 expect "control: tag ref locked for its own workflow" 0 "$d"
 
 d=$(case_dir); workflow "$d" a.yml "      - uses: SonarSource/sonarcloud-github-action@v5.0.0"
@@ -93,14 +104,14 @@ d=$(case_dir); workflow "$d" a.yml "      - uses: github/codeql-action/init@v4.3
 lockfile "$d" "$(lock_wf a.yml 'github/codeql-action@v4.38.2')" "$(lock_dep 'github/codeql-action@v4.38.2' "$GOOD_DEP")"
 expect "control: subpath action locked under its repo root" 0 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: 'actions/checkout@v7.0.1'
-      - uses: \"actions/checkout@v7.0.1\" # trailing comment"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+d=$(case_dir); workflow "$d" a.yml "      - uses: "$CHECKOUT"
+      - uses: \"$CHECKOUT\" # trailing comment"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
 expect "control: quoted locked refs decode to the lock entry" 0 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - { uses: actions/checkout@v7.0.1, with: { fetch-depth: 0 } }
+d=$(case_dir); workflow "$d" a.yml "      - { uses: $CHECKOUT, with: { fetch-depth: 0 } }
       - { name: n, uses: actions/checkout@$SHA40 }"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
 expect "control: flow-mapping refs, locked and inline" 0 "$d"
 
 d=$(case_dir); workflow "$d" a.yml "      - uses: actions/github-script@v7
@@ -119,9 +130,9 @@ expect "control: only *.yml and *.yaml are read" 0 "$d"
 d=$(case_dir); workflow "$d" a.yml "      - uses: evil/act@v1"
 expect "mutant: unpinned ref, no lockfile" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT
       - uses: evil/act@v1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
 expect "mutant: ref absent from the lock" 1 "$d"
 
 d=$(case_dir); workflow "$d" a.yml "      - uses: evil-actions/github-script@main"
@@ -131,24 +142,24 @@ d=$(case_dir); workflow "$d" a.yml "      - uses: actions/github-script-evil@mai
 expect "mutant: repo whose name starts with actions/github-script" 1 "$d"
 
 d=$(case_dir)
-workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-workflow "$d" b.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+workflow "$d" a.yml "$USES_CHECKOUT"
+workflow "$d" b.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
 expect "mutant: ref locked for another workflow only (no entry for this one)" 1 "$d"
 
 d=$(case_dir)
-workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
+workflow "$d" a.yml "$USES_CHECKOUT"
 workflow "$d" b.yml "      - uses: actions/setup-node@v6.0.0"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')
-$(lock_wf b.yml 'actions/setup-node@v6.0.0')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")
+$(lock_wf b.yml 'actions/setup-node@v6.0.0')" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")
 $(lock_dep 'actions/setup-node@v6.0.0' "$GOOD_DEP")"
 expect "control: two workflows each locked for their own ref" 0 "$d"
 
 d=$(case_dir)
-workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-workflow "$d" b.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')
-$(lock_wf b.yml 'actions/setup-node@v6.0.0')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+workflow "$d" a.yml "$USES_CHECKOUT"
+workflow "$d" b.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")
+$(lock_wf b.yml 'actions/setup-node@v6.0.0')" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
 expect "mutant: ref locked for another workflow only (entry exists, ref not in it)" 1 "$d"
 
 d=$(case_dir); workflow "$d" a.yml "      - { uses: evil/act@v1 }"
@@ -163,27 +174,54 @@ expect "mutant: unpinned quoted ref" 1 "$d"
 d=$(case_dir); workflow "$d" a.yml "      - uses: \"evil/act@v1\" # why not"
 expect "mutant: unpinned double-quoted ref with a comment" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" ""
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" ""
 expect "mutant: listed under the workflow but no dependencies record" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' 'sha1-nothex')"
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" 'sha1-nothex')"
 expect "mutant: dependencies commit is not sha1-<40 hex>" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "sha1-${SHA40}00")"
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "sha1-${SHA40}00")"
 expect "mutant: dependencies commit has 42 hex digits" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
-lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "    'actions/checkout@v7.0.1':
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf a.yml "$CHECKOUT")" "    '$CHECKOUT':
         ref: 'v7.0.1'"
 expect "mutant: dependencies record without a commit" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@v7.0.1"
+d=$(case_dir); workflow "$d" a.yml "$USES_CHECKOUT"
 printf 'garbage\n' > "$d/.github/workflows/actions.lock"
 expect "mutant: unparseable lockfile resolves nothing" 1 "$d"
 
+# --- review findings: one control or mutant each ---------------------------
+d=$(case_dir); workflow "$d" a.yml "      - uses: evil/act@$SHA40,mutable"
+expect "mutant: block-form SHA-shaped prefix then comma and mutable suffix, no lockfile" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: evil/act@$SHA40,mutable"
+lockfile "$d" "$(lock_wf a.yml 'actions/checkout@v7.0.1')" "$(lock_dep 'actions/checkout@v7.0.1' "$GOOD_DEP")"
+expect "mutant: block-form SHA-shaped prefix then comma, lockfile present" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      # Example: { uses: evil/act@v1 }
+      - run: echo '{ uses: evil/act@v1 }'
+      - run: echo \"a, uses: evil/act@v1\""
+expect "control: flow-mapping text in a comment and in quoted shell is not a step" 0 "$d"
+
+d=$(case_dir)
+workflow "$d" ci.yml "$USES_CHECKOUT"
+workflow "$d" CI.yml "$USES_CHECKOUT"
+lockfile "$d" "$(lock_wf ci.yml "$CHECKOUT")" "$(lock_dep "$CHECKOUT" "$GOOD_DEP")"
+expect "mutant: ci.yml locked, CI.yml (same tag) has no entry" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: owner/act@Release"
+lockfile "$d" "$(lock_wf a.yml 'owner/act@release')" "$(lock_dep 'owner/act@release' "$GOOD_DEP")"
+expect "mutant: tag differs from the locked tag only in case" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: Owner/Act@Release"
+lockfile "$d" "$(lock_wf a.yml 'owner/act@Release')" "$(lock_dep 'owner/act@Release' "$GOOD_DEP")"
+expect "control: owner/repo case may differ, the tag matches exactly" 0 "$d"
+
 echo
 echo "check-action-pinning: $pass passed, $fail failed"
-[ "$fail" -eq 0 ]
+[[ "$fail" -eq 0 ]]
