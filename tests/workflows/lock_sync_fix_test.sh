@@ -189,12 +189,60 @@ run_fix || fail "fixer failed on a version-first lock"
 [ "$(grep -c '^version:' "$work/wf/actions.lock")" = 1 ] || fail "version line duplicated or lost"
 grep -q '^workflows:' "$work/wf/actions.lock" || fail "workflows: section lost"
 
-# 11. staged validation: a failing candidate leaves the lock byte-identical and no temp files
+# 11. staged validation. The candidate must PASS every earlier probe and be
+# rejected ONLY by the staged check-lock-sync.sh run: a kept record carries a
+# dangling nested edge (never re-probed, because the record is unchanged). A
+# nested-uses refusal would end the run before the stage directory exists, so it
+# could not prove staging at all.
 fresh
-printf 'nested actions/upload-artifact someorg/inner@v1\n' >> "$work/table"
+sed -i "s#^        repo_id: 192625955#        repo_id: 192625955\n        uses:\n            - 'ghost/dep@v1'#" "$work/wf/actions.lock"
+grep -qF "ghost/dep@v1" "$work/wf/actions.lock" || fail "fixture: dangling edge not planted"
 cp "$work/wf/actions.lock" "$work/before.lock"
-if run_fix; then fail "must fail"; fi
+if run_fix; then fail "a candidate the staged checker rejects must fail"; fi
+grep -qF "the repaired lock fails check-lock-sync.sh" "$work/out" || fail "staged checker did not run/reject (wrong refusal path)"
+grep -qF "nested external uses" "$work/out" && fail "refused by the nested probe, not by staging"
+grep -qF "DANGLING EDGES" "$work/out" || fail "staged checker output not surfaced"
 cmp -s "$work/before.lock" "$work/wf/actions.lock" || fail "lock changed"
 [ -z "$(ls "$work/wf" | grep -F 'actions.lock.tmp' || true)" ] || fail "temp file left behind"
+grep -q '^nested ' "$work/log" || fail "the nested probe did not run before staging"
+
+# 12. CodeRabbit #474: `{uses: x}` inside a QUOTED scalar is data, never an action
+fresh
+sed -i "s#^      - uses: actions/upload-artifact@v2.0.0#      - run: \"echo '{uses: fake/thing@v9}'\"\n      - uses: actions/upload-artifact@v2.0.0#" "$work/wf/ci.yml"
+grep -qF "fake/thing@v9" "$work/wf/ci.yml" || fail "fixture: quoted scalar not planted"
+run_fix || fail "the fixer tried to resolve a uses: that sits inside a quoted scalar"
+grep -q 'fake/thing' "$work/log" && fail "resolver asked about fake/thing"
+grep -qF "fake/thing" "$work/wf/actions.lock" && fail "fake/thing recorded in the lock"
+"$check" "$work/wf" > "$work/out" 2>&1 || fail "check-lock-sync.sh red after the fix"
+
+# 13. CodeRabbit #474: a subpath-only use must not probe the UNRELATED root manifest
+fresh
+sed -i 's#actions/upload-artifact@v2.0.0#actions/upload-artifact/sub@v2.0.0#' "$work/wf/ci.yml"
+printf 'nested actions/upload-artifact someorg/rootdep@v1\n' >> "$work/table"
+run_fix || fail "a leaf subpath was refused because of its unrelated root manifest"
+grep -q '^nested actions/upload-artifact [0-9a-f]\{40\}$' "$work/log" && fail "probed the root manifest of a subpath-only ref"
+grep -q '^nested actions/upload-artifact [0-9a-f]\{40\} sub$' "$work/log" || fail "the subpath manifest was not probed"
+
+# 14. control: root AND subpath used (either order): BOTH manifests are still probed
+for order in "sub-first" "root-first"; do
+  fresh
+  if [ "$order" = sub-first ]; then
+    sed -i "s#^      - uses: actions/upload-artifact@v2.0.0#      - uses: actions/upload-artifact/sub@v2.0.0\n      - uses: actions/upload-artifact@v2.0.0#" "$work/wf/ci.yml"
+  else
+    sed -i "s#^      - uses: actions/upload-artifact@v2.0.0#      - uses: actions/upload-artifact@v2.0.0\n      - uses: actions/upload-artifact/sub@v2.0.0#" "$work/wf/ci.yml"
+  fi
+  printf 'nested actions/upload-artifact someorg/rootdep@v1\n' >> "$work/table"
+  if run_fix; then fail "root manifest nested uses accepted when both root and subpath are used ($order)"; fi
+  grep -qF "nested external uses" "$work/out" || fail "wrong refusal for root nested ($order)"
+  fresh
+  if [ "$order" = sub-first ]; then
+    sed -i "s#^      - uses: actions/upload-artifact@v2.0.0#      - uses: actions/upload-artifact/sub@v2.0.0\n      - uses: actions/upload-artifact@v2.0.0#" "$work/wf/ci.yml"
+  else
+    sed -i "s#^      - uses: actions/upload-artifact@v2.0.0#      - uses: actions/upload-artifact@v2.0.0\n      - uses: actions/upload-artifact/sub@v2.0.0#" "$work/wf/ci.yml"
+  fi
+  printf 'nested actions/upload-artifact/sub someorg/subdep@v1\n' >> "$work/table"
+  if run_fix; then fail "subpath manifest nested uses accepted when both root and subpath are used ($order)"; fi
+  grep -qF "nested external uses" "$work/out" || fail "wrong refusal for sub nested ($order)"
+done
 
 echo "lock_sync_fix_test: all cases passed"

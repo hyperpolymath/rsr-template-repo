@@ -138,6 +138,20 @@ function subof(r,   at, path, n, parts, k, s) {
   for (k = 3; k <= n; k++) s = s (s == "" ? "" : "/") parts[k]
   return s
 }
+# Same-length copy of a line with the CONTENT of every quoted scalar blanked to
+# "_" (kept in step with shape() in check-lock-sync.sh): `{uses: x}` inside
+# `run: "echo {uses: x}"` is shell data, not a flow-mapping step. A quote only
+# opens at a token boundary, so an apostrophe inside a word swallows nothing.
+function shape(s,   out, i, c, q) {
+  out = ""; q = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == q) { q = ""; out = out c } else out = out "_" }
+    else if ((c == "\"" || c == "\047") && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]{\[,:]/)) { q = c; out = out c }
+    else out = out c
+  }
+  return out
+}
 FNR == 1 { p = FILENAME; sub(/.*\//, "", p); p = ".github/workflows/" p; stepind = -1; blkind = -1 }
 {
   line = $0
@@ -160,9 +174,12 @@ FNR == 1 { p = FILENAME; sub(/.*\//, "", p); p = ".github/workflows/" p; stepind
     if (line ~ /^[[:space:]]*steps:/) stepind = ind
   }
   raw = ""
-  if (line ~ /[{,][[:space:]]*uses:[[:space:]]*[^,}[:space:]]+/) {
-    raw = line
-    sub(/^.*[{,][[:space:]]*uses:[[:space:]]*/, "", raw)
+  shp = shape(line)
+  # flow-mapping step: matched on the quote-blanked shape, with an unquoted `{`
+  # at or before the match, so `uses:` inside a quoted scalar stays data
+  if (match(shp, /[{,][[:space:]]*uses:[[:space:]]*[^,}[:space:]]+/) && index(substr(shp, 1, RSTART), "{") > 0) {
+    raw = substr(line, RSTART + 1)
+    sub(/^[[:space:]]*uses:[[:space:]]*/, "", raw)
     sub(/[,}[:space:]].*$/, "", raw)
   } else if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {
     raw = line
@@ -245,8 +262,11 @@ while IFS=$'\t' read -r p ref cm sub; do
   [ "$sub" = "-" ] && sub=""
   NEWWF[$p]+="$ref"$'\n'
   [ -n "$cm" ] && TAGHINT[$ref]="$cm"
-  # every distinct action subpath this ref is used at ("" = repository root)
-  case $'\n'"${SUBS[$ref]:-}"$'\n' in *$'\n'"$sub"$'\n'*) ;; *) SUBS[$ref]+="$sub"$'\n' ;; esac
+  # every distinct action path this ref is used at, one per line; the
+  # repository root is recorded as "." (never a real subpath), so root use is
+  # tracked explicitly and "sub-only" cannot be mistaken for "root + sub"
+  key="${sub:-.}"
+  case $'\n'"${SUBS[$ref]:-}" in *$'\n'"$key"$'\n'*) ;; *) SUBS[$ref]+="$key"$'\n' ;; esac
 done < "$T/uses.tsv"
 
 declare -A NEWREC_COMMIT NEWREC_REF NEWREC_IDS
@@ -273,11 +293,14 @@ for p in "${!NEWWF[@]}"; do
     # Probe the manifest of every action path this ref is used at: the root
     # action.yml for `o/r@ref`, `<sub>/action.yml` for `o/r/<sub>@ref`.
     nested=""
+    subs="${SUBS[$ref]:-}"
+    [ -n "$subs" ] || subs=$'.\n'
     while IFS= read -r sp; do
-      [ -n "${SUBS[$ref]:-}" ] || sp=""
+      [ -n "$sp" ] || continue
+      [ "$sp" != "." ] || sp=""
       one=$(resolve nested "$or" "$commit" "$sp") || die "cannot inspect $or${sp:+/$sp}@$commit for nested uses:"
       [ -z "$one" ] || nested+="${nested:+$'\n'}$one"
-    done <<< "${SUBS[$ref]:-}"
+    done < <(printf '%s' "$subs")
     [ -z "$nested" ] || die "$ref has nested external uses: (needs hand-made dependencies: records, then re-run): $(printf '%s' "$nested" | tr '\n' ' ')"
     ids="${REPOIDS[${or,,}]:-}"
     if [ -z "$ids" ]; then

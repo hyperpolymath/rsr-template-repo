@@ -154,6 +154,21 @@ function namedref(r,   count, part, j) {
   return 1
 }
 
+# Same-length copy of a line with the CONTENT of every quoted scalar blanked to
+# "_". `{uses: x}` inside `run: "echo '{uses: x}'"` is shell data, not a flow
+# mapping, and must not be read as a step. A quote only opens at a token
+# boundary, so an apostrophe inside a word (`it's`) swallows nothing.
+function shape(s,   out, i, c, q, p) {
+  out = ""; q = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == q) { q = ""; out = out c } else out = out "_" }
+    else if ((c == "\"" || c == "\047") && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]{\[,:]/)) { q = c; out = out c }
+    else out = out c
+  }
+  return out
+}
+
 # Items of a one-line flow sequence `... [ 'a@v1', "b@v2", c@v3 ]`, joined with
 # \034 (unit separator) after quotes and padding are stripped. Refs contain no commas.
 function flowitems(s,   n, parts, k, v, out) {
@@ -316,10 +331,14 @@ FNR == 1 { wf = FILENAME; stepind = -1; blkind = -1 }
     if (line ~ /^[[:space:]]*steps:/) stepind = ind
   }
   # Flow-mapping step: `- {uses: o/r@v1, name: x}`. Pull the uses: scalar out.
+  # The match is made on the quote-blanked shape of the line, and needs an
+  # unquoted `{` at or before it, so `uses:` text inside a quoted scalar (or a
+  # bare `a, uses: b` in plain text) is data, never a reference.
   isflow = 0
-  if (line ~ /[{,][[:space:]]*uses:[[:space:]]*[^,}[:space:]]+/) {
-    raw = line
-    sub(/^.*[{,][[:space:]]*uses:[[:space:]]*/, "", raw)
+  shp = shape(line)
+  if (match(shp, /[{,][[:space:]]*uses:[[:space:]]*[^,}[:space:]]+/) && index(substr(shp, 1, RSTART), "{") > 0) {
+    raw = substr(line, RSTART + 1)
+    sub(/^[[:space:]]*uses:[[:space:]]*/, "", raw)
     sub(/[,}[:space:]].*$/, "", raw)
     isflow = 1
   } else if (line ~ /^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*.+$/) {

@@ -525,6 +525,46 @@ jobs:
 YML
 expect 1 'refs missing from the lockfile' 'a step after a block scalar is still checked'
 
+# CodeRabbit #474: `{uses: x}` inside a QUOTED scalar is data, not a flow-mapping step.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: "echo '{uses: fake/thing@v9}'"
+      - run: 'echo "{name: x, uses: fake/other@v9}"'
+YML
+{ lockhdr; printf "    '.github/workflows/ci.yml': []
+dependencies:
+"; } > "$work/current/actions.lock"
+expect 0 'OK' 'a flow-looking uses: inside a quoted run: scalar is not a reference'
+
+# ... while real flow steps stay checked: bare, quoted value, and an apostrophe
+# in an unquoted word must not hide the reference that follows it.
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - {name: it's, uses: Apo/Strophe@v1}
+YML
+expect 1 'refs missing from the lockfile' 'an apostrophe inside a flow-step word does not hide its uses:'
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - {uses: "Quoted/Act@v1"}
+YML
+expect 1 'refs missing from the lockfile' 'a quoted uses: VALUE in a flow step is still read'
+
 # The advisory gate must check out the PR MERGE commit (github.sha), not the PR head.
 gate="$repo/.github/workflows/lock-sync-gate.yml"
 grep -qF 'SHA: ${{ github.sha }}' "$gate" || fail 'lock-sync-gate.yml must check out github.sha (the PR merge commit)'
