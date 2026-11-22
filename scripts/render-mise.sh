@@ -88,7 +88,7 @@ COPYRIGHT="$(grep '^# SPDX-FileCopyrightText:' "$ROOT/mise.toml" 2>/dev/null || 
 # The header names the refresh recipe only where the repository has it. A repo
 # minted before provision.just has no `toolchain-refresh`; pointing its readers
 # at a recipe that does not exist is a false statement.
-if grep -qsE '^toolchain-refresh:' "$ROOT/Justfile" "$ROOT"/build/just/*.just \
+if grep -qsE '^toolchain-refresh:' "$ROOT/Justfile" \
         "$ROOT/.machine_readable/contractiles/Justfile"; then
     LOCK_NOTE='Specs are `latest`; mise.lock records the concrete version and
 # per-platform checksum of each. Refresh both with: just toolchain-refresh'
