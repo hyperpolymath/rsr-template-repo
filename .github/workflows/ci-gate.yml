@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-# CI gate — thin caller of the estate's interim gate, which lives in
+# CI gate - thin caller of the estate's interim gate, which lives in
 # hyperpolymath/proven-cicd-and-workflows as a reusable workflow. Do not copy
 # its jobs in here: a copy freezes at one cicd-suite commit and never receives
 # a fix.
@@ -24,9 +24,15 @@
 # 7, 22, 37 and 52 of every hour; keep the minutes off :00 and :30, where scheduled load is highest.
 # The sweep reads open pull requests, so the caller must grant `pull-requests: read`.
 #
-# It also fires when a workflow run STARTS (`in_progress`, which GitHub also sends for a rerun):
-# any active run makes the verdict pending, so a rerun replaces a stale success with pending,
-# approximating a native required check. `completed` then re-evaluates it (last-writer-wins; see docs/CI-GATE.adoc, "Residual limit").
+# It fires only when one of the workflows named under `workflow_run` COMPLETES; it no longer fires
+# on `in_progress`, and no longer on every workflow (`"**"`). The list is exactly the workflows that
+# carry a check in this repository's profile (proven-cicd-and-workflows/profiles/ci-gate/
+# hyperpolymath/rsr-template-repo.json at the pin below), matched by workflow `name:`. `"**"` plus
+# `in_progress` spawned one gate run per start and per finish of every workflow, which flooded the
+# installation API rate limit. Trade-off: a rerun no longer flips a stale success to pending at its
+# start; the next `completed` or the 15-minute sweep corrects it (docs/CI-GATE.adoc, "Residual limit").
+# When the profile gains or loses a workflow, change this list in the same change; a workflow missing
+# here is only evaluated by the sweep, never fails open (a missing check keeps the gate pending).
 #
 # The required-check list is NOT in this repository: it lives in
 # proven-cicd-and-workflows/profiles/ci-gate/<owner>/<repo>.json at the pinned
@@ -53,8 +59,20 @@ name: CI gate
 on:
   pull_request:
   workflow_run:
-    workflows: ["**", "!CI gate"]
-    types: [completed, in_progress]
+    workflows:
+      - "Dogfood Gate"
+      - "\U0001F534 GATE: Invisible Character Detection"
+      - "Estate Rules"
+      - "Governance"
+      - "Lock Sync Gate"
+      - "Central Estate CI/CD Audit"
+      - "OpenSSF Compliance"
+      - "Proven Tests and Benches"
+      - "Code Quality"
+      - "Rust CI"
+      - "Secret Scanner"
+      - "CICD Squabbler"
+    types: [completed]
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}

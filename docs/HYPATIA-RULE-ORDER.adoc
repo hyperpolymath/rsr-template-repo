@@ -304,8 +304,9 @@ The templates' rules for the fleet, each matching the grid spec:
 . **No report-back is orange, never green.** An enrolled member whose envelope
    is absent renders "enrolled, but no report-back was received". A committed
    placeholder envelope would be stale evidence about an older commit, so
-   `.gitbot-fleet/report-backs/` stays empty in git and is filled only at render
-   time from the `fleet-report-backs` artifact.
+   `.gitbot-fleet/report-backs/` stays empty in git, and the grid reads envelopes
+   only from the `fleet-report-backs` artifact, downloaded outside the checkout.
+   Nothing committed there can pose as evidence.
 . **A failed fleet job is not a failed verdict** (C8): its rows go orange and its
    own check goes red.
 . **Severity words normalise; unknown words make the row orange.** The member's
