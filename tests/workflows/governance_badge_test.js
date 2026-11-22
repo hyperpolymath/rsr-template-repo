@@ -1561,6 +1561,31 @@ async function main() {
             equal(out.code, 2, `expected exit 2, got ${out.code}: ${out.stderr}`);
         });
 
+        // The API URL is a base that "/repos/..." is appended to: a query or a
+        // fragment would swallow that path, and fetch refuses credentials.
+        for (const [name, apiUrl] of [
+            ["a query string", "https://ghe.example/api/v3?profile=ci"],
+            ["an empty query", "https://ghe.example/api/v3?"],
+            ["a fragment", "https://ghe.example/api/v3#frag"],
+            ["embedded credentials", "https://user:s3cret@ghe.example/api/v3"],
+        ]) {
+            await test(`an API URL with ${name} is a usage error`, () => {
+                const out = runSync([
+                    "publish",
+                    "--label", LABEL,
+                    "--lane-result", "success",
+                    "--artifact", goodArtifact,
+                    "--branch", BRANCH,
+                    "--path", DEST,
+                    "--repo", "example/template",
+                    "--api-url", apiUrl,
+                ]);
+                equal(out.code, 2, `expected exit 2, got ${out.code}: ${out.stderr}`);
+                check(/plain base URL/.test(out.stderr), `stderr must explain the refusal: ${out.stderr}`);
+                check(!out.stderr.includes("s3cret"), "the URL must not be echoed back");
+            });
+        }
+
         // --------------------------------------------------------------- 10
         section("10. Actions outputs, summaries and shared rendering");
 
