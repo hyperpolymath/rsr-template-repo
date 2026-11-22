@@ -41,6 +41,13 @@ if [ $# -gt 3 ]; then
     bash "$READ" --has "$ANS_DEED" mint-answers \
         || { echo "replay-mint: $ANS_DEED has no (mint-answers) clause; its mint cannot be replayed" >&2; exit 2; }
     ans() { bash "$READ" "$ANS_DEED" mint-answers "$1" 2>/dev/null || true; }
+    # (mint-answers :schema-version) says how to read the rest; none is the
+    # layout before versioning (schema 0). One this replayer does not know is
+    # refused, never read as if it were (fail closed).
+    case "$(ans schema-version)" in
+        ""|0|1) ;;
+        *) echo "replay-mint: $ANS_DEED records (mint-answers :schema-version \"$(ans schema-version)\"), which this replayer does not know (0, 1); use a newer scripts/replay-mint.sh" >&2; exit 2 ;;
+    esac
     PROJECT_NAME="$(ans project-name)" REPO="$(ans repo)" OWNER="$(ans owner)"
     AUTHOR="$(ans author)" AUTHOR_EMAIL="$(ans author-email)" AUTHOR_ORG="$(ans author-org)"
     AUTHOR_EMAIL_ALT="$(ans author-email-alt)" AUTHOR_ORCID="$(ans author-orcid)"

@@ -40,7 +40,7 @@
   ; implementation: a game written in Idris2 is `gm`.
   ;
   ; REGISTRATION IS NOT DERIVATION. Registering means an entry in the
-  ; chora-registry (formerly gv-clade-index) seed. It is outward-facing
+  ; chora-registry seed. It is outward-facing
   ; and it is the OWNER's act; an agent must not do it.
   (identity
     :primary-forge github

@@ -20,6 +20,8 @@ if [[ ! -d "$repo/archetypes" ]]; then
     echo "SKIP: $repo is not the template (no archetypes/); its container configs belong to the mint"
     exit 0
 fi
+yq --version 2>&1 | grep -q 'github.com/mikefarah/yq.*version v4\.' \
+  || { echo "FAIL: this test needs mikefarah yq v4 (CI pins v4.53.3); the yq on PATH is a different tool, or there is none" >&2; exit 1; }
 
 assert_value() {
     local file=$1 expression=$2 expected=$3 description=$4 actual

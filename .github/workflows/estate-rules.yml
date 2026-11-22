@@ -88,6 +88,8 @@ jobs:
         run: bash scripts/check-no-a2ml.sh .
       - name: No-a2ml gate self-test (planted positives must fail)
         run: bash tests/workflows/check_no_a2ml_test.sh
+      - name: Bash 3.2 portability lint (no case-conversion expansion in build/just)
+        run: bash tests/workflows/bash3_portability_test.sh
       # Every repository-internal link resolves, and every document the deed
       # registers by id is where the deed says (or is marked removed-at-mint).
       # The same script is the probe of the must invariant internal-links-resolve.
@@ -198,6 +200,13 @@ jobs:
         run: bash scripts/check-identity.sh "$(bash scripts/deed-field.sh --find .)"
       - name: Identity-literal gate self-test (v5, #u5, v4 and upper-case must fail)
         run: bash tests/workflows/check_identity_test.sh
+      # The deed names the repository it is checked out as: canonical name, file
+      # name, owner, forges and the birth-path id. check-identity.sh checks only the
+      # literal form; a repo carrying a template's deed unrenamed passed it.
+      - name: Deed names the repository it is checked out as
+        run: bash scripts/check-identity-matches-repo.sh "$(bash scripts/deed-field.sh --find .)"
+      - name: Deed-names-the-repository gate self-test (carried-in deed, fork, transfer must fail)
+        run: bash tests/workflows/check_identity_matches_repo_test.sh
       # A divergent legacy .well-known/ file is quarantined under the MINT date,
       # so a replay on a later day names it the same.
       - name: Legacy .well-known quarantine is named by the mint date
@@ -282,6 +291,10 @@ jobs:
       # negative control; self-skips outside the template tree.
       - name: Pages badge URL for a user/org site repo name
         run: bash tests/workflows/user_pages_badge_url_test.sh
+      # The slug check must admit <owner>.github.io or the rule above is unreachable.
+      # Runs the real scripts/check-repo-slug.sh the recipe calls; negative control.
+      - name: Repo slug check admits the user/org site name
+        run: bash tests/workflows/repo_slug_check_test.sh
       # KYAML ratchet (standards YAML-POLICY §3.4, §5 step 5, standards#1024):
       # every file listed here has been converted and must stay KYAML. A file
       # joins the list in the PR that converts it and never leaves it. The
@@ -363,6 +376,18 @@ jobs:
           set -euo pipefail
           bash tests/workflows/workflow_edges_test.sh
           bash scripts/check-workflow-edges.sh .
+      # A workflow copied into another repository keeps its `bash scripts/x.sh`
+      # lines but not the script (phronesis#122: empty-linter.yml synced without
+      # scripts/check-invisible-characters.sh). This step refuses that statically.
+      # It guards itself the way lock-sync-gate.yml does: if the scripts were not
+      # copied, the guard is missing too, and that is reported by name.
+      - name: Workflow-invoked scripts exist (no orphaned workflow copies)
+        run: |
+          set -euo pipefail
+          test -f scripts/check-workflow-script-refs.sh \
+            || { echo "::error::scripts/check-workflow-script-refs.sh is missing: this workflow was copied without its companion scripts/ and tests/"; exit 1; }
+          bash tests/workflows/check_workflow_script_refs_test.sh
+          bash scripts/check-workflow-script-refs.sh .
       # The grid itself is rendered by the pinned standards renderer, which the
       # tests stub: this proves the lane's evidence collection, digest refusal,
       # orange-not-green fallback and one-comment-per-PR behaviour, and that the
