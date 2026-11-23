@@ -42,9 +42,9 @@ equal "a lower-case slug is unchanged"           "$(image my-project)"          
 equal "capitals are lowered, the dot becomes -"  "$(image CoprocessorRuntime.jl)" "coprocessorruntime-jl"
 equal "underscores become -"                     "$(image My_Repo.Thing)"         "my-repo-thing"
 
-# The rule is repo-init's: the same name must come out of its two lines.
-RULE="$(grep -E '^[[:space:]]*DEFAULT_SERVICE_NAME=' build/just/repo-init.just)"
-if [[ "$(grep -c . <<<"$RULE")" -eq 2 ]]; then
+# The rule is repo-init's: the same name must come out of its three lines.
+RULE="$(grep -E '^[[:space:]]*(_repo_lc|DEFAULT_SERVICE_NAME)=' build/just/repo-init.just)"
+if [[ "$(grep -c . <<<"$RULE")" -eq 3 ]]; then
     for name in CoprocessorRuntime.jl My_Repo.Thing my-project; do
         # shellcheck disable=SC2034  # REPO is read by the rule evaluated below
         REPO="$name"; DEFAULT_SERVICE_NAME=""
@@ -53,7 +53,7 @@ if [[ "$(grep -c . <<<"$RULE")" -eq 2 ]]; then
     done
 else
     CHECKS=$((CHECKS + 1)); FAILED=$((FAILED + 1))
-    echo "  FAIL  repo-init.just no longer derives DEFAULT_SERVICE_NAME in two lines; update this control"
+    echo "  FAIL  repo-init.just no longer derives DEFAULT_SERVICE_NAME in three lines; update this control"
 fi
 
 # The extraction keeps the whole operand, so a longer tag cannot pass as latest.

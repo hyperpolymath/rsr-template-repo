@@ -119,8 +119,17 @@ run_workload() {
 # COMMAND once more with xtrace on in every bash it starts, and print on stderr
 # the commands that took 5 ms or more. Silent without jq, without a baseline for
 # NAME, and for a workload within the limit.
+#
+# xtrace prints a command before running it, so the gap to the next trace line is
+# the time that command took. The stamp is taken in the process that prints the
+# line (PS4='+ $EPOCHREALTIME ', passed through the environment), so a reader
+# that is descheduled does not shorten a gap. The last command's gap ends at the
+# workload's own end time, which a wrapper prints. A line with no stamp (a
+# command's own stderr, a non-bash child, or a bash that ignores an inherited
+# PS4, as bash does when running as root) is stamped when it arrives here.
 trace_if_slow() {
-  local name="$1" median="$2" base="" line prev="" now last=0 delta
+  local name="$1" median="$2" base="" line prev="" now last=0 delta text is_end
+  local stamped='^\++ ([0-9]+)[.,]([0-9]{6}) (.*)$' ended='^bench-diag-end ([0-9]+)[.,]([0-9]{6})$'
   shift 2
   [ -n "${EPOCHREALTIME:-}" ] || return 0
   command -v jq >/dev/null 2>&1 || return 0
@@ -131,21 +140,26 @@ trace_if_slow() {
   [ "$median" -gt $(( base * 5 / 2 )) ] || return 0
   printf 'bench-diag: %s median %d ms is over 2.5x its baseline mean of %d ms; one traced run, commands of 5 ms or more:\n' \
     "$name" "$(( median / 1000000 ))" "$(( base / 1000000 ))" >&2
-  # xtrace prints a command before running it, so the gap to the next trace
-  # line is the time that command took. Lines are stamped on arrival here.
   while IFS= read -r line; do
-    now="${EPOCHREALTIME/./}"
+    is_end=0
+    if [[ "$line" =~ $ended ]]; then
+      is_end=1; text=""
+      now=$(( 10#${BASH_REMATCH[1]} * 1000000 + 10#${BASH_REMATCH[2]} ))
+    elif [[ "$line" =~ $stamped ]]; then
+      text="${BASH_REMATCH[3]}"
+      now=$(( 10#${BASH_REMATCH[1]} * 1000000 + 10#${BASH_REMATCH[2]} ))
+    else
+      text="$line"; now="${EPOCHREALTIME/[.,]/}"
+    fi
     if [ "$last" -gt 0 ]; then
       delta=$(( now - last ))
       [ "$delta" -lt 5000 ] || printf 'bench-diag:   %5d ms  %.160s\n' "$(( delta / 1000 ))" "$prev" >&2
     fi
-    prev="$line"; last="$now"
-  done < <(env SHELLOPTS=xtrace "$@" 2>&1 >/dev/null)
-  # the last command has no following trace line: its gap ends when the run does
-  if [ "$last" -gt 0 ]; then
-    now="${EPOCHREALTIME/./}"; delta=$(( now - last ))
-    [ "$delta" -lt 5000 ] || printf 'bench-diag:   %5d ms  %.160s\n' "$(( delta / 1000 ))" "$prev" >&2
-  fi
+    if [ "$is_end" -eq 1 ]; then last=0; else prev="$text"; last="$now"; fi
+  done < <(
+    # The wrapper is not traced: SHELLOPTS and PS4 are set only for COMMAND.
+    bash -c 'env SHELLOPTS=xtrace PS4='"'"'+ $EPOCHREALTIME '"'"' "$@"; rc=$?; printf "bench-diag-end %s\n" "$EPOCHREALTIME" >&2; exit "$rc"' _ "$@" 2>&1 >/dev/null
+  )
   printf 'bench-diag: end of traced run for %s\n' "$name" >&2
 }
 

@@ -117,6 +117,11 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   prints the commands that took 5 ms or more (`bench-diag: …`). The document
   on stdout and the exit codes are unchanged. Added after one CI run rated
   `root_shape` at 10x its baseline with nothing in the log to say why.
+  The trace stamps each command in the process that runs it
+  (`PS4='+ $EPOCHREALTIME '`), so a reader that is descheduled cannot shorten a
+  gap, and the last command's gap ends at the workload's own end time. A line
+  with no stamp (bash ignores an inherited `PS4` as root) is stamped when it
+  arrives, as before.
 * **A deed must name the repository it is checked out as.**
   `scripts/check-identity-matches-repo.sh` fails when the deed's
   `:canonical-name`, file name, `(identity :owner)`, `(forges :github)` or
