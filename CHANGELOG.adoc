@@ -32,6 +32,11 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Fixed
 
+* **A `CI/gate` publisher may not filter `workflow_run` by branch.**
+  GitHub applies `branches` and `branches-ignore` to the triggering run's
+  branch, so a filtered publisher never posts the status on a PR head and the
+  PR waits for ever. `check-required-contexts.sh` now refuses any such filter
+  except `branches: ["**"]`; negative fixtures cover both keys.
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
   `a0760cea695a815a96b3944f3d03ee015da856d0`, a commit on the suite's `main`
   (hyperpolymath/proven-cicd-and-workflows#164), up from `09878f2`, a commit on

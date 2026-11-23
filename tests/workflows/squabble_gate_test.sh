@@ -474,6 +474,13 @@ fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  pull_request:'
 assert_rc 1 'status mapping: no workflow_run trigger fails' check_status
 fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [in_progress]'
 assert_rc 1 'status mapping: workflow_run without the completed type fails' check_status
+# A workflow_run branch filter applies to the triggering run's branch: it strands PR heads.
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: '"$GATE_WF"$'\n    types: [completed]\n    branches: [main]'
+assert_rc 1 'status mapping: a completed-only publisher filtered to main fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: '"$GATE_WF"$'\n    types: [completed]\n    branches-ignore: ["dependabot/**"]'
+assert_rc 1 'status mapping: a publisher with workflow_run branches-ignore fails' check_status
+fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: '"$GATE_WF"$'\n    types: [completed]\n    branches: ["**"]'
+assert_rc 0 'status mapping: an all-branches workflow_run filter passes' check_status
 fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/other'
 assert_rc 1 'status mapping: a wrong with.context fails' check_status
 fresh_status "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate '
@@ -502,6 +509,8 @@ status_says 'wrong context' 'wrong with.context' "$SUITE_REUSABLE@$SUITE_PIN" 'C
 status_says 'foreign reusable' 'has no job whose uses:' "hyperpolymath/other-repo/.github/workflows/ci-gate.yml@$SUITE_PIN"
 status_says 'no workflow_run' 'does not trigger on workflow_run' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  pull_request:'
 status_says 'no completed type' "do not include 'completed'" "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [in_progress]'
+status_says 'branch filter' 'filters workflow_run by branches' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [completed]\n    branches: [main]'
+status_says 'branches-ignore filter' 'filters workflow_run by branches-ignore' "$SUITE_REUSABLE@$SUITE_PIN" 'CI/gate' $'on:\n  workflow_run:\n    workflows: ["**"]\n    types: [completed]\n    branches-ignore: [main]'
 fresh_status
 rm "$status_tree/.github/workflows/ci-gate.yml"
 check_status >"$WORK/status-msg" 2>&1 || true
