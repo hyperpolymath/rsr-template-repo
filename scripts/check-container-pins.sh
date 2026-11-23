@@ -149,7 +149,7 @@ is_pinned() {
     esac
     case "$ref" in
         *'$'*) return 1 ;;                          # build-time pin: not visible here
-        *@sha256:*) 
+        *@sha256:*)
             local d="${ref##*@sha256:}"
             case "$d" in
                 *[!0-9a-f]*) return 1 ;;

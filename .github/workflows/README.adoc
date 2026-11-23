@@ -285,4 +285,3 @@ until the next eligible push to `main`. Deployments are serialised by the
 `pages` concurrency group and are not cancelled mid-flight; the badge converges
 on the newest completed run.
 ====
-

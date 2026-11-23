@@ -37,6 +37,18 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
   re-derived when its parent moves. Unresolvable stops the chain before it
   writes; `RSR_ALLOW_UNPINNED=1` records `UNASSIGNED`, as for a root mint.
 
+==== Changed
+
+* **pre-commit hooks follow the repo's own lint policy.** `shellcheck` runs at
+  `--severity=error` (the level `quality.yml` enforces; a new
+  `tests/shape/shellcheck_severity_lockstep_test.sh` fails if the two differ);
+  `editorconfig-checker` runs with `-disable-indent-size`, and Caddyfiles take
+  tabs in `.editorconfig`; `check-json` skips JSONC `devcontainer.json`;
+  `check-toml` skips the three `{{TOKEN}}` stapeln templates; the whitespace
+  fixers skip licence texts. A handful of files with stray trailing whitespace,
+  one tab and two missing or extra final newlines were fixed by hand, and
+  `.envrc` gained a `# shellcheck shell=bash` directive.
+
 ==== Fixed
 
 * **A `CI/gate` publisher may not filter `workflow_run` by branch.**
