@@ -40,15 +40,14 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 ==== Fixed
 
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
-  `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
-  false `CI/gate` failure when a workflow name contains an emoji (GitHub
-  rejects 4-byte UTF-8 in a status description; fixed in
-  hyperpolymath/proven-cicd-and-workflows#144, seen on
-  hyperpolymath/resource-algebra#48). `ci-gate.yml`,
-  `ci-gate-tamper-guard-caller.yml`, `actions.lock` and
-  `tests/workflows/squabble_gate_test.sh` are updated to match. The new pin is
-  still a commit on an unmerged suite branch, so a second re-pin follows the
-  squash merge of hyperpolymath/proven-cicd-and-workflows#139.
+  `a0760cea695a815a96b3944f3d03ee015da856d0`, a commit on the suite's `main`
+  (hyperpolymath/proven-cicd-and-workflows#164), up from `09878f2`, a commit on
+  the closed suite branch of #144. The new pin keeps the emoji-safe status
+  description (4-byte characters are replaced before the 140-character clip)
+  and adds retry with back-off on API rate limits, a per-commit concurrency
+  group in the reusable, and a sweep that stops when rate-limited.
+  `ci-gate.yml`, `ci-gate-tamper-guard-caller.yml`, `actions.lock` and
+  `tests/workflows/squabble_gate_test.sh` are updated to match.
 
 * The four quarantined Idris2 ABI proof modules
   (`verification/proofs/idris2/ABI/{Layout,Platform,Pointers,Compliance}.idr`)
