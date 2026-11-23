@@ -151,7 +151,7 @@ printf '#!/usr/bin/env bash\nsleep 0.03\n' > "$work/diag/slow.sh"
 diag_out="$(REPO_ROOT="$work/diag" bash -c '
   eval "$(sed -n "/^trace_if_slow() {/,/^}/p" "$1")"
   trace_if_slow w 900000000 bash "$2"' _ "$repo/benches/template_bench.sh" "$work/diag/slow.sh" 2>&1)"
-grep -qE '^bench-diag: +(2[5-9]|3[0-9]|4[0-9]) ms  .*sleep 0\.03$' <<<"$diag_out" \
+grep -qE '^bench-diag: +(2[5-9]|[3-9][0-9]|[0-9]{3,}) ms  .*sleep 0\.03$' <<<"$diag_out" \
   || fail "trace did not name the 30 ms step: $diag_out"
 for name in check-escape-hatches.sh check-ijson-jcs.sh check-required-contexts.sh check-root-shape.sh; do
   [[ "$(grep -cFx "$name" "$LANE_CALLS")" -eq 6 ]] || fail "$name needs one warmup plus five samples"

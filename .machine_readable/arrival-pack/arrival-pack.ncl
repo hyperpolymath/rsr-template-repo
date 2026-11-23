@@ -75,7 +75,8 @@ in
 # (a (status) with no :phase) now reads "not declared" where it read empty.
 let has = data.has in
 let legacy = data.legacy in
-let ticks = fun files => std.string.join ", " (std.array.map (fun f => "`%{f}`") files) in
+# A pipe would end a GFM table cell even inside backticks, so it is escaped.
+let ticks = fun files => std.string.join ", " (std.array.map (fun f => "`%{std.string.replace "|" "\\|" f}`") files) in
 let legacy_what = fun files =>
   let n = std.array.length files in
   if n == 0 then ""

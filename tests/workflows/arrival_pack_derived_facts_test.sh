@@ -227,6 +227,13 @@ printf '100644 %s 1\tBOTH.a2ml\n100644 %s 2\tBOTH.a2ml\n100644 %s 3\tBOTH.a2ml\n
     | git -C "$T" update-index --index-info
 equal "the fixture has three index entries for the one path" "$(git -C "$T" ls-files -- '*.a2ml' | grep -c .)" 3
 equal "a conflicted path is counted once" "$(bash "$AP/extract.sh" "$T" | jq -c '[.a2ml_count, .a2ml_files]')" '[1,["BOTH.a2ml"]]'
+# A pipe in a legacy path would end the table cell it is named in (GFM splits
+# cells on a pipe even inside backticks), so it is written escaped.
+T="$(mk_tree pipe)"
+add_a2ml "$T" 'old|copy/NEUROSYM.a2ml'
+OUT="$(render "$T")" || { fail "tree with a pipe in a legacy path renders"; OUT=""; }
+contains "a pipe in a legacy path is escaped in the neurosym row" "$OUT" 'deed; legacy file `old\|copy/NEUROSYM.a2ml`, read-only pending conversion. |'
+lacks "and never written bare" "$OUT" '`old|copy/NEUROSYM.a2ml`'
 
 echo "== a list value named like a clause is not the clause (deed.abnf: value = … / quoted / list)"
 READER="$REPO_DIR/scripts/deed-field.sh"
