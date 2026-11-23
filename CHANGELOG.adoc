@@ -10,6 +10,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Added
 
+* **pre-commit.ci finds the config.** The root `.pre-commit-config.yaml` is now a
+  symlink to `ci/.pre-commit-config.yaml`, so the hosted runner stops reporting
+  "`.pre-commit-config.yaml` is not a file" on every pull request. The config
+  gains a `ci:` block (`autofix_prs: false`; `skip` for the three `language:
+  system` hooks the runner has no tools for), which the pre-commit framework
+  ignores. `tests/shape/pre_commit_shim_test.sh` fails if the link becomes a
+  copy or points elsewhere.
 * **The drift gate derives its own declarations.** `check-mint-drift.sh
   --emit-paths` prints the `(variant (paths …))` clause that declares every
   finding of a replay of the mint; `--write-paths` writes it through
