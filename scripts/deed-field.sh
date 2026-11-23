@@ -14,6 +14,11 @@
 #   deed-field.sh DEED PATH KEY           first value of :KEY in the clause at PATH
 #   deed-field.sh --list DEED PATH KEY    the items of the list :KEY ( … ), one per line
 #   deed-field.sh --clause DEED PATH      the clause, one token per line (for hashing)
+#   deed-field.sh --kv DEED PATH          every top-level :KEY of the clause in ONE pass, as
+#                                         KEY<TAB>item lines (a list prints one line per item,
+#                                         a scalar one line, as --list / the plain form would).
+#                                         For a gate that needs several fields: each separate
+#                                         call re-tokenises the whole deed.
 #   deed-field.sh --has DEED PATH         exit 0 iff the clause exists
 #   deed-field.sh --strict DEED           exit 0 iff the deed is exactly one balanced form:
 #                                         nothing but whitespace and comments before or after
@@ -63,7 +68,7 @@ set -euo pipefail
 
 mode=value
 case "${1:-}" in
-  --list|--clause|--has|--uuid|--typed|--strict) mode="${1#--}"; shift ;;
+  --list|--clause|--has|--uuid|--typed|--kv|--strict) mode="${1#--}"; shift ;;
   --find)
     shopt -s nullglob
     deeds=("${2:-.}"/*_chora.deed)
@@ -87,34 +92,35 @@ awk -v mode="$1" -v path="$path" -v key="$key" '
 BEGIN { RS = "\001" }
 {
   # Tokenise: "(" ")" , S<string> , A<atom>. Comments are dropped here.
-  s = $0; n = length(s); i = 1; nt = 0
-  while (i <= n) {
-    c = substr(s, i, 1)
-    if (c == ";") { while (i <= n && substr(s, i, 1) != "\n") i++; continue }
-    if (c == "(" || c == ")") { tok[++nt] = c; i++; continue }
-    if (c == "\"") {
-      v = ""; i++
-      while (i <= n) {
-        c = substr(s, i, 1)
-        if (c == "\\") {
-          d = substr(s, i + 1, 1)
-          if (d == "n") v = v "\n"; else if (d == "t") v = v "\t"; else v = v d
-          i += 2; continue
-        }
-        if (c == "\"") break
-        v = v c; i++
+  # Line-wise and regex-driven: a character-by-character substr() walk of the
+  # whole deed cost ~15 ms per call, and every gate that reads several fields
+  # pays it once per field. Each line is consumed by jumping to the next
+  # significant character; a string may span lines (the newline is part of it).
+  nl = split($0, ln, "\n"); nt = 0; instr = 0; v = ""
+  for (li = 1; li <= nl; li++) {
+    r = ln[li]
+    while (r != "") {
+      if (instr) {
+        if (!match(r, /[\\"]/)) { v = v r; r = ""; break }
+        v = v substr(r, 1, RSTART - 1)
+        if (substr(r, RSTART, 1) == "\"") { tok[++nt] = "S" v; instr = 0; r = substr(r, RSTART + 1); continue }
+        d = substr(r, RSTART + 1, 1)          # backslash escape; "" = escaped line end
+        if (RSTART == length(r)) { v = v "\n"; r = ""; skipnl = 1; break }
+        if (d == "n") v = v "\n"; else if (d == "t") v = v "\t"; else v = v d
+        r = substr(r, RSTART + 2); continue
       }
-      i++; tok[++nt] = "S" v; continue
+      if (match(r, /^[ \t\r]+/)) { r = substr(r, RLENGTH + 1); continue }
+      if (r == "") break
+      c = substr(r, 1, 1)
+      if (c == ";") break
+      if (c == "(" || c == ")") { tok[++nt] = c; r = substr(r, 2); continue }
+      if (c == "\"") { instr = 1; v = ""; r = substr(r, 2); continue }
+      match(r, /^[^ \t\r();"]+/)
+      tok[++nt] = "A" substr(r, 1, RLENGTH); r = substr(r, RLENGTH + 1)
     }
-    if (c == " " || c == "\t" || c == "\r" || c == "\n") { i++; continue }
-    v = ""
-    while (i <= n) {
-      c = substr(s, i, 1)
-      if (c == " " || c == "\t" || c == "\r" || c == "\n" || c == "(" || c == ")" || c == "\"" || c == ";") break
-      v = v c; i++
-    }
-    tok[++nt] = "A" v
+    if (instr) { if (skipnl) skipnl = 0; else if (li < nl) v = v "\n" }
   }
+  if (instr) tok[++nt] = "S" v      # unterminated string at EOF: kept, as before
 }
 # Index of the ")" token that closes the clause opening at token o, or 0.
 function close_of(o,   d, t) {
@@ -162,6 +168,27 @@ END {
   if (mode == "strict") exit (o == 1 && e == nt) ? 0 : 1
   if (mode == "has") exit 0
   if (mode == "clause") { for (t = o; t <= e; t++) print tok[t]; exit 0 }
+  if (mode == "kv") {
+    d = 0
+    for (t = o + 1; t < e; t++) {
+      if (tok[t] == "(") { d++; continue }
+      if (tok[t] == ")") { d--; continue }
+      if (d != 0 || tok[t] !~ /^A:/) continue
+      k = substr(tok[t], 3); nx = tok[t + 1]
+      if (nx == "(") {
+        le = close_of(t + 1); ld = 0
+        for (u = t + 2; u < le; u++) {
+          if (tok[u] == "(") ld++
+          else if (tok[u] == ")") ld--
+          else if (ld == 0) print k "\t" show(tok[u])
+        }
+      } else if (nx != ")" && nx != "") {
+        if (nx ~ /^A#[a-z0-9]+$/ && substr(tok[t + 2], 1, 1) == "S") nx = tok[t + 2]
+        print k "\t" show(nx)
+      }
+    }
+    exit 0
+  }
   d = 0
   for (t = o + 1; t < e; t++) {
     if (tok[t] == "(") { d++; continue }
@@ -214,8 +241,10 @@ uuid5_url() {
   fi
 }
 
-# The reader takes byte 0x01 as its record separator, so awk would drop one
-# that ends the file and --strict would pass it. No deed holds that byte.
+# The reader takes byte 0x01 as its record separator, so awk drops one that
+# ends the file and --strict would pass it (checked against the line-wise
+# tokeniser: a valid deed plus one trailing 0x01 still exits 0 without this).
+# No deed holds that byte.
 if [ "$mode" = strict ] && LC_ALL=C grep -q $'\001' "$deed"; then
   exit 1
 fi

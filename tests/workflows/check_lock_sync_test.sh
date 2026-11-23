@@ -421,3 +421,152 @@ YML
 sha_key
 self_ref
 expect 0 'OK' 'a job-level call after another job with steps is still a reusable call'
+
+# --- source-fix regressions (job-level absence, flow forms, block scalars) ---
+lockhdr() { printf "version: 'v0.0.3'\nworkflows:\n"; }
+rec() { printf "    '%s':\n        ref: '%s'\n        commit: 'sha1-1111111111111111111111111111111111111111'\n        owner_id: 1\n        repo_id: 2\n" "$1" "$2"; }
+
+# A job-level reusable target is a SHA pin outside the lock: absent is allowed.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  reusable:
+    uses: Owner/Repo/.github/workflows/check.yml@v1
+YML
+{ lockhdr; printf "    '.github/workflows/ci.yml': []\ndependencies:\n"; } > "$work/current/actions.lock"
+expect 0 'OK' 'a job-level reusable ref absent from the lockfile is allowed'
+
+# The same ref used as a step action must still be locked.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  reusable:
+    uses: Owner/Repo/.github/workflows/check.yml@v1
+  local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Owner/Repo/subdir@v1
+YML
+{ lockhdr; printf "    '.github/workflows/ci.yml': []\ndependencies:\n"; } > "$work/current/actions.lock"
+expect 1 'refs missing from the lockfile' 'a step action sharing a job-level ref is still required in the lock'
+
+# A job-level LOCAL reusable workflow is not an external ref and not corrupt.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  reusable:
+    uses: ./.github/workflows/other.yml
+YML
+printf 'name: Other\non: workflow_call\njobs: {}\n' > "$work/current/other.yml"
+{ lockhdr; printf "    '.github/workflows/ci.yml': []\n    '.github/workflows/other.yml': []\ndependencies:\n"; } > "$work/current/actions.lock"
+expect 0 'OK' 'a job-level local reusable workflow is accepted'
+
+# Flow-mapping step: `- {uses: o/r@v1}` is a real reference.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - {uses: Flow/Act@v1, name: x}
+YML
+{ lockhdr; printf "    '.github/workflows/ci.yml': []\ndependencies:\n"; } > "$work/current/actions.lock"
+expect 1 'refs missing from the lockfile' 'a flow-mapping step uses: is checked against the lock'
+
+# ... and is satisfied by a flow-list lock entry plus its dependency record.
+{ lockhdr; printf "    '.github/workflows/ci.yml': ['flow/act@v1']\ndependencies:\n"; rec 'flow/act@v1' v1; } > "$work/current/actions.lock"
+expect 0 'OK' 'a flow-list lock entry is read'
+
+# A flow-list lock entry naming a ref with no record is a dangling edge.
+{ lockhdr; printf "    '.github/workflows/ci.yml': ['flow/act@v1']\ndependencies:\n"; } > "$work/current/actions.lock"
+expect 1 'DANGLING EDGES' 'a flow-list lock ref without a dependencies: record dangles'
+
+# A dependency record's flow-form nested uses: is a real edge.
+{ lockhdr; printf "    '.github/workflows/ci.yml': ['flow/act@v1']\ndependencies:\n"; rec 'flow/act@v1' v1; printf "        uses: ['inner/dep@v2']\n"; } > "$work/current/actions.lock"
+expect 1 'DANGLING EDGES' 'a flow-form nested uses: of a record is closure-checked'
+
+# `uses:` text inside a run: block scalar is shell text, not a reference.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo example
+          uses: fake/thing@v9
+      - name: after
+        run: echo done
+YML
+{ lockhdr; printf "    '.github/workflows/ci.yml': []\ndependencies:\n"; } > "$work/current/actions.lock"
+expect 0 'OK' 'uses: inside a run: block scalar is not a reference'
+
+# A real step after a block scalar is still read (block ends at dedent).
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo example
+      - uses: Real/Act@v3
+YML
+expect 1 'refs missing from the lockfile' 'a step after a block scalar is still checked'
+
+# CodeRabbit #474: `{uses: x}` inside a QUOTED scalar is data, not a flow-mapping step.
+fresh
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: "echo '{uses: fake/thing@v9}'"
+      - run: 'echo "{name: x, uses: fake/other@v9}"'
+YML
+{ lockhdr; printf "    '.github/workflows/ci.yml': []
+dependencies:
+"; } > "$work/current/actions.lock"
+expect 0 'OK' 'a flow-looking uses: inside a quoted run: scalar is not a reference'
+
+# ... while real flow steps stay checked: bare, quoted value, and an apostrophe
+# in an unquoted word must not hide the reference that follows it.
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - {name: it's, uses: Apo/Strophe@v1}
+YML
+expect 1 'refs missing from the lockfile' 'an apostrophe inside a flow-step word does not hide its uses:'
+cat > "$work/current/ci.yml" <<'YML'
+name: Test
+on: pull_request
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - {uses: "Quoted/Act@v1"}
+YML
+expect 1 'refs missing from the lockfile' 'a quoted uses: VALUE in a flow step is still read'
+
+# The advisory gate must check out the PR MERGE commit (github.sha), not the PR head.
+gate="$repo/.github/workflows/lock-sync-gate.yml"
+grep -qF 'SHA: ${{ github.sha }}' "$gate" || fail 'lock-sync-gate.yml must check out github.sha (the PR merge commit)'
+if grep -qF 'pull_request.head.sha' "$gate"; then fail 'lock-sync-gate.yml still checks out the PR head sha'; fi
+echo "PASS: lock-sync-gate.yml checks out the PR merge commit"

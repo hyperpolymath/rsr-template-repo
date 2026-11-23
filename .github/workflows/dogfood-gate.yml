@@ -455,7 +455,20 @@ jobs:
             echo "::error::could not fetch canon.lock from $URL"
             exit 1
           fi
-          DEED_NAME="${REPO#*/}_chora.deed"
+          # Find the deed the way the rest of the estate does: exactly one
+          # *_chora.deed at the root. Building the name from the repo name
+          # fails when the forge name's case differs from the deed's.
+          if ! roots="$(gh api "repos/${REPO}/contents?ref=${HEAD_SHA}" \
+              --jq '.[] | select(.type == "file") | .name | select(endswith("_chora.deed"))')"; then
+            echo "::error::could not list the root of ${REPO} at ${HEAD_SHA:0:7}"
+            exit 1
+          fi
+          n="$(printf '%s\n' "$roots" | grep -c . || true)"
+          if [ "$n" != "1" ]; then
+            echo "::error::need exactly one *_chora.deed at the root at ${HEAD_SHA:0:7}, found ${n} — this repo cannot declare a canon pin"
+            exit 1
+          fi
+          DEED_NAME="$roots"
           DEED="$RUNNER_TEMP/repo.deed"
           if ! gh api -H "Accept: application/vnd.github.raw" \
               "repos/${REPO}/contents/${DEED_NAME}?ref=${HEAD_SHA}" > "$DEED"; then
