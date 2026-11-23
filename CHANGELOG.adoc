@@ -10,6 +10,13 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Added
 
+* **pre-commit.ci finds the config.** The root `.pre-commit-config.yaml` is now a
+  symlink to `ci/.pre-commit-config.yaml`, so the hosted runner stops reporting
+  "`.pre-commit-config.yaml` is not a file" on every pull request. The config
+  gains a `ci:` block (`autofix_prs: false`; `skip` for the three `language:
+  system` hooks the runner has no tools for), which the pre-commit framework
+  ignores. `tests/shape/pre_commit_shim_test.sh` fails if the link becomes a
+  copy or points elsewhere.
 * **The drift gate derives its own declarations.** `check-mint-drift.sh
   --emit-paths` prints the `(variant (paths …))` clause that declares every
   finding of a replay of the mint; `--write-paths` writes it through
@@ -71,16 +78,20 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 * The container workflow's best-effort Trivy step scanned
   `<repository name>:latest`; it scans the reference the plain build tags
   (`just --evaluate image`).
+* **A `CI/gate` publisher may not filter `workflow_run` by branch.**
+  GitHub applies `branches` and `branches-ignore` to the triggering run's
+  branch, so a filtered publisher never posts the status on a PR head and the
+  PR waits for ever. `check-required-contexts.sh` now refuses any such filter
+  except `branches: ["**"]`; negative fixtures cover both keys.
 * The CI gate reusable is re-pinned to hyperpolymath/proven-cicd-and-workflows
-  `09878f2a2c0a8907cc69fe48973ea604753ecab1`, up from `d2140a5`, to stop a
-  false `CI/gate` failure when a workflow name contains an emoji (GitHub
-  rejects 4-byte UTF-8 in a status description; fixed in
-  hyperpolymath/proven-cicd-and-workflows#144, seen on
-  hyperpolymath/resource-algebra#48). `ci-gate.yml`,
-  `ci-gate-tamper-guard-caller.yml`, `actions.lock` and
-  `tests/workflows/squabble_gate_test.sh` are updated to match. The new pin is
-  still a commit on an unmerged suite branch, so a second re-pin follows the
-  squash merge of hyperpolymath/proven-cicd-and-workflows#139.
+  `a0760cea695a815a96b3944f3d03ee015da856d0`, a commit on the suite's `main`
+  (hyperpolymath/proven-cicd-and-workflows#164), up from `09878f2`, a commit on
+  the closed suite branch of #144. The new pin keeps the emoji-safe status
+  description (4-byte characters are replaced before the 140-character clip)
+  and adds retry with back-off on API rate limits, a per-commit concurrency
+  group in the reusable, and a sweep that stops when rate-limited.
+  `ci-gate.yml`, `ci-gate-tamper-guard-caller.yml`, `actions.lock` and
+  `tests/workflows/squabble_gate_test.sh` are updated to match.
 
 * The four quarantined Idris2 ABI proof modules
   (`verification/proofs/idris2/ABI/{Layout,Platform,Pointers,Compliance}.idr`)

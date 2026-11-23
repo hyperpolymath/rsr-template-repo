@@ -13,7 +13,7 @@ Non-GitHub CI configuration lives here. GitHub Actions workflows stay in
 | GitLab CI. **Not** found automatically at this path — see below.
 
 | `.pre-commit-config.yaml`
-| The `pre-commit` framework, when invoked with `--config`.
+| The `pre-commit` framework, and pre-commit.ci. The repository root carries a symlink to this file; see below.
 |===
 
 == Required out-of-band setting (GitLab)
@@ -27,13 +27,46 @@ silently stops running** — no pipeline, no error:
 
 == Using pre-commit
 
-The config is no longer at the root, so pass it explicitly:
+The real file stays here. The repository root carries a one-line shim, a relative
+symlink `.pre-commit-config.yaml` -> `ci/.pre-commit-config.yaml`, because the
+framework and pre-commit.ci both look for the config at the root. So `--config`
+is no longer required, though it still works:
 
 [source,bash]
 ----
-pre-commit install --config ci/.pre-commit-config.yaml
+pre-commit install
+pre-commit run --all-files
+# equivalent, naming the file explicitly:
 pre-commit run --all-files --config ci/.pre-commit-config.yaml
 ----
+
+The shim must stay a symlink: a copy goes stale the first time this file changes.
+`tests/shape/pre_commit_shim_test.sh` fails if it becomes a copy or points elsewhere,
+and `.machine_readable/root-allow.txt` lists it as a required root entry.
+
+=== pre-commit.ci settings
+
+The `ci:` block at the top of the config is pre-commit.ci's own configuration
+(the framework ignores it, so local runs are unchanged):
+
+[cols="1,3",options="header"]
+|===
+| Key | Why
+
+| `autofix_prs: false`
+| pre-commit.ci never pushes a fix commit to a pull request. Comment
+  `pre-commit.ci autofix` on a pull request to ask for one by hand.
+
+| `skip: [validate-deed, validate-k9, validate-claude-md]`
+| The three `language: system` hooks need tools the hosted runner does not
+  provide (nickel, jq, bun, a standards checkout). They are skipped there only;
+  they still run locally.
+|===
+
+pre-commit.ci also opens autoupdate pull requests (`rev:` bumps) on its own
+schedule. That is a separate setting from `autofix_prs`, and `autoupdate_schedule`
+takes only `weekly`, `monthly` or `quarterly`; there is no value that turns it off.
+See https://pre-commit.ci/#configuration.
 
 [NOTE]
 ====

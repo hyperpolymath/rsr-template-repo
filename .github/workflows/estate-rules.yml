@@ -44,6 +44,10 @@ jobs:
       # Every widening case is paired with a planted stray that must still fail.
       - name: Root-shape gate, derived allowlist (capabilities + vendored gate table)
         run: bash tests/shape/derived_root_allow_test.sh
+      # pre-commit.ci reads its config from the root only; the root file is a
+      # symlink to ci/. The self-test fails if it becomes a copy or points elsewhere.
+      - name: pre-commit.ci shim stays a symlink to ci/.pre-commit-config.yaml
+        run: bash tests/shape/pre_commit_shim_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
