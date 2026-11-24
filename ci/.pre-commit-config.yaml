@@ -91,4 +91,8 @@ repos:
         entry: bash .machine_readable/arrival-pack/verify.sh
         language: system
         pass_filenames: false
-        files: '^([^/]+_chora\.deed|\.machine_readable/arrival-pack/.*|CLAUDE\.md)$'
+        # Every commit, not a `files:` filter: the region also depends on the set
+        # of tracked .a2ml files, and pre-commit passes no deleted path to a
+        # filter, so a commit that only removes a legacy file would skip the
+        # hook. This also covers the deed, the pack and scripts/deed-field.sh.
+        always_run: true
