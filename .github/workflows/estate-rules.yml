@@ -48,6 +48,10 @@ jobs:
       # symlink to ci/. The self-test fails if it becomes a copy or points elsewhere.
       - name: pre-commit.ci shim stays a symlink to ci/.pre-commit-config.yaml
         run: bash tests/shape/pre_commit_shim_test.sh
+      # pre-commit.ci's shellcheck severity mirrors quality.yml's `shellcheck -S error`;
+      # the self-test fails if either is changed without the other.
+      - name: pre-commit shellcheck severity matches quality.yml
+        run: bash tests/shape/shellcheck_severity_lockstep_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because

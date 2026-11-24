@@ -24,11 +24,21 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # Licence texts are verbatim and owner-only: estate doctrine 6 (no
+      # automated licence edits, ever). Root LICENSE* files and LICENSES/.
       - id: trailing-whitespace
+        exclude: '^(LICENSE[^/]*|LICENSES/)'
       - id: end-of-file-fixer
+        exclude: '^(LICENSE[^/]*|LICENSES/)'
       - id: check-yaml
+      # devcontainer.json is JSONC (comments), which CLAUDE.md carves out of the
+      # JSON policy ("Tool-demanded JSONC"); strict JSON parsing cannot read it.
       - id: check-json
+        exclude: '(^|/)devcontainer\.json$'
+      # The stapeln manifests hold {{TOKEN}} mint placeholders and are valid TOML
+      # only after repo-init substitutes them.
       - id: check-toml
+        exclude: '^build/container/stapeln/(manifest|compose|compose\.example)\.toml$'
       - id: check-merge-conflict
       - id: detect-private-key
       - id: check-added-large-files
@@ -68,13 +78,22 @@ repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:
+      # Mirror of .github/workflows/quality.yml, which runs `shellcheck -S error`:
+      # the repo's policy is error severity only. Kept in step by
+      # tests/shape/shellcheck_severity_lockstep_test.sh.
       - id: shellcheck
+        args: [--severity=error]
 
   # --- EditorConfig ---
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
     rev: 3.2.1
     hooks:
+      # -disable-indent-size drops only the indent-width multiple: continuation
+      # and alignment lines in adoc/sh/yml/idr legitimately break it, and Idris
+      # layout is significant. Indent style, trailing whitespace and the final
+      # newline are still checked.
       - id: editorconfig-checker
+        args: [-disable-indent-size]
         exclude: '(\.git|node_modules|target|_build|deps|\.|external_corpora|\.lake)/'
 
   # --- Secret detection ---

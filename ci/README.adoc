@@ -63,6 +63,41 @@ The `ci:` block at the top of the config is pre-commit.ci's own configuration
   they still run locally.
 |===
 
+=== Hook settings
+
+The hooks are set to this repository's own lint policy, stated once, rather than to
+each tool's defaults. A hook that fails on files already on `main` is a setting
+that disagrees with the policy, not a reason to rewrite those files.
+
+[cols="1,3",options="header"]
+|===
+| Hook | Setting and why
+
+| `shellcheck`
+| `args: [--severity=error]`. `.github/workflows/quality.yml` runs `shellcheck -S error`,
+  so error severity is the policy. `tests/shape/shellcheck_severity_lockstep_test.sh`
+  (run from `estate-rules.yml`) fails if the two levels differ.
+
+| `editorconfig-checker`
+| `args: [-disable-indent-size]`. Indent style, trailing whitespace and the final
+  newline stay checked; only the indent-width multiple is dropped, because
+  continuation and alignment lines in adoc, sh, yml and idr legitimately break it
+  and Idris layout is significant. Caddyfiles take tabs (their own convention) in a
+  narrow `.editorconfig` section.
+
+| `check-json`
+| Excludes `devcontainer.json`, which is JSONC (comments). `CLAUDE.md` carves
+  tool-demanded JSONC out of the JSON policy.
+
+| `check-toml`
+| Excludes the three `build/container/stapeln/*.toml` templates. They hold
+  `{{TOKEN}}` placeholders and are valid TOML only after `repo-init` mints them.
+
+| `trailing-whitespace`, `end-of-file-fixer`
+| Exclude licence texts (`LICENSE*`, `LICENSES/`). Licence files are owner-only:
+  no automated licence edits, ever.
+|===
+
 pre-commit.ci also opens autoupdate pull requests (`rev:` bumps) on its own
 schedule. That is a separate setting from `autofix_prs`, and `autoupdate_schedule`
 takes only `weekly`, `monthly` or `quarterly`; there is no value that turns it off.

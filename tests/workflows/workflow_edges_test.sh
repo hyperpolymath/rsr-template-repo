@@ -52,7 +52,7 @@ says "the summary counts the edges it checked" "workflow_run edge(s)"
 echo "=== 2. Firing: a dead workflow_run edge ==="
 fresh >/dev/null
 sed -i 's/^name: Hypatia Security Scan$/name: Hypatia Scan/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
-expect_rc 1 "renaming a producer is caught (workflow_run matches name:, not the file)" 
+expect_rc 1 "renaming a producer is caught (workflow_run matches name:, not the file)"
 says "the failure names the dead edge" "Hypatia Security Scan"
 says "the failure says what it breaks" "never re-render"
 
