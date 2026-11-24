@@ -8,15 +8,23 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Removed
+
+* **pre-commit.ci retired; its checks run in CI.** Owner ruling 2026-11-24: the
+  hosted pre-commit.ci app is retired estate-wide. `ci/.pre-commit-config.yaml`,
+  the root symlink, `tests/shape/pre_commit_shim_test.sh` and
+  `tests/shape/shellcheck_severity_lockstep_test.sh` are removed (one source of
+  truth: `quality.yml` states the shellcheck policy; a second copy needed a
+  lockstep test). The former hooks that had no gate now have one:
+  `scripts/check-hygiene.sh` (YAML and TOML parse, merge markers, files over
+  1024 KB) with a must-fail self-test, run by `just hygiene`, `quality.yml` and
+  `estate-rules.yml`; the EditorConfig step in `quality.yml` is blocking and uses
+  `-disable-indent-size` (it was `continue-on-error` and bare); `estate-rules.yml`
+  runs the CLAUDE.md arrival-pack check on the real tree. `ci/README.adoc` maps
+  every former hook to the check that replaces it.
+
 ==== Added
 
-* **pre-commit.ci finds the config.** The root `.pre-commit-config.yaml` is now a
-  symlink to `ci/.pre-commit-config.yaml`, so the hosted runner stops reporting
-  "`.pre-commit-config.yaml` is not a file" on every pull request. The config
-  gains a `ci:` block (`autofix_prs: false`; `skip` for the three `language:
-  system` hooks the runner has no tools for), which the pre-commit framework
-  ignores. `tests/shape/pre_commit_shim_test.sh` fails if the link becomes a
-  copy or points elsewhere.
 * **The drift gate derives its own declarations.** `check-mint-drift.sh
   --emit-paths` prints the `(variant (paths …))` clause that declares every
   finding of a replay of the mint; `--write-paths` writes it through
@@ -39,15 +47,12 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 ==== Changed
 
-* **pre-commit hooks follow the repo's own lint policy.** `shellcheck` runs at
-  `--severity=error` (the level `quality.yml` enforces; a new
-  `tests/shape/shellcheck_severity_lockstep_test.sh` fails if the two differ);
-  `editorconfig-checker` runs with `-disable-indent-size`, and Caddyfiles take
-  tabs in `.editorconfig`; `check-json` skips JSONC `devcontainer.json`;
-  `check-toml` skips the three `{{TOKEN}}` stapeln templates; the whitespace
-  fixers skip licence texts. A handful of files with stray trailing whitespace,
-  one tab and two missing or extra final newlines were fixed by hand, and
-  `.envrc` gained a `# shellcheck shell=bash` directive.
+* **Lint policy stated once, in the gates.** `editorconfig-checker` runs with
+  `-disable-indent-size` (Caddyfiles take tabs in `.editorconfig`); a handful of
+  files with stray trailing whitespace, one tab and two missing or extra final
+  newlines were fixed by hand, and `.envrc` gained a `# shellcheck shell=bash`
+  directive. (These were first written as pre-commit hook settings; the hooks
+  are gone, see Removed.)
 
 ==== Fixed
 

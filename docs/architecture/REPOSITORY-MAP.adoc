@@ -81,10 +81,6 @@ predecessors did.
 | yes
 | git reads .mailmap from the worktree root only
 
-| `.pre-commit-config.yaml`
-| yes
-| SYMLINK to ci/.pre-commit-config.yaml (real file stays in ci/); pre-commit.ci reads its config from the ROOT only. Held a symlink by tests/shape/pre_commit_shim_test.sh
-
 | `.uuid-v8-exempt`
 | optional
 | scripts/check-uuid-v8.sh reads this exact root path: the negative-control tests that hold #u5 on purpose (owner-approved 2026-11-14)
@@ -147,7 +143,7 @@ predecessors did.
 
 | `ci/`
 | yes
-| .gitlab-ci.yml + .pre-commit-config.yaml; ci/README.adoc records the out-of-band GitLab project setting these require
+| .gitlab-ci.yml; ci/README.adoc records the out-of-band GitLab project setting it requires, and the hook-to-check map of the retired pre-commit config
 
 | `coordination.k9.ncl`
 | yes

@@ -60,7 +60,6 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .cicd-hygiene-allow        # code-hygiene gate allowlist; template scaffolds are seams, not debt
 .gitmessage             # git commit template; wired by .github/hooks/install.sh (git config commit.template)
 .mailmap                   # git reads .mailmap from the worktree root only
-.pre-commit-config.yaml     # SYMLINK to ci/.pre-commit-config.yaml (real file stays in ci/); pre-commit.ci reads its config from the ROOT only. Held a symlink by tests/shape/pre_commit_shim_test.sh
 mise.toml                  # the toolchain: every tool at "latest" (PROVISIONING-STANDARD §4)
 mise.lock                  # makes "latest" concrete: version + per-platform checksum; mise reads it beside mise.toml
 .hypatia-ignore            # the Hypatia scanner reads it from the repo root
@@ -76,7 +75,7 @@ www/                       # site-operations bundle; canonical .well-known/ live
 .machine_readable/          # manifests, contractiles, policies. Renamed back from machine-readable/ 2026-09-17 by owner ruling, for one canonical spelling estate-wide (census at the 2026-08 divergence: 48 dotted vs 9 hyphenated — the majority was already dotted). See docs/governance/TEMPLATE-LINEAGE-AUDIT.adoc
 docs/                      # human documentation
 build/                     # build orchestration: just/ phase modules, container/, docs-seed/, templates/, guix.scm (canon 1.2.1 guix-primary template_ref = "build/")
-ci/                        # .gitlab-ci.yml + .pre-commit-config.yaml; ci/README.adoc records the out-of-band GitLab project setting these require
+ci/                        # .gitlab-ci.yml; ci/README.adoc records the out-of-band GitLab project setting it requires, and the hook-to-check map of the retired pre-commit config
 scripts/                   # repo helper scripts
 session/                   # dispatch.sh, custom-checks.k9.ncl, local-hooks.sh
 tests/

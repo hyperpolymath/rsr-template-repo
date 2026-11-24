@@ -11,9 +11,6 @@ Non-GitHub CI configuration lives here. GitHub Actions workflows stay in
 
 | `.gitlab-ci.yml`
 | GitLab CI. **Not** found automatically at this path — see below.
-
-| `.pre-commit-config.yaml`
-| The `pre-commit` framework, and pre-commit.ci. The repository root carries a symlink to this file; see below.
 |===
 
 == Required out-of-band setting (GitLab)
@@ -25,87 +22,84 @@ silently stops running** — no pipeline, no error:
 * Project → Settings → CI/CD → General pipelines → *CI/CD configuration file*
 * Set it to `ci/.gitlab-ci.yml`
 
-== Using pre-commit
+== No hosted pre-commit.ci
 
-The real file stays here. The repository root carries a one-line shim, a relative
-symlink `.pre-commit-config.yaml` -> `ci/.pre-commit-config.yaml`, because the
-framework and pre-commit.ci both look for the config at the root. So `--config`
-is no longer required, though it still works:
+There is no `.pre-commit-config.yaml` in this repository, at the root or here,
+and no hosted pre-commit.ci. Owner ruling 2026-11-24: the third-party
+pre-commit.ci GitHub App is retired across the estate. It read only the root
+file, so every repository that followed the root-cleanup move showed "error
+during ci config"; it was never a required check; and it could push unsigned
+autofix commits that conflict with the signed-commit rulesets.
 
-[source,bash]
-----
-pre-commit install
-pre-commit run --all-files
-# equivalent, naming the file explicitly:
-pre-commit run --all-files --config ci/.pre-commit-config.yaml
-----
+The checks it ran did not go away. CI runs them, and `just` runs the same
+ones locally. A second copy of the list in a hook config is a place for the
+two to drift, so there is none.
 
-The shim must stay a symlink: a copy goes stale the first time this file changes.
-`tests/shape/pre_commit_shim_test.sh` fails if it becomes a copy or points elsewhere,
-and `.machine_readable/root-allow.txt` lists it as a required root entry.
+=== Where each former hook runs now
 
-=== pre-commit.ci settings
-
-The `ci:` block at the top of the config is pre-commit.ci's own configuration
-(the framework ignores it, so local runs are unchanged):
-
-[cols="1,3",options="header"]
+[cols="2,3,3",options="header"]
 |===
-| Key | Why
-
-| `autofix_prs: false`
-| pre-commit.ci never pushes a fix commit to a pull request. Comment
-  `pre-commit.ci autofix` on a pull request to ask for one by hand.
-
-| `skip: [validate-deed, validate-k9, validate-claude-md]`
-| The three `language: system` hooks need tools the hosted runner does not
-  provide (nickel, jq, bun, a standards checkout). They are skipped there only;
-  they still run locally.
-|===
-
-=== Hook settings
-
-The hooks are set to this repository's own lint policy, stated once, rather than to
-each tool's defaults. A hook that fails on files already on `main` is a setting
-that disagrees with the policy, not a reason to rewrite those files.
-
-[cols="1,3",options="header"]
-|===
-| Hook | Setting and why
-
-| `shellcheck`
-| `args: [--severity=error]`. `.github/workflows/quality.yml` runs `shellcheck -S error`,
-  so error severity is the policy. `tests/shape/shellcheck_severity_lockstep_test.sh`
-  (run from `estate-rules.yml`) fails if the two levels differ.
-
-| `editorconfig-checker`
-| `args: [-disable-indent-size]`. Indent style, trailing whitespace and the final
-  newline stay checked; only the indent-width multiple is dropped, because
-  continuation and alignment lines in adoc, sh, yml and idr legitimately break it
-  and Idris layout is significant. Caddyfiles take tabs (their own convention) in a
-  narrow `.editorconfig` section.
-
-| `check-json`
-| Excludes `devcontainer.json`, which is JSONC (comments). `CLAUDE.md` carves
-  tool-demanded JSONC out of the JSON policy.
-
-| `check-toml`
-| Excludes the three `build/container/stapeln/*.toml` templates. They hold
-  `{{TOKEN}}` placeholders and are valid TOML only after `repo-init` mints them.
+| Former hook | Runs in CI | Runs locally
 
 | `trailing-whitespace`, `end-of-file-fixer`
-| Exclude licence texts (`LICENSE*`, `LICENSES/`). Licence files are owner-only:
-  no automated licence edits, ever.
+| `quality.yml`, "EditorConfig check" (`editorconfig-checker -disable-indent-size`; now blocking)
+| `just hygiene`
+
+| `check-yaml`
+| `quality.yml` and `estate-rules.yml`, "File hygiene" (`scripts/check-hygiene.sh`)
+| `just hygiene`
+
+| `check-json`
+| `estate-rules.yml`, `scripts/check-ijson-jcs.sh --enforce` (I-JSON and JCS, stricter than a parse; `devcontainer.json` JSONC carved out)
+| `just ijson-check`
+
+| `check-toml`
+| `quality.yml` and `estate-rules.yml`, "File hygiene". The three `build/container/stapeln/*.toml` templates hold `{{TOKEN}}` placeholders and are excluded
+| `just hygiene`
+
+| `check-merge-conflict`
+| "File hygiene"
+| `just hygiene`
+
+| `check-added-large-files` (1024 KB)
+| "File hygiene" (`quality.yml`'s older "Check for large files" step only lists)
+| `just hygiene`
+
+| `detect-private-key`, `gitleaks`
+| `secret-scanner.yml`, `scan / gitleaks` (estate baseline, pinned gitleaks 8.18.4) and the private-key pattern in its shell tier
+| `.github/hooks/pre-push` via `scan-secrets.sh` (fails closed)
+
+| `shellcheck --severity=error`
+| `quality.yml`, "ShellCheck (error severity)" (`shellcheck -S error`)
+| `shellcheck -S error` on the file
+
+| `editorconfig-checker`
+| `quality.yml`, "EditorConfig check"
+| `just hygiene`
+
+| `validate-deed`
+| `dogfood-gate.yml` (canonical linter through `.github/hooks/validate-deed.sh`)
+| `.github/hooks/pre-push`
+
+| `validate-k9`
+| `dogfood-gate.yml` (through `.github/hooks/validate-k9.sh`)
+| `.github/hooks/pre-push`
+
+| `validate-claude-md`
+| `estate-rules.yml`, "CLAUDE.md arrival pack is in sync with the deed" (was missing from CI: the hosted runner skipped it)
+| `just validate-claude-md`
 |===
 
-pre-commit.ci also opens autoupdate pull requests (`rev:` bumps) on its own
-schedule. That is a separate setting from `autofix_prs`, and `autoupdate_schedule`
-takes only `weekly`, `monthly` or `quarterly`; there is no value that turns it off.
-See https://pre-commit.ci/#configuration.
+`just quality` runs `fmt-check`, `lint`, `hygiene` and `test`. The local
+push-time gate is `.github/hooks/pre-push`, activated by
+`bash .github/hooks/install.sh`, which sets `core.hooksPath` to `.github/hooks`.
+`just hygiene` needs `yq` (mikefarah, v4) and `editorconfig-checker`, and fails
+rather than skipping when either is missing.
 
-[NOTE]
-====
-This repository's own push-time gate does not use the `pre-commit` framework.
-It is `.github/hooks/pre-push`, activated by `bash .github/hooks/install.sh`, which sets
-`core.hooksPath` to `.github/hooks`.
-====
+`tests/workflows/check_hygiene_test.sh` plants each defect `check-hygiene.sh`
+claims to catch and requires a refusal, so the gate is shown able to fail.
+
+A developer who wants the `pre-commit` framework locally can keep a personal
+config outside the working tree and pass it with `pre-commit run --config
+<path>`. A `.pre-commit-config.yaml` in the repository root, tracked or not,
+fails the root-shape gate.
