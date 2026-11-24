@@ -44,14 +44,6 @@ jobs:
       # Every widening case is paired with a planted stray that must still fail.
       - name: Root-shape gate, derived allowlist (capabilities + vendored gate table)
         run: bash tests/shape/derived_root_allow_test.sh
-      # pre-commit.ci reads its config from the root only; the root file is a
-      # symlink to ci/. The self-test fails if it becomes a copy or points elsewhere.
-      - name: pre-commit.ci shim stays a symlink to ci/.pre-commit-config.yaml
-        run: bash tests/shape/pre_commit_shim_test.sh
-      # pre-commit.ci's shellcheck severity mirrors quality.yml's `shellcheck -S error`;
-      # the self-test fails if either is changed without the other.
-      - name: pre-commit shellcheck severity matches quality.yml
-        run: bash tests/shape/shellcheck_severity_lockstep_test.sh
       - name: Root shape allowlist
         run: bash scripts/check-root-shape.sh .
       # The map is generated. Five hand-written predecessors all rotted because
@@ -124,6 +116,11 @@ jobs:
           echo "9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
+      # CLAUDE.md's generated region must match the deed. This was a pre-commit
+      # hook (validate-claude-md) that the hosted runner skipped; `just
+      # validate-claude-md` is the same check, and CI now runs it on the real tree.
+      - name: CLAUDE.md arrival pack is in sync with the deed
+        run: bash .machine_readable/arrival-pack/verify.sh
       - name: Evaluate session contracts
         run: bash scripts/validate-session-contracts.sh
       - name: Check Nickel typecheck controls
@@ -177,6 +174,13 @@ jobs:
             https://raw.githubusercontent.com/metadatastician/standards/f0b3cd4c464d33e1584f8528c17bce104555e256/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      # File hygiene (YAML/TOML parse, merge markers, large files): the former
+      # pre-commit hooks, now one script run here, by `just hygiene` and by
+      # quality.yml. The self-test plants each defect and requires a refusal.
+      - name: File-hygiene gate self-test (planted defects must fail)
+        run: bash tests/workflows/check_hygiene_test.sh
+      - name: File hygiene (yaml, toml, merge markers, large files)
+        run: bash scripts/check-hygiene.sh .
       - name: Rhodibot guide formats and missing or duplicate controls
         run: bash tests/workflows/rhodibot_canary_test.sh
       - name: Non-interactive mint resolves every prompt from the environment
