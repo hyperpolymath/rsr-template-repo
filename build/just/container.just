@@ -18,6 +18,14 @@
 #   just container-keep oci portable   # keep image + portable compose, drop the rest
 #   just no-stapeln | no-devcontainer | no-container   # convenience aliases
 
+# ── Image name ─────────────────────────────────────────────────────────────
+# An image reference is lower case, and a repo name need not be: any Julia
+# package (CoprocessorRuntime.jl) gave the recipes below an invalid reference
+# while they tagged the image with the project name as written. The rule is
+# repo-init's default service name: lower case, with "." and "_" mapped to
+# "-" (CoprocessorRuntime.jl -> coprocessorruntime-jl).
+image := replace_regex(lowercase(project), '[._]', '-')
+
 # ── Engine detection (shared snippet) ──────────────────────────────────────
 # Resolves the OCI engine into $ENGINE. Sourced at the top of each recipe.
 _engine := '''
@@ -169,9 +177,9 @@ container-build *args:
     if [ -f "build/container/stapeln/ct-build.sh" ]; then
         cd build/container/stapeln && CONTAINER_ENGINE="$ENGINE" ./ct-build.sh {{args}}
     elif [ -f "build/container/Containerfile" ]; then
-        "$ENGINE" build -t {{project}}:latest -f build/container/Containerfile .
+        "$ENGINE" build -t {{image}}:latest -f build/container/Containerfile .
     elif [ -f "Containerfile" ]; then
-        "$ENGINE" build -t {{project}}:latest -f Containerfile .
+        "$ENGINE" build -t {{image}}:latest -f Containerfile .
     else
         echo "No Containerfile found in build/container/ or project root."
         echo "This template ships none — the one it used to ship was unpinned and"
@@ -236,7 +244,7 @@ container-push:
         cd build/container/stapeln && CONTAINER_ENGINE="$ENGINE" ./ct-build.sh --push
     else
         echo "No build/container/stapeln/ct-build.sh found — falling back to $ENGINE push"
-        "$ENGINE" push {{project}}:latest
+        "$ENGINE" push {{image}}:latest
     fi
 
 # Run the container interactively (for debugging)
@@ -244,7 +252,7 @@ container-run *args:
     #!/usr/bin/env bash
     set -euo pipefail
     {{_engine}}
-    "$ENGINE" run --rm -it {{project}}:latest {{args}}
+    "$ENGINE" run --rm -it {{image}}:latest {{args}}
 
 # Container matrix: [build|run|push|shell|scan] x [registry] x [tag]
 container-matrix action="build" registry="ghcr.io/{{OWNER}}" tag="latest":
