@@ -176,7 +176,8 @@ end
 
 # hypatia_checkouts FILE — inspect cached real YAML nodes, never indentation.
 # jq checks typed jobs/steps/inputs and literal env bindings with step > job >
-# workflow > job-container priority. An uninspectable override never falls back.
+# workflow priority. Container OS env is outside the expression env context.
+# An uninspectable override never permits falling back.
 hypatia_checkouts() {
   local workflow="$1" json status=0
   json="$(workflow_json "$workflow")" || status=$?
@@ -216,10 +217,7 @@ def inspect($root; $job; $entry):
     else ($inputs.ref | text) as $raw |
       (if ($raw | test("^\\$\\{\\{\\s*env\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\}\\}$"))
        then ($raw | capture("^\\$\\{\\{\\s*env\\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\}\\}$").name) as $name |
-            lookup([$step,$job.value,$root] +
-              (if ($job.value.container | type) == "object" then
-                 if ($job.value.container | has("env")) then [$job.value.container] else [] end
-               else [] end); $name)
+            lookup([$step,$job.value,$root]; $name)
        else {present:true,value:$raw} end) as $resolved |
       if ($resolved | has("error")) then bad($where; $resolved.error)
       elif ($resolved.present | not) then bad($where; "missing env binding for checkout ref")
