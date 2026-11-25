@@ -57,13 +57,27 @@ jobs:
       - name: Check for large files
         run: |
           find . -type f -size +1M -not -path "./.git/*" | head -10 || echo "No large files"
+      # Former pre-commit hooks check-yaml, check-toml, check-merge-conflict and
+      # check-added-large-files (the step above only lists large files; this one
+      # fails). yq is pinned by SHA-256, as in estate-rules.yml; no third-party action.
+      - name: File hygiene (yaml, toml, merge markers, large files)
+        env:
+          YQ_VERSION: v4.53.3
+          YQ_SHA256: fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$tmp/yq" \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  $tmp/yq" | sha256sum -c -
+          chmod +x "$tmp/yq"
+          PATH="$tmp:$PATH" bash scripts/check-hygiene.sh .
       - name: EditorConfig check
         # No third-party action here. The organisation's allowed-actions policy
         # refuses editorconfig-checker/action-editorconfig-checker, and a refused
         # action stops the WHOLE workflow at startup with no check reported
         # (hyperpolymath/mathesis, Code Quality run 43624052718). A `run:` step
         # is outside that policy. The release archive is pinned by SHA-256.
-        continue-on-error: true
         env:
           EC_VERSION: v4.0.2
           EC_SHA256: 44efaef3ed14c6ab52eb87481d78e5e5c204796dccf26e2f4598a61ba17f8003
@@ -74,7 +88,12 @@ jobs:
             "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/${EC_VERSION}/editorconfig-checker-linux-amd64.tar.gz"
           echo "${EC_SHA256}  $tmp/ec.tgz" | sha256sum -c -
           tar -xzf "$tmp/ec.tgz" -C "$tmp" editorconfig-checker
-          "$tmp/editorconfig-checker"
+          # -disable-indent-size drops only the indent-width multiple: continuation
+          # and alignment lines in adoc/sh/yml/idr legitimately break it, and Idris
+          # layout is significant. Indent style, trailing whitespace and the final
+          # newline are checked, and this step now gates (it was continue-on-error
+          # and bare, so it reported 359 indent-width errors and never failed).
+          "$tmp/editorconfig-checker" -disable-indent-size
   # The gates this template ships, and the proof that each one can fail.
   #
   # Nothing else in this workflow runs them: `just quality` is deliberately not

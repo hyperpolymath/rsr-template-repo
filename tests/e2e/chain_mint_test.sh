@@ -680,7 +680,7 @@ GR="$work/grandchild-renamed"
 use_template "$PR" HEAD "$GR" git@github.com:other-owner/grand-check.git
 MINT_TEMPLATE_URL="https://template.invalid/rsr-template-repo.git" \
 MINT_GITCONFIG="[url \"file://$TN\"]
-	insteadOf = https://template.invalid/rsr-template-repo.git
+  insteadOf = https://template.invalid/rsr-template-repo.git
 " mint "$GR" "$work/renamed.log" grand-check other-owner "Other Author" other@example.org "Grand tools" \
     || { tail -40 "$work/renamed.log" >&2; fail 'a chain mint from a parent that renamed its deed, through a private-style URL, failed'; }
 [ -f "$GR/grand-check_chora.deed" ] && [ ! -e "$GR/elder-renamed_chora.deed" ] && [ ! -e "$GR/elder-proj_chora.deed" ] \

@@ -43,6 +43,19 @@ for f in "$POLICY" "$HYPATIA_WF" "$LANE" "$IGNORE"; do
   fi
 done
 
+if ! command -v yq >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+  echo "check-hypatia-rule-order: setup requires Mike Farah yq >=4.53.3 (v4) and jq" >&2
+  exit 2
+fi
+yq_version="$(yq --version 2>&1)" || {
+  echo "check-hypatia-rule-order: cannot read the required yq version" >&2; exit 2;
+}
+if [[ ! "$yq_version" =~ mikefarah/yq/.*version\ v([0-9]+)\.([0-9]+)\.([0-9]+) ]] ||
+   (( BASH_REMATCH[1] != 4 || BASH_REMATCH[2] < 53 || (BASH_REMATCH[2] == 53 && BASH_REMATCH[3] < 3) )); then
+  echo "check-hypatia-rule-order: setup requires Mike Farah yq >=4.53.3 (v4); got $yq_version" >&2
+  exit 2
+fi
+
 errors=0
 fail() {
   echo "FAIL: $*" >&2
@@ -167,23 +180,96 @@ done < <(jq -r '.observed_modules[] | [.module, .layer] | @tsv' "$POLICY")
 
 # ── pins must agree with the files that use them ────────────────────────────
 policy_hypatia="$(jq -r '.scanner.commit' "$POLICY")"
-# sed -nE, not grep: under `set -e`, a grep that finds no pin terminates the
-# script before the diagnostic below, which would turn a missing pin into a
-# silent non-zero rather than a stated one.
 # The scanner pin is HYPATIA_SHA where hypatia-scan.yml runs the scan itself,
 # or the `hypatia-ref:` input where it calls a reusable workflow (the call
 # passes the pin; the reusable has none of its own). Both present must agree:
 # two pins for one scanner leave the policy two answers.
-wf_sha="$(sed -nE "s/.*HYPATIA_SHA: *['\"]?([0-9a-f]{40})['\"]?.*/\1/p" "$HYPATIA_WF" | head -n1)"
-wf_ref="$(sed -nE "s/^[[:space:]]+hypatia-ref: *['\"]?([0-9a-f]{40})['\"]?[[:space:]]*(#.*)?$/\1/p" "$HYPATIA_WF" | head -n1)"
-wf_hypatia="${wf_sha:-$wf_ref}"
-wf_pin_name="HYPATIA_SHA"; [ -n "$wf_sha" ] || wf_pin_name="the hypatia-ref input"
-if [ -z "$wf_hypatia" ]; then
-  fail "hypatia-scan.yml declares no HYPATIA_SHA and passes no hypatia-ref input; the policy's scanner.commit cannot be verified"
-elif [ -n "$wf_sha" ] && [ -n "$wf_ref" ] && [ "$wf_sha" != "$wf_ref" ]; then
-  fail "hypatia-scan.yml pins the scanner twice and disagrees: HYPATIA_SHA ${wf_sha:0:12}, hypatia-ref ${wf_ref:0:12}"
-elif [ "$policy_hypatia" != "$wf_hypatia" ]; then
-  fail "policy scanner.commit (${policy_hypatia:0:12}) does not match ${wf_pin_name} in hypatia-scan.yml (${wf_hypatia:0:12})"
+# Inspect the raw AST before expanding aliases or converting to JSON. Decode
+# this one workflow once for both pins; declarations and run text are not inputs.
+workflow_pins() (
+  local workflow="$1" snapshot_dir preflight duplicates keys sha_duplicates ref_duplicates
+  snapshot_dir="$(mktemp -d)" || return 1
+  trap 'rm -rf "$snapshot_dir"' EXIT
+  cp -- "$workflow" "$snapshot_dir/workflow.yml" || return 1
+  workflow="$snapshot_dir/workflow.yml"
+  preflight="$(yq -p yaml -o yaml -r -N '
+    ([.. | select(kind == "map") | to_entries | group_by(.key) |
+      .[] | select(length > 1)]) as $duplicates |
+    ([.. | select(kind == "map") | to_entries[] | .key |
+      select(kind != "scalar" or (tag != "!!str" and tag != "!!merge"))] | length) as $keys |
+    ([$duplicates[] | select(.[0].key == "HYPATIA_SHA")] | length) as $sha_duplicates |
+    ([$duplicates[] | select(.[0].key == "hypatia-ref")] | length) as $ref_duplicates |
+    [($duplicates | length), $keys, $sha_duplicates, $ref_duplicates] | @tsv
+  ' "$workflow")" || return 1
+  while IFS=$'\t' read -r duplicates keys sha_duplicates ref_duplicates; do
+    [[ "$duplicates" =~ ^[0-9]+$ && "$keys" =~ ^[0-9]+$ &&
+       "$sha_duplicates" =~ ^[0-9]+$ && "$ref_duplicates" =~ ^[0-9]+$ ]] || return 1
+    if (( duplicates > 0 )); then
+      echo "duplicate YAML mapping keys (raw AST)" >&2
+      if (( sha_duplicates > 0 )); then echo "hypatia-scan.yml declares HYPATIA_SHA more than once" >&2; fi
+      if (( ref_duplicates > 0 )); then echo "hypatia-scan.yml passes hypatia-ref more than once" >&2; fi
+      return 1
+    fi
+    if (( keys > 0 )); then
+      echo "aliased, complex or non-string YAML mapping keys are unsupported" >&2; return 1
+    fi
+  done <<< "$preflight"
+  # Preserve resolved YAML tags before JSON conversion erases them. The jq
+  # scope selector below decides which matching keys are actual pin bindings.
+  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 '
+    explode(.) | {"workflow": .} |
+    .pin_tags = [.workflow | .. |
+      select((path | .[-1]) == "HYPATIA_SHA" or (path | .[-1]) == "hypatia-ref") |
+      {"path": (path | .[1:]), "tag": tag}]
+  ' "$workflow" |
+    jq -sc '
+def pin($tags; $var; $scope):
+  . as $root |
+  [paths as $p | select($p[-1] == $var) |
+    select(
+      ($scope == "env" and (
+        (($p | length) == 2 and $p[0] == "env") or
+        (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "env") or
+        (($p | length) == 5 and $p[0] == "jobs" and $p[2] == "container" and $p[3] == "env") or
+        (($p | length) == 6 and $p[0] == "jobs" and $p[2] == "steps" and
+          ($p[3] | type) == "number" and $p[4] == "env"))) or
+      ($scope == "with" and ($p | length) == 4 and $p[0] == "jobs" and $p[2] == "with" and
+        ($root.jobs[$p[1]].uses | type) == "string" and
+        ($root.jobs[$p[1]].uses | test("^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[^@]+@|[.$]/\\.github/workflows/[^@]+$)")))) |
+    {value: ($root | getpath($p)), tag: ([$tags[] | select(.path == $p) | .tag] | .[0])}] |
+  if length > 1 then
+    if $var == "HYPATIA_SHA" then error("hypatia-scan.yml declares HYPATIA_SHA more than once")
+    else error("hypatia-scan.yml passes hypatia-ref more than once") end
+  elif length == 0 then ""
+  else .[0] |
+    ("hypatia-scan.yml has a malformed " + $var + " scanner pin") as $malformed |
+    if .tag != "!!str" then error($malformed + ": scanner pin must have YAML tag !!str")
+    elif (.value | type) != "string" then error($malformed + ": must be a literal string")
+    elif (.value | test("\\s")) then error($malformed + ": scanner pin must not contain whitespace")
+    elif (.value | test("^[0-9a-f]{40}$") | not) then error($malformed + ": must be a literal full SHA")
+    else .value end
+  end;
+if length != 1 then error("expected exactly one YAML document")
+elif (.[0] | type) != "object" or (.[0].pin_tags | type) != "array" then error("invalid decoded workflow metadata")
+elif (.[0].workflow | type) != "object" or (.[0].workflow.jobs | type) != "object" then error("workflow and jobs must be mappings")
+else .[0] as $decoded | $decoded.workflow |
+  {sha:pin($decoded.pin_tags; "HYPATIA_SHA"; "env"), ref:pin($decoded.pin_tags; "hypatia-ref"; "with")} end
+    '
+)
+if wf_pins="$(workflow_pins "$HYPATIA_WF")"; then
+  wf_sha="$(jq -r '.sha' <<< "$wf_pins")"
+  wf_ref="$(jq -r '.ref' <<< "$wf_pins")"
+  wf_hypatia="${wf_sha:-$wf_ref}"
+  wf_pin_name="HYPATIA_SHA"; [ -n "$wf_sha" ] || wf_pin_name="the hypatia-ref input"
+  if [ -z "$wf_hypatia" ]; then
+    fail "hypatia-scan.yml declares no HYPATIA_SHA and passes no hypatia-ref input; the policy's scanner.commit cannot be verified"
+  elif [ -n "$wf_sha" ] && [ -n "$wf_ref" ] && [ "$wf_sha" != "$wf_ref" ]; then
+    fail "hypatia-scan.yml pins the scanner twice and disagrees: HYPATIA_SHA ${wf_sha:0:12}, hypatia-ref ${wf_ref:0:12}"
+  elif [ "$policy_hypatia" != "$wf_hypatia" ]; then
+    fail "policy scanner.commit (${policy_hypatia:0:12}) does not match ${wf_pin_name} in hypatia-scan.yml (${wf_hypatia:0:12})"
+  fi
+else
+  fail "hypatia-scan.yml scanner pins could not be inspected"
 fi
 
 policy_grid="$(jq -r '.grid.commit' "$POLICY")"
