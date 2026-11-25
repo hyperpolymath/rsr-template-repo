@@ -9,6 +9,8 @@
 # Env: GH_ACTIONS_LOCK_BIN (default: gh actions-lock)
 set -euo pipefail
 lock=${GH_ACTIONS_LOCK_BIN:-}
+# A relative path override must still resolve after the cd below; bare names use PATH.
+case "$lock" in /*|"") ;; */*) lock="$(cd "$(dirname "$lock")" && pwd)/$(basename "$lock")" ;; esac
 run() { if [ -n "$lock" ]; then "$lock" "$@"; else gh actions-lock "$@"; fi; }
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT; cd "$t"; git init -q
 mkdir -p .github/workflows

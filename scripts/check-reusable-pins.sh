@@ -24,6 +24,12 @@ resolve() { # owner/repo sha
 bad=0; n=0
 shopt -s nullglob
 for f in "$dir"/*.yml "$dir"/*.yaml; do
+  # Fail closed: a `uses` key in flow-mapping ({uses: ...}) or quoted-key ("uses":)
+  # form cannot be read by the line scan below, so it must not pass as "0 checked".
+  if grep -Eq "^[[:space:]]*[\"']uses[\"'][[:space:]]*:|[{,][[:space:]]*[\"']?uses[\"']?[[:space:]]*:" "$f"; then
+    echo "FAIL $f: a uses key is in flow-mapping or quoted-key form, which this check cannot verify; rewrite it in block style"
+    bad=$((bad+1)); continue
+  fi
   # job-level calls only: a `uses:` key NOT introduced by a list dash (step-level)
   while IFS= read -r line; do
     ref=$(printf '%s' "$line" | sed -E 's/^[[:space:]]*uses:[[:space:]]*//; s/[[:space:]]+#.*$//; s/^["'\'']//; s/["'\'']$//')

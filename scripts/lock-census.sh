@@ -13,7 +13,11 @@
 # (that is `--verify`, which needs the network and a token).
 set -euo pipefail
 lock=${GH_ACTIONS_LOCK_BIN:-}
+# A relative path override must still resolve after the cd below; bare names use PATH.
+case "$lock" in /*|"") ;; */*) lock="$(cd "$(dirname "$lock")" && pwd)/$(basename "$lock")" ;; esac
 run_lock() { if [ -n "$lock" ]; then "$lock" "$@"; else gh actions-lock "$@"; fi; }
+# Fail loudly if the verifier cannot run at all: that is not "inconsistent".
+run_lock --version >/dev/null 2>&1 || { echo "lock-census: verifier unavailable (GH_ACTIONS_LOCK_BIN or gh actions-lock); no census produced" >&2; exit 2; }
 repos=()
 for d in "$@"; do
   if [ -d "$d/.github/workflows" ] || [ -d "$d/scripts" ]; then repos+=("$d")
@@ -25,8 +29,12 @@ for r in "${repos[@]}"; do
   h=none; [ -f "$r/scripts/check-lock-sync.sh" ] && { h=$(sha256sum "$r/scripts/check-lock-sync.sh" | cut -c1-12); seen[$h]=1; }
   if [ ! -f "$r/.github/workflows/actions.lock" ]; then st=no-lock; nmiss=$((nmiss+1))
   else nlock=$((nlock+1))
-    if (cd "$r" && GH_ACTIONS_LOCK_REPO_ROOT="$PWD" run_lock --verify-local >/dev/null 2>&1); then st=consistent
-    else st=inconsistent; nbad=$((nbad+1)); fi
+    rc=0; (cd "$r" && GH_ACTIONS_LOCK_REPO_ROOT="$PWD" run_lock --verify-local >/dev/null 2>&1) || rc=$?
+    case "$rc" in
+      0) st=consistent ;;
+      126|127) echo "lock-census: verifier could not be executed on $r (rc=$rc)" >&2; exit 2 ;;
+      *) st=inconsistent; nbad=$((nbad+1)) ;;
+    esac
   fi
   printf '%s\t%s\t%s\n' "$(basename "$r")" "$h" "$st"
 done
