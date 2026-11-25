@@ -40,6 +40,11 @@ mkchild r2 v3 EDIT v1 r2_chora.deed "(repo-deed
     :template-commit \"$C1\")
   (mint-answers :schema-version \"1\"))"
 
+mkchild r4 v1 v2 v1 r4_chora.deed "(repo-deed
+  (provenance
+    :template-commit \"$C1\")
+  (mint-answers :schema-version \"1\"))"
+
 out=$(bash "$repo/scripts/survey-template-staleness.sh" --template "$T" --ref main --forge "file://$work/forge" --jobs 2 --out "$work/out" o/r1 o/r2 o/r3 2>&1) \
     || { echo "$out" >&2; fail "the survey failed"; }
 want() { grep -qE "$1" <<<"$out" || { echo "$out" >&2; fail "expected: $1"; }; }
@@ -57,6 +62,13 @@ pass "survey: the stale file is exactly a@v1; the deed's pin and (mint-answers) 
 out2=$(bash "$repo/scripts/survey-template-staleness.sh" --template "$T" --ref main --forge "file://$work/forge" --jobs 1 o/r1 o/r2 o/r3 2>&1)
 [ "$(grep -E '^(files|  equal)' <<<"$out")" = "$(grep -E '^(files|  equal)' <<<"$out2")" ] || fail "a second run gave other numbers"
 pass "survey: a second run (other job count) gives the same numbers"
+# the narrowed basis: files equal to the template AT THE REPO'S OWN PIN (c1), not HEAD
+op=$(bash "$repo/scripts/survey-template-staleness.sh" --template "$T" --ref main --forge "file://$work/forge" --own-pin recorded --out "$work/own" o/r1 o/r2 o/r4 2>&1) || { echo "$op" >&2; fail "the own-pin survey failed"; }
+awk -F'\t' '$1=="o/r4" { exit !($2=="recorded" && $4==1 && $5==1) }' "$work/own/own-pin.tsv" || { cat "$work/own/own-pin.tsv" >&2; fail "r4 (pin c1, a=v1) should have one file equal to its own pin and not HEAD"; }
+awk -F'\t' '$1=="o/r2" { exit !($2=="recorded" && $4==0) }' "$work/own/own-pin.tsv" || fail "r2 (a at HEAD) should have none"
+awk -F'\t' '$1=="o/r1" { exit !($2=="none" && $4==0) }' "$work/own/own-pin.tsv" || fail "r1 records no pin and --own-pin recorded must not infer one"
+grep -q "equal the template at their own pin, not HEAD: 1" <<<"$op" || { echo "$op" >&2; fail "the summary line is wrong"; }
+pass "survey --own-pin recorded: only files equal to the template at the repo's OWN recorded pin count; no pin is invented"
 # the 'ever' universe adds files at since-deleted paths: delete c from the template and survey again
 g -C "$T" rm -q c; g -C "$T" commit -q -m c4
 e=$(bash "$repo/scripts/survey-template-staleness.sh" --template "$T" --ref main --universe ever --forge "file://$work/forge" o/r1 o/r2 2>&1)

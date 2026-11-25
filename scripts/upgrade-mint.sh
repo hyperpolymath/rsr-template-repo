@@ -19,6 +19,8 @@
 #   * licence files (LICENSE*, LICENCE*, COPYING*, UNLICENSE*, LICENSES/**), and
 #     any change that would alter an SPDX or copyright line of another file;
 #   * the chora deed (identity) — except the three provenance pins below;
+#   * status and proof state (docs/status/**, PROOF-STATUS/NEEDS, ROADMAP, receipts,
+#     verification/proofs/**): the repo's own claims, never set by template equality;
 #   * tool- and owner-owned files: actions.lock, CODEOWNERS, CITATION.cff,
 #     .github/settings.yml, .github/rulesets/**;
 #   * every path the repo declares in its deed's (variant (paths …)) as added,
@@ -198,6 +200,13 @@ protected() { # P -> reason, or nothing
     esac
     case "/$1" in
         */LICENSES/*|*/LICENCES/*|*/licenses/*|*/licences/*) echo "licence directory"; return ;;
+    esac
+    # Status and proof state describe the repo's OWN state: never overwritten by
+    # template equality (hub addendum, mathesis#126 db1f1c6). They change only after
+    # being checked against that repo's proof receipts, by a human.
+    case "/$1" in
+        */docs/status/*|*/PROOF-STATUS*|*/PROOF-NEEDS*|*/TEST-NEEDS*|*/READINESS*|*/ROADMAP*|*/STATE.*|*/STATE-*|*/STATUS.*|*/receipts/*|*/.machine_readable/coaptation/*|*/verification/proofs/*|*receipt*)
+            echo "status or proof state (the repo's own; checked against its receipts, never by template equality)"; return ;;
     esac
     case "$1" in
         *_chora.deed) echo "chora deed (identity); only the pins are recorded, by --apply"; return ;;

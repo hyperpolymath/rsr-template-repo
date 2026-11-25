@@ -134,6 +134,13 @@ that merely mentions SPDX (a checker) is code, not a claim: an earlier, looser
 match held seven such files and was tightened (the real run found it).
 * *Identity*: the chora deed (`*_chora.deed`) is never merged. Only the three pin
 lines above are written, and the test asserts that is the whole diff.
+* *Status and proof state*: `docs/status/**`, `PROOF-STATUS*`, `PROOF-NEEDS*`, `TEST-NEEDS*`,
+`READINESS*`, `ROADMAP*`, `STATE*`, `**/receipts/**`, `.machine_readable/coaptation/**`,
+`verification/proofs/**`. They describe the repo's *own* state; a template that happens to
+equal them says nothing about it. They change only after being checked against that
+repo's proof receipts, by a human (owner addendum, mathesis#126 db1f1c6). `verification/proofs/**`
+is held on the conservative reading of "proof files"; decision 1 asks whether template-supplied
+proof boilerplate may be refreshed separately.
 * *Tool- and owner-owned*: `.github/workflows/actions.lock` (tool-owned),
 `CODEOWNERS`, `CITATION.cff`, `.github/settings.yml`, `.github/rulesets/**`
 (never edited by tooling).
@@ -193,10 +200,10 @@ as base.
 Procedure for an owner-approved pass:
 
 . Re-run the survey for the day; take `stale-files.tsv`.
-. Remove what <<never>> forbids (licence files alone were 285 of 2,768 on
-2026-11-25) and, separately, hold *workflow files* (407) for a second pass because
-a workflow that changes must stay consistent with the repo's `actions.lock`,
-which a tool owns.
+. Keep only files that *equal the template at that repo's own pin* (the narrowed scope,
+below), and only *copied boilerplate*: remove everything <<never>> forbids (licences,
+status and proof state, deeds) and hold *workflow files* for a second pass, because a
+workflow that changes must stay consistent with the repo's `actions.lock`, which a tool owns.
 . Per repo, one draft PR (one branch, one commit, files listed in the body),
 opened only after the owner approves the list below. No PR is opened by the
 survey or by this PR.

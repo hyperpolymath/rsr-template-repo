@@ -19,7 +19,8 @@
 #                   X  a line far from the child's own edit      -> MERGED
 #                   Y  the same line the child edited            -> CONFLICT, markers
 #                   Z  an SPDX line, child unedited              -> LICENCE-HELD
-#                   LICENSE, LICENSES/*, the chora deed       -> PROTECTED (bytes equal)
+#                   LICENSE, LICENSES/*, docs/status/PROOF-STATUS.adoc, a receipt,
+#                   the chora deed                           -> PROTECTED (bytes equal)
 #                   D  a file the child edited, then deleted     -> MODIFY-DELETE, kept
 #                   D2 a file the child never touched, deleted   -> DELETE
 #                   N  a new file                                -> ADD
@@ -172,6 +173,11 @@ D=$(pick) || fail "no suitable file D"; skip="$skip $D"
 D2=$(pick) || fail "no suitable file D2"
 LIC=LICENSE; [ -f "$B/$LIC" ] || fail "the child has no LICENSE"
 LICDIR=$(g -C "$B" ls-files 'LICENSES/*' | head -1); [ -n "$LICDIR" ] || fail "the child has no LICENSES/ file"
+# status and proof files are rendered by the mint (self-name), so they never equal the template blob;
+# the premise is: the child never edited them, and the template change reaches the new render (the
+# PROTECTED row below exists only if the old and new renders differ there)
+ST1=docs/status/PROOF-STATUS.adoc; ST2=docs/status/TEST-NEEDS.adoc
+for f in "$ST1" "$ST2"; do [ -f "$B/$f" ] || fail "the child has no $f"; done
 DEEDB="$(bash "$repo/scripts/deed-field.sh" --find "$B")"; DEEDREL="${DEEDB#"$B"/}"
 
 # the synthetic template version, on its own branch of the throwaway template
@@ -182,6 +188,8 @@ sedl "5s|.*|# synthetic template edit of line 5|" "$Y"
 sedl "s|^\(.*SPDX-License-Identifier:\).*|\1 MPL-2.0 AND CC-BY-SA-4.0|" "$Z"
 printf '\n(synthetic template edit of the licence text)\n' >> "$T/$LIC"
 printf '\n(synthetic template edit of a licence text file)\n' >> "$T/$LICDIR"
+printf '\n// synthetic template edit of a status file\n' >> "$T/$ST1"
+printf '\n# synthetic template edit of a receipt\n' >> "$T/$ST2"
 git -C "$T" rm -q -f "$D" "$D2"
 printf '#!/usr/bin/env bash\n# SPDX-License-Identifier: MPL-2.0\necho synthetic new file\n' > "$T/scripts/zz-upgrade-fixture-new.sh"
 g -C "$T" add -A; g -C "$T" commit -q -m "synthetic template change"
@@ -203,17 +211,17 @@ sedl2 "5s|.*|# the child's own, different, edit of line 5|" "$Y" # the same line
 sedl2 "3s|.*|# the child's own edit of the file the template deletes|" "$D"
 printf 'owner content\n' > "$B/OWNER-NOTES.txt"
 g -C "$B" add -A; g -C "$B" commit -q -m "child's own work"
-sums() { (cd "$B" && sha256sum "$LIC" "$LICDIR" OWNER-NOTES.txt "$Z" "$D" "$Y"); }
+sums() { (cd "$B" && sha256sum "$LIC" "$LICDIR" "$ST1" "$ST2" OWNER-NOTES.txt "$Z" "$D" "$Y"); }
 sums_before="$(sums)"
 head_before=$(g -C "$B" rev-parse HEAD)
 bash "$UP" --template "$T" --to "$SYN" --child "$B" > "$work/b.dry" 2> "$work/b.dry.err" && rc=0 || rc=$?
 [ "$rc" = 3 ] || { cat "$work/b.dry.err" >&2; fail "B: a dry run with conflicts should exit 3, got $rc"; }
 row() { grep -q "^$1	$2	" "$work/b.dry" || { cat "$work/b.dry" >&2; fail "B: expected $1 for $2"; }; }
-row MERGED "$X"; row CONFLICT "$Y"; row LICENCE-HELD "$Z"; row PROTECTED "$LIC"; row PROTECTED "$LICDIR"
+row MERGED "$X"; row CONFLICT "$Y"; row LICENCE-HELD "$Z"; row PROTECTED "$LIC"; row PROTECTED "$LICDIR"; row PROTECTED "$ST1"; row PROTECTED "$ST2"
 row MODIFY-DELETE "$D"; row DELETE "$D2"; row ADD scripts/zz-upgrade-fixture-new.sh
 ! grep -q "OWNER-NOTES" "$work/b.dry" || fail "B: the owner's own file appears in the plan"
 [ "$(g -C "$B" rev-parse HEAD)" = "$head_before" ] && [ -z "$(g -C "$B" status --porcelain)" ] || fail "B: the dry run wrote to the child"
-pass "B: dry run classifies MERGED, CONFLICT, LICENCE-HELD, PROTECTED (licence, licence text), MODIFY-DELETE, DELETE, ADD, and exits 3"
+pass "B: dry run classifies MERGED, CONFLICT, LICENCE-HELD, PROTECTED (licence, licence text, status doc, receipt), MODIFY-DELETE, DELETE, ADD, and exits 3"
 
 bash "$UP" --template "$T" --to "$SYN" --child "$B" --apply > "$work/b.apply" 2> "$work/b.apply.err" && rc=0 || rc=$?
 [ "$rc" = 3 ] || { cat "$work/b.apply.err" >&2; fail "B: --apply with conflicts should exit 3, got $rc"; }
