@@ -370,6 +370,19 @@ sed -i 's|uses: .*|uses: ./.github/workflows/hypatia-scan-reusable.yml|' "$WORK/
 expect_rc 0 "a local reusable caller scanner input matches the policy"
 sed -i "s/$scanner_pin/$WRONG_SCANNER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "a local reusable caller with a wrong scanner input is refused"
+fresh; caller_wf "$scanner_pin"
+sed -i 's|uses: .*|uses: $/.github/workflows/hypatia-scan-reusable.yml|' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "a dollar-prefixed local reusable caller scanner input matches the policy"
+
+fresh; env_wf "$scanner_pin"
+sed -i '/^env:/,/^jobs:/{ /^env:/d; /^  HYPATIA_SHA:/d; }' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+sed -i "/    runs-on:/i\    container:\n      image: alpine:3.23\n      env:\n        HYPATIA_SHA: \"$scanner_pin\"" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "a job-container scanner env pin matches the policy"
+sed -i "s/$scanner_pin/$WRONG_SCANNER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a wrong job-container scanner env pin is refused"
+sed -i -e "s/$WRONG_SCANNER_PIN/$scanner_pin/" -e "/^jobs:/i\env:\n  HYPATIA_SHA: \"$scanner_pin\"" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "identical job-container and workflow scanner pins remain ambiguous"
+says "container bindings preserve the duplicate scanner-pin diagnostic" "declares HYPATIA_SHA more than once"
 
 
 echo "=== 7. Setup errors ==="

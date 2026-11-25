@@ -219,11 +219,12 @@ def pin($var; $scope):
       ($scope == "env" and (
         (($p | length) == 2 and $p[0] == "env") or
         (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "env") or
+        (($p | length) == 5 and $p[0] == "jobs" and $p[2] == "container" and $p[3] == "env") or
         (($p | length) == 6 and $p[0] == "jobs" and $p[2] == "steps" and
           ($p[3] | type) == "number" and $p[4] == "env"))) or
       ($scope == "with" and ($p | length) == 4 and $p[0] == "jobs" and $p[2] == "with" and
         ($root.jobs[$p[1]].uses | type) == "string" and
-        ($root.jobs[$p[1]].uses | test("^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[^@]+@|\\./\\.github/workflows/[^@]+$)")))) |
+        ($root.jobs[$p[1]].uses | test("^([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[^@]+@|[.$]/\\.github/workflows/[^@]+$)")))) |
     $root | getpath($p)] |
   if length > 1 then
     if $var == "HYPATIA_SHA" then error("hypatia-scan.yml declares HYPATIA_SHA more than once")

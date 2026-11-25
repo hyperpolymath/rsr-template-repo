@@ -254,6 +254,7 @@ unset EDGES_REUSABLE_DIR
 echo "=== 12. Hypatia checkout refs participate in the one-tool pin contract ==="
 readonly PIN_REF='${{ env.PIN }}'
 readonly HYPATIA_REF_EXPR='${{ env.HYPATIA_SHA }}'
+readonly WRONG_CONTAINER_PIN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 checkout_fixture() {
     local ref="$1" binding="${2:-}"
     cat > "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<YML
@@ -271,6 +272,26 @@ YML
 }
 fresh >/dev/null; checkout_fixture "$HSHA"
 expect_rc 0 "a matching literal Hypatia checkout ref is accepted"
+fresh >/dev/null
+sed -i -e 's/^    env:$/    container:\n      image: alpine:3.23\n      env:/' -e 's/^      HYPATIA_SHA:/        HYPATIA_SHA:/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "the named scanner producer may declare its pin in job-container env"
+sed -i "s/$HSHA/$WRONG_CONTAINER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a wrong job-container scanner producer pin disagrees with the verdict"
+says "the container producer mismatch names its scanner pin" "HYPATIA_SHA in hypatia-scan.yml"
+
+fresh >/dev/null; checkout_fixture "$PIN_REF"
+sed -i "/    runs-on:/i\    container:\n      image: alpine:3.23\n      env:\n        PIN: \"$HSHA\"" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "a typed checkout resolves the job-container env fallback"
+sed -i "s/$HSHA/$WRONG_CONTAINER_PIN/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a wrong job-container checkout env pin is refused"
+sed -i "/^jobs:/i\env:\n  PIN: \"$HSHA\"" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "workflow env overrides the job-container checkout fallback"
+sed -i -e "s/^  PIN: \"$HSHA\"/  PIN: \"$WRONG_CONTAINER_PIN\"/" -e "s/^        PIN: \"$WRONG_CONTAINER_PIN\"/        PIN: \"$HSHA\"/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a wrong workflow env binding cannot fall back to a correct container pin"
+fresh >/dev/null; checkout_fixture "$PIN_REF"
+sed -i "/    runs-on:/i\    services:\n      database:\n        image: alpine:3.23\n        env:\n          PIN: \"$HSHA\"" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a checkout cannot borrow a service-container env binding"
+
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i -e 's/repository:/Repository:/' -e 's/          ref:/          Ref:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "mixed-case checkout input names preserve a matching pin"

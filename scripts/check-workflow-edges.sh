@@ -159,6 +159,7 @@ first(paths as $p | select($p[-1] == $var) |
   select(
     (($p | length) == 2 and $p[0] == "env") or
     (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "env") or
+    (($p | length) == 5 and $p[0] == "jobs" and $p[2] == "container" and $p[3] == "env") or
     (($p | length) == 6 and $p[0] == "jobs" and $p[2] == "steps" and
       ($p[3] | type) == "number" and $p[4] == "env") or
     (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "with" and
@@ -175,7 +176,7 @@ end
 
 # hypatia_checkouts FILE — inspect cached real YAML nodes, never indentation.
 # jq checks typed jobs/steps/inputs and literal env bindings with step > job >
-# workflow priority. An uninspectable override never permits falling back.
+# workflow > job-container priority. An uninspectable override never falls back.
 hypatia_checkouts() {
   local workflow="$1" json status=0
   json="$(workflow_json "$workflow")" || status=$?
@@ -215,7 +216,10 @@ def inspect($root; $job; $entry):
     else ($inputs.ref | text) as $raw |
       (if ($raw | test("^\\$\\{\\{\\s*env\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\}\\}$"))
        then ($raw | capture("^\\$\\{\\{\\s*env\\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\}\\}$").name) as $name |
-            lookup([$step,$job.value,$root]; $name)
+            lookup([$step,$job.value,$root] +
+              (if ($job.value.container | type) == "object" then
+                 if ($job.value.container | has("env")) then [$job.value.container] else [] end
+               else [] end); $name)
        else {present:true,value:$raw} end) as $resolved |
       if ($resolved | has("error")) then bad($where; $resolved.error)
       elif ($resolved.present | not) then bad($where; "missing env binding for checkout ref")
