@@ -247,6 +247,7 @@ unset EDGES_REUSABLE_DIR
 
 echo "=== 12. Hypatia checkout refs participate in the one-tool pin contract ==="
 readonly PIN_REF='${{ env.PIN }}'
+readonly HYPATIA_REF_EXPR='${{ env.HYPATIA_SHA }}'
 checkout_fixture() {
     local ref="$1" binding="${2:-}"
     cat > "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<YML
@@ -315,17 +316,17 @@ expect_rc 1 "quoted mapping keys cannot hide a different Hypatia checkout pin"
 fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111 "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
 expect_rc 1 "a wrong literal checkout ref is caught even with the correct env pin"
 says "the disagreement identifies the actual checkout" "Hypatia checkout"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
 expect_rc 0 "an exact, uniquely declared workflow env binding resolves"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: &scanner "%s"' "$HSHA")"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: &scanner "%s"' "$HSHA")"
 expect_rc 0 "an anchored HYPATIA_SHA agrees with its decoded checkout ref"
 sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "an anchored HYPATIA_SHA cannot hide a wrong checkout pin"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  PIN: &scanner "%s"\n  HYPATIA_SHA: *scanner' "$HSHA")"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  PIN: &scanner "%s"\n  HYPATIA_SHA: *scanner' "$HSHA")"
 expect_rc 0 "an aliased HYPATIA_SHA agrees with its decoded checkout ref"
 sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "an aliased HYPATIA_SHA cannot hide a wrong checkout pin"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
 sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "an exact, uniquely declared binding in the same job resolves"
 fresh >/dev/null; checkout_fixture "$PIN_REF"
@@ -398,9 +399,9 @@ expect_rc 0 "a matching ref in a complete flow step is accepted"
 fresh >/dev/null; checkout_fixture "$HSHA"
 printf '      - *checkout-options\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "an undefined whole-step alias fails YAML parsing"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
 expect_rc 1 "an undefined checkout env binding is refused"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s\n  HYPATIA_SHA: %s' "$HSHA" "$HSHA")"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: %s\n  HYPATIA_SHA: %s' "$HSHA" "$HSHA")"
 expect_rc 1 "duplicate identical checkout env bindings are ambiguous"
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i '/          ref:/d' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
