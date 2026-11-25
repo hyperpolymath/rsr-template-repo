@@ -107,36 +107,22 @@ produced_artifacts() {
   ' "$1"
 }
 
-# env_pin FILE VAR — the first matching mapping value, including reusable inputs.
-# Decode YAML before comparing pins, as the checkout reader does: anchor syntax and
-# aliases are not part of a pin. Traverse entries in order before their siblings
-# so the first-match contract remains independent of a key's nesting depth.
-env_pin() {
-  local workflow="$1" var="$2"
-  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" |
-    jq -sr --arg var "$var" '
-def pins:
-  if type == "object" then to_entries[] |
-    if .key == $var then .value else .value | pins end
-  elif type == "array" then .[] | pins
-  else empty end;
-if length != 1 then error("expected exactly one YAML document")
-else first(.[0] | pins) |
-  if type == "object" or type == "array" then error("pin must be a scalar")
-  else tostring end
-end
-    '
-}
-
-
-# hypatia_checkouts FILE — inspect real YAML nodes, never source indentation.
+# workflow_json FILE — the process-local, validated JSON path (or raw-AST
+# rejection row with status 3). Key by absolute physical parent + filename,
+# preserving the full path inside the private cache rather than using basenames.
+# Failed decodes stay failed; never expose partial output to another lookup.
 # Reject duplicate mapping keys on the raw AST before aliases are expanded or
 # JSON is emitted; JSON conversion alone preserves/loses ambiguity downstream.
-# yq decodes anchors, aliases, block scalars and flow maps. jq then checks typed
-# jobs/steps/inputs and literal env bindings with step > job > workflow priority.
-# An uninspectable overriding scope is an error, never permission to fall back.
-hypatia_checkouts() {
-  local workflow="$1" preflight duplicates keys
+workflow_json() {
+  local source="$1" parent workflow cache preflight duplicates keys
+  parent="$(cd "$(dirname "$source")" && pwd -P)" || return 1
+  workflow="$parent/$(basename "$source")"
+  cache="$decoded_cache$workflow"
+  if [ -f "$cache.rejected" ]; then cat "$cache.rejected"; return 3; fi
+  if [ -f "$cache.json" ]; then printf '%s' "$cache.json"; return 0; fi
+  if [ -f "$cache.failed" ]; then return 1; fi
+  mkdir -p "$(dirname "$cache")" || return 1
+  : > "$cache.failed" || return 1
   preflight="$(yq -p yaml -o yaml -r -N '
     ([.. | select(kind == "map") | to_entries | group_by(.key) |
       .[] | select(length > 1)] | length) as $duplicates |
@@ -147,14 +133,54 @@ hypatia_checkouts() {
   while IFS=$'\t' read -r duplicates keys; do
     [[ "$duplicates" =~ ^[0-9]+$ && "$keys" =~ ^[0-9]+$ ]] || return 1
     if (( duplicates > 0 )); then
-      printf '!\tduplicate YAML mapping keys (raw AST)\n'; return 0
+      printf '!\tduplicate YAML mapping keys (raw AST)\n' > "$cache.rejected" || return 1
+      cat "$cache.rejected"; return 3
     fi
     if (( keys > 0 )); then
-      printf '!\taliased, complex or non-string YAML mapping keys are unsupported\n'; return 0
+      printf '!\taliased, complex or non-string YAML mapping keys are unsupported\n' > "$cache.rejected" || return 1
+      cat "$cache.rejected"; return 3
     fi
   done <<< "$preflight"
-  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" |
-    jq -sr '
+  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" > "$cache.tmp" || return 1
+  jq -se 'length == 1 and (.[0] | type) == "object"' "$cache.tmp" >/dev/null || return 1
+  mv "$cache.tmp" "$cache.json" || return 1
+  printf '%s' "$cache.json"
+}
+
+# env_pin FILE VAR — the first actual env binding or reusable-call input.
+# Input declarations and matching keys inside unrelated data are not bindings.
+# Validate before command substitution can strip a block scalar's final newline.
+env_pin() {
+  local workflow="$1" var="$2" json
+  json="$(workflow_json "$workflow")" || return 1
+  jq -r --arg var "$var" '
+. as $root |
+first(paths as $p | select($p[-1] == $var) |
+  select(
+    (($p | length) == 2 and $p[0] == "env") or
+    (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "env") or
+    (($p | length) == 6 and $p[0] == "jobs" and $p[2] == "steps" and
+      ($p[3] | type) == "number" and $p[4] == "env") or
+    (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "with" and
+      ($root.jobs[$p[1]].uses | type) == "string" and
+      ($root.jobs[$p[1]].uses | test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[^@]+@")))) |
+  $root | getpath($p)) |
+if type == "object" or type == "array" then error("pin must be a scalar")
+else tostring |
+  if test("\\s") then error("pin must not contain whitespace") else . end
+end
+  ' "$json"
+}
+
+# hypatia_checkouts FILE — inspect cached real YAML nodes, never indentation.
+# jq checks typed jobs/steps/inputs and literal env bindings with step > job >
+# workflow priority. An uninspectable override never permits falling back.
+hypatia_checkouts() {
+  local workflow="$1" json status=0
+  json="$(workflow_json "$workflow")" || status=$?
+  if [ "$status" -eq 3 ]; then printf '%s\n' "$json"; return 0; fi
+  [ "$status" -eq 0 ] || return 1
+  jq -sr '
 def text: gsub("^\\s+|\\s+$"; "");
 def row($pin; $where): [$pin, $where] | @tsv;
 def bad($where; $why): row("!"; $where + ": " + $why);
@@ -206,7 +232,7 @@ else .[0] as $root | $root.jobs | to_entries[] as $job |
   elif ($job.value.steps | type) != "array" then bad("workflow"; "job steps must be a sequence")
   else $job.value.steps | to_entries[] | inspect($root; $job; .) end
 end
-    '
+    ' "$json"
 }
 
 # reusable_calls FILE — every job-level reusable-workflow call in FILE
@@ -238,6 +264,9 @@ reusable_calls() {
 # A call that cannot be read is a setup error (exit 2), never a pass: the edge
 # through it would be unverified.
 reusable_cache="$(mktemp -d)"
+trap 'rm -rf "$reusable_cache"' EXIT
+decoded_cache="$reusable_cache/decoded"
+mkdir -p "$decoded_cache"
 reusable_source() {
   local call="$1" spec ref owner repo path out
   spec="${call%@*}"; ref="${call##*@}"
@@ -280,8 +309,8 @@ if [ -z "$edges" ]; then
   fail "verdict-grid-publish.yml declares no workflow_run trigger: the verdict grid would never re-render after a scanner finishes"
 fi
 
-names_file="$(mktemp)"
-trap 'rm -rf "$names_file" "$reusable_cache"' EXIT
+names_file="$reusable_cache/names"
+: > "$names_file"
 for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   [ -e "$wf" ] || continue
   n="$(workflow_name "$wf")"
@@ -382,8 +411,8 @@ done
 # panic-attack is pinned once for its scan and once for patch-bridge triage; the
 # pair must agree, which is why both use env.PANIC_ATTACK_SHA. A literal second
 # pin in another workflow is the clash this catches.
-pins_file="$(mktemp)"
-trap 'rm -rf "$names_file" "$pins_file" "$reusable_cache"' EXIT
+pins_file="$reusable_cache/pins"
+: > "$pins_file"
 for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   [ -e "$wf" ] || continue
   for var in HYPATIA_SHA HYPATIA_REF PANIC_ATTACK_SHA PONS_SHA; do

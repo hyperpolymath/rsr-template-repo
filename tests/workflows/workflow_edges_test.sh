@@ -215,6 +215,12 @@ expect_rc 0 "an aliased reusable hypatia-ref scalar matches the verdict pin"
 sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "an aliased reusable hypatia-ref cannot hide a wrong pin"
 
+fresh >/dev/null; reusable; delegate "$HSHA"
+sed -i '/^  workflow_dispatch:/a\    inputs:\n      hypatia-ref:\n        type: string' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "a dispatch input declaration cannot shadow a reusable pin binding"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "an input declaration cannot hide a wrong reusable pin binding"
+
 fresh >/dev/null; reusable; delegate
 expect_rc 1 "a reusable producer that passes no hypatia-ref is caught"
 says "the failure says the default runs instead" "without passing hypatia-ref"
@@ -326,6 +332,17 @@ fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  PIN: &
 expect_rc 0 "an aliased HYPATIA_SHA agrees with its decoded checkout ref"
 sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "an aliased HYPATIA_SHA cannot hide a wrong checkout pin"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
+sed -i '/^jobs:/i\on:\n  workflow_call:\n    inputs:\n      HYPATIA_SHA:\n        type: string' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "a workflow-call input declaration cannot shadow an actual env pin"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a workflow-call declaration cannot hide a wrong actual env pin"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: |-\n    %s' "$HSHA")"
+expect_rc 0 "a chomped block scalar supplies the exact HYPATIA_SHA"
+sed -i 's/HYPATIA_SHA: |-/HYPATIA_SHA: |/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a block scalar trailing newline is refused before shell substitution"
+says "the decoded whitespace rejection is explicit" "pin must not contain whitespace"
 fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
 sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "an exact, uniquely declared binding in the same job resolves"
@@ -549,19 +566,49 @@ PATH="$WORK/no-tools" expect_rc 2 "missing parser tools are a clear setup failur
 says "the setup diagnostic names Mike Farah yq and jq" "setup requires Mike Farah yq"
 
 fresh >/dev/null
+mkdir -p "$WORK/counting-parser"
+EDGES_REAL_YQ="$(command -v yq)"
+EDGES_DECODE_LOG="$WORK/decode-log"
+export EDGES_REAL_YQ EDGES_DECODE_LOG
+: > "$EDGES_DECODE_LOG"
+cat > "$WORK/counting-parser/yq" <<'SH'
+#!/usr/bin/env bash
+case "$*" in *'explode(.)'*) printf '%s\n' "${!#}" >> "$EDGES_DECODE_LOG" ;; esac
+exec "$EDGES_REAL_YQ" "$@"
+SH
+chmod +x "$WORK/counting-parser/yq"
+PATH="$WORK/counting-parser:$PATH" expect_rc 0 "cached workflow decoding preserves the shipped verdict"
+if [ -s "$EDGES_DECODE_LOG" ] && [ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]; then
+    ok "each workflow is decoded at most once per checker process"
+else
+    bad "workflow decoding was absent or repeated despite the cache"
+fi
+
+fresh >/dev/null
 mkdir -p "$WORK/failing-parser"
 cat > "$WORK/failing-parser/yq" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
   *--version*) echo 'yq (https://github.com/mikefarah/yq/) version v4.53.3' ;;
-  *'explode(.)'*) printf '{"jobs":{}}\n'; exit 17 ;;
+  *'explode(.)'*)
+    printf '%s\n' "${!#}" >> "$EDGES_DECODE_LOG"
+    if [ "${EDGES_INVALID_DECODE:-}" = documents ]; then printf '{}\n{}\n'; exit 0; fi
+    printf '{"jobs":{}}\n'; exit 17 ;;
   *) printf '0\t0\n' ;;
 esac
 SH
 chmod +x "$WORK/failing-parser/yq"
+: > "$EDGES_DECODE_LOG"
 PATH="$WORK/failing-parser:$PATH" expect_rc 1 "a failing decode cannot disappear behind valid empty JSON output"
 says "the captured parser failure is reported" "checkout refs could not be inspected"
 says "env pin extraction also preserves a failing decoder's status" "HYPATIA_SHA pin could not be inspected"
+if [ -s "$EDGES_DECODE_LOG" ] && [ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]; then
+    ok "a failed decode is cached without retrying or publishing partial JSON"
+else
+    bad "a failed workflow decode was absent or retried"
+fi
+: > "$EDGES_DECODE_LOG"
+EDGES_INVALID_DECODE=documents PATH="$WORK/failing-parser:$PATH" expect_rc 1 "successful decoder output must still validate before entering the cache"
 
 echo ""
 if [ "$fail" -ne 0 ]; then
