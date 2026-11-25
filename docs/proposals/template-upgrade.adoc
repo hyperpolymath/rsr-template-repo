@@ -78,6 +78,7 @@ per-path decision and the guards; the replay is reused unchanged.
 `(variant (paths))` declarations. Refuse if any is missing, if the template
 checkout is shallow or lacks PIN, or if PIN is not an ancestor of the target
 (NEW): a downgrade or a different line of history is not an upgrade.
+. Refuse a deed that does not declare `(variant (paths :added :removed :diverged))` as lists, *before any replay*: an unreadable declaration is not an empty one, and reading it as "the repo owns nothing" would disable the owner protection.
 . Refuse a sparse checkout or an unresolved merge (a chain mint refuses the same
 two). `--apply` also refuses a dirty tree.
 . OLD = `replay-mint.sh` at PIN with the answers; NEW = the same at the target.
@@ -100,6 +101,8 @@ never recorded) stops the whole run before anything is compared.
 |repo deleted it, template changed it |leave deleted |`CHILD-REMOVED`
 |both changed, text, no overlap |git's three-way merge |`MERGED` (review it)
 |both changed, overlapping |markers: `repo` / `mint@PIN` / `template@NEW` |`CONFLICT`
+|…and the template changes an SPDX or copyright line there |nothing (markers around two licence claims are still an edit) |`LICENCE-HELD`
+|NEW adds a path where the repo has an ignored or untracked file, or a file where a directory is needed |nothing: never overwrite what git cannot restore |`OCCUPIED`
 |both changed, binary or link |keep the repo's |`CONFLICT-UNMERGED`
 |===
 
@@ -108,7 +111,7 @@ never recorded) stops the whole run before anything is compared.
 through `scripts/deed-clause.sh set`, and commits.
 
 Exit status is 0, or 3 if anything needs a human (`CONFLICT`,
-`CONFLICT-UNMERGED`, `MODIFY-DELETE`, `LICENCE-HELD`): *fail loudly*, in the dry
+`CONFLICT-UNMERGED`, `MODIFY-DELETE`, `LICENCE-HELD`, `OCCUPIED`): *fail loudly*, in the dry
 run too, so a CI job can gate on it.
 
 === Why this is the right shape
@@ -125,8 +128,7 @@ is claimed (<<limits>>).
 Held in `scripts/upgrade-mint.sh` (`protected()`, `owner_held()`,
 `licence_lines()`), listed in the report, never written:
 
-* *Licences* (doctrine 6, "no automated licence edits — ever"): `LICENSE*`,
-`LICENCE*`, `COPYING*`, `UNLICENSE*`, `LICENSES/**`. Beyond whole files: if the
+* *Licences* (doctrine 6, "no automated licence edits — ever"): any file whose name begins `LICENSE`, `LICENCE`, `COPYING` or `UNLICENSE` (so `LICENSE_HEADER` and `COPYING-GPL` too), and `LICENSES/**`. Beyond whole files: if the
 new version of any other file would change a line that *is* a licence claim
 (`SPDX-License-Identifier`, `SPDX-FileCopyrightText`, `SPDX-FileContributor`,
 `Copyright (c)` after a comment leader), the file is held, not written. A script
@@ -171,7 +173,8 @@ It does not push. `--no-commit` leaves the plan staged instead.
 commit and whose parent is the recorded base; back to the original branch (or the
 base commit, detached) and the local branch deleted. A pushed branch is deleted
 by hand, and the command prints the line.
-* A downgrade, a no-op (`already at …`) and a non-clean `--apply` are refused.
+* A downgrade, a no-op (`already at …`), a non-clean `--apply`, a branch not named `upgrade/rsr-*`, no git identity, and a deed without its `(variant (paths))` declarations are refused, before any replay or write.
+* Apply runs in dependency order: removals first (files and links only, never a directory), then writes. A file that becomes a directory of the same name, or the reverse, therefore works; where the repo holds something the plan cannot safely replace the path is `OCCUPIED`.
 
 == Inferring the pin when none is recorded
 

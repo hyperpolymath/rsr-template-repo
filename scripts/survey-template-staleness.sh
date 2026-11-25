@@ -82,6 +82,8 @@ if [ "$(git -C "$TEMPLATE" rev-parse --is-shallow-repository)" = true ]; then
     git -C "$TEMPLATE" fetch -q --unshallow origin 2>/dev/null \
         || git -C "$TEMPLATE" fetch -q --depth=100000 origin \
         || { echo "survey-template-staleness: cannot deepen $TEMPLATE; the stale class needs full history" >&2; exit 1; }
+    [ "$(git -C "$TEMPLATE" rev-parse --is-shallow-repository)" = false ] \
+        || { echo "survey-template-staleness: $TEMPLATE is still shallow after fetching; the stale class needs complete history, so nothing was counted" >&2; exit 1; }
 fi
 git -C "$TEMPLATE" rev-parse -q --verify "$REF^{commit}" >/dev/null \
     || { echo "survey-template-staleness: $REF is not a commit of $TEMPLATE" >&2; exit 1; }
@@ -96,7 +98,7 @@ git -C "$TEMPLATE" ls-tree -r -z "$TIP" \
     | sort -u > "$W/head.tsv"
 {
     cat "$W/head.tsv"
-    git -C "$TEMPLATE" log --format= --raw -r --no-renames --root --no-abbrev -z --diff-filter=AMT "$TIP" \
+    git -C "$TEMPLATE" log --format= --raw -r --no-renames --root --no-abbrev -z --diff-filter=AMT --diff-merges=first-parent "$TIP" \
         | awk 'BEGIN { RS = "\0" }
                /^:/ { split($0, f, " "); mode = f[2]; blob = f[4]; getline p; if (mode != "160000") print p "\t" blob }'
 } | sort -u > "$W/ever.tsv"

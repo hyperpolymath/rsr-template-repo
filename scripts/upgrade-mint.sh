@@ -141,11 +141,20 @@ if [ "$MODE" = apply ] && [ "$DIRTY" = 1 ]; then die "--apply needs a clean work
 if [ "$MODE" = apply ] && [ "$NOCOMMIT" = 0 ] && ! git -C "$CDIR" var GIT_COMMITTER_IDENT >/dev/null 2>&1; then
     die "--apply commits as this repo's git identity and none is set (git config user.name / user.email); set one, or pass --no-commit to leave the plan staged. Nothing was written"
 fi
+# The owner's declarations decide what is never written: refuse before any replay when the deed
+# cannot state them (an unreadable list is not an empty list).
+bash "$READ" --has "$DEED" variant/paths \
+    || die "$DEEDREL has no (variant (paths …)) clause, so what this repo owns cannot be known; nothing was written"
+for _k in added removed diverged; do
+    bash "$READ" --list "$DEED" variant/paths "$_k" >/dev/null 2>&1 \
+        || die "(variant (paths :$_k …)) in $DEEDREL is missing or not a list; nothing was written"
+done
 ORIG_BRANCH="$(git -C "$CDIR" rev-parse --abbrev-ref HEAD)"
 BASE_COMMIT="$(git -C "$CDIR" rev-parse HEAD)"
 BRANCH="${BRANCH:-upgrade/rsr-${NEW:0:12}}"
 if [ "$MODE" = apply ]; then
     git -C "$CDIR" check-ref-format --branch "$BRANCH" >/dev/null 2>&1 || die "'$BRANCH' is not a branch name"
+    case "$BRANCH" in upgrade/rsr-?*) ;; *) die "the branch must be named upgrade/rsr-<something> (--rollback only recognises that form); got '$BRANCH'" ;; esac
     ! git -C "$CDIR" show-ref --verify --quiet "refs/heads/$BRANCH" || die "branch $BRANCH already exists; roll it back or pass --branch"
 fi
 
@@ -166,7 +175,7 @@ files() { # DIR [own] — the repository's own files, one per line
     local gx=g; [ "${2:-}" = own ] && gx=git
     "$gx" -C "$1" -c core.hooksPath=/dev/null ls-files -z --cached --others --exclude-standard \
         | while IFS= read -r -d '' f; do
-            case "$f" in *$'\n'*) echo "upgrade-mint: cannot handle a path containing a newline: $(printf '%q' "$f")" >&2; exit 2 ;; esac
+            case "$f" in *$'\n'*|*$'\t'*) echo "upgrade-mint: cannot handle a path containing a newline or tab: $(printf '%q' "$f")" >&2; exit 2 ;; esac
             if [ -e "$1/$f" ] || [ -L "$1/$f" ]; then printf '%s\n' "$f"; fi
         done | sort -u
 }
@@ -179,9 +188,18 @@ same() { # A B — identical as git would record them (content, owner exec bit, 
     { ux "$1" && ux "$2"; } || { ! ux "$1" && ! ux "$2"; } || return 1
     cmp -s "$1" "$2"
 }
-section() { bash "$READ" --list "$DEED" variant/paths "$1" 2>/dev/null || true; }
+# The owner's declarations decide what is never written, so a deed that cannot state them
+# is refused: an unreadable list is not an empty list. (paths :added :removed :diverged)
+# are written by every mint; :diverged-pending-upstream and :operational-state are optional.
+bash "$READ" --has "$DEED" variant/paths \
+    || die "$DEEDREL has no (variant (paths …)) clause, so what this repo owns cannot be known; nothing was written"
+section() { # KEY — the entries of (variant (paths :KEY …)); refuses an unreadable required list
+    local out
+    if out="$(bash "$READ" --list "$DEED" variant/paths "$1" 2>/dev/null)"; then printf '%s' "$out"
+    else case "$1" in added|removed|diverged) die "(variant (paths :$1 …)) in $DEEDREL is missing or not a list; nothing was written" ;; esac; fi
+}
 ADDED="$(section added)"; REMOVED="$(section removed)"
-DIVERGED="$(section diverged; section diverged-pending-upstream)"; OPSTATE="$(section operational-state)"
+DIVERGED="$(section diverged; echo; section diverged-pending-upstream)"; OPSTATE="$(section operational-state)"
 covers() { # P LIST — 0 if an entry of LIST covers P (a trailing / covers a directory)
     local e
     while IFS= read -r e; do
@@ -201,7 +219,7 @@ protected() { # P -> reason, or nothing
     local b="${1##*/}" lb
     lb="$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')"
     case "$lb" in
-        license|license.*|licence|licence.*|license-*|licence-*|copying|copying.*|unlicense|unlicense.*) echo "licence file"; return ;;
+        license*|licence*|copying*|unlicense*) echo "licence file"; return ;;
     esac
     case "/$1" in
         */LICENSES/*|*/LICENCES/*|*/licenses/*|*/licences/*) echo "licence directory"; return ;;
@@ -237,6 +255,15 @@ OUTF="$SCRATCH/result"; mkdir -p "$OUTF"
 files "$OLD_DIR" > "$SCRATCH/old.files"; files "$NEW_DIR" > "$SCRATCH/new.files"; files "$CDIR" own > "$SCRATCH/own.files"
 sort -u "$SCRATCH/old.files" "$SCRATCH/new.files" "$SCRATCH/own.files" > "$SCRATCH/all.files"
 has() { grep -qxF -- "$2" "$SCRATCH/$1.files"; }
+declare -A DELETING=()   # paths this plan deletes (a file may make way for a directory of the same name)
+blocked_parent() { # P — a parent directory of P is a file or link in the repo that this plan does not delete
+    local p="$1"
+    while case "$p" in */*) p="${p%/*}"; true ;; *) false ;; esac; do
+        if { [ -e "$CDIR/$p" ] || [ -L "$CDIR/$p" ]; } && [ ! -d "$CDIR/$p" ] && [ -z "${DELETING[$p]:-}" ]; then return 0; fi
+    done
+    return 1
+}
+mfile() { printf '%s/%s' "$OUTF" "$(printf '%s' "$1" | sha1sum | cut -d' ' -f1)"; }   # one result file per path, never shared
 note() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$PLAN"; }
 
 # the file's version in each tree, or absent: o=OLD, n=NEW, c=repo
@@ -255,13 +282,20 @@ while IFS= read -r p; do
     c_eq_n=0; [ $inn = 1 ] && [ $inc = 1 ] && same "$C" "$N" && c_eq_n=1
     [ $c_eq_n = 1 ] && continue   # already what the new mint has
     if [ $inn = 0 ]; then         # the template dropped it
-        if [ $c_eq_o = 1 ]; then note DELETE "$p" "unchanged since the mint; the template removed it"
+        if [ $c_eq_o = 1 ]; then DELETING["$p"]=1; note DELETE "$p" "unchanged since the mint; the template removed it"
         elif [ $inc = 1 ]; then note MODIFY-DELETE "$p" "the repo edited it and the template removed it: kept, for a human"
         fi
         continue
     fi
     if [ $inc = 0 ]; then
-        if [ $ino = 0 ]; then note ADD "$p" "new in the template"
+        if [ $ino = 0 ]; then
+            # the repo's file list leaves out ignored and untracked-ignored files: something may
+            # still sit here (or on the way), and copying over it would destroy bytes git cannot restore
+            if [ -e "$C" ] || [ -L "$C" ]; then
+                note OCCUPIED "$p" "the template adds it but an ignored or untracked path is already here: left alone, for a human"
+            elif blocked_parent "$p"; then
+                note OCCUPIED "$p" "the template adds it but a parent of it is a file in the repo: left alone, for a human"
+            else note ADD "$p" "new in the template"; fi
         else note CHILD-REMOVED "$p" "the repo deleted it and the template changed it: left deleted"; fi
         continue
     fi
@@ -277,9 +311,14 @@ while IFS= read -r p; do
         note CONFLICT-UNMERGED "$p" "both changed; a link or binary cannot carry markers: kept as the repo has it"; continue
     fi
     B="$O"; [ $ino = 1 ] || B=/dev/null
-    M="$OUTF/$(printf '%s' "$p" | tr '/' '%')"
+    M="$(mfile "$p")"
     rc=0; git merge-file -p -L "repo" -L "mint@${PIN:0:12}" -L "template@${NEW:0:12}" "$C" "$B" "$N" > "$M" 2>/dev/null || rc=$?
     if [ "$rc" -ge 128 ]; then note CONFLICT-UNMERGED "$p" "both changed; git could not merge it: kept as the repo has it"; continue; fi
+    # a conflict may not carry a licence claim the template changed either: markers around two
+    # versions of an SPDX line are still a licence edit made by automation
+    if [ "$rc" -gt 0 ] && [ "$(licence_lines "$B")" != "$(licence_lines "$N")" ]; then
+        note LICENCE-HELD "$p" "both changed and the template changes an SPDX or copyright line; not written"; continue
+    fi
     if [ "$rc" -gt 0 ]; then note CONFLICT "$p" "$rc overlapping region(s), written with markers"; continue; fi
     if [ "$(licence_lines "$C")" != "$(licence_lines "$M")" ]; then
         note LICENCE-HELD "$p" "the merge would change an SPDX or copyright line; not written"; continue
@@ -293,11 +332,11 @@ count() { awk -F'\t' -v s="$1" '$1 == s' "$SCRATCH/plan.sorted" | wc -l | tr -d 
 {
     echo "# upgrade ${SLUG:-template} ${PIN:0:12} -> ${NEW:0:12} for $(basename "$CDIR")  [$MODE]"
     cat "$SCRATCH/plan.sorted"
-    echo "# summary: fast-forward $(count FAST-FORWARD), add $(count ADD), delete $(count DELETE), merged $(count MERGED), conflict $(count CONFLICT), conflict-unmerged $(count CONFLICT-UNMERGED), modify-delete $(count MODIFY-DELETE), child-removed $(count CHILD-REMOVED), protected $(count PROTECTED), owner-held $(count OWNER-HELD), licence-held $(count LICENCE-HELD)"
+    echo "# summary: fast-forward $(count FAST-FORWARD), add $(count ADD), delete $(count DELETE), merged $(count MERGED), conflict $(count CONFLICT), conflict-unmerged $(count CONFLICT-UNMERGED), modify-delete $(count MODIFY-DELETE), child-removed $(count CHILD-REMOVED), protected $(count PROTECTED), owner-held $(count OWNER-HELD), licence-held $(count LICENCE-HELD), occupied $(count OCCUPIED)"
 } > "$SCRATCH/report.txt"
 cat "$SCRATCH/report.txt"
 [ -z "$REPORT" ] || cp "$SCRATCH/report.txt" "$REPORT"
-NEEDS_HUMAN=$(( $(count CONFLICT) + $(count CONFLICT-UNMERGED) + $(count MODIFY-DELETE) + $(count LICENCE-HELD) ))
+NEEDS_HUMAN=$(( $(count CONFLICT) + $(count CONFLICT-UNMERGED) + $(count MODIFY-DELETE) + $(count LICENCE-HELD) + $(count OCCUPIED) ))
 
 if [ "$MODE" = dry ]; then
     echo "upgrade-mint: dry run; nothing was written. Re-run with --apply to write branch $BRANCH." >&2
@@ -308,16 +347,21 @@ fi
 
 # ── apply ───────────────────────────────────────────────────────────────────
 git -C "$CDIR" switch -q -c "$BRANCH"
+# Two passes, in dependency order: removals first (a file may make way for a directory of the
+# same name, and the reverse is refused at plan time), then everything that writes. Only files and
+# links are ever removed, never a directory; a directory emptied by the removals is left for git.
 while IFS=$'\t' read -r st p _; do
-    [ -n "$st" ] || continue
+    [ "$st" = DELETE ] || continue
+    if [ -f "$CDIR/$p" ] || [ -L "$CDIR/$p" ]; then rm -f "$CDIR/$p"; fi
+done < "$SCRATCH/plan.sorted"
+while IFS=$'\t' read -r st p _; do
     case "$st" in
         FAST-FORWARD|ADD)
             mkdir -p "$(dirname "$CDIR/$p")"
-            rm -f "$CDIR/$p"; cp -P -p "$NEW_DIR/$p" "$CDIR/$p" ;;
-        DELETE) rm -f "$CDIR/$p" ;;
+            if [ "$st" = FAST-FORWARD ]; then rm -f "$CDIR/$p"; fi   # an ADD never replaces: the plan refused an occupied path
+            cp -P -p "$NEW_DIR/$p" "$CDIR/$p" ;;
         MERGED|CONFLICT)
-            M="$OUTF/$(printf '%s' "$p" | tr '/' '%')"
-            cat "$M" > "$CDIR/$p" ;;      # keeps the repo file's own mode
+            cat "$(mfile "$p")" > "$CDIR/$p" ;;      # keeps the repo file's own mode
     esac
 done < "$SCRATCH/plan.sorted"
 # the one deed edit: record the pin the repo now stands on
@@ -338,7 +382,7 @@ else
         echo "${PIN}, theirs = the same mint at ${NEW}, ours = this repo."
         echo
         sed -n 's/^# summary: /Summary: /p' "$SCRATCH/report.txt"
-        awk -F'\t' '$1 ~ /^(CONFLICT|CONFLICT-UNMERGED|MODIFY-DELETE|LICENCE-HELD|MERGED)$/ { print "  " $1 ": " $2 }' "$SCRATCH/plan.sorted"
+        awk -F'\t' '$1 ~ /^(CONFLICT|CONFLICT-UNMERGED|MODIFY-DELETE|LICENCE-HELD|OCCUPIED|MERGED)$/ { print "  " $1 ": " $2 }' "$SCRATCH/plan.sorted"
         echo
         echo "RSR-Upgrade-Base: $BASE_COMMIT"
         echo "RSR-Upgrade-From-Branch: $ORIG_BRANCH"

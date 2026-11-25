@@ -33,6 +33,7 @@
 # Needs just, rustc, uuidgen, nickel, yq (a mint's own tools). Network-free.
 # Usage: bash tests/e2e/upgrade_test.sh [--keep]
 set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX GIT_NAMESPACE   # a caller's repository location must not redirect the fixtures
 repo=$(git rev-parse --show-toplevel)
 work=$(mktemp -d)
 if [ "${1:-}" = "--keep" ]; then echo "keeping $work"; else trap 'rm -rf "$work"' EXIT; fi
@@ -177,6 +178,7 @@ Y=$(pick) || fail "no suitable file Y"; skip="$skip $Y"
 Z=$(pick "SPDX-License-Identifier") || fail "no suitable file Z"; skip="$skip $Z"
 D=$(pick) || fail "no suitable file D"; skip="$skip $D"
 D2=$(pick) || fail "no suitable file D2"
+skip="$skip $D2"; W=$(pick "SPDX-License-Identifier") || fail "no suitable file W"
 LIC=LICENSE; [ -f "$B/$LIC" ] || fail "the child has no LICENSE"
 LICDIR=$(g -C "$B" ls-files 'LICENSES/*' | head -1); [ -n "$LICDIR" ] || fail "the child has no LICENSES/ file"
 # status and proof files are rendered by the mint (self-name), so they never equal the template blob;
@@ -197,6 +199,10 @@ printf '\n(synthetic template edit of a licence text file)\n' >> "$T/$LICDIR"
 printf '\n// synthetic template edit of a status file\n' >> "$T/$ST1"
 printf '\n# synthetic template edit of a receipt\n' >> "$T/$ST2"
 git -C "$T" rm -q -f "$D" "$D2"
+# D2 (a file) becomes a DIRECTORY of the same name; W's licence claim changes; a path the child has ignored gets a new file
+mkdir -p "$T/$D2" && printf 'inner\n' > "$T/$D2/inner.txt"
+sedl "s|^\(.*SPDX-License-Identifier:\).*|\1 MPL-2.0 AND template-claim|" "$W"
+printf '#!/usr/bin/env bash\necho occupied\n' > "$T/scripts/zz-occupied.sh"
 printf '#!/usr/bin/env bash\n# SPDX-License-Identifier: MPL-2.0\necho synthetic new file\n' > "$T/scripts/zz-upgrade-fixture-new.sh"
 g -C "$T" add -A; g -C "$T" commit -q -m "synthetic template change"
 SYN=$(g -C "$T" rev-parse HEAD); g -C "$T" checkout -q main
@@ -216,8 +222,10 @@ sedl2 "30s|.*|# the child's own edit of line 30|" "$X"          # far from the t
 sedl2 "5s|.*|# the child's own, different, edit of line 5|" "$Y" # the same line
 sedl2 "3s|.*|# the child's own edit of the file the template deletes|" "$D"
 printf 'owner content\n' > "$B/OWNER-NOTES.txt"
+sedl2 "s|^\(.*SPDX-License-Identifier:\).*|\1 MPL-2.0 AND child-claim|" "$W"
+printf 'mine\n' > "$B/scripts/zz-occupied.sh"; echo "scripts/zz-occupied.sh" >> "$B/.git/info/exclude"
 g -C "$B" add -A; g -C "$B" commit -q -m "child's own work"
-sums() { (cd "$B" && sha256sum "$LIC" "$LICDIR" "$ST1" "$ST2" OWNER-NOTES.txt "$Z" "$D" "$Y"); }
+sums() { (cd "$B" && sha256sum "$LIC" "$LICDIR" "$ST1" "$ST2" OWNER-NOTES.txt "$Z" "$D" "$Y" "$W" scripts/zz-occupied.sh); }
 sums_before="$(sums)"
 head_before=$(g -C "$B" rev-parse HEAD)
 bash "$UP" --template "$T" --to "$SYN" --child "$B" > "$work/b.dry" 2> "$work/b.dry.err" && rc=0 || rc=$?
@@ -225,6 +233,7 @@ bash "$UP" --template "$T" --to "$SYN" --child "$B" > "$work/b.dry" 2> "$work/b.
 row() { grep -q "^$1	$2	" "$work/b.dry" || { cat "$work/b.dry" >&2; fail "B: expected $1 for $2"; }; }
 row MERGED "$X"; row CONFLICT "$Y"; row LICENCE-HELD "$Z"; row PROTECTED "$LIC"; row PROTECTED "$LICDIR"; row PROTECTED "$ST1"; row PROTECTED "$ST2"
 row MODIFY-DELETE "$D"; row DELETE "$D2"; row ADD scripts/zz-upgrade-fixture-new.sh
+row LICENCE-HELD "$W"; row OCCUPIED scripts/zz-occupied.sh; row ADD "$D2/inner.txt"
 ! grep -q "OWNER-NOTES" "$work/b.dry" || fail "B: the owner's own file appears in the plan"
 [ "$(g -C "$B" rev-parse HEAD)" = "$head_before" ] && [ -z "$(g -C "$B" status --porcelain)" ] || fail "B: the dry run wrote to the child"
 pass "B: dry run classifies MERGED, CONFLICT, LICENCE-HELD, PROTECTED (licence, licence text, status doc, receipt), MODIFY-DELETE, DELETE, ADD, and exits 3"
@@ -241,8 +250,10 @@ grep -q "the child's own edit of line 30" "$B/$X" && grep -q "synthetic template
     && ! grep -q '^<<<<<<<' "$B/$X" || fail "B: $X did not merge both edits cleanly"
 # modify/delete: the child's edited file is kept as the child has it; unchanged one is gone; new one is there
 grep -q "the child's own edit of the file the template deletes" "$B/$D" || fail "B: the child's edited $D was not kept"
-[ ! -e "$B/$D2" ] || fail "B: the unchanged $D2 was not deleted"
+[ ! -f "$B/$D2" ] && [ -f "$B/$D2/inner.txt" ] || fail "B: the file-to-directory transition did not land (delete the file first, then add the directory)"
 [ -f "$B/scripts/zz-upgrade-fixture-new.sh" ] || fail "B: the new file was not added"
+grep -q "child-claim" "$B/$W" && ! grep -q -e "template-claim" -e '^<<<<<<<' "$B/$W" || fail "B: a conflicted licence claim was written (it must be held, file untouched)"
+[ "$(cat "$B/scripts/zz-occupied.sh")" = mine ] || fail "B: an ignored file occupying a path the template adds was overwritten"
 # THE NEGATIVE TEST: licence files, licence line, the deed's identity, owner content: bytes unchanged
 sums_after="$(sums)"
 # (Y is expected to change: it holds markers; compare everything else)
@@ -266,4 +277,13 @@ echo x >> "$B/OWNER-NOTES.txt"
 bash "$UP" --template "$T" --to "$SYN" --child "$B" --apply >/dev/null 2>&1 && fail "B: --apply accepted a dirty tree"
 [ -z "$(g -C "$B" branch --list 'upgrade/*')" ] || fail "B: a refused --apply left a branch"
 pass "a dirty work tree refuses --apply and writes nothing"
+# a deed that does not declare what the repo owns cannot be upgraded: refused, not read as "owns nothing"
+NP="$work/no-paths"; g clone -q "$A" "$NP"
+NPD="$(bash "$repo/scripts/deed-field.sh" --find "$NP")"
+sed -i 's/^\([[:space:]]*\)(paths$/\1(pathz/' "$NPD"
+bash "$repo/scripts/deed-field.sh" --has "$NPD" variant/paths && fail "the no-paths fixture still has (variant (paths))"
+g -C "$NP" commit -q -am "deed without (paths)"
+if bash "$UP" --template "$T" --to "$TIP" --child "$NP" > "$work/np.out" 2>&1; then fail "a deed without (variant (paths)) was upgraded"; fi
+grep -q "has no (variant (paths" "$work/np.out" && ! grep -q "replaying" "$work/np.out" || { cat "$work/np.out" >&2; fail "the missing-declaration refusal was not clean (it must come before any replay)"; }
+pass "a deed with no (variant (paths)) is refused before any replay"
 echo "ALL PASS"
