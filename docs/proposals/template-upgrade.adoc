@@ -199,7 +199,7 @@ as base.
 
 Procedure for an owner-approved pass:
 
-. Re-run the survey for the day; take `stale-files.tsv`.
+. Re-run `survey-template-staleness.sh --own-pin recorded` (or `infer`) for the day; take `own-pin.tsv`.
 . Keep only files that *equal the template at that repo's own pin* (the narrowed scope,
 below), and only *copied boilerplate*: remove everything <<never>> forbids (licences,
 status and proof state, deeds) and hold *workflow files* for a second pass, because a
@@ -212,7 +212,18 @@ bypassed (doctrine 5).
 . This needs a `--refresh` mode on `upgrade-mint.sh` (same classifier and guards,
 base = the matching old blob, no replay). Not written here; see decision 4.
 
-Candidates, as measured on 2026-11-25: `template-upgrade-candidates-2026-11-25.tsv`
+*Narrowed scope (hub correction, mathesis#126 38d8311).* Refresh only files that exactly equal the
+mint at that repo's *own* recorded pin; the 12,582 figure is an upper bound, because "equal to some older
+version" does not say it is the version the repo came from. Recount, `--own-pin infer`, 2026-11-25, 273 repos:
+*0 repos record a pin, 0 yield a unique inferred pin, so 0 files qualify today.* The upper bound is
+2,768. Inference is not a near miss: for `dictask` the best commit matches 301 of 502 files and the next two
+299 (three commits, 2026-09-22 to 09-28); for `session-sentinel` 182 of 350 for several commits across
+May. Template commits touch few files each, so a repo that has edited a few cannot be placed. The narrowed
+refresh therefore needs recorded pins first (decision 2); the candidate list below is the *upper bound*, not a
+work list. The measure is blob equality with the template at the pin, an upper bound on equality with the
+replayed mint (no replay is possible without answers).
+
+Upper-bound candidates, as measured on 2026-11-25: `template-upgrade-candidates-2026-11-25.tsv`
 in this directory, one row per surveyed repo (`stale_refreshable` excludes the
 never-touch classes). Ten repos hold 50 or more stale files; `dictask` (118
 refreshable), `lithoglyphdb` (97) and `session-sentinel` (90) lead.
