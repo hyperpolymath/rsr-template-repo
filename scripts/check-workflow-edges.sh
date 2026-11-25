@@ -118,9 +118,9 @@ workflow_json() {
   parent="$(cd "$(dirname "$source")" && pwd -P)" || return 1
   workflow="$parent/$(basename "$source")"
   cache="$decoded_cache$workflow"
-  if [ -f "$cache.rejected" ]; then cat "$cache.rejected"; return 3; fi
-  if [ -f "$cache.json" ]; then printf '%s' "$cache.json"; return 0; fi
-  if [ -f "$cache.failed" ]; then return 1; fi
+  if [[ -f "$cache.rejected" ]]; then cat "$cache.rejected"; return 3; fi
+  if [[ -f "$cache.json" ]]; then printf '%s' "$cache.json"; return 0; fi
+  if [[ -f "$cache.failed" ]]; then return 1; fi
   mkdir -p "$(dirname "$cache")" || return 1
   : > "$cache.failed" || return 1
   preflight="$(yq -p yaml -o yaml -r -N '
@@ -178,8 +178,8 @@ end
 hypatia_checkouts() {
   local workflow="$1" json status=0
   json="$(workflow_json "$workflow")" || status=$?
-  if [ "$status" -eq 3 ]; then printf '%s\n' "$json"; return 0; fi
-  [ "$status" -eq 0 ] || return 1
+  if [[ "$status" -eq 3 ]]; then printf '%s\n' "$json"; return 0; fi
+  [[ "$status" -eq 0 ]] || return 1
   jq -sr '
 def text: gsub("^\\s+|\\s+$"; "");
 def row($pin; $where): [$pin, $where] | @tsv;

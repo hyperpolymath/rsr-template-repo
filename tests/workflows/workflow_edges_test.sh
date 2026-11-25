@@ -578,7 +578,7 @@ exec "$EDGES_REAL_YQ" "$@"
 SH
 chmod +x "$WORK/counting-parser/yq"
 PATH="$WORK/counting-parser:$PATH" expect_rc 0 "cached workflow decoding preserves the shipped verdict"
-if [ -s "$EDGES_DECODE_LOG" ] && [ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]; then
+if [[ -s "$EDGES_DECODE_LOG" ]] && [[ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]]; then
     ok "each workflow is decoded at most once per checker process"
 else
     bad "workflow decoding was absent or repeated despite the cache"
@@ -602,7 +602,7 @@ chmod +x "$WORK/failing-parser/yq"
 PATH="$WORK/failing-parser:$PATH" expect_rc 1 "a failing decode cannot disappear behind valid empty JSON output"
 says "the captured parser failure is reported" "checkout refs could not be inspected"
 says "env pin extraction also preserves a failing decoder's status" "HYPATIA_SHA pin could not be inspected"
-if [ -s "$EDGES_DECODE_LOG" ] && [ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]; then
+if [[ -s "$EDGES_DECODE_LOG" ]] && [[ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]]; then
     ok "a failed decode is cached without retrying or publishing partial JSON"
 else
     bad "a failed workflow decode was absent or retried"
