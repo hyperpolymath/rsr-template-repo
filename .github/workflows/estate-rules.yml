@@ -241,6 +241,15 @@ jobs:
       # carried by a three-way merge (Codex review of #251; owner ruling).
       - name: Chain mint (a minted repo minted again) end to end
         run: bash tests/e2e/chain_mint_test.sh
+      # The update half of the mint (docs/proposals/template-upgrade.adoc): a repo
+      # minted from an old template commit is upgraded three ways. Conflicts keep
+      # their markers, licence files and the deed's identity stay byte-identical
+      # (with a mutation check that the test can fail), the default is a dry run.
+      # Needs the template's history between the old commit and this one.
+      - name: Template upgrade (old mint to new, three-way) end to end
+        run: bash tests/e2e/upgrade_test.sh
+      - name: Template staleness survey and pin inference (counts known in advance)
+        run: bash tests/workflows/survey_staleness_test.sh
       # An archetype overlay once shipped its own actions.lock, which replaced
       # the spine's at mint and left every Julia mint with Lock Sync red.
       - name: Archetype lock fragments merge into a valid lock
