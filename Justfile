@@ -236,7 +236,7 @@ quality:
     #!/usr/bin/env bash
     set -uo pipefail
     rc=0
-    for verb in fmt-check lint test; do
+    for verb in fmt-check lint hygiene test; do
         echo ""
         echo "── ${verb} ──"
         out="$(just "${verb}" 2>&1)"; st=$?
@@ -255,6 +255,19 @@ quality:
     done
     [ "$rc" -eq 0 ] && echo "" && echo "All quality checks ran and passed."
     exit "$rc"
+
+# File hygiene: yaml/toml parse, merge markers, large files, editorconfig.
+# Replaces the retired pre-commit hooks (no hosted pre-commit.ci; CI runs these
+# via just). Fails closed when yq or editorconfig-checker is missing.
+hygiene:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    command -v editorconfig-checker >/dev/null 2>&1 || {
+        echo "FAIL: editorconfig-checker not installed (https://github.com/editorconfig-checker/editorconfig-checker/releases, v4.0.2 as in quality.yml)" >&2; exit 1; }
+    bash scripts/check-hygiene.sh .
+    editorconfig-checker -disable-indent-size
+    echo "editorconfig: clean"
 
 # Fix all auto-fixable issues [reversible: git checkout]
 fix: fmt

@@ -75,7 +75,7 @@ gate() { # $1 gate script, $2 repo dir, rest: extra gate args
         | sed -E 's/^ *FAIL *//' | tr '\t' ' ')"
 }
 
-printf 'repo\tmise\tspdx\tpins\ttokens\n' 
+printf 'repo\tmise\tspdx\tpins\ttokens\n'
 for repo in "${REPOS[@]}"; do
     dir="$WORK/$(printf '%s' "$repo" | tr '/' '_')"
     if ! git clone --depth 1 --quiet "https://github.com/$repo.git" "$dir" 2>/dev/null; then

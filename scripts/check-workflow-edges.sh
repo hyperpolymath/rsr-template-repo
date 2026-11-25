@@ -107,59 +107,122 @@ produced_artifacts() {
   ' "$1"
 }
 
-# env_pin FILE VAR — the value of a `VAR:` line in the workflow's env blocks.
-env_pin() {
-  awk -v var="$2" '
-    $0 ~ "^[[:space:]]*" var ":[[:space:]]" {
-      sub("^[[:space:]]*" var ":[[:space:]]*", ""); gsub(/["'"'"']/, ""); print; exit
-    }
-  ' "$1"
-}
-
-
-# hypatia_checkouts FILE — inspect real YAML nodes, never source indentation.
+# workflow_json FILE — the process-local, validated JSON path (or raw-AST
+# rejection row with status 3). Key by absolute physical parent + filename,
+# preserving the full path inside the private cache rather than using basenames.
+# Failed decodes stay failed; never expose partial output to another lookup.
 # Reject duplicate mapping keys on the raw AST before aliases are expanded or
 # JSON is emitted; JSON conversion alone preserves/loses ambiguity downstream.
-# yq decodes anchors, aliases, block scalars and flow maps. jq then checks typed
-# jobs/steps/inputs and literal env bindings with step > job > workflow priority.
-# An uninspectable overriding scope is an error, never permission to fall back.
-hypatia_checkouts() {
-  local workflow="$1" preflight duplicates keys
+workflow_json() {
+  local source="$1" parent workflow cache preflight duplicates keys
+  parent="$(cd "$(dirname "$source")" && pwd -P)" || return 1
+  workflow="$parent/$(basename "$source")"
+  cache="$decoded_cache$workflow"
+  if [[ -f "$cache.rejected" ]]; then cat "$cache.rejected"; return 3; fi
+  if [[ -f "$cache.json" ]]; then printf '%s' "$cache.json"; return 0; fi
+  if [[ -f "$cache.failed" ]]; then return 1; fi
+  mkdir -p "$(dirname "$cache")" || return 1
+  : > "$cache.failed" || return 1
+  # Raw validation and alias expansion must see the same source bytes.
+  cp -- "$workflow" "$cache.yaml" || return 1
   preflight="$(yq -p yaml -o yaml -r -N '
     ([.. | select(kind == "map") | to_entries | group_by(.key) |
       .[] | select(length > 1)] | length) as $duplicates |
     ([.. | select(kind == "map") | to_entries[] | .key |
       select(kind != "scalar" or (tag != "!!str" and tag != "!!merge"))] | length) as $keys |
     [$duplicates, $keys] | @tsv
-  ' "$workflow")" || return 1
+  ' "$cache.yaml")" || return 1
   while IFS=$'\t' read -r duplicates keys; do
     [[ "$duplicates" =~ ^[0-9]+$ && "$keys" =~ ^[0-9]+$ ]] || return 1
     if (( duplicates > 0 )); then
-      printf '!\tduplicate YAML mapping keys (raw AST)\n'; return 0
+      printf '!\tduplicate YAML mapping keys (raw AST)\n' > "$cache.rejected" || return 1
+      cat "$cache.rejected"; return 3
     fi
     if (( keys > 0 )); then
-      printf '!\taliased, complex or non-string YAML mapping keys are unsupported\n'; return 0
+      printf '!\taliased, complex or non-string YAML mapping keys are unsupported\n' > "$cache.rejected" || return 1
+      cat "$cache.rejected"; return 3
     fi
   done <<< "$preflight"
-  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" |
-    jq -sr '
+  # Wrap the expanded tree first so yq rebinds paths of nodes copied by merges.
+  # JSON can represent a tagged YAML scalar as an ordinary string.
+  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 '
+    explode(.) | {"workflow": .} |
+    .non_string = [.workflow | .. | select(kind == "scalar" and tag != "!!str") | path | .[1:]]
+  ' "$cache.yaml" > "$cache.tmp" || return 1
+  jq -se 'length == 1 and (.[0] | type == "object" and
+    (.workflow | type) == "object" and (.non_string | type) == "array")' "$cache.tmp" >/dev/null || return 1
+  mv "$cache.tmp" "$cache.json" || return 1
+  printf '%s' "$cache.json"
+}
+
+# env_pin FILE VAR [census] — consensus among actual env bindings and call inputs.
+# Input declarations and matching keys inside unrelated data are not bindings.
+# Validate before command substitution can strip a block scalar's final newline.
+env_pin() {
+  local workflow="$1" var="$2" mode="${3:-identity}" json
+  json="$(workflow_json "$workflow")" || return 1
+  jq -r --arg var "$var" --arg mode "$mode" '
+def floating: contains("${{") or . == "latest" or . == "HEAD";
+.workflow as $root | .non_string as $non_string |
+[$root | paths as $p | select($p[-1] == $var) |
+  select(
+    (($p | length) == 2 and $p[0] == "env") or
+    (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "env") or
+    (($p | length) == 5 and $p[0] == "jobs" and $p[2] == "container" and $p[3] == "env") or
+    (($p | length) == 6 and $p[0] == "jobs" and $p[2] == "steps" and
+      ($p[3] | type) == "number" and $p[4] == "env") or
+    (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "with" and
+      ($root.jobs[$p[1]].uses | type) == "string" and
+      ($root.jobs[$p[1]].uses | test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[^@]+@")))) |
+  getpath($p) |
+  if type != "string" or any($non_string[]; . == $p) or length == 0 then
+    error("pin must be a nonempty YAML string")
+  elif $p[2] == "with" and any($non_string[]; . == ["jobs", $p[1], "uses"]) then
+    error("reusable workflow selector must be a YAML string")
+  elif contains("\u0000") or test("[\\r\\n]") or (test("\\s") and (contains("${{") | not)) then
+    error("pin must not contain whitespace or NUL")
+  else . end] | unique as $bindings |
+[$bindings[] | select(floating | not)] as $literals |
+if ($literals | length) > 1 then error("conflicting literal pins")
+elif $mode == "census" then $literals[]
+elif ($bindings | length) > 1 then error("producer pin bindings do not agree")
+else $bindings[] end
+  ' "$json"
+}
+
+# hypatia_checkouts FILE — inspect cached real YAML nodes, never indentation.
+# jq checks typed jobs/steps/inputs and literal env bindings with step > job >
+# workflow priority. Container OS env is outside the expression env context.
+# An uninspectable override never permits falling back.
+hypatia_checkouts() {
+  local workflow="$1" json status=0
+  json="$(workflow_json "$workflow")" || status=$?
+  if [[ "$status" -eq 3 ]]; then printf '%s\n' "$json"; return 0; fi
+  [[ "$status" -eq 0 ]] || return 1
+  jq -sr '
+.[0].non_string as $non_string |
 def text: gsub("^\\s+|\\s+$"; "");
 def row($pin; $where): [$pin, $where] | @tsv;
 def bad($where; $why): row("!"; $where + ": " + $why);
-def binding($scope; $name):
+def yaml_string($path): type == "string" and (any($non_string[]; . == $path) | not);
+def binding($root; $path; $name):
+  ($root | getpath($path)) as $scope |
   if ($scope | has("env") | not) then {present:false}
   elif ($scope.env | type) != "object" then {error:"uninspectable env mapping for checkout env binding"}
-  elif ($scope.env | has($name)) then {present:true,value:$scope.env[$name]}
+  elif ($scope.env | has($name)) then
+    if ($scope.env[$name] | yaml_string($path + ["env", $name])) then {present:true,value:$scope.env[$name]}
+    else {error:"checkout env binding is not a literal string"} end
   else {present:false} end;
-def lookup($scopes; $name):
-  reduce $scopes[] as $scope ({present:false};
-    if .present or has("error") then . else binding($scope; $name) end);
+def lookup($root; $paths; $name):
+  reduce $paths[] as $path ({present:false};
+    if .present or has("error") then . else binding($root; $path; $name) end);
 def inspect($root; $job; $entry):
   ("job " + ($job.key | tojson) + " step " + (($entry.key + 1) | tostring)) as $where |
+  ["jobs", $job.key] as $job_path | ($job_path + ["steps", $entry.key]) as $step_path |
   $entry.value as $step |
   if ($step | type) != "object" then bad($where; "step must be a mapping")
   elif ($step | has("uses") | not) then empty
-  elif ($step.uses | type) != "string" then bad($where; "uninspectable uses selector")
+  elif ($step.uses | yaml_string($step_path + ["uses"]) | not) then bad($where; "uninspectable uses selector")
   elif ($step.uses | text | contains("${{")) then bad($where; "uninspectable uses selector expression")
   elif ($step.uses | text | ascii_downcase | startswith("actions/checkout@") | not) then empty
   elif ($step | has("with") | not) then empty
@@ -167,34 +230,34 @@ def inspect($root; $job; $entry):
   elif ($step.with | to_entries | group_by(.key | ascii_downcase) | any(length > 1))
     then bad($where; "checkout input names collide case-insensitively")
   else
-    ($step.with | with_entries(.key |= ascii_downcase)) as $inputs |
+    ($step.with | to_entries | map({key: (.key | ascii_downcase), value: .}) | from_entries) as $inputs |
     if ($inputs | has("repository") | not) then empty
-    elif ($inputs.repository | type) != "string" then bad($where; "uninspectable checkout repository selector")
-    elif ($inputs.repository | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
-    elif ($inputs.repository | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
-    elif ($inputs.ref | type) != "string" then bad($where; "missing or non-literal full-SHA checkout ref")
-    else ($inputs.ref | text) as $raw |
+    elif ($inputs.repository.value | yaml_string($step_path + ["with", $inputs.repository.key]) | not) then
+      bad($where; "uninspectable checkout repository selector")
+    elif ($inputs.repository.value | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
+    elif ($inputs.repository.value | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
+    elif ($inputs.ref.value | yaml_string($step_path + ["with", $inputs.ref.key]) | not) then
+      bad($where; "missing or non-literal full-SHA checkout ref")
+    else ($inputs.ref.value | text) as $raw |
       (if ($raw | test("^\\$\\{\\{\\s*env\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\}\\}$"))
        then ($raw | capture("^\\$\\{\\{\\s*env\\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\}\\}$").name) as $name |
-            lookup([$step,$job.value,$root]; $name)
+            lookup($root; [$step_path, $job_path, []]; $name)
        else {present:true,value:$raw} end) as $resolved |
       if ($resolved | has("error")) then bad($where; $resolved.error)
       elif ($resolved.present | not) then bad($where; "missing env binding for checkout ref")
-      elif ($resolved.value | type) != "string" then bad($where; "checkout env binding is not a literal string")
       elif ($resolved.value | text | test("^[0-9a-f]{40}$") | not) then bad($where; "missing or non-literal full-SHA checkout ref (or unresolved env binding)")
       else row(($resolved.value | text); $where) end
     end
   end;
-if length != 1 then bad("workflow"; "expected exactly one YAML document")
-elif (.[0] | type) != "object" then bad("workflow"; "root must be a mapping")
-elif (.[0].jobs | type) != "object" then bad("workflow"; "jobs must be a mapping")
-else .[0] as $root | $root.jobs | to_entries[] as $job |
+.[0].workflow as $root |
+if ($root.jobs | type) != "object" then bad("workflow"; "jobs must be a mapping")
+else $root.jobs | to_entries[] as $job |
   if ($job.value | type) != "object" then bad("workflow"; "job must be a mapping")
   elif ($job.value | has("steps") | not) then empty
   elif ($job.value.steps | type) != "array" then bad("workflow"; "job steps must be a sequence")
   else $job.value.steps | to_entries[] | inspect($root; $job; .) end
 end
-    '
+    ' "$json"
 }
 
 # reusable_calls FILE — every job-level reusable-workflow call in FILE
@@ -226,6 +289,9 @@ reusable_calls() {
 # A call that cannot be read is a setup error (exit 2), never a pass: the edge
 # through it would be unverified.
 reusable_cache="$(mktemp -d)"
+trap 'rm -rf "$reusable_cache"' EXIT
+decoded_cache="$reusable_cache/decoded"
+mkdir -p "$decoded_cache"
 reusable_source() {
   local call="$1" spec ref owner repo path out
   spec="${call%@*}"; ref="${call##*@}"
@@ -268,8 +334,8 @@ if [ -z "$edges" ]; then
   fail "verdict-grid-publish.yml declares no workflow_run trigger: the verdict grid would never re-render after a scanner finishes"
 fi
 
-names_file="$(mktemp)"
-trap 'rm -rf "$names_file" "$reusable_cache"' EXIT
+names_file="$reusable_cache/names"
+: > "$names_file"
 for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   [ -e "$wf" ] || continue
   n="$(workflow_name "$wf")"
@@ -335,13 +401,17 @@ check_pin() { # check_pin REPORTER REPORT_FLAG PRODUCER VAR [INPUT]
   local report="$1" flag="$2" producer="$3" var="$4" input="${5:-}"
   local in_reporter in_producer pin_name="$var"
   in_reporter="$({ grep -o -- "${flag}[[:space:]]\\+[0-9a-f]\\{40\\}" "$report" || true; } | awk '{print $2}' | head -n1)"
-  in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$var" | head -n1)"
+  in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$var")" || {
+    fail "${producer} ${var} pin could not be inspected"; return;
+  }
   if [ -z "$in_reporter" ]; then
     fail "$(basename "$report") names no ${flag}; its findings would carry no tool identity"
     return
   fi
   if [ -z "$in_producer" ] && [ -n "$input" ] && [ -n "$(reusable_calls "$WORKFLOWS_DIR/$producer")" ]; then
-    in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$input" | head -n1)"
+    in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$input")" || {
+      fail "${producer} with: ${input} pin could not be inspected"; return;
+    }
     pin_name="with: $input"
     if [ -z "$in_producer" ]; then
       fail "'${producer}' calls a reusable workflow without passing ${input}, so the scan runs that workflow's default, not the ${flag} ${in_reporter:0:12} the verdict claims; pass 'with: ${input}: <sha>'"
@@ -364,18 +434,17 @@ done
 
 # ── 4. no tool pinned at two commits in this repository ────────────────────
 # panic-attack is pinned once for its scan and once for patch-bridge triage; the
-# pair must agree, which is why both use env.PANIC_ATTACK_SHA. A literal second
-# pin in another workflow is the clash this catches.
-pins_file="$(mktemp)"
-trap 'rm -rf "$names_file" "$pins_file" "$reusable_cache"' EXIT
+# pair must agree, which is why both use env.PANIC_ATTACK_SHA. The census
+# excludes intentionally floating pins and checks the remaining literals.
+pins_file="$reusable_cache/pins"
+: > "$pins_file"
 for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   [ -e "$wf" ] || continue
   for var in HYPATIA_SHA HYPATIA_REF PANIC_ATTACK_SHA PONS_SHA; do
-    v="$(env_pin "$wf" "$var" | head -n1)"
+    v="$(env_pin "$wf" "$var" census)" || {
+      fail "$(basename "$wf") ${var} pin could not be inspected"; continue;
+    }
     [ -n "$v" ] || continue
-    case "$v" in
-      *'${{'* | 'latest' | 'HEAD') continue ;; # floating by design, documented at the pin
-    esac
     pin_name="$var"; [[ "$var" != HYPATIA_REF ]] || pin_name=HYPATIA_SHA
     printf '%s\t%s\t%s\n' "$pin_name" "$v" "$(basename "$wf")" >> "$pins_file"
   done
@@ -393,11 +462,12 @@ for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   done <<< "$checkout_rows"
   # A reusable call's hypatia-ref input pins the same scanner as HYPATIA_SHA.
   if [ -n "$(reusable_calls "$wf")" ]; then
-    v="$(env_pin "$wf" hypatia-ref | head -n1)"
-    case "$v" in
-      "" | *'${{'* | 'latest' | 'HEAD') ;;
-      *) printf '%s\t%s\t%s\n' HYPATIA_SHA "$v" "$(basename "$wf") (with: hypatia-ref)" >> "$pins_file" ;;
-    esac
+    v="$(env_pin "$wf" hypatia-ref census)" || {
+      fail "$(basename "$wf") with: hypatia-ref pin could not be inspected"; continue;
+    }
+    if [[ -n "$v" ]]; then
+      printf '%s\t%s\t%s\n' HYPATIA_SHA "$v" "$(basename "$wf") (with: hypatia-ref)" >> "$pins_file"
+    fi
   fi
 done
 while IFS= read -r var; do
@@ -410,8 +480,8 @@ while IFS= read -r var; do
 done <<< "$(cut -f1 "$pins_file" | sort -u)"
 
 # HYPATIA_SHA and HYPATIA_REF are two spellings of the same pin.
-h_sha="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_SHA | head -n1)"
-h_ref="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_REF | head -n1)"
+h_sha="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_SHA)" || fail "hypatia-scan.yml HYPATIA_SHA pin could not be inspected"
+h_ref="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_REF)" || fail "hypatia-scan.yml HYPATIA_REF pin could not be inspected"
 if [ -n "$h_sha" ] && [ -n "$h_ref" ] && [ "$h_sha" != "$h_ref" ]; then
   fail "hypatia-scan.yml pins HYPATIA_SHA ${h_sha:0:12} and HYPATIA_REF ${h_ref:0:12}"
 fi
