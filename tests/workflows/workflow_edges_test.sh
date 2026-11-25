@@ -52,7 +52,7 @@ says "the summary counts the edges it checked" "workflow_run edge(s)"
 echo "=== 2. Firing: a dead workflow_run edge ==="
 fresh >/dev/null
 sed -i 's/^name: Hypatia Security Scan$/name: Hypatia Scan/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
-expect_rc 1 "renaming a producer is caught (workflow_run matches name:, not the file)" 
+expect_rc 1 "renaming a producer is caught (workflow_run matches name:, not the file)"
 says "the failure names the dead edge" "Hypatia Security Scan"
 says "the failure says what it breaks" "never re-render"
 
@@ -91,17 +91,74 @@ sed -i 's/--panic-ref b5530834a839734d1d181bfe6edb0d43d4233cf4/--panic-ref b5530
 expect_rc 1 "a producer pin that moves without the verdict job is caught"
 says "the failure names the flag and the variable" "--panic-ref"
 
+echo "=== 5b. Every producer binding must agree ==="
+fresh >/dev/null
+producer="$WORK/repo/.github/workflows/static-analysis-gate.yml"
+panic_pin="$(awk '$1 == "PANIC_ATTACK_SHA:" { print $2; exit }' "$producer")"
+pons_pin="$(awk '$1 == "PONS_SHA:" { print $2; exit }' "$producer")"
+other_pin=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+sed -i -e "/^env:$/c\env: {PANIC_ATTACK_SHA: \"$panic_pin\", PONS_SHA: \"$pons_pin\"}" \
+    -e '/^  \(PANIC_ATTACK_SHA\|PONS_SHA\):/d' \
+    -e "/^  panic-attack-assail:/a\    env: {PANIC_ATTACK_SHA: \"$other_pin\"}" "$producer"
+expect_rc 1 "a later job pin cannot hide behind the matching workflow pin"
+says "the producer binding conflict is explicit" "conflicting literal pins"
+sed -i "s/$other_pin/$panic_pin/" "$producer"
+expect_rc 0 "the workflow and job may repeat the same pin"
+sed -i "/^  panic-attack-assail:/a\    container: {image: alpine:3.23, env: {PANIC_ATTACK_SHA: \"$other_pin\"}}" "$producer"
+expect_rc 1 "a conflicting job-container pin is included among producer bindings"
+sed -i "s/$other_pin/$panic_pin/" "$producer"
+sed -i "/^      - name: Checkout repository$/a\        env: {PANIC_ATTACK_SHA: \"$other_pin\"}" "$producer"
+expect_rc 1 "a conflicting step pin is included among producer bindings"
+sed -i "s/$other_pin/$panic_pin/" "$producer"
+sed -i "/^  panic-attack-assail:/a\    services: {db: {image: alpine:3.23, env: {PANIC_ATTACK_SHA: \"$other_pin\"}}}" "$producer"
+expect_rc 0 "equal workflow, job, container and step pins agree with service env excluded"
+sed -i 's/^        env: {PANIC_ATTACK_SHA:.*/        env: {PANIC_ATTACK_SHA: HEAD}/' "$producer"
+expect_rc 1 "a floating override cannot establish a literal producer identity"
+says "an unresolved producer mix has an explicit diagnostic" "producer pin bindings do not agree"
+
+for value in null true 42 '[]' '{}' '""'; do
+    sed -i "s/^        env: {PANIC_ATTACK_SHA:.*/        env: {PANIC_ATTACK_SHA: $value}/" "$producer"
+    expect_rc 1 "a later $value binding cannot fall back to the matching producer pin"
+done
+says "the malformed binding reports the required type" "pin must be a nonempty YAML string"
+
 echo "=== 6. Firing: one tool pinned at two commits ==="
 fresh >/dev/null
 python3 - "$WORK/repo/.github/workflows/codeql.yml" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p).read()
-s = s.replace("jobs:\n", "env:\n  PANIC_ATTACK_SHA: 1111111111111111111111111111111111111111\n\njobs:\n", 1)
+s = s.replace("jobs:\n", 'env:\n  PANIC_ATTACK_SHA: "1111111111111111111111111111111111111111"\n\njobs:\n', 1)
 open(p, "w").write(s)
 PY
 expect_rc 1 "a second pin for the same tool is caught"
 says "the failure says the pin is in two places" "different commits"
+
+fresh >/dev/null
+census="$WORK/repo/.github/workflows/census-control.yml"
+cat > "$census" <<YML
+name: Pin census control
+env:
+  PANIC_ATTACK_SHA: latest
+jobs:
+  scan:
+    env:
+      PANIC_ATTACK_SHA: HEAD
+    steps:
+      - run: true
+        env:
+          PANIC_ATTACK_SHA: \${{ inputs.sha }}
+      - run: true
+        env:
+          PANIC_ATTACK_SHA: "$panic_pin"
+YML
+expect_rc 0 "intentional floating census values coexist with a matching literal"
+sed -i "s/$panic_pin/$other_pin/" "$census"
+expect_rc 1 "floating census bindings cannot hide a literal conflict across workflows"
+says "the repository census still exposes the later literal" "different commits"
+printf '      - run: true\n        env: {PANIC_ATTACK_SHA: "%s"}\n' "$panic_pin" >> "$census"
+expect_rc 1 "floating census bindings cannot hide distinct literals in one workflow"
+says "the consensus reports the two literal values' conflict" "conflicting literal pins"
 
 echo "=== 7. Firing: no workflow_run at all ==="
 fresh >/dev/null
@@ -204,11 +261,28 @@ export EDGES_REUSABLE_DIR="$REUSABLES"
 fresh >/dev/null; reusable; delegate "$HSHA"
 expect_rc 0 "a reusable producer passing the verdict's pin resolves both edges"
 
+fresh >/dev/null; reusable; delegate "&scanner \"$HSHA\""
+expect_rc 0 "an anchored reusable hypatia-ref scalar matches the verdict pin"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "an anchored reusable hypatia-ref cannot hide a wrong pin"
+
+fresh >/dev/null; reusable; delegate '*scanner'
+sed -i "/^jobs:/i\x-scanner: \&scanner \"$HSHA\"" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "an aliased reusable hypatia-ref scalar matches the verdict pin"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "an aliased reusable hypatia-ref cannot hide a wrong pin"
+
+fresh >/dev/null; reusable; delegate "$HSHA"
+sed -i '/^  workflow_dispatch:/a\    inputs:\n      hypatia-ref:\n        type: string' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "a dispatch input declaration cannot shadow a reusable pin binding"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "an input declaration cannot hide a wrong reusable pin binding"
+
 fresh >/dev/null; reusable; delegate
 expect_rc 1 "a reusable producer that passes no hypatia-ref is caught"
 says "the failure says the default runs instead" "without passing hypatia-ref"
 
-fresh >/dev/null; reusable; delegate 2222222222222222222222222222222222222222
+fresh >/dev/null; reusable; delegate '"2222222222222222222222222222222222222222"'
 expect_rc 1 "a reusable producer passing a different pin is caught"
 says "the mismatch names the input it read" "with: hypatia-ref"
 
@@ -232,10 +306,23 @@ cat >> "$WORK/repo/.github/workflows/hypatia-scan.yml" <<'YML'
       - uses: owner/standards/.github/workflows/scan.yml@2222222222222222222222222222222222222222
 YML
 expect_rc 0 "a step action with a workflow-shaped path is not followed as a reusable call"
+
+fresh >/dev/null; reusable; delegate "$HSHA"
+cat >> "$WORK/repo/.github/workflows/hypatia-scan.yml" <<YML
+  other:
+    uses: owner/standards/.github/workflows/scan.yml@$RSHA
+    with: {hypatia-ref: "$HSHA"}
+YML
+expect_rc 0 "reusable jobs can repeat an identical Hypatia pin"
+sed -i 's/with: {hypatia-ref: .*/with: {hypatia-ref: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a later reusable call cannot hide a conflicting Hypatia pin"
+says "the conflicting call pin is identified" "conflicting literal pins"
 unset EDGES_REUSABLE_DIR
 
 echo "=== 12. Hypatia checkout refs participate in the one-tool pin contract ==="
 readonly PIN_REF='${{ env.PIN }}'
+readonly HYPATIA_REF_EXPR='${{ env.HYPATIA_SHA }}'
+readonly WRONG_CONTAINER_PIN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 checkout_fixture() {
     local ref="$1" binding="${2:-}"
     cat > "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<YML
@@ -253,6 +340,27 @@ YML
 }
 fresh >/dev/null; checkout_fixture "$HSHA"
 expect_rc 0 "a matching literal Hypatia checkout ref is accepted"
+fresh >/dev/null
+sed -i -e 's/^    env:$/    container:\n      image: alpine:3.23\n      env:/' -e 's/^      HYPATIA_SHA:/        HYPATIA_SHA:/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "the named scanner producer may declare its pin in job-container env"
+sed -i "s/$HSHA/$WRONG_CONTAINER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a wrong job-container scanner producer pin disagrees with the verdict"
+says "the container producer mismatch names its scanner pin" "HYPATIA_SHA in hypatia-scan.yml"
+
+fresh >/dev/null; checkout_fixture "$PIN_REF"
+sed -i "/    runs-on:/i\    container:\n      image: alpine:3.23\n      env:\n        PIN: \"$HSHA\"" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a checkout expression cannot resolve a job-container OS env binding"
+says "a container-only checkout expression identifies its missing context binding" "missing env binding for checkout ref"
+sed -i "s/$HSHA/$WRONG_CONTAINER_PIN/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a wrong container-only binding cannot resolve a checkout expression"
+sed -i "/^jobs:/i\env:\n  PIN: \"$HSHA\"" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "workflow env resolves a checkout expression independently of container OS env"
+sed -i -e "s/^  PIN: \"$HSHA\"/  PIN: \"$WRONG_CONTAINER_PIN\"/" -e "s/^        PIN: \"$WRONG_CONTAINER_PIN\"/        PIN: \"$HSHA\"/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a wrong workflow env binding cannot borrow a correct container OS pin"
+fresh >/dev/null; checkout_fixture "$PIN_REF"
+sed -i "/    runs-on:/i\    services:\n      database:\n        image: alpine:3.23\n        env:\n          PIN: \"$HSHA\"" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a checkout cannot borrow a service-container env binding"
+
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i -e 's/repository:/Repository:/' -e 's/          ref:/          Ref:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "mixed-case checkout input names preserve a matching pin"
@@ -272,13 +380,13 @@ expect_rc 1 "case-colliding repository inputs cannot hide a target"
 fresh >/dev/null; checkout_fixture "$HSHA"
 printf '          Ref: %s\n' "$HSHA" >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "identical values do not excuse case-colliding checkout inputs"
-fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
+fresh >/dev/null; checkout_fixture '"1111111111111111111111111111111111111111"'
 sed -i '/      - uses:/,$s/^  //' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a wrong Hypatia pin in an indentless steps sequence is refused"
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i '/      - uses:/,$s/^  //' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "a matching pin in an indentless steps sequence is accepted"
-fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
+fresh >/dev/null; checkout_fixture '"1111111111111111111111111111111111111111"'
 sed -i '/      - uses:/,$s/^/    /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a more-indented steps sequence cannot hide a wrong Hypatia pin"
 fresh >/dev/null; checkout_fixture main
@@ -293,20 +401,48 @@ expect_rc 1 "extra spaces after the list dash cannot hide a floating checkout re
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i -e 's/      - uses:/      -   uses:/' -e '/        with:/,$s/^/  /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "checkout mappings use the actual inline key column after the dash"
-fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111
+fresh >/dev/null; checkout_fixture '"1111111111111111111111111111111111111111"'
 sed -i -e 's|hyperpolymath/hypatia|Hyperpolymath/Hypatia|' -e 's|actions/checkout@|Actions/Checkout@|' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "repository name casing cannot hide a different Hypatia checkout pin"
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i -e "s/with:/'with':/" -e 's/repository:/"repository":/' -e "s/ref:/'ref':/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "matching checkout refs with quoted mapping keys are recognized"
-sed -i "s/$HSHA/1111111111111111111111111111111111111111/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i "s/$HSHA/\"1111111111111111111111111111111111111111\"/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "quoted mapping keys cannot hide a different Hypatia checkout pin"
-fresh >/dev/null; checkout_fixture 1111111111111111111111111111111111111111 "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
+fresh >/dev/null; checkout_fixture '"1111111111111111111111111111111111111111"' "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
 expect_rc 1 "a wrong literal checkout ref is caught even with the correct env pin"
 says "the disagreement identifies the actual checkout" "Hypatia checkout"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: %s' "$HSHA")"
 expect_rc 0 "an exact, uniquely declared workflow env binding resolves"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: &scanner "%s"' "$HSHA")"
+expect_rc 0 "an anchored HYPATIA_SHA agrees with its decoded checkout ref"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an anchored HYPATIA_SHA cannot hide a wrong checkout pin"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  PIN: &scanner "%s"\n  HYPATIA_SHA: *scanner' "$HSHA")"
+expect_rc 0 "an aliased HYPATIA_SHA agrees with its decoded checkout ref"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an aliased HYPATIA_SHA cannot hide a wrong checkout pin"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
+sed -i '/^jobs:/i\on:\n  workflow_call:\n    inputs:\n      HYPATIA_SHA:\n        type: string' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 0 "a workflow-call input declaration cannot shadow an actual env pin"
+sed -i "s/$HSHA/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a workflow-call declaration cannot hide a wrong actual env pin"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: |-\n    %s' "$HSHA")"
+expect_rc 0 "a chomped block scalar supplies the exact HYPATIA_SHA"
+sed -i 's/HYPATIA_SHA: |-/HYPATIA_SHA: |/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a block scalar trailing newline is refused before shell substitution"
+says "the decoded whitespace rejection is explicit" "pin must not contain whitespace"
+fresh >/dev/null; checkout_fixture "$HSHA" 'env:
+  HYPATIA_SHA: "${{ inputs.sha }}"'
+expect_rc 0 "a floating env expression with spaces does not clash with a literal checkout"
+sed -i "s/ref: $HSHA/ref: $HYPATIA_REF_EXPR/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an actual checkout cannot resolve a dynamic env expression as a full SHA"
+fresh >/dev/null; checkout_fixture "$HSHA" 'env:
+  HYPATIA_SHA: |
+    ${{ inputs.sha }}'
+expect_rc 1 "a floating expression cannot bypass decoded trailing-newline rejection"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
 sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "an exact, uniquely declared binding in the same job resolves"
 fresh >/dev/null; checkout_fixture "$PIN_REF"
@@ -330,11 +466,11 @@ expect_rc 0 "separate jobs may declare the same env variable name independently"
 fresh >/dev/null; checkout_fixture "$PIN_REF" "$(printf 'env: # workflow binding\n  PIN: %s' "$HSHA")"
 expect_rc 0 "an env header with a trailing comment still supplies workflow scope"
 fresh >/dev/null; checkout_fixture "$PIN_REF" 'env:
-  PIN: 1111111111111111111111111111111111111111'
+  PIN: "1111111111111111111111111111111111111111"'
 sed -i "/    runs-on:/i\    env: # job overrides workflow\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "a unique job binding overrides the same workflow env name"
 fresh >/dev/null; checkout_fixture "$PIN_REF" "$(printf 'env:\n  PIN: %s' "$HSHA")"
-sed -i '/    runs-on:/i\    env:\n      PIN: 1111111111111111111111111111111111111111' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i '/    runs-on:/i\    env:\n      PIN: "1111111111111111111111111111111111111111"' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "the job override determines the checked ref, not the workflow value"
 fresh >/dev/null; checkout_fixture "$PIN_REF"
 sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
@@ -343,23 +479,23 @@ fresh >/dev/null; checkout_fixture "$PIN_REF"
 sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 cat >> "$WORK/repo/.github/workflows/oracle-pin-control.yml" <<'YML'
         env:
-          PIN: 1111111111111111111111111111111111111111
+          PIN: "1111111111111111111111111111111111111111"
 YML
 expect_rc 1 "a wrong step binding cannot hide behind the correct job binding"
 fresh >/dev/null; checkout_fixture "$PIN_REF"
 sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
-sed -i 's/      - uses:/      - env:\n          PIN: 1111111111111111111111111111111111111111\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i 's/      - uses:/      - env:\n          PIN: "1111111111111111111111111111111111111111"\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a first-key step env override cannot borrow the correct job value"
 fresh >/dev/null; checkout_fixture "$PIN_REF"
 sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
-printf '        env: {PIN: 1111111111111111111111111111111111111111}\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+printf '        env: {PIN: "1111111111111111111111111111111111111111"}\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a wrong flow step env override cannot hide behind a job value"
 fresh >/dev/null; checkout_fixture "$PIN_REF"
 sed -i "/    runs-on:/i\    env:\n      PIN: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
-sed -i 's/      - uses:/      - env: {PIN: 1111111111111111111111111111111111111111}\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i 's/      - uses:/      - env: {PIN: "1111111111111111111111111111111111111111"}\n        uses:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a wrong first-key flow step env is inspected"
 fresh >/dev/null; checkout_fixture "$PIN_REF" "$(printf 'env:\n  PIN: %s' "$HSHA")"
-sed -i '/    runs-on:/i\    env: {PIN: 1111111111111111111111111111111111111111}' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+sed -i '/    runs-on:/i\    env: {PIN: "1111111111111111111111111111111111111111"}' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a wrong flow job env override cannot fall back to a workflow value"
 fresh >/dev/null; checkout_fixture main
 sed -i 's/    steps:/    steps: # oracle/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
@@ -379,9 +515,9 @@ expect_rc 0 "a matching ref in a complete flow step is accepted"
 fresh >/dev/null; checkout_fixture "$HSHA"
 printf '      - *checkout-options\n' >> "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "an undefined whole-step alias fails YAML parsing"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}'
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
 expect_rc 1 "an undefined checkout env binding is refused"
-fresh >/dev/null; checkout_fixture '${{ env.HYPATIA_SHA }}' "$(printf 'env:\n  HYPATIA_SHA: %s\n  HYPATIA_SHA: %s' "$HSHA" "$HSHA")"
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'env:\n  HYPATIA_SHA: %s\n  HYPATIA_SHA: %s' "$HSHA" "$HSHA")"
 expect_rc 1 "duplicate identical checkout env bindings are ambiguous"
 fresh >/dev/null; checkout_fixture "$HSHA"
 sed -i '/          ref:/d' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
@@ -458,6 +594,20 @@ expect_rc 0 "uses, input and whole-step aliases resolve to real checkout maps"
 sed -i 's/ref:.*# alias override/ref: main # alias override/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "an explicit wrong ref overrides merged inputs and is refused"
 
+fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR" "$(printf 'x-pins: &pins {HYPATIA_SHA: "%s"}\nx-extra: {stamp: 2026-11-25, note: !metadata ignored}\nenv: {<<: *pins}' "$HSHA")"
+expect_rc 0 "a merged YAML string is a pin and unrelated tags are ignored"
+sed -i 's/{HYPATIA_SHA: /{HYPATIA_SHA: !!binary /' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a binary tag survives a merge and cannot supply the scanner pin"
+says "the merged pin is identified under its effective env path" "HYPATIA_SHA pin could not be inspected"
+
+fresh >/dev/null; checkout_fixture "!!binary $HSHA"
+sed -i 's/          ref:/          ReF:/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "a binary tag on a mixed-case checkout ref is rejected"
+says "the tagged ref is reported as non-literal" "full-SHA checkout ref"
+fresh >/dev/null; checkout_fixture "$PIN_REF" "$(printf 'env: {PIN: !metadata "%s"}' "$HSHA")"
+expect_rc 1 "an arbitrary tagged checkout env value cannot resolve as a string"
+says "the effective env value must be a literal string" "checkout env binding is not a literal string"
+
 fresh >/dev/null
 printf '{name: Oracle checkout control, jobs: {score: {steps: [{uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1, with: {repository: hyperpolymath/hypatia, ref: "%s"}}]}}}\n' "$HSHA" > "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "a complete flow-style workflow with the correct pin is accepted"
@@ -529,18 +679,73 @@ PATH="$WORK/no-tools" expect_rc 2 "missing parser tools are a clear setup failur
 says "the setup diagnostic names Mike Farah yq and jq" "setup requires Mike Farah yq"
 
 fresh >/dev/null
+mkdir -p "$WORK/counting-parser"
+EDGES_REAL_YQ="$(command -v yq)"
+EDGES_DECODE_LOG="$WORK/decode-log"
+export EDGES_REAL_YQ EDGES_DECODE_LOG
+: > "$EDGES_DECODE_LOG"
+cat > "$WORK/counting-parser/yq" <<'SH'
+#!/usr/bin/env bash
+case "$*" in *'explode(.)'*) printf '%s\n' "${!#}" >> "$EDGES_DECODE_LOG" ;; esac
+exec "$EDGES_REAL_YQ" "$@"
+SH
+chmod +x "$WORK/counting-parser/yq"
+PATH="$WORK/counting-parser:$PATH" expect_rc 0 "cached workflow decoding preserves the shipped verdict"
+if [[ -s "$EDGES_DECODE_LOG" ]] && [[ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]]; then
+    ok "each workflow is decoded at most once per checker process"
+else
+    bad "workflow decoding was absent or repeated despite the cache"
+fi
+
+fresh >/dev/null; checkout_fixture "$HSHA"
+EDGES_SOURCE="$WORK/repo/.github/workflows/oracle-pin-control.yml"
+export EDGES_SOURCE
+mkdir -p "$WORK/mutating-parser"
+cat > "$WORK/mutating-parser/yq" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  *'group_by(.key)'*)
+    "$EDGES_REAL_YQ" "$@" || exit "$?"
+    case "${!#}" in
+      */oracle-pin-control.yml|*/oracle-pin-control.yml.yaml)
+        sed -i 's/          ref:.*/          ref: main/' "$EDGES_SOURCE" ;;
+    esac ;;
+  *) exec "$EDGES_REAL_YQ" "$@" ;;
+esac
+SH
+chmod +x "$WORK/mutating-parser/yq"
+PATH="$WORK/mutating-parser:$PATH" expect_rc 0 "decode uses the same bytes that passed raw AST preflight"
+if grep -Fxq '          ref: main' "$EDGES_SOURCE"; then
+    ok "the source really changed between preflight and decode"
+else
+    bad "the preflight wrapper did not mutate the original source"
+fi
+
+fresh >/dev/null
 mkdir -p "$WORK/failing-parser"
 cat > "$WORK/failing-parser/yq" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
   *--version*) echo 'yq (https://github.com/mikefarah/yq/) version v4.53.3' ;;
-  *'explode(.)'*) printf '{"jobs":{}}\n'; exit 17 ;;
+  *'explode(.)'*)
+    printf '%s\n' "${!#}" >> "$EDGES_DECODE_LOG"
+    if [ "${EDGES_INVALID_DECODE:-}" = documents ]; then printf '{}\n{}\n'; exit 0; fi
+    printf '{"jobs":{}}\n'; exit 17 ;;
   *) printf '0\t0\n' ;;
 esac
 SH
 chmod +x "$WORK/failing-parser/yq"
+: > "$EDGES_DECODE_LOG"
 PATH="$WORK/failing-parser:$PATH" expect_rc 1 "a failing decode cannot disappear behind valid empty JSON output"
 says "the captured parser failure is reported" "checkout refs could not be inspected"
+says "env pin extraction also preserves a failing decoder's status" "HYPATIA_SHA pin could not be inspected"
+if [[ -s "$EDGES_DECODE_LOG" ]] && [[ -z "$(sort "$EDGES_DECODE_LOG" | uniq -d)" ]]; then
+    ok "a failed decode is cached without retrying or publishing partial JSON"
+else
+    bad "a failed workflow decode was absent or retried"
+fi
+: > "$EDGES_DECODE_LOG"
+EDGES_INVALID_DECODE=documents PATH="$WORK/failing-parser:$PATH" expect_rc 1 "successful decoder output must still validate before entering the cache"
 
 echo ""
 if [ "$fail" -ne 0 ]; then

@@ -92,6 +92,14 @@ indent_size = 2
 
 # --- Tab-mandatory formats -------------------------------------------------
 
+# Caddy's own convention is tab indentation (`caddy fmt`). Narrow on purpose:
+# Caddyfiles and the one Caddyfile-text fixture, nothing else.
+[Caddyfile*]
+indent_style = tab
+
+[www/tests/controls/caddy-serve-everything.control]
+indent_style = tab
+
 # --- Task runners ----------------------------------------------------------
 [Justfile]
 indent_style = space

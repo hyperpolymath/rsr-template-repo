@@ -276,6 +276,18 @@ function verifyStatusPublisher(ctx, relWf, fullWf) {
     if (!Array.isArray(types) || !types.includes("completed")) {
       fail(`status context '${ctx}' publisher '${relWf}' workflow_run types do not include 'completed' (types: ${JSON.stringify(types ?? null)})`);
     }
+    // GitHub applies workflow_run branch filters to the TRIGGERING run's branch, so a filter
+    // keeps the publisher from running for PR-branch workflows and strands the PR head
+    // without the status (#219 defect class). Only an all-branches filter is harmless.
+    if (wr && typeof wr === "object" && Object.hasOwn(wr, "branches")) {
+      const b = wr.branches;
+      if (!(Array.isArray(b) && b.length === 1 && b[0] === "**")) {
+        fail(`status context '${ctx}' publisher '${relWf}' filters workflow_run by branches (${JSON.stringify(b ?? null)}) — strands PR heads whose workflows run on other branches`);
+      }
+    }
+    if (wr && typeof wr === "object" && Object.hasOwn(wr, "branches-ignore")) {
+      fail(`status context '${ctx}' publisher '${relWf}' filters workflow_run by branches-ignore (${JSON.stringify(wr["branches-ignore"] ?? null)}) — strands PR heads on the ignored branches`);
+    }
   }
   const jobs = doc?.jobs && typeof doc.jobs === "object" ? doc.jobs : {};
   const callers = [];
