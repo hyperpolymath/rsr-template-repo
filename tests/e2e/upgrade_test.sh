@@ -116,6 +116,12 @@ grep -q '^FAST-FORWARD' "$work/a.dry1" || fail "A: the plan fast-forwards nothin
 ! grep -E '^(CONFLICT|CONFLICT-UNMERGED|MODIFY-DELETE|MERGED)' "$work/a.dry1" >/dev/null || { grep -E '^(CONFLICT|MODIFY|MERGED)' "$work/a.dry1" >&2; fail "A: an unedited child has a conflict or a merge"; }
 pass "A: dry run is the default, repeatable, and writes nothing ($(sed -n 's/^# summary: //p' "$work/a.dry1"))"
 
+# no git identity (a CI runner has none): --apply must refuse BEFORE replaying or branching, and say why
+if env GIT_AUTHOR_NAME= GIT_COMMITTER_NAME= bash "$UP" --template "$T" --to "$TIP" --child "$A" --apply > "$work/a.noid" 2>&1; then fail "A: --apply committed with no git identity"; fi
+grep -q 'none is set' "$work/a.noid" && [ -z "$(g -C "$A" branch --list 'upgrade/*')" ] && [ -z "$(g -C "$A" status --porcelain)" ] || { cat "$work/a.noid" >&2; fail "A: the identity refusal was not clean"; }
+pass "A: --apply with no git identity is refused up front, names the cause, and writes nothing"
+# the rest of the test commits as a test identity (the child's own configuration is the tool's, not the test's)
+export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.org GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.org
 bash "$UP" --template "$T" --to "$TIP" --child "$A" --apply > "$work/a.apply" 2> "$work/a.apply.err" && rc=0 || rc=$?
 [ "$rc" = 0 ] || { [ "$rc" = 3 ] && ! grep -qE '^(CONFLICT|MODIFY-DELETE)' "$work/a.apply" && grep -q '^LICENCE-HELD' "$work/a.apply"; } \
     || { cat "$work/a.apply.err" >&2; fail "A: --apply failed (exit $rc)"; }

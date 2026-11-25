@@ -136,6 +136,11 @@ while IFS= read -r -d '' e; do case "$e" in "S "*) _sparse=$((_sparse + 1)) ;; e
 [ -z "$(git -C "$CDIR" ls-files -u)" ] || die "this checkout has an unresolved merge; resolve it first"
 DIRTY=0; [ -z "$(git -C "$CDIR" --no-optional-locks status --porcelain)" ] || DIRTY=1
 if [ "$MODE" = apply ] && [ "$DIRTY" = 1 ]; then die "--apply needs a clean work tree (git status shows changes); nothing was written"; fi
+# the commit is made as the repo's own configured identity: refuse now, before any replay or branch,
+# when there is none (a CI runner has none), rather than after writing the plan
+if [ "$MODE" = apply ] && [ "$NOCOMMIT" = 0 ] && ! git -C "$CDIR" var GIT_COMMITTER_IDENT >/dev/null 2>&1; then
+    die "--apply commits as this repo's git identity and none is set (git config user.name / user.email); set one, or pass --no-commit to leave the plan staged. Nothing was written"
+fi
 ORIG_BRANCH="$(git -C "$CDIR" rev-parse --abbrev-ref HEAD)"
 BASE_COMMIT="$(git -C "$CDIR" rev-parse HEAD)"
 BRANCH="${BRANCH:-upgrade/rsr-${NEW:0:12}}"
