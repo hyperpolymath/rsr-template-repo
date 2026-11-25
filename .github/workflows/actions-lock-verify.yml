@@ -49,9 +49,9 @@ jobs:
           chmod u+x "$RUNNER_TEMP/gh-actions-lock"
           echo "GH_ACTIONS_LOCK_BIN=$RUNNER_TEMP/gh-actions-lock" >> "$GITHUB_ENV"
       - name: Negative test (a hand-edited lock must fail)
-        run: bash scripts/tests/lock-negative-test.sh
+        run: bash tests/lock-negative-test.sh
       - name: Reusable-workflow pins (full SHA, resolves) - negative tests first
-        run: bash scripts/tests/reusable-pins-negative-test.sh
+        run: bash tests/reusable-pins-negative-test.sh
       - name: Reusable-workflow pins (full SHA, resolves)
         env:
           GH_TOKEN: ${{ github.token }}
