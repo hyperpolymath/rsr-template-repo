@@ -343,6 +343,15 @@ expect_rc 0 "a chomped block scalar supplies the exact HYPATIA_SHA"
 sed -i 's/HYPATIA_SHA: |-/HYPATIA_SHA: |/' "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 1 "a block scalar trailing newline is refused before shell substitution"
 says "the decoded whitespace rejection is explicit" "pin must not contain whitespace"
+fresh >/dev/null; checkout_fixture "$HSHA" 'env:
+  HYPATIA_SHA: "${{ inputs.sha }}"'
+expect_rc 0 "a floating env expression with spaces does not clash with a literal checkout"
+sed -i "s/ref: $HSHA/ref: $HYPATIA_REF_EXPR/" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
+expect_rc 1 "an actual checkout cannot resolve a dynamic env expression as a full SHA"
+fresh >/dev/null; checkout_fixture "$HSHA" 'env:
+  HYPATIA_SHA: |
+    ${{ inputs.sha }}'
+expect_rc 1 "a floating expression cannot bypass decoded trailing-newline rejection"
 fresh >/dev/null; checkout_fixture "$HYPATIA_REF_EXPR"
 sed -i "/    runs-on:/i\    env:\n      HYPATIA_SHA: $HSHA" "$WORK/repo/.github/workflows/oracle-pin-control.yml"
 expect_rc 0 "an exact, uniquely declared binding in the same job resolves"

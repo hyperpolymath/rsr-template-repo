@@ -167,7 +167,8 @@ first(paths as $p | select($p[-1] == $var) |
   $root | getpath($p)) |
 if type == "object" or type == "array" then error("pin must be a scalar")
 else tostring |
-  if test("\\s") then error("pin must not contain whitespace") else . end
+  if test("[\\r\\n]") or (test("\\s") and (contains("${{") | not))
+  then error("pin must not contain whitespace") else . end
 end
   ' "$json"
 }
