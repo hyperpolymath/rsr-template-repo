@@ -6,10 +6,10 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d); trap 'rm -rf "$t"' EXIT
 good=a0760cea695a815a96b3944f3d03ee015da856d0; ghost=0123456789abcdef0123456789abcdef01234567
-cat > "$t/stub.sh" <<STUB
+cat > "$t/stub.sh" <<RESOLVER_EOF
 #!/usr/bin/env bash
 [ "\$2" = "$good" ]
-STUB
+RESOLVER_EOF
 chmod +x "$t/stub.sh"
 mk() { mkdir -p "$t/$1"; printf 'name: x\non: push\njobs:\n  j:\n    uses: o/r/.github/workflows/w.yml@%s\n  k:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n' "$2" > "$t/$1/x.yml"; }
 mk good $good; mk tag v1; mk ghost $ghost
