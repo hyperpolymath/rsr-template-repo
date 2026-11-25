@@ -123,13 +123,15 @@ workflow_json() {
   if [[ -f "$cache.failed" ]]; then return 1; fi
   mkdir -p "$(dirname "$cache")" || return 1
   : > "$cache.failed" || return 1
+  # Raw validation and alias expansion must see the same source bytes.
+  cp -- "$workflow" "$cache.yaml" || return 1
   preflight="$(yq -p yaml -o yaml -r -N '
     ([.. | select(kind == "map") | to_entries | group_by(.key) |
       .[] | select(length > 1)] | length) as $duplicates |
     ([.. | select(kind == "map") | to_entries[] | .key |
       select(kind != "scalar" or (tag != "!!str" and tag != "!!merge"))] | length) as $keys |
     [$duplicates, $keys] | @tsv
-  ' "$workflow")" || return 1
+  ' "$cache.yaml")" || return 1
   while IFS=$'\t' read -r duplicates keys; do
     [[ "$duplicates" =~ ^[0-9]+$ && "$keys" =~ ^[0-9]+$ ]] || return 1
     if (( duplicates > 0 )); then
@@ -141,21 +143,28 @@ workflow_json() {
       cat "$cache.rejected"; return 3
     fi
   done <<< "$preflight"
-  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" > "$cache.tmp" || return 1
-  jq -se 'length == 1 and (.[0] | type) == "object"' "$cache.tmp" >/dev/null || return 1
+  # Wrap the expanded tree first so yq rebinds paths of nodes copied by merges.
+  # JSON can represent a tagged YAML scalar as an ordinary string.
+  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 '
+    explode(.) | {"workflow": .} |
+    .non_string = [.workflow | .. | select(kind == "scalar" and tag != "!!str") | path | .[1:]]
+  ' "$cache.yaml" > "$cache.tmp" || return 1
+  jq -se 'length == 1 and (.[0] | type == "object" and
+    (.workflow | type) == "object" and (.non_string | type) == "array")' "$cache.tmp" >/dev/null || return 1
   mv "$cache.tmp" "$cache.json" || return 1
   printf '%s' "$cache.json"
 }
 
-# env_pin FILE VAR — the first actual env binding or reusable-call input.
+# env_pin FILE VAR [census] — consensus among actual env bindings and call inputs.
 # Input declarations and matching keys inside unrelated data are not bindings.
 # Validate before command substitution can strip a block scalar's final newline.
 env_pin() {
-  local workflow="$1" var="$2" json
+  local workflow="$1" var="$2" mode="${3:-identity}" json
   json="$(workflow_json "$workflow")" || return 1
-  jq -r --arg var "$var" '
-. as $root |
-first(paths as $p | select($p[-1] == $var) |
+  jq -r --arg var "$var" --arg mode "$mode" '
+def floating: contains("${{") or . == "latest" or . == "HEAD";
+.workflow as $root | .non_string as $non_string |
+[$root | paths as $p | select($p[-1] == $var) |
   select(
     (($p | length) == 2 and $p[0] == "env") or
     (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "env") or
@@ -165,12 +174,19 @@ first(paths as $p | select($p[-1] == $var) |
     (($p | length) == 4 and $p[0] == "jobs" and $p[2] == "with" and
       ($root.jobs[$p[1]].uses | type) == "string" and
       ($root.jobs[$p[1]].uses | test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[^@]+@")))) |
-  $root | getpath($p)) |
-if type == "object" or type == "array" then error("pin must be a scalar")
-else tostring |
-  if test("[\\r\\n]") or (test("\\s") and (contains("${{") | not))
-  then error("pin must not contain whitespace") else . end
-end
+  getpath($p) |
+  if type != "string" or any($non_string[]; . == $p) or length == 0 then
+    error("pin must be a nonempty YAML string")
+  elif $p[2] == "with" and any($non_string[]; . == ["jobs", $p[1], "uses"]) then
+    error("reusable workflow selector must be a YAML string")
+  elif contains("\u0000") or test("[\\r\\n]") or (test("\\s") and (contains("${{") | not)) then
+    error("pin must not contain whitespace or NUL")
+  else . end] | unique as $bindings |
+[$bindings[] | select(floating | not)] as $literals |
+if ($literals | length) > 1 then error("conflicting literal pins")
+elif $mode == "census" then $literals[]
+elif ($bindings | length) > 1 then error("producer pin bindings do not agree")
+else $bindings[] end
   ' "$json"
 }
 
@@ -184,23 +200,29 @@ hypatia_checkouts() {
   if [[ "$status" -eq 3 ]]; then printf '%s\n' "$json"; return 0; fi
   [[ "$status" -eq 0 ]] || return 1
   jq -sr '
+.[0].non_string as $non_string |
 def text: gsub("^\\s+|\\s+$"; "");
 def row($pin; $where): [$pin, $where] | @tsv;
 def bad($where; $why): row("!"; $where + ": " + $why);
-def binding($scope; $name):
+def yaml_string($path): type == "string" and (any($non_string[]; . == $path) | not);
+def binding($root; $path; $name):
+  ($root | getpath($path)) as $scope |
   if ($scope | has("env") | not) then {present:false}
   elif ($scope.env | type) != "object" then {error:"uninspectable env mapping for checkout env binding"}
-  elif ($scope.env | has($name)) then {present:true,value:$scope.env[$name]}
+  elif ($scope.env | has($name)) then
+    if ($scope.env[$name] | yaml_string($path + ["env", $name])) then {present:true,value:$scope.env[$name]}
+    else {error:"checkout env binding is not a literal string"} end
   else {present:false} end;
-def lookup($scopes; $name):
-  reduce $scopes[] as $scope ({present:false};
-    if .present or has("error") then . else binding($scope; $name) end);
+def lookup($root; $paths; $name):
+  reduce $paths[] as $path ({present:false};
+    if .present or has("error") then . else binding($root; $path; $name) end);
 def inspect($root; $job; $entry):
   ("job " + ($job.key | tojson) + " step " + (($entry.key + 1) | tostring)) as $where |
+  ["jobs", $job.key] as $job_path | ($job_path + ["steps", $entry.key]) as $step_path |
   $entry.value as $step |
   if ($step | type) != "object" then bad($where; "step must be a mapping")
   elif ($step | has("uses") | not) then empty
-  elif ($step.uses | type) != "string" then bad($where; "uninspectable uses selector")
+  elif ($step.uses | yaml_string($step_path + ["uses"]) | not) then bad($where; "uninspectable uses selector")
   elif ($step.uses | text | contains("${{")) then bad($where; "uninspectable uses selector expression")
   elif ($step.uses | text | ascii_downcase | startswith("actions/checkout@") | not) then empty
   elif ($step | has("with") | not) then empty
@@ -208,28 +230,28 @@ def inspect($root; $job; $entry):
   elif ($step.with | to_entries | group_by(.key | ascii_downcase) | any(length > 1))
     then bad($where; "checkout input names collide case-insensitively")
   else
-    ($step.with | with_entries(.key |= ascii_downcase)) as $inputs |
+    ($step.with | to_entries | map({key: (.key | ascii_downcase), value: .}) | from_entries) as $inputs |
     if ($inputs | has("repository") | not) then empty
-    elif ($inputs.repository | type) != "string" then bad($where; "uninspectable checkout repository selector")
-    elif ($inputs.repository | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
-    elif ($inputs.repository | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
-    elif ($inputs.ref | type) != "string" then bad($where; "missing or non-literal full-SHA checkout ref")
-    else ($inputs.ref | text) as $raw |
+    elif ($inputs.repository.value | yaml_string($step_path + ["with", $inputs.repository.key]) | not) then
+      bad($where; "uninspectable checkout repository selector")
+    elif ($inputs.repository.value | text | contains("${{")) then bad($where; "uninspectable checkout repository expression")
+    elif ($inputs.repository.value | text | ascii_downcase) != "hyperpolymath/hypatia" then empty
+    elif ($inputs.ref.value | yaml_string($step_path + ["with", $inputs.ref.key]) | not) then
+      bad($where; "missing or non-literal full-SHA checkout ref")
+    else ($inputs.ref.value | text) as $raw |
       (if ($raw | test("^\\$\\{\\{\\s*env\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\}\\}$"))
        then ($raw | capture("^\\$\\{\\{\\s*env\\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\}\\}$").name) as $name |
-            lookup([$step,$job.value,$root]; $name)
+            lookup($root; [$step_path, $job_path, []]; $name)
        else {present:true,value:$raw} end) as $resolved |
       if ($resolved | has("error")) then bad($where; $resolved.error)
       elif ($resolved.present | not) then bad($where; "missing env binding for checkout ref")
-      elif ($resolved.value | type) != "string" then bad($where; "checkout env binding is not a literal string")
       elif ($resolved.value | text | test("^[0-9a-f]{40}$") | not) then bad($where; "missing or non-literal full-SHA checkout ref (or unresolved env binding)")
       else row(($resolved.value | text); $where) end
     end
   end;
-if length != 1 then bad("workflow"; "expected exactly one YAML document")
-elif (.[0] | type) != "object" then bad("workflow"; "root must be a mapping")
-elif (.[0].jobs | type) != "object" then bad("workflow"; "jobs must be a mapping")
-else .[0] as $root | $root.jobs | to_entries[] as $job |
+.[0].workflow as $root |
+if ($root.jobs | type) != "object" then bad("workflow"; "jobs must be a mapping")
+else $root.jobs | to_entries[] as $job |
   if ($job.value | type) != "object" then bad("workflow"; "job must be a mapping")
   elif ($job.value | has("steps") | not) then empty
   elif ($job.value.steps | type) != "array" then bad("workflow"; "job steps must be a sequence")
@@ -412,20 +434,17 @@ done
 
 # ── 4. no tool pinned at two commits in this repository ────────────────────
 # panic-attack is pinned once for its scan and once for patch-bridge triage; the
-# pair must agree, which is why both use env.PANIC_ATTACK_SHA. A literal second
-# pin in another workflow is the clash this catches.
+# pair must agree, which is why both use env.PANIC_ATTACK_SHA. The census
+# excludes intentionally floating pins and checks the remaining literals.
 pins_file="$reusable_cache/pins"
 : > "$pins_file"
 for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   [ -e "$wf" ] || continue
   for var in HYPATIA_SHA HYPATIA_REF PANIC_ATTACK_SHA PONS_SHA; do
-    v="$(env_pin "$wf" "$var")" || {
+    v="$(env_pin "$wf" "$var" census)" || {
       fail "$(basename "$wf") ${var} pin could not be inspected"; continue;
     }
     [ -n "$v" ] || continue
-    case "$v" in
-      *'${{'* | 'latest' | 'HEAD') continue ;; # floating by design, documented at the pin
-    esac
     pin_name="$var"; [[ "$var" != HYPATIA_REF ]] || pin_name=HYPATIA_SHA
     printf '%s\t%s\t%s\n' "$pin_name" "$v" "$(basename "$wf")" >> "$pins_file"
   done
@@ -443,13 +462,12 @@ for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   done <<< "$checkout_rows"
   # A reusable call's hypatia-ref input pins the same scanner as HYPATIA_SHA.
   if [ -n "$(reusable_calls "$wf")" ]; then
-    v="$(env_pin "$wf" hypatia-ref)" || {
+    v="$(env_pin "$wf" hypatia-ref census)" || {
       fail "$(basename "$wf") with: hypatia-ref pin could not be inspected"; continue;
     }
-    case "$v" in
-      "" | *'${{'* | 'latest' | 'HEAD') ;;
-      *) printf '%s\t%s\t%s\n' HYPATIA_SHA "$v" "$(basename "$wf") (with: hypatia-ref)" >> "$pins_file" ;;
-    esac
+    if [[ -n "$v" ]]; then
+      printf '%s\t%s\t%s\n' HYPATIA_SHA "$v" "$(basename "$wf") (with: hypatia-ref)" >> "$pins_file"
+    fi
   fi
 done
 while IFS= read -r var; do

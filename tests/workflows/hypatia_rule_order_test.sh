@@ -152,7 +152,7 @@ says "the library failure names the variable" "JQ_LIB_SHA256"
 fresh
 sed -i "s/^      HYPATIA_SHA: .*/      HYPATIA_SHA: ''/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "a workflow with no pin cannot validate the policy"
-says "the missing-pin failure says so" "declares no HYPATIA_SHA"
+says "the empty-pin failure names the malformed binding" "malformed HYPATIA_SHA scanner pin"
 
 # A caller of the shared reusable pins the scanner with its hypatia-ref input,
 # not an env var: that pin is read and checked like HYPATIA_SHA.
@@ -179,7 +179,7 @@ says "the caller-pin failure names the input" "hypatia-ref input in hypatia-scan
 
 fresh; caller_wf ''
 expect_rc 1 "a reusable caller that passes no hypatia-ref cannot validate the policy"
-says "the missing caller pin is stated" "passes no hypatia-ref input"
+says "the null caller pin is named as malformed" "malformed hypatia-ref scanner pin"
 
 # Two pins for one scanner that disagree are refused even when one matches.
 fresh; caller_wf '"5555555555555555555555555555555555555555"'
@@ -203,16 +203,13 @@ jobs:
 YML
 }
 readonly WRONG_SCANNER_PIN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-fresh
-cp "$REPO_DIR/.github/workflows/hypatia-scan.yml" "$WORK/repo/.github/workflows/hypatia-scan.yml"
-sed -i "s/^      HYPATIA_SHA: .*/      HYPATIA_SHA: \&scanner \"$scanner_pin\"/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+fresh; env_wf "&scanner \"$scanner_pin\""
 expect_rc 0 "an anchored env scanner pin matches the policy"
 sed -i "s/$scanner_pin/$WRONG_SCANNER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "an anchored wrong env scanner pin is refused"
 
-fresh
-cp "$REPO_DIR/.github/workflows/hypatia-scan.yml" "$WORK/repo/.github/workflows/hypatia-scan.yml"
-sed -i "s/^      HYPATIA_SHA: .*/      SCANNER_PIN: \&scanner \"$scanner_pin\"\n      HYPATIA_SHA: *scanner/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+fresh; env_wf '*scanner'
+sed -i "/^env:/i\x-scanner: \&scanner \"$scanner_pin\"" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 0 "an aliased env scanner pin matches the policy"
 sed -i "s/$scanner_pin/$WRONG_SCANNER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "an aliased wrong env scanner pin is refused"
@@ -227,6 +224,23 @@ sed -i "/^jobs:/i\x-scanner: \&scanner \"$scanner_pin\"" "$WORK/repo/.github/wor
 expect_rc 0 "an aliased reusable scanner input matches the policy"
 sed -i "s/$scanner_pin/$WRONG_SCANNER_PIN/" "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "an aliased wrong reusable scanner input is refused"
+
+fresh; env_wf "!!binary \"$scanner_pin\""
+expect_rc 1 "a binary-tagged env scanner pin cannot become a JSON string pin"
+says "the env pin retains its YAML string-tag requirement" "malformed HYPATIA_SHA scanner pin: scanner pin must have YAML tag !!str"
+fresh; caller_wf "!!binary \"$scanner_pin\""
+expect_rc 1 "a binary-tagged reusable scanner input cannot become a JSON string pin"
+says "the reusable pin retains its YAML string-tag requirement" "malformed hypatia-ref scanner pin: scanner pin must have YAML tag !!str"
+fresh; env_wf '*scanner'
+sed -i "/^env:/i\x-scanner: \&scanner !!binary \"$scanner_pin\"" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a scalar alias preserves a non-string scanner pin tag"
+says "the aliased non-string scanner tag is explained" "scanner pin must have YAML tag !!str"
+fresh; env_wf "$scanner_pin"
+sed -i -e 's/^  HYPATIA_SHA:.*/  <<: *scanner/' -e "/^env:/i\x-scanner: \&scanner {HYPATIA_SHA: \"$scanner_pin\"}" "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 0 "a merged string scanner pin retains its resolved binding path"
+sed -i 's/{HYPATIA_SHA: /{HYPATIA_SHA: !!binary /' "$WORK/repo/.github/workflows/hypatia-scan.yml"
+expect_rc 1 "a merged non-string scanner tag is rejected at the resolved binding"
+says "the merged non-string scanner tag is explained" "scanner pin must have YAML tag !!str"
 
 fresh; env_wf "$scanner_pin"
 sed -i 's/^on: .*/on:\n  workflow_call:\n    inputs:\n      HYPATIA_SHA:\n        type: string/' "$WORK/repo/.github/workflows/hypatia-scan.yml"
@@ -265,13 +279,36 @@ cat > "$WORK/failing-parser/yq" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
   *--version*) echo 'yq (https://github.com/mikefarah/yq/) version v4.53.3' ;;
-  *'explode(.)'*) printf '{"jobs":{}}\n'; exit 17 ;;
+  *'explode(.)'*) printf '{"workflow":{"jobs":{}},"pin_tags":[]}\n'; exit 17 ;;
   *) printf '0\t0\t0\t0\n' ;;
 esac
 SH
 chmod +x "$WORK/failing-parser/yq"
 PATH="$WORK/failing-parser:$PATH" expect_rc 1 "a scanner decoder failure cannot publish partial JSON"
 says "the scanner decoder failure is reported" "scanner pins could not be inspected"
+if grep -Fq "declares no HYPATIA_SHA" "$WORK/out"; then
+    bad "an extraction failure must not emit a missing-pin diagnosis"
+else
+    ok "an extraction failure does not emit a missing-pin diagnosis"
+fi
+
+fresh; env_wf "$scanner_pin"
+mkdir -p "$WORK/snapshot-parser"
+RULE_ORDER_REAL_YQ="$(command -v yq)"
+RULE_ORDER_MUTATE_WORKFLOW="$WORK/repo/.github/workflows/hypatia-scan.yml"
+export RULE_ORDER_REAL_YQ RULE_ORDER_MUTATE_WORKFLOW
+cat > "$WORK/snapshot-parser/yq" <<'SH'
+#!/usr/bin/env bash
+"$RULE_ORDER_REAL_YQ" "$@"
+status=$?
+case "$*" in
+  *--version* | *'explode(.)'*) ;;
+  *) printf '\nenv: {}\n' >> "$RULE_ORDER_MUTATE_WORKFLOW" ;;
+esac
+exit "$status"
+SH
+chmod +x "$WORK/snapshot-parser/yq"
+PATH="$WORK/snapshot-parser:$PATH" expect_rc 0 "preflight and decode share a byte snapshot when the original workflow changes"
 
 # Malformed refs must not masquerade as immutable scanner pins.
 for invalid in main be98f74ce93d 4444444444444444444444444444444444444444-extra; do
@@ -340,17 +377,17 @@ YML
 expect_rc 1 "identical reusable scanner inputs in different jobs are refused"
 says "multiple jobs preserve the duplicate input diagnostic" "passes hypatia-ref more than once"
 
-# Null, empty and absent bindings still explain which scanner pin is missing.
+# Null and empty bindings are malformed; only absent bindings are missing.
 fresh; env_wf null
 expect_rc 1 "a null env scanner pin cannot validate the policy"
-says "a null env scanner pin retains the missing-pin diagnostic" "declares no HYPATIA_SHA"
+says "a null env scanner pin retains its malformed-pin diagnostic" "malformed HYPATIA_SHA scanner pin"
 fresh; env_wf "$scanner_pin"
 sed -i '/^  HYPATIA_SHA:/d' "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "an absent env scanner pin cannot validate the policy"
 says "an absent env scanner pin retains the missing-pin diagnostic" "declares no HYPATIA_SHA"
 fresh; caller_wf "''"
 expect_rc 1 "an empty string reusable scanner input cannot validate the policy"
-says "an empty reusable scanner input retains the missing-pin diagnostic" "passes no hypatia-ref input"
+says "an empty reusable scanner input retains its malformed-pin diagnostic" "malformed hypatia-ref scanner pin"
 fresh; caller_wf "$scanner_pin"
 sed -i '/^      hypatia-ref:/d' "$WORK/repo/.github/workflows/hypatia-scan.yml"
 expect_rc 1 "an absent reusable scanner input cannot validate the policy"
