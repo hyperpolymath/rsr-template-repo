@@ -107,13 +107,25 @@ produced_artifacts() {
   ' "$1"
 }
 
-# env_pin FILE VAR — the value of a `VAR:` line in the workflow's env blocks.
+# env_pin FILE VAR — the first matching mapping value, including reusable inputs.
+# Decode YAML before comparing pins, as the checkout reader does: anchor syntax and
+# aliases are not part of a pin. Traverse entries in order before their siblings
+# so the first-match contract remains independent of a key's nesting depth.
 env_pin() {
-  awk -v var="$2" '
-    $0 ~ "^[[:space:]]*" var ":[[:space:]]" {
-      sub("^[[:space:]]*" var ":[[:space:]]*", ""); gsub(/["'"'"']/, ""); print; exit
-    }
-  ' "$1"
+  local workflow="$1" var="$2"
+  yq --yaml-fix-merge-anchor-to-spec=true -p yaml -o json -I0 'explode(.)' "$workflow" |
+    jq -sr --arg var "$var" '
+def pins:
+  if type == "object" then to_entries[] |
+    if .key == $var then .value else .value | pins end
+  elif type == "array" then .[] | pins
+  else empty end;
+if length != 1 then error("expected exactly one YAML document")
+else first(.[0] | pins) |
+  if type == "object" or type == "array" then error("pin must be a scalar")
+  else tostring end
+end
+    '
 }
 
 
@@ -335,13 +347,17 @@ check_pin() { # check_pin REPORTER REPORT_FLAG PRODUCER VAR [INPUT]
   local report="$1" flag="$2" producer="$3" var="$4" input="${5:-}"
   local in_reporter in_producer pin_name="$var"
   in_reporter="$({ grep -o -- "${flag}[[:space:]]\\+[0-9a-f]\\{40\\}" "$report" || true; } | awk '{print $2}' | head -n1)"
-  in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$var" | head -n1)"
+  in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$var")" || {
+    fail "${producer} ${var} pin could not be inspected"; return;
+  }
   if [ -z "$in_reporter" ]; then
     fail "$(basename "$report") names no ${flag}; its findings would carry no tool identity"
     return
   fi
   if [ -z "$in_producer" ] && [ -n "$input" ] && [ -n "$(reusable_calls "$WORKFLOWS_DIR/$producer")" ]; then
-    in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$input" | head -n1)"
+    in_producer="$(env_pin "$WORKFLOWS_DIR/$producer" "$input")" || {
+      fail "${producer} with: ${input} pin could not be inspected"; return;
+    }
     pin_name="with: $input"
     if [ -z "$in_producer" ]; then
       fail "'${producer}' calls a reusable workflow without passing ${input}, so the scan runs that workflow's default, not the ${flag} ${in_reporter:0:12} the verdict claims; pass 'with: ${input}: <sha>'"
@@ -371,7 +387,9 @@ trap 'rm -rf "$names_file" "$pins_file" "$reusable_cache"' EXIT
 for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   [ -e "$wf" ] || continue
   for var in HYPATIA_SHA HYPATIA_REF PANIC_ATTACK_SHA PONS_SHA; do
-    v="$(env_pin "$wf" "$var" | head -n1)"
+    v="$(env_pin "$wf" "$var")" || {
+      fail "$(basename "$wf") ${var} pin could not be inspected"; continue;
+    }
     [ -n "$v" ] || continue
     case "$v" in
       *'${{'* | 'latest' | 'HEAD') continue ;; # floating by design, documented at the pin
@@ -393,7 +411,9 @@ for wf in "$WORKFLOWS_DIR"/*.yml "$WORKFLOWS_DIR"/*.yaml; do
   done <<< "$checkout_rows"
   # A reusable call's hypatia-ref input pins the same scanner as HYPATIA_SHA.
   if [ -n "$(reusable_calls "$wf")" ]; then
-    v="$(env_pin "$wf" hypatia-ref | head -n1)"
+    v="$(env_pin "$wf" hypatia-ref)" || {
+      fail "$(basename "$wf") with: hypatia-ref pin could not be inspected"; continue;
+    }
     case "$v" in
       "" | *'${{'* | 'latest' | 'HEAD') ;;
       *) printf '%s\t%s\t%s\n' HYPATIA_SHA "$v" "$(basename "$wf") (with: hypatia-ref)" >> "$pins_file" ;;
@@ -410,8 +430,8 @@ while IFS= read -r var; do
 done <<< "$(cut -f1 "$pins_file" | sort -u)"
 
 # HYPATIA_SHA and HYPATIA_REF are two spellings of the same pin.
-h_sha="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_SHA | head -n1)"
-h_ref="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_REF | head -n1)"
+h_sha="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_SHA)" || fail "hypatia-scan.yml HYPATIA_SHA pin could not be inspected"
+h_ref="$(env_pin "$WORKFLOWS_DIR/hypatia-scan.yml" HYPATIA_REF)" || fail "hypatia-scan.yml HYPATIA_REF pin could not be inspected"
 if [ -n "$h_sha" ] && [ -n "$h_ref" ] && [ "$h_sha" != "$h_ref" ]; then
   fail "hypatia-scan.yml pins HYPATIA_SHA ${h_sha:0:12} and HYPATIA_REF ${h_ref:0:12}"
 fi
