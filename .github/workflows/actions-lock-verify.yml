@@ -50,6 +50,12 @@ jobs:
           echo "GH_ACTIONS_LOCK_BIN=$RUNNER_TEMP/gh-actions-lock" >> "$GITHUB_ENV"
       - name: Negative test (a hand-edited lock must fail)
         run: scripts/tests/lock-negative-test.sh
+      - name: Reusable-workflow pins (full SHA, resolves) - negative tests first
+        run: scripts/tests/reusable-pins-negative-test.sh
+      - name: Reusable-workflow pins (full SHA, resolves)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/check-reusable-pins.sh
       - name: Verify lock (frozen, network)
         env:
           GH_TOKEN: ${{ github.token }}
