@@ -57,6 +57,10 @@ difference is the cross-check's work.
   do not average it.
 . Write ONE canon check (in standards, called by every repo) for cross-repo
   reusable-workflow pins: each `jobs.<id>.uses` pin is a full SHA and resolves.
+  Reference implementation: `scripts/check-reusable-pins.sh`, with negative tests in
+  `scripts/tests/reusable-pins-negative-test.sh` (a tag-pinned call fails; an
+  unresolvable SHA fails). A moved tag would otherwise run unreviewed code while
+  every other check stays green.
   When disagreements are explained, make it and `Actions Lock Verify` required
   contexts via the standards reusable (owner action; never a ruleset edit by an agent).
 . Replace each of the 38 script copies with a stub that calls the canon check
