@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+= Actions lock: one writer, one required check
+:toc: preamble
+:sectnums:
+
+Status: *proposal, draft, not ratified.* Source: recommendation 1 of
+`hyperpolymath/mathesis` draft PR #126, `docs/proposals/types-tropes-estate-upkeep.adoc`
+(that document's marks are its own claims; Mathesis did not recheck them here).
+
+== Rule
+
+. `gh actions-lock` (github/gh-actions-lock) is the *only* writer of
+  `.github/workflows/actions.lock`. No script, bot or person edits the file.
+. `gh actions-lock --verify` is the *required check*. `--verify-local` is the
+  offline pre-commit form only; it cannot see unreachable or moved pins.
+. The tool is fetched by digest, not by an action, so the gate workflow has no
+  lock entry of its own (as `lock-sync-gate.yml` already does).
+. The proved judge in proven-cicd-and-workflows stays as a *differential
+  cross-check*, never as a writer and never as the required check.
+
+== What was reproduced here (2026-11-25)
+
+Tool: gh-actions-lock v0.2.0, linux-amd64, sha256 `79ec84c1...f373b6`, the pin
+standards already uses in `self-test.yml`. Re-run `scripts/lock-census.sh`.
+
+[cols="3,2,3",options="header"]
+|===
+|Observation |Result |Evidence
+|`--verify-local` on this repo |*fails*: 2 workflows stale (`ci-gate.yml`, `ci-gate-tamper-guard-caller.yml`, unused pin `proven-cicd-and-workflows@a0760ce`) |run in this session
+|`scripts/check-lock-sync.sh` on the same checkout |*exits 0* ("in sync") |run in this session
+|`--verify` (network) here |*could not complete*: GraphQL returns HTTP 403 in this sandbox; it reported the same 2 stale workflows and 2 pins as unverifiable |run in this session
+|Sample census (4 repos: this, standards, proven-cicd, mathesis) |4/4 locks fail `--verify-local`; 3 distinct `check-lock-sync.sh` hashes, proven-cicd has none |`scripts/lock-census.sh`
+|Negative test |clean lock passes; fabricated SHA rejected; deleted entry rejected |`scripts/tests/lock-negative-test.sh`
+|===
+
+*Not reproduced.* The estate-wide figures (38 script variants, about 160 of
+329 locks inconsistent) need clones of all repositories; this session had
+four. They remain Mathesis's claims until `lock-census.sh` is run over a full
+clone set. Note `--verify-local` and the proved judge are different deciders;
+the 160 figure is the judge's, so the two counts may differ and the
+difference is the cross-check's work.
+
+== Retirement path for the 38 variants of `check-lock-sync.sh`
+
+. Add `actions-lock-verify.yml` beside the old gate (this PR). Both run.
+. Run the census over all clones; list repos where the two disagree (the
+  Mathesis count says 58). Each disagreement is a bug in one of them: file it,
+  do not average it.
+. When disagreements are explained, make `Actions Lock Verify` the required
+  context via the standards reusable (owner action; never a ruleset edit by an agent).
+. Replace each script copy with a one-line stub that execs `gh actions-lock
+  --verify-local`, then delete the stub in a later sweep. Doctrine 7 applies:
+  retire by superseding, not by recency.
+. Retire the six hand-writers in
+  `proven-cicd-and-workflows/docs/proven/LOCK-PIN-CATALOGUE-2026-11-13.adoc`
+  (including `lock-sync-fix.sh` and `merge-actions-lock.rs`). `just lock-sync-fix`
+  becomes `gh actions-lock`.
+
+== Relock rollout order (one-time, scripted, owner-approved; not run here)
+
+. *Pilot, 2 to 3 repos* with no dependents: relock with the tool, add the
+  check, run the negative test. Needs an environment where GraphQL works.
+. *Canon sources*: standards, rsr-template-repo, proven-cicd-and-workflows,
+  because every other repo copies from them.
+. *Repos with silent CI death first*: those where the census shows zero jobs
+  (`startup_failure`).
+. *The rest in batches of 20*, one draft PR each, stop on the first red.
+  `scripts/lock-census.sh` output is the worklist. Unresolved standards pins
+  go through the ADR-003 ancestor check, not `--accept-moved`.
+
+== Cross-check by the proved judge
+
+Per repo, run both. `--verify` accepting while the judge rejects, or the
+reverse, is a defect report against one decider. The judge is a
+representation rule (`RefOk`) and does not resolve pins; `--verify` resolves
+and checks reachability. Neither subsumes the other, which is why the judge
+stays.
+
+== Decisions for the owner
+
+. Make `Actions Lock Verify` a required context? (standards reusable; owner only)
+. Authorise the scripted relock of the full worklist once a pilot is green?
+. Keep `--verify` alone, or also require the judge? Recommended: the tool is
+  required, the judge is advisory-with-alert.
+
+== Beyond this repo
+
+* standards: ADR-003, pin scripts, the required-context reusable.
+* proven-cicd-and-workflows: demote the judge; retire the hand-writers.
+* A list of every hand-writer of `actions.lock` across the estate belongs in
+  the estate upkeep list.
+* Dependabot relocks in the same PR (per Mathesis); not tested here.

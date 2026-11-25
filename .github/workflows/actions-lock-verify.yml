@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: MPL-2.0
+name: Actions Lock Verify
+
+# `gh actions-lock` is the only writer of .github/workflows/actions.lock and
+# `--verify` is the required check (docs/proposals/actions-lock-single-writer.adoc).
+# Like lock-sync-gate.yml this file has NO `uses:`, so it has no lock entry to
+# go stale: the pinned binary is fetched by digest, not by an action.
+# DRAFT WIRING: runs alongside lock-sync-gate.yml until the owner approves
+# retiring scripts/check-lock-sync.sh. Do not make it a required context yet.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actions-lock-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: gh actions-lock --verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out without actions/checkout
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          git fetch -q --depth 1 origin "$SHA"
+          git checkout -q FETCH_HEAD
+          git remote remove origin
+      - name: Install pinned gh-actions-lock
+        run: |
+          set -euo pipefail
+          curl -sSfL --proto '=https' --proto-redir '=https' --tlsv1.2 --retry 3 \
+            -o "$RUNNER_TEMP/gh-actions-lock" \
+            https://github.com/github/gh-actions-lock/releases/download/v0.2.0/linux-amd64
+          echo "79ec84c191667fd935a277e6fd3662cf5d3669cccc9e99998731d8f306f373b6  $RUNNER_TEMP/gh-actions-lock" | sha256sum --check
+          chmod u+x "$RUNNER_TEMP/gh-actions-lock"
+          echo "GH_ACTIONS_LOCK_BIN=$RUNNER_TEMP/gh-actions-lock" >> "$GITHUB_ENV"
+      - name: Negative test (a hand-edited lock must fail)
+        run: scripts/tests/lock-negative-test.sh
+      - name: Verify lock (frozen, network)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: '"$GH_ACTIONS_LOCK_BIN" --verify --no-interactive'
