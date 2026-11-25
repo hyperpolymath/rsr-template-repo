@@ -16,6 +16,7 @@
 #   - workflow path and tag compared case-insensitively
 #   - quoted `uses` key (flow or block form) not recognised
 #   - flow-mapping value cut at an adjacent `#` (a SHA-shaped prefix plus `#tag`)
+#   - flow collection opened mid-line (`steps: [ { uses: x } ]`) not read
 # PINNING_SCRIPT overrides the script under test (used to confirm the mutants
 # are caught by the new script and missed by the old one).
 set -euo pipefail
@@ -257,6 +258,17 @@ expect "mutant: flow-mapping SHA-shaped prefix then adjacent #tag, no lockfile" 
 d=$(case_dir); workflow "$d" a.yml "      - { \"uses\": actions/checkout@$SHA40 } # pinned
       - { 'uses': actions/checkout@$SHA40, with: { x: y } }"
 expect "control: quoted uses keys with inline SHAs, comment after a blank" 0 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "    steps: [ { uses: evil/act@v1 } ]"
+expect "mutant: flow collection opened after a key, mid-line" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "    steps: [{\"uses\":evil/act@v1}]"
+expect "mutant: JSON-style flow step, quoted key, no blank after the colon" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "    steps: [ { uses: actions/checkout@$SHA40 } ]
+      - run: echo { uses: evil/act@v1 }
+      - with: { note: '{ uses: evil/act@v1 }' }"
+expect "control: mid-line flow step pinned; braces in a plain or quoted scalar are text" 0 "$d"
 
 echo
 echo "check-action-pinning: $pass passed, $fail failed"

@@ -67,16 +67,11 @@ import { join } from "node:path";
 
 const WF = ".github/workflows";
 const LOCK = join(WF, "actions.lock");
-// The `uses` key as YAML may spell it: bare, single- or double-quoted, with
-// optional blanks before the colon. Block and flow forms share it, so a quoted
-// key cannot skip the check in either.
-const USES_KEY = String.raw`(?:uses|'uses'|"uses")[ \t]*:`;
-const BLOCK_USES = new RegExp(`^${USES_KEY}`);
-// Flow-mapping key right after `{` or `,`. A plain value stops at whitespace,
-// `,` or `}`; a `#` with no blank before it is part of the value (YAML starts a
-// comment only at ` #`), so `x@<sha>#tag` is read whole. Only read on lines that
-// open a flow mapping, see usesRefs.
-const FLOW_USES = new RegExp(`[{,]\\s*${USES_KEY}\\s*('[^']*'|"[^"]*"|[^\\s,}]+)`, "g");
+// The `uses` key of a block-form line as YAML may spell it: bare, single- or
+// double-quoted, with optional blanks before the colon. The flow form decodes
+// its keys in flowRefs, so a quoted key cannot skip the check in either.
+const BLOCK_USES = /^(?:uses|'uses'|"uses")[ \t]*:/;
+const FLOW_INDICATOR = "{}[],";
 const SHA = /@[a-f0-9]{40}$/;
 // The lock writes a resolved commit as `sha1-` plus 40 lower-case hex digits.
 const LOCK_COMMIT = /^sha1-[0-9a-f]{40}$/;
@@ -129,16 +124,85 @@ function blockUses(line) {
   return (hash === -1 ? rest : rest.slice(0, hash)).trim();
 }
 
-// Every action ref a line declares. Flow-mapping keys count only on a line that
-// itself opens a flow mapping (`- { uses: x@v1 }`), so `{ uses: ... }` inside a
-// comment or a quoted shell argument is not read as a step.
+// Where a line's flow collection starts, or -1. A flow collection opens only
+// where a value begins with `{` or `[`: at the start of the line (after any list
+// dashes, or as a `,` continuation), or straight after a `key:`. A `{` later in
+// a plain or quoted scalar (`run: echo '{ uses: x }'`) or in a comment is text.
+function flowStart(line) {
+  let s = line.trimStart();
+  while (s.startsWith("- ")) s = s.slice(2).trimStart();
+  if (s === "" || s[0] === "#") return -1;
+  const base = line.length - s.length;
+  if ("{[,".includes(s[0])) return base;
+  let end;
+  if (s[0] === "'" || s[0] === '"') {
+    end = s.indexOf(s[0], 1);
+    if (end === -1) return -1;
+    end = s.slice(end + 1).search(/^[ \t]*:/) === 0 ? s.indexOf(":", end + 1) : -1;
+  } else {
+    end = s.search(/:(\s|$)/);
+  }
+  if (end === -1) return -1;
+  const value = s.slice(end + 1).trimStart();
+  return value[0] === "{" || value[0] === "[" ? line.length - value.length : -1;
+}
+
+// One flow token at t[i]: an indicator, a `:`, or a scalar (quoted or plain).
+// A plain scalar stops at a flow indicator, at `: ` (a `:` before a blank, an
+// indicator or the end), or at ` #`; a `#` with no blank before it is part of
+// the value (YAML starts a comment only at ` #`), so `x@<sha>#tag` is read whole.
+// Returns [token, next index]; a token is { p: indicator } or { v: raw scalar }.
+function flowToken(t, i, afterQuoted) {
+  const c = t[i];
+  if (FLOW_INDICATOR.includes(c)) return [{ p: c }, i + 1];
+  const colonEnds = (j) => t[j] === ":" && (j + 1 >= t.length || /\s/.test(t[j + 1]) || FLOW_INDICATOR.includes(t[j + 1]));
+  if (c === ":" && (afterQuoted || colonEnds(i))) return [{ p: ":" }, i + 1];
+  if (c === "'" || c === '"') {
+    let j = i + 1;
+    while (j < t.length) {
+      if (c === '"' && t[j] === "\\") j += 2;
+      else if (c === "'" && t[j] === "'" && t[j + 1] === "'") j += 2;
+      else if (t[j] === c) break;
+      else j += 1;
+    }
+    return [{ v: t.slice(i, j + 1), q: true }, j + 1];
+  }
+  let j = i;
+  while (j < t.length && !FLOW_INDICATOR.includes(t[j]) && !colonEnds(j) && !(t[j] === "#" && /\s/.test(t[j - 1]))) j += 1;
+  return [{ v: t.slice(i, j).trimEnd() }, j];
+}
+
+// The refs of every `uses` key in a line's flow collections: a scalar whose
+// decoded value is `uses`, right after `{`, `[` or `,`, then `:`, then a scalar.
+function flowRefs(t) {
+  const toks = [];
+  let i = 0;
+  while (i < t.length) {
+    if (/\s/.test(t[i])) { i += 1; continue; }
+    if (t[i] === "#" && (i === 0 || /\s/.test(t[i - 1]))) break;
+    const prev = toks[toks.length - 1];
+    const [tok, next] = flowToken(t, i, prev !== undefined && prev.q === true);
+    toks.push(tok);
+    i = next;
+  }
+  const refs = [];
+  for (let k = 0; k + 2 < toks.length; k += 1) {
+    const before = k === 0 ? "{" : toks[k - 1].p;
+    if (toks[k].v === undefined || decode(toks[k].v) !== "uses") continue;
+    if (!"{[,".includes(before ?? "x") || toks[k + 1].p !== ":") continue;
+    if (toks[k + 2].v !== undefined && toks[k + 2].v !== "") refs.push(decode(toks[k + 2].v));
+  }
+  return refs;
+}
+
+// Every action ref a line declares: a block-form `uses:` value, or a `uses` key
+// in a flow collection the line opens (see flowStart), so `{ uses: ... }` inside
+// a comment or a quoted shell argument is not read as a step.
 function usesRefs(line) {
   const block = blockUses(line);
   if (block !== null) return block === "" ? [] : [decode(block)];
-  let s = line.trimStart();
-  while (s.startsWith("- ")) s = s.slice(2).trimStart();
-  if (!s.startsWith("{")) return [];
-  return [...s.matchAll(FLOW_USES)].map((m) => decode(m[1]));
+  const at = flowStart(line);
+  return at === -1 ? [] : flowRefs(line.slice(at));
 }
 
 // Line-based read of the two sections of actions.lock that matter:
