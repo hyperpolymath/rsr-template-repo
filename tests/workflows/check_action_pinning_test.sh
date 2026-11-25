@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # Controls and mutants for scripts/check-action-pinning.js. Each hole the gate
 # once had has a mutant that must FAIL (exit 1) and a control that must PASS
@@ -13,6 +14,8 @@
 #   - block-form value cut at a comma (a SHA-shaped prefix plus a mutable suffix)
 #   - flow-mapping text in a comment or a quoted shell argument read as a step
 #   - workflow path and tag compared case-insensitively
+#   - quoted `uses` key (flow or block form) not recognised
+#   - flow-mapping value cut at an adjacent `#` (a SHA-shaped prefix plus `#tag`)
 # PINNING_SCRIPT overrides the script under test (used to confirm the mutants
 # are caught by the new script and missed by the old one).
 set -euo pipefail
@@ -235,6 +238,25 @@ expect "mutant: tag differs from the locked tag only in case" 1 "$d"
 d=$(case_dir); workflow "$d" a.yml "      - uses: Owner/Act@Release"
 lock_for "$d" a.yml 'owner/act@Release'
 expect "control: owner/repo case may differ, the tag matches exactly" 0 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { \"uses\": evil/act@v1 }"
+expect "mutant: double-quoted uses key in a flow mapping" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { name: n, 'uses' : evil/act@v1 }"
+expect "mutant: single-quoted uses key, blank before colon, in a flow mapping" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - \"uses\": evil/act@v1"
+expect "mutant: double-quoted uses key in block form" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses : evil/act@v1"
+expect "mutant: blank before the colon in block form" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { uses: evil/act@$SHA40#mutable }"
+expect "mutant: flow-mapping SHA-shaped prefix then adjacent #tag, no lockfile" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { \"uses\": actions/checkout@$SHA40 } # pinned
+      - { 'uses': actions/checkout@$SHA40, with: { x: y } }"
+expect "control: quoted uses keys with inline SHAs, comment after a blank" 0 "$d"
 
 echo
 echo "check-action-pinning: $pass passed, $fail failed"

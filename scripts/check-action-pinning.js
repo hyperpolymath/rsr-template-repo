@@ -67,10 +67,16 @@ import { join } from "node:path";
 
 const WF = ".github/workflows";
 const LOCK = join(WF, "actions.lock");
-// Flow-mapping key: `uses:` right after `{` or `,`. A value stops at whitespace,
-// `#`, `,` or `}` (or is a quoted string). Only read on lines that open a flow
-// mapping, see usesRefs.
-const FLOW_USES = /[{,]\s*uses:\s*('[^']*'|"[^"]*"|[^\s#,}]+)/g;
+// The `uses` key as YAML may spell it: bare, single- or double-quoted, with
+// optional blanks before the colon. Block and flow forms share it, so a quoted
+// key cannot skip the check in either.
+const USES_KEY = String.raw`(?:uses|'uses'|"uses")[ \t]*:`;
+const BLOCK_USES = new RegExp(`^${USES_KEY}`);
+// Flow-mapping key right after `{` or `,`. A plain value stops at whitespace,
+// `,` or `}`; a `#` with no blank before it is part of the value (YAML starts a
+// comment only at ` #`), so `x@<sha>#tag` is read whole. Only read on lines that
+// open a flow mapping, see usesRefs.
+const FLOW_USES = new RegExp(`[{,]\\s*${USES_KEY}\\s*('[^']*'|"[^"]*"|[^\\s,}]+)`, "g");
 const SHA = /@[a-f0-9]{40}$/;
 // The lock writes a resolved commit as `sha1-` plus 40 lower-case hex digits.
 const LOCK_COMMIT = /^sha1-[0-9a-f]{40}$/;
@@ -111,8 +117,9 @@ function normRef(ref) {
 function blockUses(line) {
   let s = line.trimStart();
   while (s.startsWith("- ")) s = s.slice(2).trimStart();
-  if (!s.startsWith("uses:")) return null;
-  const rest = s.slice("uses:".length).trim();
+  const key = BLOCK_USES.exec(s);
+  if (key === null) return null;
+  const rest = s.slice(key[0].length).trim();
   const q = rest[0];
   if (q === "'" || q === '"') {
     const end = rest.indexOf(q, 1);
