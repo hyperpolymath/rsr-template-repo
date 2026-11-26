@@ -22,7 +22,8 @@
 #   - flow step split across lines read line by line (missed or misread)
 #   - an unbalanced `{` in a block scalar swallowing the steps after it
 #   - subpath ref rejected when only its repository root is resolved
-#   - node properties (`&anchor`, `!!tag`) hiding a step from the scan
+#   - node properties (`&anchor`, `!!tag`) hiding a step or a key from the scan
+#   - an alias used as a key (`*u : x`), reported rather than dropped
 #   - a `uses` key under env/with (not an action) rejected; the path decides
 #   - a step placed by an alias, or an explicit `? uses` key, not seen
 #   - a double-quoted escape spelling the `uses` key (`"u\x73es"`)
@@ -334,6 +335,27 @@ expect "mutant: tagged flow step" 1 "$d"
 
 d=$(case_dir); workflow "$d" a.yml "      - &a uses: evil/act@v1"
 expect "mutant: anchor before the uses key" 1 "$d"
+
+d=$(case_dir); printf '# SPDX-License-Identifier: MPL-2.0\non: push\n&j jobs:\n  a:\n    runs-on: x\n    steps:\n      - uses: evil/act@v1\n' > "$d/.github/workflows/a.yml"
+expect "mutant: anchor before the jobs key" 1 "$d"
+
+d=$(case_dir); printf '# SPDX-License-Identifier: MPL-2.0\non: push\n&j jobs:\n  a:\n    runs-on: x\n    steps:\n      - uses: actions/checkout@%s\n' "$SHA40" > "$d/.github/workflows/a.yml"
+expect "control: anchor before the jobs key, inline SHA" 0 "$d"
+
+d=$(case_dir); job "$d" a.yml "    env:
+      K: &u uses
+    steps:
+      - *u : evil/act@v1"
+expect "mutant: alias as the step key, block form" 1 "$d"
+
+d=$(case_dir); job "$d" a.yml "    env:
+      K: &u uses
+    steps:
+      - { *u : evil/act@v1 }"
+expect "mutant: alias as the step key, flow form" 1 "$d"
+
+d=$(case_dir); printf '# SPDX-License-Identifier: MPL-2.0\non: push\nenv:\n  K: &u uses\njobs:\n  a:\n    *u : evil/repo/.github/workflows/w.yml@v1\n' > "$d/.github/workflows/a.yml"
+expect "mutant: alias as a reusable-workflow key" 1 "$d"
 
 d=$(case_dir); job "$d" a.yml "    env: { uses: hello }
     steps:

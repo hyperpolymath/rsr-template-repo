@@ -55,7 +55,8 @@
 //   line continues on the deeper-indented lines after it and is read as one.
 //
 //   Node properties. An anchor (`&s`) or tag (`!!map`) before a step, a key or
-//   a value changes nothing it holds, so `- &s { uses: x@v1 }` is a step.
+//   a value changes nothing it holds, so `- &s { uses: x@v1 }` is a step, and
+//   a key keeps the column its properties start at, so `&j jobs:` is `jobs`.
 //
 //   Quoted keys and values. `uses: 'x@v1'` and `uses: x@v1` are the same YAML
 //   scalar. A quoted scalar is read to its real closing quote (`''` is an
@@ -65,7 +66,8 @@
 //   One line per ref. A `uses` value that does not end on its key's line (an
 //   empty value, a quote left open, a plain scalar continued on a deeper line)
 //   is reported as an error rather than guessed at; so is an explicit `? key`
-//   entry, whose key the scan does not read.
+//   entry and an alias used as a key (`*u : x`), whose keys the scan does not
+//   read.
 //
 //   List dashes. `-` may be followed by a tab as well as a space.
 //
@@ -100,6 +102,9 @@ const PROPS = /^[&!]\S*(?:[ \t]+|$)/;
 // An explicit `? key` entry, which this gate does not read (see EXPLICIT_WHY).
 const EXPLICIT = /^\?(?:[ \t]|$)/;
 const EXPLICIT_WHY = "explicit `? key` entry: not read by this gate; write the key inline";
+// An alias used as a mapping key (`*u : x`): the key is another node's value.
+const ALIAS_KEY = /^\*[^\s,[\]{}]+[ \t]*:(?:\s|$)/;
+const ALIAS_KEY_WHY = "alias `*name` as a key: not read by this gate; write the key inline";
 const SPLIT_WHY = "no ref on the `uses` line: write the whole ref on that line";
 // `---` or `...` in column 0 starts or ends a YAML document.
 const DOC_MARK = /^(?:---|\.\.\.)(?:\s|$)/;
@@ -237,20 +242,24 @@ function normRef(ref) {
   return at === -1 ? ref.toLowerCase() : ref.slice(0, at).toLowerCase() + ref.slice(at);
 }
 
-// A line split into the columns of its list dashes and the node after them.
-// Node properties are skipped too (`- &s { uses: x }` is a step), and YAML
-// separates a `-` from its entry with spaces or tabs.
+// A line split into the columns of its list dashes, the column of the node
+// after them, and that node's text. Node properties are skipped in the text
+// (`- &s { uses: x }` is a step) but not in the column: `&j jobs:` is a key
+// at column 0, which is what its children's indentation is measured against.
+// YAML separates a `-` from its entry with spaces or tabs.
 function lineShape(line) {
   const dashes = [];
   let pos = indentOf(line);
+  let col = pos;
   for (;;) {
     const rest = line.slice(pos);
     const m = DASH.exec(rest) ?? PROPS.exec(rest);
     if (m === null) break;
     if (rest[0] === "-") dashes.push(pos);
     pos += m[0].length;
+    if (rest[0] === "-") col = pos;
   }
-  return { dashes, col: pos, body: line.slice(pos) };
+  return { dashes, col, body: line.slice(pos) };
 }
 
 // The block-mapping key `body` starts with, as { name, rest } (rest is the text
@@ -381,6 +390,7 @@ function lineRefs(lines, i, state) {
   const path = state.st.map((n) => n.seg);
   if (body === "" || body[0] === "#") return [[], i + 1];
   if (EXPLICIT.test(body)) return [[{ line: i, path: null, why: EXPLICIT_WHY }], i + 1];
+  if (ALIAS_KEY.test(body)) return [[{ line: i, path: null, why: ALIAS_KEY_WHY }], i + 1];
   if (body[0] === "{" || body[0] === "[") return flowAt(lines, i, line.length - body.length, path, state);
   if (",}]".includes(body[0])) {
     state.uncertain = true;
@@ -426,6 +436,7 @@ function flowRefs(toks, prefix) {
 function flowKey(toks, k, ctx, prefix) {
   const raw = toks[k].v;
   if (EXPLICIT.test(stripProps(raw))) return { path: null, why: EXPLICIT_WHY };
+  if (stripProps(raw.trim())[0] === "*") return { path: null, why: ALIAS_KEY_WHY };
   const name = decode(raw);
   if (ctx.length > 0) ctx.at(-1).key = name;
   if (name.toLowerCase() !== "uses") return null;
