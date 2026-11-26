@@ -234,6 +234,11 @@ add_a2ml "$T" 'old|copy/NEUROSYM.a2ml'
 OUT="$(render "$T")" || { fail "tree with a pipe in a legacy path renders"; OUT=""; }
 contains "a pipe in a legacy path is escaped in the neurosym row" "$OUT" 'deed; legacy file `old\|copy/NEUROSYM.a2ml`, read-only pending conversion. |'
 lacks "and never written bare" "$OUT" '`old|copy/NEUROSYM.a2ml`'
+# A line break in a legacy path would end the table row, so it is written visibly.
+T="$(mk_tree breakpath)"
+add_a2ml "$T" $'old\ncopy\r/NEUROSYM.a2ml'
+OUT="$(render "$T")" || { fail "tree with a line break in a legacy path renders"; OUT=""; }
+contains "a line break in a legacy path is written visibly" "$OUT" 'deed; legacy file `old\ncopy\r/NEUROSYM.a2ml`, read-only pending conversion. |'
 
 echo "== a list value named like a clause is not the clause (deed.abnf: value = … / quoted / list)"
 READER="$REPO_DIR/scripts/deed-field.sh"
@@ -246,6 +251,9 @@ equal "the fixture holds the two list-valued fields" "$(grep -cE '^  :(example \
 equal ":example (agentic) is no (agentic) clause"     "$(has "$D" agentic)"  1
 equal ":quoted '(neurosym) is no (neurosym) clause"   "$(has "$D" neurosym)" 1
 equal "the list is still read as the field's value"   "$(bash "$READER" --list "$D" '' example)" agentic
+equal "a quoted list is read as its items by --list"   "$(bash "$READER" --list "$D" '' quoted)" neurosym
+equal "and by --kv, one line per item, never the quote" "$(bash "$READER" --kv "$D" '' | grep -E '^(example|quoted)	' | tr '\t\n' '=,')" 'example=agentic,quoted=neurosym,'
+equal "a quoted list is no scalar, as an unquoted one is not" "$(rc=0; bash "$READER" "$D" '' quoted >/dev/null || rc=$?; echo "$rc")" 1
 equal "a real clause after the fields is still found" "$(has "$D" maturity)" 0
 OUT="$(render "$T")" || { fail "list-value tree renders"; OUT=""; }
 contains "the pack reports (agentic) and (neurosym) as absent" "$OUT" 'Not yet in its deed: `(agentic)`; `(neurosym)`; `(playbook)`.'

@@ -138,6 +138,13 @@ function close_of(o,   d, t) {
 function is_value(t) {
   return tok[t - 1] ~ /^A:/ || (tok[t - 1] == "A\047" && tok[t - 2] ~ /^A:/)
 }
+# Index of the value token of the keyword at token t. A quoted list is two
+# tokens, the quote and its "(" (deed.abnf: quoted = "\047" ( symbol / list )),
+# and its value is the list: the quote is stepped over, so `:k \047(a b)` reads
+# as `:k (a b)` does. A quoted symbol is one token and is left as written.
+function value_at(t) {
+  return (tok[t + 1] == "A\047" && tok[t + 2] == "(") ? t + 2 : t + 1
+}
 # First direct child clause of the clause opening at o whose head is name.
 function child(o, name,   e, t, d) {
   e = close_of(o); d = 0
@@ -174,16 +181,16 @@ END {
       if (tok[t] == "(") { d++; continue }
       if (tok[t] == ")") { d--; continue }
       if (d != 0 || tok[t] !~ /^A:/) continue
-      k = substr(tok[t], 3); nx = tok[t + 1]
+      k = substr(tok[t], 3); vt = value_at(t); nx = tok[vt]
       if (nx == "(") {
-        le = close_of(t + 1); ld = 0
-        for (u = t + 2; u < le; u++) {
+        le = close_of(vt); ld = 0
+        for (u = vt + 1; u < le; u++) {
           if (tok[u] == "(") ld++
           else if (tok[u] == ")") ld--
           else if (ld == 0) print k "\t" show(tok[u])
         }
       } else if (nx != ")" && nx != "") {
-        if (nx ~ /^A#[a-z0-9]+$/ && substr(tok[t + 2], 1, 1) == "S") nx = tok[t + 2]
+        if (nx ~ /^A#[a-z0-9]+$/ && substr(tok[vt + 1], 1, 1) == "S") nx = tok[vt + 1]
         print k "\t" show(nx)
       }
     }
@@ -194,7 +201,7 @@ END {
     if (tok[t] == "(") { d++; continue }
     if (tok[t] == ")") { d--; continue }
     if (d != 0 || tok[t] != "A:" key) continue
-    nx = tok[t + 1]
+    vt = value_at(t); nx = tok[vt]
     if (mode == "value" || mode == "typed") {
       if (nx == "(" || nx == ")" || nx == "") exit 1
       # A tagged literal such as #u5"github.com/o/r" prints its string.
@@ -205,8 +212,8 @@ END {
       print show(nx); exit 0
     }
     if (nx != "(") exit 1
-    le = close_of(t + 1); ld = 0
-    for (u = t + 2; u < le; u++) {
+    le = close_of(vt); ld = 0
+    for (u = vt + 1; u < le; u++) {
       if (tok[u] == "(") ld++
       else if (tok[u] == ")") ld--
       else if (ld == 0) print show(tok[u])
