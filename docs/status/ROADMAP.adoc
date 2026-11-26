@@ -18,6 +18,42 @@ version is 0.1.0 (`Justfile`, `CITATION.cff`, tag `v0.1.0`, deed
 
 == Milestones
 
+=== 2026-11-26 — proven swap, sweep 1 begun
+
+Direction (hub of hubs): swap this template's CI/CD for reusable workflows from
+`proven-cicd-and-workflows` and its tests for `proven-tests-and-benches`, so
+every repo minted from here starts with the proven gate. Order: sweep 1 (unit,
+smoke, build, P2P), then wait for the hub's go on sweep 2 (rest of CRG C),
+sweep 3 (B), sweep 4 (all 18 categories plus extras).
+
+Done: `proven-lock-gate@0.3.2` stamped at suite `50a443f` (PR #489).
+Open PRs being driven to green so they can merge once the gate is on main:
+#459 (conflicted with main; needs the refactor re-applied on the ES-module
+file), #475, #476, #486 (threads addressed), #487 (Sonar security rating fixed),
+#488 (merged). Nothing merges without the stamped gate on main (SR-005) and the owner's
+approval where the ruleset asks for it.
+
+Later list: proof witnesses, full `--cubical`, B-grade work, blocked or flaky
+items.
+
+=== 2026-11-21 — root_shape bench: forks cut, gate result unobserved
+
+PR #467 cut forks in `scripts/check-root-shape.sh` with no behaviour change.
+The allowlist, the `[gates]` table and the deed profile are now read in
+bash. Clones fell from 82 to 12 and execve from 32 to 9 (strace -f -c).
+After #465 landed, the merged head measured 12 clones and 9 execve against
+main's 39 and 25. Median wall time was 41.4 ms against 44.5 ms. Output was
+byte-identical to main and the four test suites passed before and after.
+
+#465 re-cut the `root_shape` entry in `benches/baseline.json` from local
+runs. The planned second PR (re-cut from 12 runner runs with
+`scripts/compute-bench-baseline.sh`) was not opened.
+
+The Six-Sigma leave-one-out gate result has not been seen. Every CI run on
+#467 hit the repo-wide GitHub API rate limit (403). The gate on main after
+the merge still needs a look. The Hypatia and Squabble failures on #467 were
+not diagnosed.
+
 === 2026-11-16 — contribution-guide and Hypatia consistency repairs
 
 The contribution canary counts all four supported root/.github guide paths
@@ -89,6 +125,7 @@ the earlier 118-control local passes apply to the pre-Sonar snapshot only.
 
 == Next actions
 
+* Observe the Six-Sigma bench gate on main after #467 and #465. If it is red, the baseline for `root_shape` needs a re-cut from runner runs
 * Wire the RSR oracle dogfood job in dogfood-gate.yml (recon P0.2) once the hypatia M-3 fix lands
 * Record where the estate-wide actions.lock sweep stands now that the 2026-10-01 window has closed (gatekeeper repos first)
 * Rebase rsr-julia-library-template-repo onto this spine (recon P1.3 procedure; ADR-0003 now accepted)
