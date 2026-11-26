@@ -17,9 +17,17 @@
 #   - quoted `uses` key (flow or block form) not recognised
 #   - flow-mapping value cut at an adjacent `#` (a SHA-shaped prefix plus `#tag`)
 #   - flow collection opened mid-line (`steps: [ { uses: x } ]`) not read
+#   - tab after a list dash (`-<TAB>uses: x`) not read as a step
+#   - quoted ref cut at a doubled apostrophe (`'x@<sha>''tag'`)
+#   - flow step split across lines read line by line (missed or misread)
+#   - an unbalanced `{` in a block scalar swallowing the steps after it
+#   - subpath ref rejected when only its repository root is resolved
+# A missing bun is a setup error (exit 2), not a failed assertion (exit 1).
 # PINNING_SCRIPT overrides the script under test (used to confirm the mutants
 # are caught by the new script and missed by the old one).
 set -euo pipefail
+
+command -v bun >/dev/null 2>&1 || { echo "check-action-pinning: bun not found (setup error)" >&2; exit 2; }
 
 SCRIPT="${PINNING_SCRIPT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/check-action-pinning.js}"
 FIXTURE=$(mktemp -d)
@@ -269,6 +277,34 @@ d=$(case_dir); workflow "$d" a.yml "    steps: [ { uses: actions/checkout@$SHA40
       - run: echo { uses: evil/act@v1 }
       - with: { note: '{ uses: evil/act@v1 }' }"
 expect "control: mid-line flow step pinned; braces in a plain or quoted scalar are text" 0 "$d"
+
+
+d=$(case_dir); workflow "$d" a.yml "$(printf '      -\tuses: evil/act@v1')"
+expect "mutant: tab after the list dash" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: 'evil/act@$SHA40''mutable'"
+expect "mutant: quoted ref with a doubled apostrophe after a SHA-shaped prefix" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { name: Checkout,
+          name2: x, uses: evil/act@v1 }"
+expect "mutant: flow step split across lines, uses after another key" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - run: |
+          {
+            echo unbalanced
+      - uses: evil/act@v1"
+expect "mutant: unbalanced { in a block scalar, then a mutable step" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { name: Checkout, # first line
+          uses: actions/checkout@$SHA40 }
+      - uses: 'actions/checkout@$SHA40'"
+expect "control: pinned flow step split across lines, comment inside" 0 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: github/codeql-action/init@v3"
+wfs=$(lock_wf a.yml github/codeql-action/init@v3 github/codeql-action@v3)
+deps=$(lock_dep github/codeql-action/init@v3 "")$'\n'$(lock_dep github/codeql-action@v3 "$GOOD_DEP")
+lockfile "$d" "$wfs" "$deps"
+expect "control: subpath ref resolved through its repository root only" 0 "$d"
 
 echo
 echo "check-action-pinning: $pass passed, $fail failed"

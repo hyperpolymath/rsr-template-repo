@@ -41,10 +41,16 @@
 //   recognised after `{` or `,`, and the value stops at `,` or `}`. In block form
 //   the scalar runs to the end of the line (or a ` #` comment): a `,` is part of
 //   it, so `x@<sha>,mutable` is a mutable tag, not a pinned SHA. `{ uses: ... }`
-//   inside a comment or a quoted shell argument is not a step.
+//   inside a comment or a quoted shell argument is not a step. A flow
+//   collection left open at the end of a line continues on the deeper-indented
+//   lines after it, and is read as one collection, so a step split across lines
+//   is neither missed nor misread.
 //
 //   Quoted values. `uses: 'x@v1'` and `uses: x@v1` are the same YAML scalar; the
-//   quotes are removed before the ref is compared.
+//   quotes are removed before the ref is compared, and a quoted scalar is read
+//   to its real closing quote (`''` is an escaped `'`, not the end).
+//
+//   List dashes. `-` may be followed by a tab as well as a space.
 //
 //   Case. Workflows write `SonarSource/...`; the lockfile records
 //   `sonarsource/...`, so the owner/repository part is compared case-
@@ -72,6 +78,7 @@ const LOCK = join(WF, "actions.lock");
 // its keys in flowRefs, so a quoted key cannot skip the check in either.
 const BLOCK_USES = /^(?:uses|'uses'|"uses")[ \t]*:/;
 const FLOW_INDICATOR = "{}[],";
+const DASH = /^-[ \t]+/;
 const SHA = /@[a-f0-9]{40}$/;
 // The lock writes a resolved commit as `sha1-` plus 40 lower-case hex digits.
 const LOCK_COMMIT = /^sha1-[0-9a-f]{40}$/;
@@ -90,13 +97,25 @@ function unquote(s) {
   return s.length > 1 && s.startsWith("'") && s.endsWith("'") ? s.slice(1, -1) : s;
 }
 
-// A YAML plain or quoted scalar -> its string value (matching quotes removed).
+// A YAML plain or quoted scalar -> its string value (matching quotes removed;
+// `''` in a single-quoted scalar is one `'`). Double-quoted escapes are left as
+// written: a `\` can never be part of a 40-hex SHA, so an escaped ref fails
+// closed rather than open.
 function decode(raw) {
   const q = raw[0];
   if ((q === "'" || q === '"') && raw.length > 1 && raw.endsWith(q)) {
-    return raw.slice(1, -1);
+    const body = raw.slice(1, -1);
+    return q === "'" ? body.replaceAll("''", "'") : body;
   }
   return raw;
+}
+
+// A line with its leading blanks and list dashes removed. YAML separates a `-`
+// from its entry with spaces or tabs, so `-<TAB>uses: x` is a list item too.
+function stripDashes(line) {
+  let s = line.trimStart();
+  while (DASH.test(s)) s = s.replace(DASH, "");
+  return s;
 }
 
 // Action refs are case-insensitive in the owner/repository part and case-
@@ -110,15 +129,14 @@ function normRef(ref) {
 // the line after any list dashes; the scalar runs to a ` #` comment or the end
 // of the line, so a `,` or `}` in it is part of the value, not a delimiter.
 function blockUses(line) {
-  let s = line.trimStart();
-  while (s.startsWith("- ")) s = s.slice(2).trimStart();
+  const s = stripDashes(line);
   const key = BLOCK_USES.exec(s);
   if (key === null) return null;
   const rest = s.slice(key[0].length).trim();
-  const q = rest[0];
-  if (q === "'" || q === '"') {
-    const end = rest.indexOf(q, 1);
-    if (end !== -1) return rest.slice(0, end + 1);
+  if (rest[0] === "'" || rest[0] === '"') {
+    // quoteEnd reads past `''` and `\"`, so `'x@<sha>''tag'` is read whole.
+    const end = quoteEnd(rest, 0);
+    if (end < rest.length) return rest.slice(0, end + 1);
   }
   const hash = rest.search(/\s#/);
   return (hash === -1 ? rest : rest.slice(0, hash)).trim();
@@ -129,8 +147,7 @@ function blockUses(line) {
 // dashes, or as a `,` continuation), or straight after a `key:`. A `{` later in
 // a plain or quoted scalar (`run: echo '{ uses: x }'`) or in a comment is text.
 function flowStart(line) {
-  let s = line.trimStart();
-  while (s.startsWith("- ")) s = s.slice(2).trimStart();
+  const s = stripDashes(line);
   if (s === "" || s[0] === "#") return -1;
   const base = line.length - s.length;
   if ("{[,".includes(s[0])) return base;
@@ -193,7 +210,8 @@ function plainToken(t, i) {
   return [{ v: t.slice(i, j).trimEnd() }, j];
 }
 
-// The tokens of a flow collection, up to a ` #` comment.
+// The tokens of a flow collection, which may span lines; a ` #` comment runs to
+// the end of its line.
 function flowTokens(t) {
   const toks = [];
   let i = 0;
@@ -202,7 +220,12 @@ function flowTokens(t) {
       i += 1;
       continue;
     }
-    if (t[i] === "#" && (i === 0 || /\s/.test(t[i - 1]))) break;
+    if (t[i] === "#" && (i === 0 || /\s/.test(t[i - 1]))) {
+      const eol = t.indexOf("\n", i);
+      if (eol === -1) break;
+      i = eol;
+      continue;
+    }
     const [tok, next] = flowToken(t, i, toks.at(-1)?.q === true);
     toks.push(tok);
     i = next;
@@ -219,9 +242,8 @@ function isUsesPair(toks, k) {
   return toks[k + 2].v !== undefined && toks[k + 2].v !== "";
 }
 
-// The refs of every `uses` key in a line's flow collections.
-function flowRefs(t) {
-  const toks = flowTokens(t);
+// The refs of every `uses` key in a flow collection's tokens.
+function flowRefs(toks) {
   const refs = [];
   for (let k = 0; k + 2 < toks.length; k += 1) {
     if (isUsesPair(toks, k)) refs.push(decode(toks[k + 2].v));
@@ -229,14 +251,58 @@ function flowRefs(t) {
   return refs;
 }
 
-// Every action ref a line declares: a block-form `uses:` value, or a `uses` key
-// in a flow collection the line opens (see flowStart), so `{ uses: ... }` inside
-// a comment or a quoted shell argument is not read as a step.
-function usesRefs(line) {
-  const block = blockUses(line);
-  if (block !== null) return block === "" ? [] : [decode(block)];
-  const at = flowStart(line);
-  return at === -1 ? [] : flowRefs(line.slice(at));
+// How many flow collections the tokens leave open.
+function flowDepth(toks) {
+  let depth = 0;
+  for (const { p } of toks) {
+    if (p === "{" || p === "[") depth += 1;
+    else if (p === "}" || p === "]") depth -= 1;
+  }
+  return depth;
+}
+
+function indentOf(line) {
+  return line.length - line.trimStart().length;
+}
+
+// The text of the flow collection that lines[i] opens at column `at`, and the
+// index of the first line after it. A collection left open continues on the
+// next lines, but only on lines indented deeper than lines[i] (or blank):
+// YAML requires that of a flow continuation, and it keeps an unbalanced `{` in
+// a block scalar from swallowing the steps that follow it. Stopping early
+// loses nothing: the lines after the stop are read on their own.
+function flowSpan(lines, i, at) {
+  const head = lines[i].slice(at);
+  const text = (end) => [head, ...lines.slice(i + 1, end)].join("\n");
+  const deeper = (l) => l.trim() === "" || indentOf(l) > indentOf(lines[i]);
+  let j = i + 1;
+  while (j < lines.length && deeper(lines[j]) && flowDepth(flowTokens(text(j))) > 0) j += 1;
+  return [text(j), j];
+}
+
+// The action refs declared from lines[i], and the index of the next line to
+// read: a block-form `uses:` value, or every `uses` key in a flow collection
+// the line opens (see flowStart), read with its continuation lines (flowSpan).
+// `{ uses: ... }` inside a comment or a quoted shell argument is not a step.
+function refsAt(lines, i) {
+  const block = blockUses(lines[i]);
+  if (block !== null) return [block === "" ? [] : [decode(block)], i + 1];
+  const at = flowStart(lines[i]);
+  if (at === -1) return [[], i + 1];
+  const [text, next] = flowSpan(lines, i, at);
+  return [flowRefs(flowTokens(text)), next];
+}
+
+// Every action ref in a workflow, as [line index, ref].
+function declaredRefs(lines) {
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const [refs, next] = refsAt(lines, i);
+    for (const ref of refs) out.push([i, ref]);
+    i = next;
+  }
+  return out;
 }
 
 // Line-based read of the two sections of actions.lock that matter:
@@ -295,9 +361,11 @@ function unpinnedReason(ref, wfPath, lock) {
   if (entry === undefined) return "this workflow has no entry in actions.lock";
   // subpath actions key by repo root: github/codeql-action/init -> github/codeql-action
   const root = name.split("/").slice(0, 2).join("/");
-  const locked = [normRef(ref), normRef(`${root}@${tag}`)].find((c) => entry.has(c));
-  if (locked === undefined) return "not listed under this workflow in actions.lock";
-  if (!LOCK_COMMIT.test(lock.deps.get(locked) ?? "")) {
+  // Either key may resolve it: a candidate counts only when this workflow lists
+  // it AND the lock holds a resolved commit for it.
+  const listed = [normRef(ref), normRef(`${root}@${tag}`)].filter((c) => entry.has(c));
+  if (listed.length === 0) return "not listed under this workflow in actions.lock";
+  if (!listed.some((c) => LOCK_COMMIT.test(lock.deps.get(c) ?? ""))) {
     return "actions.lock has no resolved sha1 commit for it";
   }
   return null;
@@ -319,11 +387,9 @@ function loadLock() {
 function unpinnedIn(file, lock) {
   const wf = join(WF, file);
   const bad = [];
-  for (const [i, line] of readFileSync(wf, "utf8").split("\n").entries()) {
-    for (const ref of usesRefs(line)) {
-      const why = unpinnedReason(ref, `${WF}/${file}`, lock);
-      if (why !== null) bad.push(`${wf}:${i + 1}: ${ref} (${why})`);
-    }
+  for (const [i, ref] of declaredRefs(readFileSync(wf, "utf8").split("\n"))) {
+    const why = unpinnedReason(ref, `${WF}/${file}`, lock);
+    if (why !== null) bad.push(`${wf}:${i + 1}: ${ref} (${why})`);
   }
   return bad;
 }
