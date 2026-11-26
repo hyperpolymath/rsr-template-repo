@@ -263,7 +263,7 @@ blocked_parent() { # P — a parent directory of P is a file or link in the repo
     done
     return 1
 }
-mfile() { printf '%s/%s' "$OUTF" "$(printf '%s' "$1" | sha1sum | cut -d' ' -f1)"; }   # one result file per path, never shared
+mfile() { printf '%s/%s' "$OUTF" "$(printf '%s' "$1" | sha256sum | cut -d' ' -f1)"; }   # one result file per path, never shared
 note() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$PLAN"; }
 
 # the file's version in each tree, or absent: o=OLD, n=NEW, c=repo
