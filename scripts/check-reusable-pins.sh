@@ -15,6 +15,7 @@
 #        REUSABLE_RESOLVE=0 skip resolution (offline pre-commit use ONLY; the CI
 #                           gate must not set it).
 # Exit 0 only if all calls pass. Same-repo `./` calls are exempt (same commit).
+# Needs yq (mikefarah, Go): the transitional YAML reader per the estate format directives.
 set -euo pipefail
 dir=${1:-.github/workflows}
 resolve() { # owner/repo sha
@@ -24,15 +25,13 @@ resolve() { # owner/repo sha
 bad=0; n=0
 shopt -s nullglob
 for f in "$dir"/*.yml "$dir"/*.yaml; do
-  # Fail closed: a `uses` key in flow-mapping ({uses: ...}) or quoted-key ("uses":)
-  # form cannot be read by the line scan below, so it must not pass as "0 checked".
-  if grep -Eq "^[[:space:]]*[\"']uses[\"'][[:space:]]*:|[{,][[:space:]]*[\"']?uses[\"']?[[:space:]]*:" "$f"; then
-    echo "FAIL $f: a uses key is in flow-mapping or quoted-key form, which this check cannot verify; rewrite it in block style"
+  # Read job-level `uses` from the parsed document (yq), so block, flow-mapping
+  # and quoted-key spellings are all seen. A file yq cannot parse fails closed.
+  if ! refs=$(yq -r '(.jobs // {}) | to_entries | .[] | .value.uses // ""' "$f" 2>/dev/null); then
+    echo "FAIL $f: not parseable as YAML, so its reusable calls cannot be verified"
     bad=$((bad+1)); continue
   fi
-  # job-level calls only: a `uses:` key NOT introduced by a list dash (step-level)
-  while IFS= read -r line; do
-    ref=$(printf '%s' "$line" | sed -E 's/^[[:space:]]*uses:[[:space:]]*//; s/[[:space:]]+#.*$//; s/^["'\'']//; s/["'\'']$//')
+  while IFS= read -r ref; do
     case "$ref" in ./*|"") continue ;; esac
     case "$ref" in */.github/workflows/*@*) ;; *) continue ;; esac
     n=$((n+1)); path=${ref%@*}; sha=${ref##*@}
@@ -44,7 +43,7 @@ for f in "$dir"/*.yml "$dir"/*.yaml; do
       echo "FAIL $f: $or@$sha does not resolve"; bad=$((bad+1)); continue
     fi
     echo "ok   $f: $path@${sha:0:12}"
-  done < <(grep -E '^[[:space:]]+uses:[[:space:]]' "$f" | grep -vE '^[[:space:]]*-[[:space:]]*uses:' || true)
+  done <<< "$refs"
 done
 echo "reusable-workflow calls checked: $n, failed: $bad"
 [ "$bad" -eq 0 ]
