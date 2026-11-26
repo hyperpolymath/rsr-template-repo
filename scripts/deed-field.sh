@@ -20,6 +20,13 @@
 #                                         For a gate that needs several fields: each separate
 #                                         call re-tokenises the whole deed.
 #   deed-field.sh --has DEED PATH         exit 0 iff the clause exists
+#   deed-field.sh --strict DEED           exit 0 iff the deed is exactly one balanced form:
+#                                         nothing but whitespace and comments before or after
+#                                         it ("trailing content after the form's closing ')'"
+#                                         in deed_lint.js); the other modes read the first
+#                                         form and ignore the rest. It checks token boundaries
+#                                         only and is no substitute for the linter, which also
+#                                         refuses a tab or a last comment with no line end
 #   deed-field.sh --find [DIR]            print the one *_chora.deed in DIR (default .)
 #   deed-field.sh --uuid DEED             the repo uuid: the body of :repo-uuid #uuid"…" as
 #                                         written (#u8 is derived; a #u5 is derived only to
@@ -31,6 +38,10 @@
 # PATH names clauses below (repo-deed …), slash-separated: `status`,
 # `agentic/integrity`, `meta/maintenance-axes`. An empty PATH is (repo-deed …)
 # itself, so `deed-field.sh DEED "" canonical-name` reads the header.
+#
+# A clause is never a field's value: in `:example (agentic)` the parentheses
+# are a list, so --has DEED agentic is false unless a real (agentic …) clause
+# exists.
 #
 # KEY is matched only at the top level of that clause, never inside a nested
 # clause: `status` :phase is the clause's own phase, not a (history (entry …))
@@ -51,12 +62,13 @@
 # never guesses.
 #
 # Exit: 0 found; 1 clause or key absent (nothing printed); 2 usage error or no
-# readable deed. --find exits 1 unless exactly one deed is present.
+# readable deed. --find exits 1 unless exactly one deed is present. --strict
+# exits 1 for content outside the form and 2 for a form that never closes.
 set -euo pipefail
 
 mode=value
 case "${1:-}" in
-  --list|--clause|--has|--uuid|--typed|--kv) mode="${1#--}"; shift ;;
+  --list|--clause|--has|--uuid|--typed|--kv|--strict) mode="${1#--}"; shift ;;
   --find)
     shopt -s nullglob
     deeds=("${2:-.}"/*_chora.deed)
@@ -119,11 +131,18 @@ function close_of(o,   d, t) {
   }
   return 0
 }
+# True when the "(" at token t opens the list value of a field, not a clause: it
+# follows a keyword, directly or after the quote of a quoted list (deed.abnf:
+# field = keyword value, value = … / quoted / list). `:example (agentic)` is
+# a list holding the symbol agentic; the deed has no (agentic) clause.
+function is_value(t) {
+  return tok[t - 1] ~ /^A:/ || (tok[t - 1] == "A\047" && tok[t - 2] ~ /^A:/)
+}
 # First direct child clause of the clause opening at o whose head is name.
 function child(o, name,   e, t, d) {
   e = close_of(o); d = 0
   for (t = o + 1; t < e; t++) {
-    if (tok[t] == "(") { if (d == 0 && tok[t + 1] == "A" name) return t; d++ }
+    if (tok[t] == "(") { if (d == 0 && !is_value(t) && tok[t + 1] == "A" name) return t; d++ }
     else if (tok[t] == ")") d--
   }
   return 0
@@ -146,6 +165,7 @@ END {
   }
   e = close_of(o)
   if (!e) exit 2
+  if (mode == "strict") exit (o == 1 && e == nt) ? 0 : 1
   if (mode == "has") exit 0
   if (mode == "clause") { for (t = o; t <= e; t++) print tok[t]; exit 0 }
   if (mode == "kv") {
@@ -220,6 +240,14 @@ uuid5_url() {
     echo "deed-field.sh: --uuid needs uuidgen with --sha1, sha1sum, shasum, openssl, or bun" >&2; return 2
   fi
 }
+
+# The reader takes byte 0x01 as its record separator, so awk drops one that
+# ends the file and --strict would pass it (checked against the line-wise
+# tokeniser: a valid deed plus one trailing 0x01 still exits 0 without this).
+# No deed holds that byte.
+if [ "$mode" = strict ] && LC_ALL=C grep -q $'\001' "$deed"; then
+  exit 1
+fi
 
 if [ "$mode" = uuid ]; then
   lit="$(read_deed typed)" || exit $?

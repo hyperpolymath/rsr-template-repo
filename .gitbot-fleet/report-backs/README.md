@@ -10,9 +10,11 @@ renders.
 **This directory is empty in git on purpose, and stays so.** Envelopes are
 produced per run by the `fleet` job of `.github/workflows/fork-governance.yml`
 (gitbot-fleet `scripts/fleet-report-back.sh`), uploaded as the
-`fleet-report-backs` artifact, and read from that artifact at render time by the
-`verdict` job of the same workflow, which passes this directory to the grid
-renderer. A committed envelope would be stale evidence about an older commit, so
+`fleet-report-backs` artifact, and read from that artifact at render time: the
+`verdict` job downloads it into the runner's temp directory, outside the
+checkout, and passes that directory to the grid renderer. Nothing in this
+directory is read, so a committed envelope or symlink cannot pose as evidence.
+A committed envelope would also be stale evidence about an older commit, so
 none is ever committed. Do not add a placeholder to turn a row green; only a
 real run may.
 
@@ -32,4 +34,4 @@ not apply. The template defaults enrol rhodibot, finishingbot and glambot,
 which apply to every estate repository. Adoption guide: standards
 `3-practice/fork-governance/ADOPTION.adoc` §8.
 
-Only files matching `*.json` are read, so this README is inert.
+This README is never read by the grid.

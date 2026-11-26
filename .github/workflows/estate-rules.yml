@@ -116,6 +116,11 @@ jobs:
           echo "9cba4dd65ae9915ec61f73033aafcff307a377665a83fd8f530df086763318cb  $RUNNER_TEMP/nickel-bin/nickel" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/nickel-bin/nickel"
           echo "$RUNNER_TEMP/nickel-bin" >> "$GITHUB_PATH"
+      # CLAUDE.md's generated region must match the deed. This was a pre-commit
+      # hook (validate-claude-md) that the hosted runner skipped; `just
+      # validate-claude-md` is the same check, and CI now runs it on the real tree.
+      - name: CLAUDE.md arrival pack is in sync with the deed
+        run: bash .machine_readable/arrival-pack/verify.sh
       - name: Evaluate session contracts
         run: bash scripts/validate-session-contracts.sh
       - name: Check Nickel typecheck controls
@@ -123,6 +128,11 @@ jobs:
       # An anchor that allows an estate-denied language must show in the pack.
       - name: Arrival pack renders both sides of an anchor override
         run: bash tests/workflows/arrival_pack_anchor_override_test.sh
+      # The pack states what the tree shows: the tracked legacy .a2ml files and
+      # the clauses the deed has. A partly migrated child must get no false line,
+      # and a deed with content after its closing ")" is refused (as deed_lint.js).
+      - name: Arrival pack derives the .a2ml count and the deed's clauses
+        run: bash tests/workflows/arrival_pack_derived_facts_test.sh
       - name: Verify session envelope controls
         run: bash tests/workflows/session_contracts_test.sh
       - name: Verify mint cleanup controls
@@ -164,6 +174,13 @@ jobs:
             https://raw.githubusercontent.com/metadatastician/standards/f0b3cd4c464d33e1584f8528c17bce104555e256/scripts/kyaml-format.sh \
             --output "$RUNNER_TEMP/kyaml-format.sh"
           echo "5fddd58fc8cbd2b68766ef5b4b5ba39f299da3f27252ae6cdcff0a641bbaef18  $RUNNER_TEMP/kyaml-format.sh" | sha256sum --check --strict
+      # File hygiene (YAML/TOML parse, merge markers, large files): the former
+      # pre-commit hooks, now one script run here, by `just hygiene` and by
+      # quality.yml. The self-test plants each defect and requires a refusal.
+      - name: File-hygiene gate self-test (planted defects must fail)
+        run: bash tests/workflows/check_hygiene_test.sh
+      - name: File hygiene (yaml, toml, merge markers, large files)
+        run: bash scripts/check-hygiene.sh .
       - name: Rhodibot guide formats and missing or duplicate controls
         run: bash tests/workflows/rhodibot_canary_test.sh
       - name: Non-interactive mint resolves every prompt from the environment
@@ -291,6 +308,9 @@ jobs:
       # negative control; self-skips outside the template tree.
       - name: Pages badge URL for a user/org site repo name
         run: bash tests/workflows/user_pages_badge_url_test.sh
+      # An image reference is lower case; a repo name (a Julia package) need not be.
+      - name: Container recipes use a lower-case image reference
+        run: bash tests/workflows/container_image_name_test.sh
       # The slug check must admit <owner>.github.io or the rule above is unreachable.
       # Runs the real scripts/check-repo-slug.sh the recipe calls; negative control.
       - name: Repo slug check admits the user/org site name
@@ -376,6 +396,18 @@ jobs:
           set -euo pipefail
           bash tests/workflows/workflow_edges_test.sh
           bash scripts/check-workflow-edges.sh .
+      # A workflow copied into another repository keeps its `bash scripts/x.sh`
+      # lines but not the script (phronesis#122: empty-linter.yml synced without
+      # scripts/check-invisible-characters.sh). This step refuses that statically.
+      # It guards itself the way lock-sync-gate.yml does: if the scripts were not
+      # copied, the guard is missing too, and that is reported by name.
+      - name: Workflow-invoked scripts exist (no orphaned workflow copies)
+        run: |
+          set -euo pipefail
+          test -f scripts/check-workflow-script-refs.sh \
+            || { echo "::error::scripts/check-workflow-script-refs.sh is missing: this workflow was copied without its companion scripts/ and tests/"; exit 1; }
+          bash tests/workflows/check_workflow_script_refs_test.sh
+          bash scripts/check-workflow-script-refs.sh .
       # The grid itself is rendered by the pinned standards renderer, which the
       # tests stub: this proves the lane's evidence collection, digest refusal,
       # orange-not-green fallback and one-comment-per-PR behaviour, and that the

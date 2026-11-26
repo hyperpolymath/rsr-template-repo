@@ -51,7 +51,7 @@ predecessors did.
 
 | `.gitbot-fleet/`
 | yes
-| fleet enrolment manifest + report-backs/ (empty in git; filled per run by the fork-governance fleet job). Read by the Hypatia verdict grid at this path and no other
+| fleet enrolment manifest, read by the Hypatia verdict grid at this path and no other. report-backs/ stays empty in git: the grid reads envelopes only from the run's fleet-report-backs artifact, never from the checkout
 
 | `.github/`
 | yes
@@ -143,7 +143,7 @@ predecessors did.
 
 | `ci/`
 | yes
-| .gitlab-ci.yml + .pre-commit-config.yaml; ci/README.adoc records the out-of-band GitLab project setting these require
+| .gitlab-ci.yml; ci/README.adoc records the out-of-band GitLab project setting it requires, and the hook-to-check map of the retired pre-commit config
 
 | `coordination.k9.ncl`
 | yes

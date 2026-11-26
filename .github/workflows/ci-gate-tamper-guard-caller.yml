@@ -17,4 +17,4 @@ permissions:
 
 jobs:
   guard:
-    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate-tamper-guard.yml@09878f2a2c0a8907cc69fe48973ea604753ecab1 # cicd-suite tamper guard
+    uses: hyperpolymath/proven-cicd-and-workflows/.github/workflows/ci-gate-tamper-guard.yml@a0760cea695a815a96b3944f3d03ee015da856d0 # cicd-suite tamper guard
