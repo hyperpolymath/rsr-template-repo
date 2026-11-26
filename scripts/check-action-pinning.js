@@ -155,42 +155,76 @@ function flowStart(line) {
 function flowToken(t, i, afterQuoted) {
   const c = t[i];
   if (FLOW_INDICATOR.includes(c)) return [{ p: c }, i + 1];
-  const colonEnds = (j) => t[j] === ":" && (j + 1 >= t.length || /\s/.test(t[j + 1]) || FLOW_INDICATOR.includes(t[j + 1]));
-  if (c === ":" && (afterQuoted || colonEnds(i))) return [{ p: ":" }, i + 1];
-  if (c === "'" || c === '"') {
-    let j = i + 1;
-    while (j < t.length) {
-      if (c === '"' && t[j] === "\\") j += 2;
-      else if (c === "'" && t[j] === "'" && t[j + 1] === "'") j += 2;
-      else if (t[j] === c) break;
-      else j += 1;
-    }
-    return [{ v: t.slice(i, j + 1), q: true }, j + 1];
+  if (c === ":" && (afterQuoted || colonEnds(t, i))) return [{ p: ":" }, i + 1];
+  if (c === "'" || c === '"') return quotedToken(t, i);
+  return plainToken(t, i);
+}
+
+// A `:` that ends a key: followed by a blank, a flow indicator or the end.
+function colonEnds(t, j) {
+  if (t[j] !== ":") return false;
+  return j + 1 >= t.length || /\s/.test(t[j + 1]) || FLOW_INDICATOR.includes(t[j + 1]);
+}
+
+// Index of the closing quote of the scalar opened at t[i] (or t.length):
+// `\x` escapes in double quotes, `''` in single quotes.
+function quoteEnd(t, i) {
+  const c = t[i];
+  let j = i + 1;
+  while (j < t.length && t[j] !== c) {
+    j += c === '"' && t[j] === "\\" ? 2 : 1;
   }
+  if (c === "'" && t[j + 1] === "'") return quoteEnd(t, j + 1);
+  return j;
+}
+
+function quotedToken(t, i) {
+  const j = quoteEnd(t, i);
+  return [{ v: t.slice(i, j + 1), q: true }, j + 1];
+}
+
+function plainEnds(t, j) {
+  return FLOW_INDICATOR.includes(t[j]) || colonEnds(t, j) || (t[j] === "#" && /\s/.test(t[j - 1]));
+}
+
+function plainToken(t, i) {
   let j = i;
-  while (j < t.length && !FLOW_INDICATOR.includes(t[j]) && !colonEnds(j) && !(t[j] === "#" && /\s/.test(t[j - 1]))) j += 1;
+  while (j < t.length && !plainEnds(t, j)) j += 1;
   return [{ v: t.slice(i, j).trimEnd() }, j];
 }
 
-// The refs of every `uses` key in a line's flow collections: a scalar whose
-// decoded value is `uses`, right after `{`, `[` or `,`, then `:`, then a scalar.
-function flowRefs(t) {
+// The tokens of a flow collection, up to a ` #` comment.
+function flowTokens(t) {
   const toks = [];
   let i = 0;
   while (i < t.length) {
-    if (/\s/.test(t[i])) { i += 1; continue; }
+    if (/\s/.test(t[i])) {
+      i += 1;
+      continue;
+    }
     if (t[i] === "#" && (i === 0 || /\s/.test(t[i - 1]))) break;
-    const prev = toks[toks.length - 1];
-    const [tok, next] = flowToken(t, i, prev !== undefined && prev.q === true);
+    const [tok, next] = flowToken(t, i, toks.at(-1)?.q === true);
     toks.push(tok);
     i = next;
   }
+  return toks;
+}
+
+// Whether toks[k] opens a `uses: <scalar>` pair: a scalar decoding to `uses`,
+// after `{`, `[` or `,` (or first), then `:`, then a non-empty scalar.
+function isUsesPair(toks, k) {
+  const before = k === 0 ? "{" : toks[k - 1].p;
+  if (toks[k].v === undefined || decode(toks[k].v) !== "uses") return false;
+  if (!"{[,".includes(before ?? "x") || toks[k + 1].p !== ":") return false;
+  return toks[k + 2].v !== undefined && toks[k + 2].v !== "";
+}
+
+// The refs of every `uses` key in a line's flow collections.
+function flowRefs(t) {
+  const toks = flowTokens(t);
   const refs = [];
   for (let k = 0; k + 2 < toks.length; k += 1) {
-    const before = k === 0 ? "{" : toks[k - 1].p;
-    if (toks[k].v === undefined || decode(toks[k].v) !== "uses") continue;
-    if (!"{[,".includes(before ?? "x") || toks[k + 1].p !== ":") continue;
-    if (toks[k + 2].v !== undefined && toks[k + 2].v !== "") refs.push(decode(toks[k + 2].v));
+    if (isUsesPair(toks, k)) refs.push(decode(toks[k + 2].v));
   }
   return refs;
 }
@@ -211,26 +245,30 @@ function usesRefs(line) {
 // Workflow paths keep their case (a Linux checkout can hold ci.yml and CI.yml);
 // action refs are normalised by normRef.
 function parseLock(text) {
-  const workflows = new Map(); // path -> Set of refs
-  const deps = new Map(); // ref -> commit string ("" when absent)
-  let section = "";
-  let key = "";
-  for (const line of text.split("\n")) {
-    const body = line.trim();
-    if (body === "" || body.startsWith("#")) continue;
-    const indent = line.length - line.trimStart().length;
-    if (indent === 0) {
-      section = body.endsWith(":") ? body.slice(0, -1) : "";
-      key = "";
-    } else if (indent === 4 && body.endsWith(":")) {
-      key = lockKey(section, unquote(body.slice(0, -1)));
-      if (section === "workflows" && !workflows.has(key)) workflows.set(key, new Set());
-      if (section === "dependencies" && !deps.has(key)) deps.set(key, "");
-    } else if (indent === 8 && key !== "") {
-      lockField(section, key, body, workflows, deps);
-    }
+  const st = { workflows: new Map(), deps: new Map(), section: "", key: "" };
+  for (const line of text.split("\n")) lockLine(st, line);
+  return { workflows: st.workflows, deps: st.deps };
+}
+
+// workflows: path -> Set of refs; deps: ref -> commit string ("" when absent).
+function lockLine(st, line) {
+  const body = line.trim();
+  if (body === "" || body.startsWith("#")) return;
+  const indent = line.length - line.trimStart().length;
+  if (indent === 0) {
+    st.section = body.endsWith(":") ? body.slice(0, -1) : "";
+    st.key = "";
+  } else if (indent === 4 && body.endsWith(":")) {
+    lockEntry(st, unquote(body.slice(0, -1)));
+  } else if (indent === 8 && st.key !== "") {
+    lockField(st.section, st.key, body, st.workflows, st.deps);
   }
-  return { workflows, deps };
+}
+
+function lockEntry(st, name) {
+  st.key = lockKey(st.section, name);
+  if (st.section === "workflows" && !st.workflows.has(st.key)) st.workflows.set(st.key, new Set());
+  if (st.section === "dependencies" && !st.deps.has(st.key)) st.deps.set(st.key, "");
 }
 
 function lockKey(section, name) {
@@ -265,34 +303,38 @@ function unpinnedReason(ref, wfPath, lock) {
   return null;
 }
 
+function loadLock() {
+  if (!existsSync(LOCK)) {
+    console.log("no lockfile — every ref must be an inline 40-character SHA");
+    return null;
+  }
+  const lock = parseLock(readFileSync(LOCK, "utf8"));
+  console.log(
+    `lockfile present: ${lock.workflows.size} workflow(s), ${lock.deps.size} resolved ref(s)`,
+  );
+  return lock;
+}
+
+// Every unpinned ref in one workflow file, as `file:line: ref (reason)`.
+function unpinnedIn(file, lock) {
+  const wf = join(WF, file);
+  const bad = [];
+  for (const [i, line] of readFileSync(wf, "utf8").split("\n").entries()) {
+    for (const ref of usesRefs(line)) {
+      const why = unpinnedReason(ref, `${WF}/${file}`, lock);
+      if (why !== null) bad.push(`${wf}:${i + 1}: ${ref} (${why})`);
+    }
+  }
+  return bad;
+}
+
 function main() {
   if (!existsSync(WF)) {
     console.log("no .github/workflows — nothing to check");
     return 0;
   }
-
-  let lock = null;
-  if (existsSync(LOCK)) {
-    lock = parseLock(readFileSync(LOCK, "utf8"));
-    console.log(
-      `lockfile present: ${lock.workflows.size} workflow(s), ${lock.deps.size} resolved ref(s)`,
-    );
-  } else {
-    console.log("no lockfile — every ref must be an inline 40-character SHA");
-  }
-
-  const bad = [];
-  for (const file of workflowFiles()) {
-    const wf = join(WF, file);
-    const lines = readFileSync(wf, "utf8").split("\n");
-    for (const [i, line] of lines.entries()) {
-      for (const ref of usesRefs(line)) {
-        const why = unpinnedReason(ref, `${WF}/${file}`, lock);
-        if (why !== null) bad.push(`${wf}:${i + 1}: ${ref} (${why})`);
-      }
-    }
-  }
-
+  const lock = loadLock();
+  const bad = workflowFiles().flatMap((file) => unpinnedIn(file, lock));
   if (bad.length) {
     console.log("\nERROR: these action refs are neither SHA-pinned nor resolved by the lockfile:");
     for (const b of bad) console.log(`  ${b}`);
