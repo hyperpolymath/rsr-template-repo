@@ -22,6 +22,11 @@
 #   - flow step split across lines read line by line (missed or misread)
 #   - an unbalanced `{` in a block scalar swallowing the steps after it
 #   - subpath ref rejected when only its repository root is resolved
+#   - node properties (`&anchor`, `!!tag`) hiding a step from the scan
+#   - a `uses` key under env/with (not an action) rejected; the path decides
+#   - a step placed by an alias, or an explicit `? uses` key, not seen
+#   - a double-quoted escape spelling the `uses` key (`"u\x73es"`)
+#   - a ref split over lines (next line, open quote, continuation) misread
 # A missing bun is a setup error (exit 2), not a failed assertion (exit 1).
 # PINNING_SCRIPT overrides the script under test (used to confirm the mutants
 # are caught by the new script and missed by the old one).
@@ -78,6 +83,14 @@ case_dir() {
 workflow() {
   local dir="$1" name="$2" body="$3"
   printf '# SPDX-License-Identifier: MPL-2.0\nname: t\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n%s\n' "$body" \
+    > "$dir/.github/workflows/$name"
+}
+
+# job DIR NAME BODY -> as workflow, but BODY writes the job's own keys after
+# runs-on (its `steps:` included), so a fixture never repeats a key.
+job() {
+  local dir="$1" name="$2" body="$3"
+  printf '# SPDX-License-Identifier: MPL-2.0\nname: t\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n%s\n' "$body" \
     > "$dir/.github/workflows/$name"
 }
 
@@ -267,16 +280,19 @@ d=$(case_dir); workflow "$d" a.yml "      - { \"uses\": actions/checkout@$SHA40 
       - { 'uses': actions/checkout@$SHA40, with: { x: y } }"
 expect "control: quoted uses keys with inline SHAs, comment after a blank" 0 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "    steps: [ { uses: evil/act@v1 } ]"
+d=$(case_dir); job "$d" a.yml "    steps: [ { uses: evil/act@v1 } ]"
 expect "mutant: flow collection opened after a key, mid-line" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "    steps: [{\"uses\":evil/act@v1}]"
+d=$(case_dir); job "$d" a.yml "    steps: [{\"uses\":evil/act@v1}]"
 expect "mutant: JSON-style flow step, quoted key, no blank after the colon" 1 "$d"
 
-d=$(case_dir); workflow "$d" a.yml "    steps: [ { uses: actions/checkout@$SHA40 } ]
-      - run: echo { uses: evil/act@v1 }
-      - with: { note: '{ uses: evil/act@v1 }' }"
-expect "control: mid-line flow step pinned; braces in a plain or quoted scalar are text" 0 "$d"
+d=$(case_dir); job "$d" a.yml "    steps: [ { uses: actions/checkout@$SHA40 } ]"
+expect "control: mid-line flow step pinned" 0 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - run: echo { uses: evil/act@v1 }
+      - uses: actions/checkout@$SHA40
+        with: { note: '{ uses: evil/act@v1 }' }"
+expect "control: braces in a plain or quoted scalar are text" 0 "$d"
 
 
 d=$(case_dir); workflow "$d" a.yml "$(printf '      -\tuses: evil/act@v1')"
@@ -305,6 +321,88 @@ wfs=$(lock_wf a.yml github/codeql-action/init@v3 github/codeql-action@v3)
 deps=$(lock_dep github/codeql-action/init@v3 "")$'\n'$(lock_dep github/codeql-action@v3 "$GOOD_DEP")
 lockfile "$d" "$wfs" "$deps"
 expect "control: subpath ref resolved through its repository root only" 0 "$d"
+
+# --- node properties, positions, escapes, explicit keys, split values -----
+d=$(case_dir); workflow "$d" a.yml "      - &s { uses: evil/act@v1 }"
+expect "mutant: anchored flow step" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - &s { uses: actions/checkout@$SHA40 }"
+expect "control: anchored flow step, inline SHA" 0 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - !!map { uses: evil/act@v1 }"
+expect "mutant: tagged flow step" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - &a uses: evil/act@v1"
+expect "mutant: anchor before the uses key" 1 "$d"
+
+d=$(case_dir); job "$d" a.yml "    env: { uses: hello }
+    steps:
+      - uses: actions/checkout@$SHA40"
+expect "control: a uses key under env (flow) is not an action" 0 "$d"
+
+d=$(case_dir); job "$d" a.yml "    env:
+      uses: hello
+    steps:
+      - uses: actions/checkout@$SHA40
+        with:
+          uses: hello"
+expect "control: a uses key under env or with (block) is not an action" 0 "$d"
+
+d=$(case_dir); job "$d" a.yml "    x-step: &st
+      uses: evil/act@v1
+    steps:
+      - *st"
+expect "mutant: step placed by an alias" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - ? uses
+        : evil/act@v1"
+expect "mutant: explicit ? key" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml '      - "u\x73es": evil/act@v1'
+expect "mutant: escaped uses key, block form" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml '      - { "u\x73es": evil/act@v1 }'
+expect "mutant: escaped uses key, flow form" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses:
+          evil/act@v1"
+expect "mutant: ref on the line after the uses key" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: \"actions/checkout@$SHA40
+          evil\""
+expect "mutant: quoted ref left open across lines" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: actions/checkout@$SHA40
+          evil"
+expect "mutant: plain ref continued on the next line" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - { name: a,
+      uses: evil/act@v1 }"
+expect "mutant: flow step continued at no deeper indent" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - uses: \"actions/checkout@$SHA40
+          #evil\"
+      - uses: actions/checkout@$SHA40"
+expect "mutant: open quote whose next line reads as a comment" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - run: |
+          f() {
+          }
+          uses: evil/act@v1
+      - uses: actions/checkout@$SHA40
+        with:
+          uses: hello"
+expect "control: braces and uses text in a run block are text" 0 "$d"
+
+d=$(case_dir); job "$d" a.yml "    steps:
+    - uses: evil/act@v1"
+expect "mutant: indentless step list" 1 "$d"
+
+d=$(case_dir); printf '# SPDX-License-Identifier: MPL-2.0\n--- { name: t, on: push, jobs: { a: { runs-on: x, steps: [ { uses: evil/act@v1 } ] } } }\n' > "$d/.github/workflows/a.yml"
+expect "mutant: whole workflow in flow form after the --- marker" 1 "$d"
+
+d=$(case_dir); printf '# SPDX-License-Identifier: MPL-2.0\n---\njobs:\n  a:\n    steps:\n      - uses: actions/checkout@%s\n---\n        uses: hello\n...\n---\nenv:\n  uses: hello\n' "$SHA40" > "$d/.github/workflows/a.yml"
+expect "control: document markers end the jobs block" 0 "$d"
 
 echo
 echo "check-action-pinning: $pass passed, $fail failed"
