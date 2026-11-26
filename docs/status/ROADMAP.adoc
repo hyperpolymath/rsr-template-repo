@@ -18,6 +18,24 @@ version is 0.1.0 (`Justfile`, `CITATION.cff`, tag `v0.1.0`, deed
 
 == Milestones
 
+=== 2026-11-26 — proven swap, sweep 1 begun
+
+Direction (hub of hubs): swap this template's CI/CD for reusable workflows from
+`proven-cicd-and-workflows` and its tests for `proven-tests-and-benches`, so
+every repo minted from here starts with the proven gate. Order: sweep 1 (unit,
+smoke, build, P2P), then wait for the hub's go on sweep 2 (rest of CRG C),
+sweep 3 (B), sweep 4 (all 18 categories plus extras).
+
+Done: `proven-lock-gate@0.3.2` stamped at suite `50a443f` (PR #489).
+Open PRs being driven to green so they can merge once the gate is on main:
+#459 (conflicted with main; needs the refactor re-applied on the ES-module
+file), #475, #476, #486 (threads addressed), #487 (Sonar security rating fixed),
+#488 (merged). Nothing merges without the stamped gate on main (SR-005) and the owner's
+approval where the ruleset asks for it.
+
+Later list: proof witnesses, full `--cubical`, B-grade work, blocked or flaky
+items.
+
 === 2026-11-21 — root_shape bench: forks cut, gate result unobserved
 
 PR #467 cut forks in `scripts/check-root-shape.sh` with no behaviour change.
