@@ -2,10 +2,14 @@
 # Manifest for the proven umbrella gate (.github/workflows/proven.yml).
 # Schema: proven/manifest/v1. Fail-closed: every category needs a command, a
 # written N/A reason, or an unexpired waiver.
+#
+# Umbrella v0.1.0 runs sweep 1 (unit, smoke, build, P2P) for shell, rust, go,
+# node, python, elixir and zig only. The template also carries proof and
+# scaffold sources, each accounted for under [languages.ignore] below.
 schema = "proven/manifest/v1"
 
 [categories.unit]
-command = "bash tests/run_proven_suite_test.sh"
+command = "for t in tests/shape/*_test.sh tests/invisible-characters-test.sh; do bash \"$t\" || exit 1; done"
 
 [categories.smoke]
 command = "bash tests/shape/check_root_shape_test.sh"
@@ -16,6 +20,33 @@ na = "template repository: the Idris2 ABI and Zig FFI build only after `just rep
 [categories.p2p]
 na = "template scaffold with no inter-component seam of its own; instantiated repos declare theirs"
 
-[bench.template]
-command = "bash tests/workflows/template_bench.sh"
+[languages.ignore.agda]
+reason = "proof sources: checked by proofs.yml under the strict Agda flags, not by the umbrella (toolchain release pending)"
+
+[languages.ignore.coq]
+reason = "proof sources: checked by proofs.yml, not by the umbrella (toolchain release pending)"
+
+[languages.ignore.lean]
+reason = "proof sources: checked by proofs.yml, not by the umbrella (toolchain release pending)"
+
+[languages.ignore.tla]
+reason = "specification sources: checked by proofs.yml, not by the umbrella (toolchain release pending)"
+
+[languages.ignore.idris2]
+reason = "ABI proofs: built and checked by proofs.yml; the umbrella has no Idris2 toolchain in release 0.1.0"
+
+[languages.ignore.julia]
+reason = "batch-script scaffolds that run only in instantiated repos; the umbrella has no Julia toolchain in release 0.1.0"
+
+[languages.ignore.zig]
+reason = "FFI scaffolds that compile only after `just repo-init`; no standalone Zig project exists in the template"
+
+[languages.ignore.rust]
+reason = "archetype overlays that become a crate only after `just repo-init`; rust-ci.yml stays a separate caller for instantiated repos"
+
+[languages.ignore.javascript]
+reason = "test fixtures for the Bun-run workflow tests (proven-tests.yml); this repo's anchor forbids Node.js and npm"
+
+[bench.root_shape]
+command = "for i in $(seq 20); do bash scripts/check-root-shape.sh . >/dev/null || exit 1; done"
 baselining = true
