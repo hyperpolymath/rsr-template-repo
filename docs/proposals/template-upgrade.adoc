@@ -1,0 +1,419 @@
+// SPDX-License-Identifier: CC-BY-SA-4.0
+// Copyright (c) Jonathan D.A. Jewell <j.d.a.jewell@open.ac.uk>
+= Template upgrade — the update half of the mint
+:toc:
+:toclevels: 3
+:sectnums:
+
+[abstract]
+Status: *proposal with a working implementation, on a draft PR.* Source:
+recommendation 3 of `hyperpolymath/mathesis` draft PR #126
+(`docs/proposals/types-tropes-estate-upkeep.adoc`), adopted by the owner.
+Nothing here has been run on a real repository.
+
+== Summary
+
+The template can mint a repo and can replay a mint; it cannot move a minted repo
+to a newer template. This adds `scripts/upgrade-mint.sh` (`just upgrade`):
+
+[source]
+----
+base   = replay of the repo's own mint     (template @ its recorded pin, its recorded answers)
+theirs = the same mint at the new commit    (template @ NEW,              the same answers)
+ours   = the repo, as committed
+----
+
+Per path, one safety rule: *a path changes only if the repo still equals the old
+mint there*, or git can merge the two edits without overlap (reported apart, for
+review). Overlapping edits are written *with conflict markers and never
+resolved*. Licence files, SPDX and copyright lines, the chora deed, tool-owned
+files and everything the repo declares as its own are never written. The default
+is a dry run. `--apply` makes one local, unsigned commit on a new branch;
+`--rollback` undoes it. It never pushes.
+
+What was measured, built and tested is in <<results>>. What is *not* true yet is
+in <<limits>>: today almost no repo records the answers a replay needs, so the
+three-way path has close to no eligible repo until answers are back-filled
+(decision 2), and the exact-stale refresh is a plan, not a tool.
+
+== How a mint records where it came from
+
+Read from `build/just/repo-init.just` (lines 1486–1626) and `scripts/`:
+
+[cols="2,5"]
+|===
+|Where |What it records
+
+|`(provenance :template-repo :template-branch :template-commit :template-tree)`
+|The template commit the repo was cut from. `scripts/resolve-template-pin.sh`
+finds it by *tree equality* (a template commit whose tree equals the child's root
+commit tree), because "Use this template" copies the tree, not the history. An
+ambiguous tree is refused; `RSR_TEMPLATE_COMMIT` says which.
+
+|`(variant :parent-pin)`
+|The same pin, for the drift gate.
+
+|`(variant (paths :added :removed :diverged …))`
+|Files the repo owns from birth (`:diverged`: `CLAUDE.md`, the roadmap, the
+repo map, the deed), files it added, files the mint removes. The drift gate and
+this tool read these as *the owner's content*.
+
+|`(mint-answers :schema-version "1" …)`
+|Every answer the mint was given that appears in a rendered file (names,
+contacts, description, URLs), plus the mint date. Written since #275 (2026-11-05).
+Without it the mint cannot be replayed.
+
+|`scripts/replay-mint.sh`, `check-mint-drift.sh`, `chain-mint.sh`
+|Replay the real recipe at the pinned commit with the recorded answers. The drift
+gate diffs a child against that replay; the chain mint three-way-merges a *new*
+identity over a parent. This proposal is the third use of the same replay.
+|===
+
+Existing tooling already did two thirds of the work. The new part is the
+per-path decision and the guards; the replay is reused unchanged.
+
+== Algorithm
+
+. Read the child's deed: `:template-commit` (PIN), `(mint-answers)`, the
+`(variant (paths))` declarations. Refuse if any is missing, if the template
+checkout is shallow or lacks PIN, or if PIN is not an ancestor of the target
+(NEW): a downgrade or a different line of history is not an upgrade.
+. Refuse a deed that does not declare `(variant (paths :added :removed :diverged))` as lists, *before any replay*: an unreadable declaration is not an empty one, and reading it as "the repo owns nothing" would disable the owner protection.
+. Refuse a sparse checkout or an unresolved merge (a chain mint refuses the same
+two). `--apply` also refuses a dirty tree.
+. OLD = `replay-mint.sh` at PIN with the answers; NEW = the same at the target.
+A replay that fails at NEW (for example a new recipe needs an answer the repo
+never recorded) stops the whole run before anything is compared.
+. For every path in OLD ∪ NEW ∪ repo, decide:
+
+[cols="3,3,3"]
+|===
+|Situation |Action |Reported as
+
+|OLD = NEW, or repo = NEW |nothing |(not listed)
+|path is licence, deed, tool-owned (<<never>>) |nothing |`PROTECTED`
+|path is in the repo's `(paths)` declarations |nothing |`OWNER-HELD`
+|repo = OLD, NEW differs |take NEW |`FAST-FORWARD`
+|…but that changes an SPDX or copyright line |nothing |`LICENCE-HELD`
+|repo = OLD, NEW removed it |delete |`DELETE`
+|repo edited it, NEW removed it |keep it |`MODIFY-DELETE`
+|NEW has it; OLD and the repo lack it |add |`ADD`
+|repo deleted it, template changed it |leave deleted |`CHILD-REMOVED`
+|both changed, text, no overlap |git's three-way merge |`MERGED` (review it)
+|both changed, overlapping |markers: `repo` / `mint@PIN` / `template@NEW` |`CONFLICT`
+|…and the template changes an SPDX or copyright line there |nothing (markers around two licence claims are still an edit) |`LICENCE-HELD`
+|NEW adds a path where the repo has an ignored or untracked file, or a file where a directory is needed |nothing: never overwrite what git cannot restore |`OCCUPIED`
+|both changed, binary or link |keep the repo's |`CONFLICT-UNMERGED`
+|===
+
+. `--apply` then records the pin: *three lines only* in the deed
+(`(provenance :template-commit)`, `:template-tree`, `(variant :parent-pin)`),
+through `scripts/deed-clause.sh set`, and commits.
+
+Exit status is 0, or 3 if anything needs a human (`CONFLICT`,
+`CONFLICT-UNMERGED`, `MODIFY-DELETE`, `LICENCE-HELD`, `OCCUPIED`): *fail loudly*, in the dry
+run too, so a CI job can gate on it.
+
+=== Why this is the right shape
+
+The merge is the one the estate already trusts (`chain-mint.sh`), and the safety
+rule is the lens law in plain terms: if the repo is exactly what the old mint
+gives, applying the new mint is the identity on everything else. The test below
+checks that equivalence against the drift gate rather than assuming it. No proof
+is claimed (<<limits>>).
+
+[[never]]
+== What is never touched
+
+Held in `scripts/upgrade-mint.sh` (`protected()`, `owner_held()`,
+`licence_lines()`), listed in the report, never written:
+
+* *Licences* (doctrine 6, "no automated licence edits — ever"): any file whose name begins `LICENSE`, `LICENCE`, `COPYING` or `UNLICENSE` (so `LICENSE_HEADER` and `COPYING-GPL` too), and `LICENSES/**`. Beyond whole files: if the
+new version of any other file would change a line that *is* a licence claim
+(`SPDX-License-Identifier`, `SPDX-FileCopyrightText`, `SPDX-FileContributor`,
+`Copyright (c)` after a comment leader), the file is held, not written. A script
+that merely mentions SPDX (a checker) is code, not a claim: an earlier, looser
+match held seven such files and was tightened (the real run found it).
+* *Identity*: the chora deed (`*_chora.deed`) is never merged. Only the three pin
+lines above are written, and the test asserts that is the whole diff.
+* *Status and proof state*: `docs/status/**`, `PROOF-STATUS*`, `PROOF-NEEDS*`, `TEST-NEEDS*`,
+`READINESS*`, `ROADMAP*`, `STATE*`, `**/receipts/**`, `.machine_readable/coaptation/**`,
+`verification/proofs/**`. They describe the repo's *own* state; a template that happens to
+equal them says nothing about it. They change only after being checked against that
+repo's proof receipts, by a human (owner addendum, mathesis#126 db1f1c6). `verification/proofs/**`
+is held on the conservative reading of "proof files"; decision 1 asks whether template-supplied
+proof boilerplate may be refreshed separately.
+* *Tool- and owner-owned*: `.github/workflows/actions.lock` (tool-owned),
+`CODEOWNERS`, `CITATION.cff`, `.github/settings.yml`, `.github/rulesets/**`
+(never edited by tooling).
+* *Owner content*: every path in the child's `(variant (paths))` as `:added`,
+`:removed`, `:diverged`, `:diverged-pending-upstream` or `:operational-state`.
+The mechanism already exists and is gated by the drift check; this reuses it
+rather than inventing an ignore file. Files the repo added and never declared
+are not in OLD or NEW, so they are never in the plan at all.
+* Anything under a symlink in the repo.
+
+`CITATION.cff` and `CODEOWNERS` protection is by rule only: the mint renders
+`CITATION.cff`, so the fixture cannot use it as an unrendered file, and no test
+exercises either. That is untested, and says so here.
+
+== Dry run, apply, rollback
+
+* *Default is a dry run.* It replays in a scratch directory, reads the repo with
+`git --no-optional-locks`, and writes nothing to it: the test asserts an
+unchanged HEAD, branch list and work tree, and that two runs give identical
+output.
+* *`--apply`*: clean tree required; creates `upgrade/rsr-<new12>`; writes the
+plan; records the pin; makes one commit (unsigned: the owner re-signs before
+merge, per the thread rules) whose trailers carry `RSR-Upgrade-Base`,
+`-From-Branch`, `-Template-Old/New`, `-Needs-Human`. Conflict markers are
+committed on purpose: they make the PR red until a human resolves them.
+It does not push. `--no-commit` leaves the plan staged instead.
+* *`--rollback`*: only from an `upgrade/rsr-*` branch whose tip is the upgrade
+commit and whose parent is the recorded base; back to the original branch (or the
+base commit, detached) and the local branch deleted. A pushed branch is deleted
+by hand, and the command prints the line.
+* A downgrade, a no-op (`already at …`), a non-clean `--apply`, a branch not named `upgrade/rsr-*`, no git identity, and a deed without its `(variant (paths))` declarations are refused, before any replay or write.
+* Apply runs in dependency order: removals first (files and links only, never a directory), then writes. A file that becomes a directory of the same name, or the reverse, therefore works; where the repo holds something the plan cannot safely replace the path is `OCCUPIED`.
+
+== Inferring the pin when none is recorded
+
+Measured on the 273 reachable repos in `chora-registry`: *none records a
+`:template-commit`*, and only 22 have a root `*_chora.deed` at all (<<results>>).
+For those the pin is *evidence, not fact*: `scripts/infer-template-pin.sh` scores
+every template commit by how many of the repo's files equal that commit's blob at
+the same path, and says `unique` only if the winner beats the best commit with a
+*different tree* by more than 2% of the repo's files; otherwise `ambiguous`,
+listing leaders, and it must not be pinned from. It is for the refresh (which
+needs blob equality, not a replay) and for sanity-checking a recorded pin. It can
+not give a three-way upgrade its base: that needs the answers.
+
+Making older repos upgradable is therefore a separate, prior step: *back-fill*
+`(mint-answers)` (decision 2).
+
+== The one-time refresh of exact-stale files (plan; not built, not run)
+
+Definition and measurement: `scripts/survey-template-staleness.sh`. A file is
+*exact-stale* when its blob equals a version the template once had at that path
+and is not the current one. For those no replay, no answers and no judgement are
+needed: the repo holds an old, unrendered template file byte for byte, so
+replacing it with the current one is the same fast-forward rule with the old blob
+as base.
+
+Procedure for an owner-approved pass:
+
+. Re-run `survey-template-staleness.sh --own-pin recorded` (or `infer`) for the day; take `own-pin.tsv`.
+. Keep only files that *equal the template at that repo's own pin* (the narrowed scope,
+below), and only *copied boilerplate*: remove everything <<never>> forbids (licences,
+status and proof state, deeds) and hold *workflow files* for a second pass, because a
+workflow that changes must stay consistent with the repo's `actions.lock`, which a tool owns.
+. Per repo, one draft PR (one branch, one commit, files listed in the body),
+opened only after the owner approves the list below. No PR is opened by the
+survey or by this PR.
+. Gate each PR on that repo's own checks; a red PR is left red and reported, never
+bypassed (doctrine 5).
+. This needs a `--refresh` mode on `upgrade-mint.sh` (same classifier and guards,
+base = the matching old blob, no replay). Not written here; see decision 4.
+
+*Narrowed scope (hub correction, mathesis#126 38d8311).* Refresh only files that exactly equal the
+mint at that repo's *own* recorded pin; the 12,582 figure is an upper bound, because "equal to some older
+version" does not say it is the version the repo came from. Recount, `--own-pin infer`, 2026-11-25, 273 repos:
+*0 repos record a pin, 0 yield a unique inferred pin, so 0 files qualify today.* The upper bound is
+2,768. Inference is not a near miss: for `dictask` the best commit matches 301 of 502 files and the next two
+299 (three commits, 2026-09-22 to 09-28); for `session-sentinel` 182 of 350 for several commits across
+May. Template commits touch few files each, so a repo that has edited a few cannot be placed. The narrowed
+refresh therefore needs recorded pins first (decision 2); the candidate list below is the *upper bound*, not a
+work list. The measure is blob equality with the template at the pin, an upper bound on equality with the
+replayed mint (no replay is possible without answers).
+
+Upper-bound candidates, as measured on 2026-11-25: `template-upgrade-candidates-2026-11-25.tsv`
+in this directory, one row per surveyed repo (`stale_refreshable` excludes the
+never-touch classes). Ten repos hold 50 or more stale files; `dictask` (118
+refreshable), `lithoglyphdb` (97) and `session-sentinel` (90) lead.
+
+[[results]]
+== Results
+
+=== The count
+
+The proposal says: of 45,854 child files at shared template paths, 14,711 equal
+template HEAD, 12,582 equal an older version, 18,561 equal no version.
+
+*Reproduced? No.* `scripts/survey-template-staleness.sh` (rerunnable; trees only,
+no blobs fetched) over the 328 repos of `chora-registry` (`worker/data/repos.json`,
+2026-11-19), against `origin/main` at `7a17c3b` (814 commits), by blob identity:
+
+[cols="3,2,2"]
+|===
+|Class |`--universe head` (default) |`--universe ever`
+
+|repos reachable (54 private or gone, 1 name unparsable)
+|273 |273
+|files at shared paths |13,647 |28,231
+|equal template HEAD |2,713 |2,713
+|*equal an older version* |*2,768* |*6,731*
+|equal no version |8,166 |18,787
+|===
+
+*My number: 2,768* (6,731 if files at since-deleted template paths count). The
+proposal's denominator, 45,854, is 3.4 times mine, so its survey covered about
+that many more files. Private repos and repos outside the registry are one possible
+reason; so is a different definition of "shared template path". Neither is
+established. The stale class is the same order of share (about 20% of mine against
+27% of theirs); the *size* does not reproduce. Re-run with their repo list and ref
+to settle it: `survey-template-staleness.sh --repos LIST
+--universe head|ever`. The script checks that the three classes sum to the
+universe.
+
+Of the 2,768 stale files: 285 are licence files (never), 32 owner or identity
+files (never), 407 workflow files (second pass), 2,044 other. The most common stale
+paths are `.github/label-classifier.json` (266 repos), `.github/labels.json`
+(265), `LICENSE` (245), `mise.toml` (214).
+
+=== The recorded pins
+
+Of 273 reachable repos: 22 have a root `*_chora.deed`, none of those records
+`(mint-answers)`, none records a `:template-commit`. The proposal says 12 repos
+record `(mint-answers)`; I found none among the reachable. They may be private or
+not in the registry, or minted by a path this survey does not see. *Today the
+three-way upgrade has no demonstrated eligible repo outside the fixtures.*
+
+=== Tests
+
+`tests/e2e/upgrade_test.sh` (3 min; real `just repo-init`, two throwaway repos
+minted from template commit `c7a524c`, 2026-11-09, 164 commits before the tip) and
+`tests/workflows/survey_staleness_test.sh` (seconds; counts known in advance).
+Run on 2026-11-25: *both pass.*
+
+[cols="2,5"]
+|===
+|Repo |What was checked
+
+|A, unedited, upgraded across real history (154 fast-forward, 75 add, 5 delete,
+2 owner-held, 3 protected, 2 licence-held)
+|Dry run is the default, repeatable, and leaves HEAD, branches and tree
+untouched. `--apply`: one commit on a new branch, base recorded, pin recorded, no
+conflict marker. The drift gate run against the *new* pin differs from the
+upgraded child only on paths the plan reported as held (4 of 7 held paths drift;
+none unexplained). `--rollback` restores the same commit and deletes the branch.
+A downgrade is refused; the pin itself is a no-op.
+
+|B, with edits, upgraded to a synthetic template commit on a throwaway branch
+|`MERGED` (far-apart edits in one file), `CONFLICT` (same line: both sides inside
+`<<<<<<< repo` markers), `LICENCE-HELD` (SPDX line), `MODIFY-DELETE` kept,
+`DELETE`, `ADD`, exit 3, `--rollback` restores byte for byte, a dirty tree
+refuses `--apply`.
+
+|*Negative test*: the licence files
+|The template *did* change `LICENSE`, a `LICENSES/` file and an SPDX line; the child
+equalled the old mint at each (so a plain fast-forward would have taken them);
+after `--apply` all are byte-identical, the deed differs by exactly the three pin
+lines, and the owner's own file is untouched. *Mutation check:* with `protected()`
+and the licence-line guard disabled in a copy of the script, `LICENSE` and
+`LICENSES/CC-BY-SA-4.0.txt` are planned as `FAST-FORWARD`: the test can fail.
+|===
+
+The real run found a real defect before any real repo did (the licence-line match
+was too loose) and a real fact: between `c7a524c` and the tip the template itself
+changed licence or copyright lines in `mise.toml` and `scripts/render-mise.sh`,
+which the tool correctly held for a human.
+
+[[limits]]
+== Limits, risks, what is not claimed
+
+* *Blast radius is the repo, not the estate*: one repo, one local branch, one
+unsigned commit; nothing pushed, nothing merged. The estate-wide risk is a
+campaign built on top of it: a systematic mistake repeats in every repo it runs
+on. Hence one draft PR per repo and the owner's list first.
+* *Eligibility*: see <<results>>; today the three-way path is demonstrated on
+fixtures only.
+* *Replay at NEW with the old answers*: if the new recipe wants an answer the
+repo never recorded, the run stops (loudly). It does not guess.
+* *Clean text merges are not "no judgement"*: `MERGED` files are applied and
+listed because git found no overlap, yet two non-overlapping edits can still
+interact (a renamed function and a new caller). They are for the reviewer.
+* *Not covered*: the exec bit on a merged file (the repo's mode is kept), CRLF
+files, files whose own `.gitattributes` rewrite them, a template with a
+submodule (the replay refuses it), the protection of `CITATION.cff`/`CODEOWNERS`
+(untested, above), and a run against any real repository.
+* *No proof is claimed.* "A path changes only if the repo equals the old mint
+there" and "protected paths are byte-identical" are *tested*, on two fixtures and
+one mutation. Stating them as an Idris2 property over a model of the plan (an
+engineering property, `PROOF-POLICY` §1) is a candidate, not done.
+* The scripts duplicate the drift gate's `same()` and `declared()` helpers rather
+than share them. A `scripts/lib` is the clean fix and a separate change.
+* `SR-009` (dual SPDX first line for new files) conflicts, in the standing
+rules' own words, with the licence policy and `spdx-policy-guard.yml`; the new
+files follow this repository's existing single-identifier headers.
+
+== Alternatives considered
+
+Rated on elegance and correctness (E), dependability (D), security and privacy
+(S); 5 is best. "Most elegant" is the default arm (doctrine 15).
+
+[cols="3,5,1,1,1"]
+|===
+|Option |Notes |E |D |S
+
+|*A. Replay + three-way merge (chosen)*
+|Reuses the mint's own replay, so the base is the mint, not an approximation. Cost:
+needs the answers.
+|4 |4 |5
+
+|B. Stop copying: reference shared workflows and standards instead of copying
+them into every repo
+|Solves the cause (doctrine 14): nothing to upgrade where nothing is copied. Needs
+standards and every repo to change; a weeks-long estate project, and some files
+(deeds, licences) must stay copies.
+|5 |2 |4
+
+|C. Copier/cruft-style answers file + update
+|The same idea; Python tools are denied here, and the mint's recipe is the
+authority on rendering.
+|3 |3 |4
+
+|D. `git merge` of template history
+|Needs shared history; "Use this template" gives none. Rejected by the premise.
+|1 |1 |4
+
+|E. Keep the sweep campaigns (`rsr-campaign.sh`, per-defect PRs)
+|Status quo: 5.1% of fan-out fix commits were pure version propagation (mathesis).
+No base, so no conflict detection.
+|2 |3 |3
+
+|F. Refresh only (blob equality, no replay)
+|Safe and answer-free but limited to files nobody edited; leaves the rest.
+Complements A.
+|3 |5 |5
+|===
+
+Recommendation: A for repos with answers, F now for the exact-stale files, and B
+as the long-term direction (decision 5).
+
+== Beyond this repository
+
+For a list to maintain (user preference), these are not changed here:
+
+* `metadatastician/standards`: the canon route for template upgrades, the licence
+policy against `SR-009`, and whether `LICENSE` drift (245 repos hold an old
+`LICENSE`) is a policy question rather than a refresh.
+* `hyperpolymath/chora-registry`: where a back-filled pin and answers would be
+recorded as identity-adjacent facts.
+* `Tsunami-breaker` (the pin applier) and the `actions.lock` tool: any workflow
+refresh must go through the lock's owner.
+* `hyperpolymath/mathesis`: the count discrepancy belongs in its ledger.
+* The 54 repos the survey could not read.
+
+== Decisions for the owner
+
+. Approve or reshape the never-touch list, in particular that a licence-line
+change in another file is *held*, not applied.
+. Back-fill `(mint-answers)` and the pin for older repos (via inference, a
+replay and the drift gate, one repo at a time)? Without it three-way upgrade has
+almost no eligible repo.
+. Which candidates, if any, take the exact-stale refresh, and workflows in the
+first pass or the second.
+. Build `--refresh` on `upgrade-mint.sh` (recommended, small) or leave refresh to
+a one-off script.
+. Whether option B (stop copying) becomes the estate direction.
+. Commits here are unsigned drafts: re-sign before merge.
