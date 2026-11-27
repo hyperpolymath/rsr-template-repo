@@ -48,5 +48,5 @@ reason = "archetype overlays that become a crate only after `just repo-init`; ru
 reason = "test fixtures for the Bun-run workflow tests (proven-tests.yml); this repo's anchor forbids Node.js and npm"
 
 [bench.root_shape]
-command = "for i in $(seq 20); do bash scripts/check-root-shape.sh . >/dev/null || exit 1; done"
+command = 'd=$(mktemp -d); git archive HEAD | tar -x -C "$d"; mkdir "$d/.git"; for i in $(seq 20); do bash scripts/check-root-shape.sh "$d" >/dev/null || exit 1; done'
 baselining = true
