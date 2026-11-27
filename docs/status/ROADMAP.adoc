@@ -33,7 +33,7 @@ P2P are declared N/A with reasons (template has no seam of its own), nine
 languages are ignored with written reasons, and the `root_shape` bench runs on a
 `git archive` copy because the suite checks itself out into `.cicd-suite` in the
 repo root, which the root-shape check rejects (reported to F2). The caller is
-re-pinned to suite `95db2ad` (v0.1.1, tag pending owner cut) in the follow-up
+re-pinned to suite `9009d1d` (v0.1.2, tag pending owner cut; v0.1.1 `95db2ad` landed in #493) in the follow-up
 PR. Also merged: #486 (`e6e4108`), #475 (`ed1c0a9`), #476 (`ace4535`), #487
 (`33af87b`). Still open: #459 (gate green, no open threads; the merge endpoint
 refuses it as a stacked PR, needs a steer), #490 and #491 (not in this brief).
