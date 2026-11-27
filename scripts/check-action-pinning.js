@@ -187,14 +187,21 @@ function colonEnds(t, j) {
 
 // Index of the closing quote of the scalar opened at t[i] (or t.length):
 // `\x` escapes in double quotes, `''` in single quotes.
+// Iterative: a long run of `''` must not deepen the call stack (Deno's limit is
+// lower than Bun's).
 function quoteEnd(t, i) {
   const c = t[i];
   let j = i + 1;
-  while (j < t.length && t[j] !== c) {
-    j += c === '"' && t[j] === "\\" ? 2 : 1;
+  for (;;) {
+    while (j < t.length && t[j] !== c) {
+      j += c === '"' && t[j] === "\\" ? 2 : 1;
+    }
+    if (c === "'" && t[j + 1] === "'") {
+      j += 2;
+      continue;
+    }
+    return j;
   }
-  if (c === "'" && t[j + 1] === "'") return quoteEnd(t, j + 1);
-  return j;
 }
 
 function quotedToken(t, i) {
@@ -284,6 +291,18 @@ function blockKey(body) {
 // Whether a quoted scalar opens at the start of `s` and does not close on it.
 function openQuote(s) {
   return (s[0] === "'" || s[0] === '"') && quoteEnd(s, 0) >= s.length;
+}
+
+// A quoted scalar that opens at the start of `from` (the text of lines[i]) and
+// runs onto later lines: the index of the line after the one that closes it, or
+// null when it never closes. Its lines are string content, not nodes.
+function quoteSpanEnd(lines, i, from) {
+  let text = from;
+  for (let j = i + 1; j < lines.length; j += 1) {
+    text += "\n" + lines[j];
+    if (quoteEnd(text, 0) < text.length) return j + 1;
+  }
+  return null;
 }
 
 // What a block `uses:` value declares: { ref }, or { why } when the value does
@@ -398,7 +417,7 @@ function lineRefs(lines, i, state) {
   }
   const key = blockKey(body);
   if (key === null) {
-    if (openQuote(body)) state.uncertain = true;
+    if (openQuote(body)) return openQuoteAt(lines, i, body, state);
     return [[], i + 1];
   }
   state.st.push({ col, seg: key.name });
@@ -409,8 +428,19 @@ function lineRefs(lines, i, state) {
   const v = stripProps(key.rest.trimStart());
   if (v[0] === "{" || v[0] === "[") return flowAt(lines, i, line.length - v.length, keyPath, state);
   if (BLOCK_SCALAR.test(v)) return [[], blockScalarEnd(lines, i, col)];
-  if (openQuote(v)) state.uncertain = true;
+  if (openQuote(v)) return openQuoteAt(lines, i, v, state);
   return [[], i + 1];
+}
+
+// A quoted scalar left open on lines[i]: skip the lines it spans. One that never
+// closes cannot be placed, so the rest of the file is read uncertain.
+function openQuoteAt(lines, i, text, state) {
+  const next = quoteSpanEnd(lines, i, text);
+  if (next === null) {
+    state.uncertain = true;
+    return [[], i + 1];
+  }
+  return [[], next];
 }
 
 // The `uses` keys in a flow collection's tokens, each as { path, ref } or
