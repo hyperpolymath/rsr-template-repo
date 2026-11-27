@@ -26,12 +26,23 @@ every repo minted from here starts with the proven gate. Order: sweep 1 (unit,
 smoke, build, P2P), then wait for the hub's go on sweep 2 (rest of CRG C),
 sweep 3 (B), sweep 4 (all 18 categories plus extras).
 
-Done: `proven-lock-gate@0.3.2` stamped at suite `50a443f` (PR #489).
-Open PRs being driven to green so they can merge once the gate is on main:
-#459 (conflicted with main; needs the refactor re-applied on the ES-module
-file), #475, #476, #486 (threads addressed), #487 (Sonar security rating fixed),
-#488 (merged). Nothing merges without the stamped gate on main (SR-005) and the owner's
-approval where the ruleset asks for it.
+Done: `proven-lock-gate@0.3.2` stamped at suite `50a443f` (PR #489, merged as
+`1759332`). Umbrella gate merged in #492 (`6c3c156`): one caller (`proven.yml`)
+plus `.proven.toml`. Unit and smoke run as repo-local shell commands, build and
+P2P are declared N/A with reasons (template has no seam of its own), nine
+languages are ignored with written reasons, and the `root_shape` bench runs on a
+`git archive` copy because the suite checks itself out into `.cicd-suite` in the
+repo root, which the root-shape check rejects (reported to F2). The caller is
+re-pinned to suite `9009d1d` (v0.1.2, tag pending owner cut) in #494 (`8adb398`);
+v0.1.1 `95db2ad` landed in #493. v0.1.2 fails closed on zero tests, so the unit
+and smoke commands in `.proven.toml` now print an "N tests passed" line. The
+`root_shape` bench is noisy (a 1.3 s loop tripped the 20% band at 43%); the
+owner chose to lengthen the loop in a separate PR, and no approval label is
+applied by the agent. Also merged: #486 (`e6e4108`), #475 (`ed1c0a9`), #476
+(`ace4535`), #487 (`33af87b`). Owner ruled 2026-11-27: sweep 2 is go for this
+repo and standards; #459 is recreated as a fresh PR off main (the old one stays
+open for the owner to close); #490 and #491 are in the brief. The sweep-1 kit
+scaffolds (`.proven/`, tests/{unit,smoke,p2p}) are a separate PR.
 
 Later list: proof witnesses, full `--cubical`, B-grade work, blocked or flaky
 items.

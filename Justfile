@@ -57,6 +57,14 @@ info:
     @echo "Recipes: $(just --summary | wc -w)"
     @d=$(bash scripts/deed-field.sh --find . 2>/dev/null) && bash scripts/deed-field.sh "$d" status phase | xargs -I{} echo "Phase: {}" || true
 
+# Upgrade a minted repo to a newer template commit (three-way; DRY RUN unless --apply).
+#   just upgrade --template ../rsr-template-repo            # plan only, writes nothing
+#   just upgrade --template ../rsr-template-repo --apply    # branch + one commit, never pushed
+#   just upgrade --rollback
+# See docs/proposals/template-upgrade.adoc. Needs the template's FULL history.
+upgrade *ARGS:
+    bash scripts/upgrade-mint.sh {{ARGS}}
+
 # Run Invariant Path overlay tools for this repository
 invariant-path *ARGS:
     ./scripts/invariant-path.sh {{ARGS}}

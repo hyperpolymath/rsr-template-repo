@@ -173,6 +173,8 @@ require_file tests/proven_suite_test.sh && \
   run_lane "Proven tools Silence + Firing self-tests" bash tests/proven_suite_test.sh
 require_file tests/workflows/check_ijson_jcs_test.sh && \
   run_lane "I-JSON/JCS Silence + Firing self-tests" bash tests/workflows/check_ijson_jcs_test.sh
+require_file tests/workflows/check_action_pinning_test.sh && \
+  run_lane "Action-pinning gate Silence + Firing + mutants self-tests" bash tests/workflows/check_action_pinning_test.sh
 require_file tests/workflows/squabble_gate_test.sh && \
   run_lane "CICD-Squabbler & required-context Silence + Firing self-tests" bash tests/workflows/squabble_gate_test.sh
 require_file tests/workflows/secret_scanner_contract_test.sh && \
