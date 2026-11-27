@@ -85,6 +85,17 @@ fi
 # here: rendering used to drop them, and licence text is not ours to invent.
 COPYRIGHT="$(grep '^# SPDX-FileCopyrightText:' "$ROOT/mise.toml" 2>/dev/null || true)"
 
+# The header names the refresh recipe only where the repository has it. A repo
+# minted before provision.just has no `toolchain-refresh`; pointing its readers
+# at a recipe that does not exist is a false statement.
+if grep -qsE '^toolchain-refresh:' "$ROOT/Justfile"; then
+    LOCK_NOTE='Specs are `latest`; mise.lock records the concrete version and
+# per-platform checksum of each. Refresh both with: just toolchain-refresh'
+else
+    LOCK_NOTE='Specs are `latest`; `lockfile = true` makes mise write mise.lock (the
+# concrete version and checksum of each) on `mise install`; commit it to pin them.'
+fi
+
 render() {
     echo "# SPDX-License-Identifier: MPL-2.0"
     [[ -z "$COPYRIGHT" ]] || printf '%s\n' "$COPYRIGHT"
@@ -93,8 +104,7 @@ render() {
 # The toolchain for this repository (${LANGS}). Rendered at mint by
 # scripts/render-mise.sh from the languages the tree declares; the language→tool
 # table is build/just/provision-lib.sh's, so this file and \`just doctor\` cannot
-# disagree. Specs are \`latest\`; mise.lock records the concrete version and
-# per-platform checksum of each. Refresh both with: just toolchain-refresh
+# disagree. ${LOCK_NOTE}
 # Canon: hyperpolymath/standards 3-practice/provisioning (TRUST-DEFAULTS §toolchain).
 # Estate policy: no python, node/npm/yarn, make or nix here. JavaScript runs
 # Bun > Deno > pnpm from one package.json (LANGUAGE-POLICY §1.4).

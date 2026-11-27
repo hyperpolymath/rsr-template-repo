@@ -8,6 +8,20 @@ https://semver.org/spec/v2.0.0.html[Semantic Versioning].
 
 === [Unreleased]
 
+==== Added
+
+* **`just upgrade`: the update half of the mint (draft, proposal-backed).** `scripts/upgrade-mint.sh`
+  replays a minted repo's own mint at its recorded pin (base) and at a newer template commit
+  (theirs) and three-way-merges both into the repo. Dry run by default; `--apply` makes one
+  local unsigned commit on a new branch, conflicts keep their markers, `--rollback` undoes it.
+  Licence files, SPDX/copyright lines, the chora deed (but for three pin lines), tool-owned files
+  and every `(variant (paths))` declaration are never written. `scripts/survey-template-staleness.sh`
+  (reproducible count of files equal to an older template version, trees only) and
+  `scripts/infer-template-pin.sh` (evidence for a pin, ambiguous when it must be). Tests:
+  `tests/e2e/upgrade_test.sh` (two repos minted from `c7a524c`; licence negative test with a
+  mutation check) and `tests/workflows/survey_staleness_test.sh`. Design, measured count and
+  owner decisions: `docs/proposals/template-upgrade.adoc`. Run on no real repository.
+
 ==== Removed
 
 * **pre-commit.ci retired; its checks run in CI.** Owner ruling 2026-11-24: the
