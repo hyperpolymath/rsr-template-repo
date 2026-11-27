@@ -26,12 +26,17 @@ every repo minted from here starts with the proven gate. Order: sweep 1 (unit,
 smoke, build, P2P), then wait for the hub's go on sweep 2 (rest of CRG C),
 sweep 3 (B), sweep 4 (all 18 categories plus extras).
 
-Done: `proven-lock-gate@0.3.2` stamped at suite `50a443f` (PR #489).
+Done: `proven-lock-gate@0.3.2` stamped at suite `50a443f` (PR #489, merged as
+`1759332`). Umbrella gate added in this PR: one caller (`proven.yml`, pinned to
+suite `ee40ae1`, tag v0.1.0 pending owner cut) plus `.proven.toml`. Required
+check `proven / verdict` becomes live once F2 updates the gate profile; the old
+required contexts stay until then. Build and P2P are declared N/A with reasons
+(template has no seam of its own); the bench baselines on first runs.
 Open PRs being driven to green so they can merge once the gate is on main:
 #459 (conflicted with main; needs the refactor re-applied on the ES-module
 file), #475, #476, #486 (threads addressed), #487 (Sonar security rating fixed),
-#488 (merged). Nothing merges without the stamped gate on main (SR-005) and the owner's
-approval where the ruleset asks for it.
+#488 (merged). Nothing merges without the stamped gate on main (SR-005) and
+the owner's approval where the ruleset asks for it.
 
 Later list: proof witnesses, full `--cubical`, B-grade work, blocked or flaky
 items.
