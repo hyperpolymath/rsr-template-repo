@@ -81,6 +81,10 @@ predecessors did.
 | yes
 | git reads .mailmap from the worktree root only
 
+| `.proven.toml`
+| yes
+| the proven umbrella gate reads its manifest (schema proven/manifest/v1) from the repo root only: categories, N/A reasons, bench targets
+
 | `.uuid-v8-exempt`
 | optional
 | scripts/check-uuid-v8.sh reads this exact root path: the negative-control tests that hold #u5 on purpose (owner-approved 2026-11-14)
