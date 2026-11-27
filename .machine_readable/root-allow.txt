@@ -62,6 +62,7 @@ coordination.k9.ncl        # repo-local session binding (template-mandated)
 .mailmap                   # git reads .mailmap from the worktree root only
 mise.toml                  # the toolchain: every tool at "latest" (PROVISIONING-STANDARD §4)
 mise.lock                  # makes "latest" concrete: version + per-platform checksum; mise reads it beside mise.toml
+.proven.toml               # the proven umbrella gate reads its manifest (schema proven/manifest/v1) from the repo root only: categories, N/A reasons, bench targets
 .hypatia-ignore            # the Hypatia scanner reads it from the repo root
 ?.coderabbit.yaml          # CodeRabbit reads its config from the root only; pins Docstring Coverage to mode: warning (estate decision, not a vendor default). Optional: only the template and the repos whose rulesets require the CodeRabbit context carry it
 .clinerules                # AI editor rules. Cline reads them from the project ROOT, so the copies formerly under .machine_readable/ai/ were inert (.cursorrules and .windsurfrules were retired 2026-10-26)
