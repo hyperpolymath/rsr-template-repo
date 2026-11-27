@@ -76,7 +76,15 @@ in
 let has = data.has in
 let legacy = data.legacy in
 # A pipe would end a GFM table cell even inside backticks, so it is escaped.
-let ticks = fun files => std.string.join ", " (std.array.map (fun f => "`%{std.string.replace "|" "\\|" f}`") files) in
+# A line break would end the row itself (extract.sh keeps a newline in a name as
+# one path), so CR and LF are written as the visible text \r and \n.
+let cell = fun f =>
+  f
+  |> std.string.replace "|" "\\|"
+  |> std.string.replace "\r" "\\r"
+  |> std.string.replace "\n" "\\n"
+in
+let ticks = fun files => std.string.join ", " (std.array.map (fun f => "`%{cell f}`") files) in
 let legacy_what = fun files =>
   let n = std.array.length files in
   if n == 0 then ""
