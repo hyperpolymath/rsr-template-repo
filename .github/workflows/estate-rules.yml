@@ -283,6 +283,11 @@ jobs:
       # records.
       - name: Governance replaces the runtime gate for every pull request
         run: bash tests/workflows/governance_policy_test.sh
+      # The action-pinning gate is copied into every minted repository, so a hole
+      # in it is a hole everywhere. Each hole it once had has a mutant that must
+      # fail and a control that must pass; runs under the Bun installed above.
+      - name: Action-pinning gate self-test (controls and one mutant per hole)
+        run: bash tests/workflows/check_action_pinning_test.sh
       # A cancelled run must not leave a red verdict job behind.
       - name: Fork governance verdict skips on cancel
         run: bash tests/workflows/fork_governance_verdict_cancel_test.sh

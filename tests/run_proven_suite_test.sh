@@ -31,6 +31,7 @@ for file in scripts/check-escape-hatches.sh scripts/emit-aggregate-inputs.sh \
   scripts/check-hypatia-rule-order.sh \
   .github/hooks/validate-deed.sh .github/hooks/validate-k9.sh \
   tests/proven_suite_test.sh tests/workflows/check_ijson_jcs_test.sh \
+  tests/workflows/check_action_pinning_test.sh \
   tests/workflows/squabble_gate_test.sh tests/workflows/secret_scanner_contract_test.sh \
   tests/shape/check_root_shape_test.sh www/tests/run-all.sh; do
   mkdir -p "$work/tree/$(dirname "$file")"
@@ -50,7 +51,7 @@ grep -qF 'ALL APPLICABLE LANES PASSED' "$work/out" || fail 'missing success outc
 jq -e '.schema_version == 1 and .entries[0].provenance == "Static-Checked"
   and .entries[0].proof_ladder == [{proof_file:"src/Proof.idr"}]' \
   "$work/reports with spaces/run.json" >/dev/null || fail 'static report overclaims or loses proof files'
-[[ "$(wc -l < "$LANE_CALLS")" -eq 17 ]] || fail 'clean run did not dispatch all required lanes'
+[[ "$(wc -l < "$LANE_CALLS")" -eq 18 ]] || fail 'clean run did not dispatch all required lanes'
 echo 'PASS: clean runner executes all lanes and emits an honest report at a path with spaces'
 
 # Zig lane with NO src/interface/ffi (an archetype pruned it, e.g. rust-cli).
@@ -60,7 +61,7 @@ echo 'PASS: clean runner executes all lanes and emits an honest report at a path
 grep -qF 'NOT APPLICABLE: not applicable: src/interface/ffi absent (pruned by archetype)' "$work/out" \
   || fail 'pruned ffi did not report the Zig lane as not applicable'
 grep -qF '1 not applicable' "$work/out" || fail 'not-applicable lane was not counted in the summary'
-grep -qF '17 passed, 0 failed, 0 setup/inert, 1 not applicable' "$work/out" \
+grep -qF '18 passed, 0 failed, 0 setup/inert, 1 not applicable' "$work/out" \
   || fail 'not-applicable lane was folded into the pass count'
 grep -qF 'ALL APPLICABLE LANES PASSED (1 lane(s) not applicable and NOT verified)' "$work/out" \
   || fail 'a run with a not-applicable lane claimed ALL LANES PASSED'
@@ -114,6 +115,20 @@ for gate in check-workflow-edges.sh check-hypatia-ignore.sh check-hypatia-rule-o
   mv "$work/saved-lane" "$work/tree/scripts/$gate"
 done
 echo 'PASS: all three new governance lanes dispatch once, propagate failures, and require their scripts'
+
+# The action-pinning self-test (31 cases, one mutant per hole) is a lane of this
+# suite, not only a step of estate-rules.yml: dispatched once, its failure folds
+# into the runner outcome, and its absence is a setup error, never a silent skip.
+pin=check_action_pinning_test.sh
+run 0 "$runner"
+[[ "$(grep -cFx "$pin" "$LANE_CALLS")" -eq 1 ]] || fail "$pin must run exactly once"
+FAIL_GATE="$pin" run 1 "$runner"
+grep -qF 'SUBJECT FAILURE (1 failing lane(s))' "$work/err" || fail "$pin failure was not folded"
+mv "$work/tree/tests/workflows/$pin" "$work/saved-lane"
+run 2 "$runner"
+grep -qF "missing required gate script: tests/workflows/$pin" "$work/err" || fail "$pin absence was silent"
+mv "$work/saved-lane" "$work/tree/tests/workflows/$pin"
+echo 'PASS: the action-pinning self-test lane dispatches once, folds failure, and is required'
 
 cat > "$work/bin/idris2" <<'SH'
 #!/usr/bin/env bash
