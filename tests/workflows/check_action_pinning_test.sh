@@ -426,6 +426,27 @@ expect "mutant: whole workflow in flow form after the --- marker" 1 "$d"
 d=$(case_dir); printf '# SPDX-License-Identifier: MPL-2.0\n---\njobs:\n  a:\n    steps:\n      - uses: actions/checkout@%s\n---\n        uses: hello\n...\n---\nenv:\n  uses: hello\n' "$SHA40" > "$d/.github/workflows/a.yml"
 expect "control: document markers end the jobs block" 0 "$d"
 
+d=$(case_dir); workflow "$d" a.yml "      - name: \"Run
+          uses: evil/act@v1 here\"
+        run: echo hi
+      - uses: actions/checkout@$SHA40"
+expect "control: double-quoted step name runs onto a second line that reads as uses" 0 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - name: \"Run
+          out\"
+        uses: evil/act@v1"
+expect "mutant: uses after a multi-line double-quoted name is still checked" 1 "$d"
+
+d=$(case_dir); workflow "$d" a.yml "      - name: 'Run
+          it''s - uses: evil/act@v1'
+      - uses: actions/checkout@$SHA40"
+expect "control: single-quoted step name over two lines, doubled apostrophe" 0 "$d"
+
+d=$(case_dir)
+apos=$(head -c 200000 /dev/zero | tr '\0' "'")
+printf "# SPDX-License-Identifier: MPL-2.0\njobs:\n  a:\n    steps:\n      - name: 'x%sx'\n      - uses: actions/checkout@%s\n" "$apos" "$SHA40" > "$d/.github/workflows/a.yml"
+expect "control: 200k doubled apostrophes in a name do not overflow the stack" 0 "$d"
+
 echo
 echo "check-action-pinning: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]
