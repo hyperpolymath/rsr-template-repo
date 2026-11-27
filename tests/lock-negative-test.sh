@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # lock-negative-test.sh — a hand-edited actions.lock MUST fail the gate.
 # Builds a throwaway repo, checks the clean lock passes, then applies each

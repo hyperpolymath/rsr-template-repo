@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MPL-2.0
+# Copyright (c) 2026 Jonathan D.A. Jewell (hyperpolymath) <j.d.a.jewell@open.ac.uk>
 #
 # lock-census.sh — reproduce the two estate lock counts, read-only.
 #   1. distinct contents (sha256) of every scripts/check-lock-sync.sh
