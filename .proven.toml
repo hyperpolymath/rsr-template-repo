@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MPL-2.0
+# Manifest for the proven umbrella gate (.github/workflows/proven.yml).
+# Schema: proven/manifest/v1. Fail-closed: every category needs a command, a
+# written N/A reason, or an unexpired waiver.
+schema = "proven/manifest/v1"
+
+[categories.unit]
+command = "bash tests/run_proven_suite_test.sh"
+
+[categories.smoke]
+command = "bash tests/shape/check_root_shape_test.sh"
+
+[categories.build]
+na = "template repository: the Idris2 ABI and Zig FFI build only after `just repo-init` fills the template tokens"
+
+[categories.p2p]
+na = "template scaffold with no inter-component seam of its own; instantiated repos declare theirs"
+
+[bench.template]
+command = "bash tests/workflows/template_bench.sh"
+baselining = true
