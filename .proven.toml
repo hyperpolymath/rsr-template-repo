@@ -9,10 +9,10 @@
 schema = "proven/manifest/v1"
 
 [categories.unit]
-command = "for t in tests/shape/*_test.sh tests/invisible-characters-test.sh; do bash \"$t\" || exit 1; done"
+command = "n=0; for t in tests/shape/*_test.sh tests/invisible-characters-test.sh; do bash \"$t\" || exit 1; n=$((n+1)); done; echo \"$n tests passed\""
 
 [categories.smoke]
-command = "bash tests/shape/check_root_shape_test.sh"
+command = "bash tests/shape/check_root_shape_test.sh && echo \"1 test passed\""
 
 [categories.build]
 na = "template repository: the Idris2 ABI and Zig FFI build only after `just repo-init` fills the template tokens"
