@@ -96,6 +96,17 @@ else
 # concrete version and checksum of each) on `mise install`; commit it to pin them.'
 fi
 
+# The header says `just doctor` agrees with the table only where the repository's
+# doctor is the provisioning one. A repo minted before provision.just has a doctor
+# that never reads mise.toml; telling its readers otherwise is a false statement.
+if grep -qsE '^doctor:[[:space:]]*provision::doctor' "$ROOT/Justfile"; then
+    DOCTOR_NOTE='so this file and `just doctor` cannot
+# disagree.'
+else
+    DOCTOR_NOTE='so this file and the provisioning checks cannot
+# disagree.'
+fi
+
 render() {
     echo "# SPDX-License-Identifier: MPL-2.0"
     [[ -z "$COPYRIGHT" ]] || printf '%s\n' "$COPYRIGHT"
@@ -103,8 +114,7 @@ render() {
 #
 # The toolchain for this repository (${LANGS}). Rendered at mint by
 # scripts/render-mise.sh from the languages the tree declares; the language→tool
-# table is build/just/provision-lib.sh's, so this file and \`just doctor\` cannot
-# disagree. ${LOCK_NOTE}
+# table is build/just/provision-lib.sh's, ${DOCTOR_NOTE} ${LOCK_NOTE}
 # Canon: hyperpolymath/standards 3-practice/provisioning (TRUST-DEFAULTS §toolchain).
 # Estate policy: no python, node/npm/yarn, make or nix here. JavaScript runs
 # Bun > Deno > pnpm from one package.json (LANGUAGE-POLICY §1.4).
